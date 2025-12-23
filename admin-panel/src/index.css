@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Opcional: Estilo base limpio */
+body {
+  @apply bg-gray-50 text-gray-900;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
