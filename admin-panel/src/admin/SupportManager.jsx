@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, ShieldAlert, RefreshCw, QrCode, Power } from 'lucide-react';
 import QRCode from "react-qr-code";
-import { useSocket } from '../hooks/useSocket'; // ✅ Importamos el hook de socket
+import { useSocket } from '../hooks/useSocket';
 
-// API URL (reutiliza la lógica de entorno)
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 
 export default function SupportManager({ token }) {
     const [status, setStatus] = useState({ connected: false, myNumber: null });
     const [qr, setQr] = useState(null);
     const [loading, setLoading] = useState(false);
+    
+    // Referencia para manejar el intervalo de polling
+    const pollInterval = useRef(null);
 
-    // ✅ Obtenemos la instancia del socket
     const socket = useSocket();
 
     const authFetch = async (endpoint, options = {}) => {
@@ -29,67 +30,96 @@ export default function SupportManager({ token }) {
     const checkStatus = async () => {
         try {
             const res = await authFetch('/admin/support/status');
-            const data = await res.json();
-            setStatus({ connected: data.connected, myNumber: data.myNumber });
+            if (res.ok) {
+                const data = await res.json();
+                setStatus({ connected: data.connected, myNumber: data.myNumber });
 
-            if (data.connected) {
-                setQr(null);
-                setLoading(false);
+                if (data.connected) {
+                    setQr(null);
+                    setLoading(false);
+                    stopPolling(); // Si ya conectó, detenemos búsquedas
+                }
             }
-        } catch (e) { console.error("Error checking support status:", e); }
+        } catch (e) { console.error("Error checking status:", e); }
     };
 
-    // ✅ EFECTO: Escuchar eventos de WebSocket (Con Rooms)
-    useEffect(() => {
-        checkStatus(); // Carga inicial
+    // Función auxiliar para detener el polling
+    const stopPolling = () => {
+        if (pollInterval.current) {
+            clearInterval(pollInterval.current);
+            pollInterval.current = null;
+        }
+    };
 
-        // 1. Unirse a la sala de soporte
-        // El backend ahora requiere estar en la sala '__SYSTEM_SUPPORT__' para recibir estos eventos
+    // ✅ EFECTO: Sockets + Polling de Seguridad
+    useEffect(() => {
+        checkStatus();
+
         if (socket) {
-            // console.log("🔌 Uniéndose a sala de soporte: __SYSTEM_SUPPORT__");
             socket.emit('join_room', '__SYSTEM_SUPPORT__');
         }
 
-        // 2. Manejar eventos
         const handleEvent = (payload) => {
-            // Filtramos solo eventos del sistema de soporte
             if (payload.locationId === '__SYSTEM_SUPPORT__') {
-
-                // A. Llegada de QR
                 if (payload.type === 'qr') {
                     setQr(payload.data);
-                    setLoading(false); // Ya llegó el QR, quitamos spinner
+                    setLoading(false);
                 }
-
-                // B. Cambio de Conexión (Conectado o Desconectado)
                 if (payload.type === 'connection') {
-                    checkStatus(); // Refrescamos la info completa (número, etc)
+                    checkStatus();
                     if (payload.status === 'open') {
                         setQr(null);
                         setLoading(false);
+                        stopPolling();
                     }
                 }
             }
         };
 
-        if (socket) {
-            socket.on('wa_event', handleEvent);
-        }
+        if (socket) socket.on('wa_event', handleEvent);
 
         return () => {
-            if (socket) {
-                socket.off('wa_event', handleEvent);
-                // No es necesario salirse explícitamente, pero dejamos de escuchar
-            }
+            if (socket) socket.off('wa_event', handleEvent);
+            stopPolling();
         };
     }, [socket]);
 
     const handleConnect = async () => {
-        setLoading(true); // Ponemos spinner mientras el backend inicia
+        setLoading(true);
         setQr(null);
+        
         try {
-            await authFetch('/admin/support/start', { method: 'POST' });
-            // Ya no activamos polling, esperamos el evento 'wa_event' con el QR
+            // 1. Iniciar proceso en backend
+            const res = await authFetch('/admin/support/start', { method: 'POST' });
+            if (!res.ok) throw new Error("Fallo al iniciar");
+
+            // 2. Activar Polling de Respaldo (Por si el socket falla)
+            // Preguntamos cada 2 segundos si ya hay QR
+            stopPolling(); // Limpiar anteriores por si acaso
+            pollInterval.current = setInterval(async () => {
+                try {
+                    const qrRes = await authFetch('/admin/support/qr');
+                    if (qrRes.ok) {
+                        const data = await qrRes.json();
+                        if (data.qr) {
+                            setQr(data.qr);
+                            setLoading(false);
+                            // No detenemos el polling aún, por si el QR cambia, 
+                            // pero el socket debería tomar el relevo.
+                        }
+                    }
+                    // También verificamos si ya se conectó
+                    const statusRes = await authFetch('/admin/support/status');
+                    const statusData = await statusRes.json();
+                    if (statusData.connected) {
+                        setStatus(statusData);
+                        setQr(null);
+                        setLoading(false);
+                        stopPolling();
+                    }
+                } catch (e) { console.error("Polling error", e); }
+            }, 2000);
+
         } catch (e) {
             alert("Error iniciando conexión");
             setLoading(false);
@@ -97,12 +127,13 @@ export default function SupportManager({ token }) {
     };
 
     const handleDisconnect = async () => {
-        if (!confirm("¿Desconectar el número de soporte? Dejarás de recibir alertas.")) return;
+        if (!confirm("¿Desconectar soporte?")) return;
         setLoading(true);
         try {
             await authFetch('/admin/support/disconnect', { method: 'DELETE' });
             setStatus({ connected: false, myNumber: null });
             setQr(null);
+            stopPolling();
         } catch (e) { alert("Error desconectando"); }
         setLoading(false);
     };
@@ -110,8 +141,6 @@ export default function SupportManager({ token }) {
     return (
         <div className="bg-white dark:bg-gray-900 border border-indigo-100 dark:border-gray-800 rounded-xl p-6 shadow-sm mb-8 transition-colors">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-
-                {/* Info */}
                 <div className="flex items-center gap-4">
                     <div className={`p-3 rounded-full ${status.connected ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'}`}>
                         {status.connected ? <ShieldCheck size={28} /> : <ShieldAlert size={28} />}
@@ -126,9 +155,7 @@ export default function SupportManager({ token }) {
                     </div>
                 </div>
 
-                {/* Acciones */}
                 <div className="flex items-center gap-4">
-                    {/* Si está desconectado y NO hay QR visible */}
                     {!status.connected && !qr && (
                         <button
                             onClick={handleConnect}
@@ -140,7 +167,6 @@ export default function SupportManager({ token }) {
                         </button>
                     )}
 
-                    {/* Si está conectado */}
                     {status.connected && (
                         <button
                             onClick={handleDisconnect}
@@ -154,7 +180,7 @@ export default function SupportManager({ token }) {
                 </div>
             </div>
 
-            {/* Panel de QR Desplegable (Automático) */}
+            {/* Panel de QR Desplegable */}
             {!status.connected && (qr || loading) && (
                 <div className="mt-6 border-t border-gray-100 dark:border-gray-800 pt-6 flex flex-col items-center animate-in fade-in slide-in-from-top-4">
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 font-medium">
@@ -173,7 +199,7 @@ export default function SupportManager({ token }) {
                     </div>
 
                     <button
-                        onClick={() => { setQr(null); setLoading(false); }}
+                        onClick={() => { setQr(null); setLoading(false); stopPolling(); }}
                         className="mt-4 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 underline"
                     >
                         Cancelar
