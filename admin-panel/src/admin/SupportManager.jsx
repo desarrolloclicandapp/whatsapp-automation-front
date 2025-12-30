@@ -3,7 +3,7 @@ import { ShieldCheck, ShieldAlert, RefreshCw, QrCode, Power } from 'lucide-react
 import QRCode from "react-qr-code";
 import { useSocket } from '../hooks/useSocket';
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 export default function SupportManager({ token }) {
     const [status, setStatus] = useState({ connected: false, myNumber: null });

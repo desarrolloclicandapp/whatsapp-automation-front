@@ -4,7 +4,7 @@ import {
     CreditCard, FileText, Layers, PlusCircle, ExternalLink, Crown, AlertCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 // --- CONFIGURACIÓN DE ADD-ONS (IDs REALES) ---
 const ADDONS = {

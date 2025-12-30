@@ -8,7 +8,7 @@ import {
     ArrowLeft, LogOut
 } from 'lucide-react';
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 export default function AdminDashboard({ token, onLogout }) {
     const [view, setView] = useState('agencies');

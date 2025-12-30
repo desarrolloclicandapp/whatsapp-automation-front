@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange }) {
     const [slots, setSlots] = useState([]);

@@ -12,7 +12,7 @@ import {
     User, Users, Moon, Sun, Mail, Hash
 } from 'lucide-react';
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const INSTALL_APP_URL = import.meta.env.INSTALL_APP_URL || "https://gestion.clicandapp.com/integration/691623d58a49cdcb2c56ce9c";
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "595984756159";
 
