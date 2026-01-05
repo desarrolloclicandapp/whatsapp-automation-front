@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { Smartphone, ArrowRight, CheckCircle2, User, Mail, Lock, Loader2, ShieldCheck, ArrowLeft, Globe, Zap } from 'lucide-react';
 import { toast } from 'sonner';
-import { useBranding } from '../context/BrandingContext'; // ✅ Conectado al Branding Context
+import { useBranding } from '../context/BrandingContext'; 
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 export default function WelcomeAuth({ onLoginSuccess }) {
-    const { branding } = useBranding(); // ✅ Leemos la configuración de marca (WaFloW o Personalizada)
+    // ✅ CLAVE: Usamos DEFAULT_BRANDING para forzar la marca WaFloW en el Login
+    // Ignoramos la personalización 'branding' aquí para que el login siempre sea "oficial".
+    const { DEFAULT_BRANDING } = useBranding(); 
+    const branding = DEFAULT_BRANDING; 
+
     const [authMode, setAuthMode] = useState('USER'); 
     const [step, setStep] = useState('PHONE'); 
     
@@ -24,9 +28,8 @@ export default function WelcomeAuth({ onLoginSuccess }) {
     const [loading, setLoading] = useState(false);
     const [tempToken, setTempToken] = useState(null);
 
-    // --- LÓGICA DE CONEXIÓN (Sin cambios, solo la UI se adapta) ---
+    // --- LÓGICA DE AUTH ---
 
-    // 1. TELÉFONO
     const requestPhoneOtp = async (e) => {
         e.preventDefault();
         if (phone.length < 8) return toast.error("Número muy corto");
@@ -70,14 +73,12 @@ export default function WelcomeAuth({ onLoginSuccess }) {
         setLoading(false);
     };
 
-    // 2. NOMBRE
     const submitName = (e) => {
         e.preventDefault();
         if (name.trim().length < 3) return toast.error("Escribe un nombre válido");
         setStep('EMAIL');
     };
 
-    // 3. EMAIL
     const requestEmailOtp = async (e) => {
         e.preventDefault();
         if (!email.includes('@') || !email.includes('.')) return toast.error("Email inválido");
@@ -97,7 +98,6 @@ export default function WelcomeAuth({ onLoginSuccess }) {
         setLoading(false);
     };
 
-    // 4. VERIFICAR EMAIL Y FINALIZAR
     const verifyEmailOtpAndFinish = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -127,7 +127,6 @@ export default function WelcomeAuth({ onLoginSuccess }) {
         setLoading(false);
     };
 
-    // ADMIN LOGIN
     const handleAdminLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -148,16 +147,16 @@ export default function WelcomeAuth({ onLoginSuccess }) {
     return (
         <div className="min-h-screen flex font-sans transition-colors relative" style={{backgroundColor: branding.backgroundColor}}>
             
-            {/* --- PANEL IZQUIERDO (VISUAL IDENTITY) --- */}
+            {/* --- PANEL IZQUIERDO (VISUAL IDENTITY WaFloW.ai) --- */}
             <div className="hidden lg:flex w-1/2 relative overflow-hidden transition-all duration-1000">
                 
-                {/* Imagen de Fondo (Definida en BrandingContext) */}
+                {/* Imagen de Fondo */}
                 <div 
                     className="absolute inset-0 bg-cover bg-center transition-all duration-1000 transform scale-105"
                     style={{ backgroundImage: `url(${branding.loginImage})` }}
                 ></div>
 
-                {/* Overlay con Gradiente de Marca (Sapphire Blue -> Cyan Green) */}
+                {/* Overlay con Gradiente de Marca */}
                 <div className="absolute inset-0" style={{
                     background: `linear-gradient(135deg, ${branding.primaryColor}CC 0%, ${branding.backgroundColor}E6 50%, ${branding.accentColor}40 100%)`,
                     mixBlendMode: 'multiply'
@@ -176,14 +175,14 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                         {authMode === 'ADMIN' ? "Centro de Comando" : branding.slogan}
                     </h1>
                     
-                    {/* Descripción de Marca */}
+                    {/* Voz de Marca */}
                     <p className="text-lg text-white/90 max-w-lg leading-relaxed font-light mb-10">
                         {authMode === 'ADMIN' 
                             ? "Gestión global de infraestructura y clientes." 
                             : "Tecnología humana para flujos inteligentes. Estabilidad, velocidad y escalabilidad para tu WhatsApp."}
                     </p>
 
-                    {/* Core Values (Estilo Chips) */}
+                    {/* Core Values */}
                     <div className="flex gap-3 text-xs font-bold uppercase tracking-widest text-white">
                         <span className="px-4 py-2 rounded-full text-[#001F3F] shadow-[0_0_15px_rgba(255,255,255,0.3)]" style={{backgroundColor: branding.accentColor}}>Speed</span>
                         <span className="px-4 py-2 rounded-full bg-white/10 backdrop-blur border border-white/20">Scalability</span>
@@ -245,8 +244,6 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                             <span className="absolute left-4 top-4 text-gray-400 font-mono text-lg">+</span>
                                             <input type="tel" placeholder="595981..." className="w-full pl-10 p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white text-lg tracking-wide outline-none focus:ring-2 transition-all" style={{'--tw-ring-color': branding.accentColor}} value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g,''))} required />
                                         </div>
-                                        
-                                        {/* Botón con Gradiente WaFloW (Cyan -> Blue) */}
                                         <button disabled={loading || phone.length < 8} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl active:scale-95 flex justify-center items-center gap-2" 
                                             style={{
                                                 background: `linear-gradient(to right, ${branding.primaryColor}, ${branding.accentColor})`,

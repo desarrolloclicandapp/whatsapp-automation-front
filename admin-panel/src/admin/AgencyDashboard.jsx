@@ -5,14 +5,14 @@ import SubscriptionManager from './SubscriptionManager';
 import SubscriptionModal from './SubscriptionModal'; 
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
-import { useBranding } from '../context/BrandingContext'; // ✅ Importamos el contexto de marca
+import { useBranding } from '../context/BrandingContext'; 
 
 import {
     LayoutGrid, CreditCard, LifeBuoy, LogOut,
     Plus, Search, Building2, Smartphone, RefreshCw,
-    ExternalLink, Menu, ChevronRight, CheckCircle2,
+    ExternalLink, Menu, CheckCircle2,
     AlertTriangle, TrendingUp, ShieldCheck, Settings, Trash2,
-    User, Users, Moon, Sun, Mail, Hash, Palette, Image as ImageIcon, RotateCcw
+    User, Users, Moon, Sun, Mail, Hash, Palette, Upload, RotateCcw
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -20,7 +20,7 @@ const INSTALL_APP_URL = import.meta.env.INSTALL_APP_URL || "https://gestion.clic
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "595984756159";
 
 export default function AgencyDashboard({ token, onLogout }) {
-    // ✅ Hook de Branding para Marca Blanca
+    // Hook de Branding para Marca Blanca
     const { branding, updateBranding, resetBranding, DEFAULT_BRANDING } = useBranding();
 
     const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));
@@ -137,7 +137,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             localStorage.setItem("agencyId", data.newAgencyId);
             setStoredAgencyId(data.newAgencyId);
             
-            // Recargar para ver la nueva location
             refreshData();
             toast.success('¡Instalación completada!', { id: toastId });
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -158,7 +157,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     useEffect(() => {
         if (AGENCY_ID) {
             refreshData();
-            const interval = setInterval(refreshData, 30000); // Polling cada 30s
+            const interval = setInterval(refreshData, 30000); 
             return () => clearInterval(interval);
         }
     }, [AGENCY_ID]);
@@ -181,9 +180,45 @@ export default function AgencyDashboard({ token, onLogout }) {
         loc.location_id?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // --- COMPONENTE DE CONFIGURACIÓN DE MARCA (WHITE LABEL) ---
+    // --- COMPONENTE DE MARCA BLANCA (CON UPLOADER) ---
     const WhiteLabelSettings = () => {
         const [form, setForm] = useState(branding);
+        const [uploading, setUploading] = useState(false);
+
+        // Función para manejar la subida de archivos
+        const handleFileUpload = async (e, field) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            setUploading(true);
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                // Usamos fetch directo para poder enviar FormData (no JSON)
+                const res = await fetch(`${API_URL}/agency/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                        // No Content-Type, el navegador lo pone automático
+                    },
+                    body: formData
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    setForm(prev => ({ ...prev, [field]: data.url }));
+                    toast.success("Imagen subida correctamente");
+                } else {
+                    throw new Error(data.error || "Error al subir");
+                }
+            } catch (err) {
+                console.error(err);
+                toast.error("Fallo al subir imagen");
+            } finally {
+                setUploading(false);
+            }
+        };
 
         const handleSave = (e) => {
             e.preventDefault();
@@ -192,7 +227,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         };
 
         const handleReset = () => {
-            if(confirm("¿Restaurar la marca original de WaFloW.ai?")) {
+            if(confirm("¿Restaurar la marca original?")) {
                 resetBranding();
                 setForm(DEFAULT_BRANDING);
                 toast.success("Marca restaurada");
@@ -206,7 +241,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                             <Palette size={24} style={{color: branding.primaryColor}} /> Marca Blanca
                         </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Personaliza el panel con tu propia identidad visual.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Sube tus logos y personaliza el panel.</p>
                     </div>
                     <div className="flex gap-2">
                         <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-indigo-50 text-indigo-600 border-indigo-100">
@@ -231,25 +266,49 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     </div>
 
-                    {/* Sección Gráficos */}
+                    {/* Sección Gráficos (CON UPLOADER) */}
                     <div className="space-y-4">
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Gráficos</h4>
+                        
+                        {/* LOGO UPLOAD */}
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo URL (Cuadrado/PNG)</label>
-                            <div className="flex gap-4 items-center">
-                                <div className="w-14 h-14 rounded-xl border border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden shrink-0 shadow-sm">
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo (Cuadrado/PNG)</label>
+                            <div className="flex gap-4 items-start">
+                                <div className="w-20 h-20 rounded-xl border border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden shrink-0 shadow-sm relative group">
                                     <img src={form.logoUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display='none'} />
+                                    {uploading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><RefreshCw className="animate-spin text-white" size={20}/></div>}
                                 </div>
-                                <input type="url" value={form.logoUrl} onChange={e => setForm({...form, logoUrl: e.target.value})} className="flex-1 p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" style={{'--tw-ring-color': branding.primaryColor}} placeholder="https://..." />
+                                <div className="flex-1 space-y-2">
+                                    <div className="flex gap-2">
+                                        <label className="cursor-pointer bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2">
+                                            <Upload size={16} /> Subir Imagen
+                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'logoUrl')} disabled={uploading} />
+                                        </label>
+                                        <input type="text" value={form.logoUrl} onChange={e => setForm({...form, logoUrl: e.target.value})} className="flex-1 p-2 text-xs rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none text-gray-500" placeholder="O pega una URL..." />
+                                    </div>
+                                    <p className="text-xs text-gray-400">Recomendado: 512x512px PNG transparente.</p>
+                                </div>
                             </div>
                         </div>
+
+                        {/* BACKGROUND UPLOAD */}
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Fondo Login URL</label>
-                            <div className="flex gap-4 items-center">
-                                <div className="w-14 h-14 rounded-xl border border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden shrink-0 shadow-sm">
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Fondo Login</label>
+                            <div className="flex gap-4 items-start">
+                                <div className="w-32 h-20 rounded-xl border border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden shrink-0 shadow-sm relative">
                                     <img src={form.loginImage} alt="Preview" className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
+                                    {uploading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><RefreshCw className="animate-spin text-white" size={20}/></div>}
                                 </div>
-                                <input type="url" value={form.loginImage} onChange={e => setForm({...form, loginImage: e.target.value})} className="flex-1 p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" style={{'--tw-ring-color': branding.primaryColor}} placeholder="https://..." />
+                                <div className="flex-1 space-y-2">
+                                    <div className="flex gap-2">
+                                        <label className="cursor-pointer bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2">
+                                            <Upload size={16} /> Subir Imagen
+                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'loginImage')} disabled={uploading} />
+                                        </label>
+                                        <input type="text" value={form.loginImage} onChange={e => setForm({...form, loginImage: e.target.value})} className="flex-1 p-2 text-xs rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none text-gray-500" placeholder="O pega una URL..." />
+                                    </div>
+                                    <p className="text-xs text-gray-400">Recomendado: 1920x1080px JPG alta calidad.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -259,14 +318,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Colores</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Primario (Botones/Links)</label>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Primario</label>
                                 <div className="flex items-center gap-3">
                                     <input type="color" value={form.primaryColor} onChange={e => setForm({...form, primaryColor: e.target.value})} className="h-10 w-10 rounded-lg cursor-pointer border-0 shadow-sm" />
                                     <input type="text" value={form.primaryColor} readOnly className="flex-1 p-2 rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 font-mono text-sm uppercase" />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Acento (Detalles)</label>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Acento</label>
                                 <div className="flex items-center gap-3">
                                     <input type="color" value={form.accentColor} onChange={e => setForm({...form, accentColor: e.target.value})} className="h-10 w-10 rounded-lg cursor-pointer border-0 shadow-sm" />
                                     <input type="text" value={form.accentColor} readOnly className="flex-1 p-2 rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 font-mono text-sm uppercase" />
@@ -276,8 +335,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                     </div>
 
                     <div className="pt-6 flex items-center gap-4 border-t border-gray-100 dark:border-gray-800">
-                        <button type="submit" className="text-white px-6 py-3 rounded-xl font-bold transition shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2" style={{backgroundColor: branding.primaryColor}}>
-                            <CheckCircle2 size={18} /> Guardar Cambios
+                        <button type="submit" disabled={uploading} className="text-white px-6 py-3 rounded-xl font-bold transition shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2" style={{backgroundColor: branding.primaryColor}}>
+                            <CheckCircle2 size={18} /> {uploading ? 'Subiendo...' : 'Guardar Cambios'}
                         </button>
                         <button type="button" onClick={handleReset} className="text-gray-500 hover:text-red-500 font-medium text-sm transition flex items-center gap-2 px-4">
                             <RotateCcw size={16} /> Restaurar Defaults
@@ -288,60 +347,11 @@ export default function AgencyDashboard({ token, onLogout }) {
         );
     };
 
-    // --- VISTA DE BIENVENIDA (SIN AGENCIA) ---
-    if (!AGENCY_ID && !isAutoSyncing) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 p-6">
-                <div className="text-center max-w-md w-full">
-                    <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl" style={{backgroundColor: branding.primaryColor}}>
-                        <Building2 className="text-white" size={40} />
-                    </div>
-                    <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-3">Bienvenido a {branding.name}</h2>
-                    <p className="text-gray-500 mb-8">Conecta tu cuenta de GoHighLevel para comenzar.</p>
-                    <button onClick={handleInstallApp} className="w-full text-white py-3.5 rounded-xl font-bold transition flex items-center justify-center gap-2 hover:opacity-90 shadow-lg" style={{backgroundColor: branding.primaryColor}}>
-                        Conectar Agencia <ExternalLink size={18} />
-                    </button>
-                    <button onClick={onLogout} className="mt-6 text-sm text-gray-400 hover:text-red-500">Cerrar Sesión</button>
-                </div>
-            </div>
-        );
-    }
-
-    if (isAutoSyncing) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900"><div className="animate-spin w-12 h-12 border-4 border-t-transparent rounded-full" style={{borderColor: branding.primaryColor}}></div></div>;
-
-    const SidebarItem = ({ id, icon: Icon, label }) => (
-        <button
-            onClick={() => setActiveTab(id)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm mb-1
-                ${activeTab === id
-                    ? 'font-bold'
-                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200'
-                }`}
-            style={activeTab === id ? { color: branding.primaryColor, backgroundColor: branding.primaryColor + '15' } : {}}
-        >
-            <Icon size={20} />
-            {sidebarOpen && <span>{label}</span>}
-        </button>
-    );
-
-    const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
-        <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-start justify-between">
-            <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">{title}</p>
-                <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">{value}</h3>
-                {subtext && <p className="text-[10px] text-gray-400 mt-1">{subtext}</p>}
-            </div>
-            <div className={`p-2.5 rounded-xl ${color}`}>
-                <Icon size={22} className="text-white" />
-            </div>
-        </div>
-    );
-
     // --- RENDER PRINCIPAL ---
     return (
         <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
 
-            {/* 🔥 MODAL DE BLOQUEO (Plan Vencido) */}
+            {/* Modal de Bloqueo */}
             {isAccountSuspended && (
                 <div style={{ position: 'fixed', zIndex: 9999, inset: 0, backgroundColor: 'rgba(0,0,0,0.8)' }} className="flex items-center justify-center backdrop-blur-sm">
                     <div className="w-full max-w-5xl h-[90vh]">
@@ -350,24 +360,20 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </div>
             )}
 
-            {/* 1. SIDEBAR */}
+            {/* SIDEBAR */}
             <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex flex-col z-30`}>
                 <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden" style={{backgroundColor: branding.primaryColor}}>
-                        {/* Logo Dinámico */}
                         <img src={branding.logoUrl} alt="Logo" className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
-                        {/* Fallback si la imagen falla */}
-                        <span className="absolute">{!branding.logoUrl && "W"}</span>
                     </div>
-                    {/* Nombre Dinámico */}
                     {sidebarOpen && <span className="ml-3 font-bold text-gray-900 dark:text-white tracking-tight truncate">{branding.name}</span>}
                 </div>
 
                 <div className="flex-1 p-4 overflow-y-auto">
                     <p className={`text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>Gestión</p>
-                    <SidebarItem id="overview" icon={LayoutGrid} label="Panel Principal" />
-                    <SidebarItem id="billing" icon={CreditCard} label="Suscripción" />
-                    <SidebarItem id="settings" icon={Settings} label="Configuración" />
+                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="overview" icon={LayoutGrid} label="Panel Principal" branding={branding} sidebarOpen={sidebarOpen} />
+                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="billing" icon={CreditCard} label="Suscripción" branding={branding} sidebarOpen={sidebarOpen} />
+                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="settings" icon={Settings} label="Configuración" branding={branding} sidebarOpen={sidebarOpen} />
 
                     <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
 
@@ -386,10 +392,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </div>
             </aside>
 
-            {/* 2. AREA DE CONTENIDO */}
+            {/* CONTENIDO PRINCIPAL */}
             <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F8FAFC] dark:bg-[#0f1117]">
-
-                {/* TOP HEADER */}
                 <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 z-20">
                     <div className="flex items-center gap-4">
                         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500">
@@ -399,19 +403,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                             {activeTab === 'overview' ? 'Panel Principal' : activeTab === 'billing' ? 'Gestión de Suscripción' : 'Configuración'}
                         </h2>
                     </div>
-
                     <div className="flex items-center gap-4">
                         <ThemeToggle />
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{backgroundColor: branding.primaryColor}}>
-                            AG
-                        </div>
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{backgroundColor: branding.primaryColor}}>AG</div>
                     </div>
                 </header>
 
-                {/* SCROLLABLE MAIN */}
                 <main className="flex-1 overflow-y-auto p-6 md:p-8">
-
-                    {/* --- VISTA 1: OVERVIEW --- */}
+                    {/* VISTA 1: OVERVIEW */}
                     {activeTab === 'overview' && accountInfo && (
                         <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -471,11 +470,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     )}
 
-                    {/* --- VISTA 2: SETTINGS (Con Marca Blanca) --- */}
+                    {/* VISTA 2: SETTINGS (Con Marca Blanca) */}
                     {activeTab === 'settings' && (
                         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4">
-                            
-                            {/* Tarjeta Perfil */}
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2"><User size={20} /> Información de la Cuenta</h3>
                                 <div className="space-y-6">
@@ -486,13 +483,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
-                            {/* ✅ TARJETA DE MARCA BLANCA */}
+                            {/* TARJETA DE MARCA BLANCA */}
                             <WhiteLabelSettings />
 
-                            {/* Tarjeta Seguridad */}
                             <SecurityCard token={token} />
 
-                            {/* Tarjeta Apariencia */}
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-center justify-between">
                                 <div><h4 className="text-sm font-bold text-gray-900 dark:text-white">Modo Oscuro</h4><p className="text-xs text-gray-500 mt-1">Alternar tema.</p></div>
                                 <button onClick={toggleTheme} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 transition text-gray-600 dark:text-gray-300">{theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}</button>
@@ -500,7 +495,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     )}
 
-                    {/* --- VISTA 3: BILLING --- */}
+                    {/* VISTA 3: BILLING */}
                     {activeTab === 'billing' && <SubscriptionManager token={token} accountInfo={accountInfo} onDataChange={refreshData} />}
                 </main>
             </div>
@@ -520,9 +515,32 @@ export default function AgencyDashboard({ token, onLogout }) {
     );
 }
 
-// ... (SecurityCard y otros subcomponentes se mantienen igual, solo asegúrate de que SecurityCard esté definido al final del archivo como antes) ...
+// Sidebar Helper
+const SidebarItem = ({ id, icon: Icon, label, activeTab, setActiveTab, branding, sidebarOpen }) => (
+    <button
+        onClick={() => setActiveTab(id)}
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm mb-1
+            ${activeTab === id ? 'font-bold' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}
+        `}
+        style={activeTab === id ? { color: branding.primaryColor, backgroundColor: branding.primaryColor + '15' } : {}}
+    >
+        <Icon size={20} />
+        {sidebarOpen && <span>{label}</span>}
+    </button>
+);
 
-// 🔐 COMPONENTE SECURITY CARD (CAMBIO DE CONTRASEÑA)
+const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
+    <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-start justify-between">
+        <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">{title}</p>
+            <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">{value}</h3>
+            {subtext && <p className="text-[10px] text-gray-400 mt-1">{subtext}</p>}
+        </div>
+        <div className={`p-2.5 rounded-xl ${color}`}><Icon size={22} className="text-white" /></div>
+    </div>
+);
+
+// 🔐 COMPONENTE SECURITY CARD
 const SecurityCard = ({ token }) => {
     const [passData, setPassData] = useState({ current: '', new: '', confirm: '' });
     const [loading, setLoading] = useState(false);
