@@ -176,17 +176,24 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
-    // --- EFECTOS DE INICIO ---
+// --- EFECTOS DE INICIO ---
     useEffect(() => {
-        const newInstallId = queryParams.get("new_install");
-        if (newInstallId && !isAutoSyncing) autoSyncAgency(newInstallId);
+        // 🔥 CAMBIO PARA PRODUCCIÓN:
+        // GHL envía automáticamente 'location_id' cuando abres el iframe.
+        // 'new_install' lo dejamos solo por si necesitas hacer pruebas manuales.
+        const targetLocationId = queryParams.get("location_id") || queryParams.get("new_install");
+
+        // Si detectamos un ID en la URL, iniciamos la sincronización automática
+        if (targetLocationId && !isAutoSyncing) {
+            console.log("🔗 Detectado contexto de GHL/Instalación:", targetLocationId);
+            autoSyncAgency(targetLocationId);
+        }
 
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             setUserEmail(payload.email);
         } catch (e) { }
     }, []);
-
     useEffect(() => {
         if (AGENCY_ID) {
             refreshData();
