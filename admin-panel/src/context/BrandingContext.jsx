@@ -8,7 +8,7 @@ const BrandingContext = createContext();
 const DEFAULT_BRANDING = {
     name: "WaFloW.ai",
     // Usamos un placeholder generado que coincide con el estilo "W" del PDF
-    logoUrl: `${API_URL}/storage/WaFlowLogoColor192x192_1767643449031.png`, 
+    logoUrl: `${API_URL}/storage/WaFlowLogoColor256x256_1767643459561.png`, 
     primaryColor: "#0055FF", // Sapphire Blue (Brand Color)
     accentColor: "#00FFCC",  // Cyan Green (Innovation Accent)
     slogan: "Automatiza. Conecta. Fluye.",
