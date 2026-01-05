@@ -6,7 +6,7 @@ const BrandingContext = createContext();
 const DEFAULT_BRANDING = {
     name: "WaFloW.ai",
     // Usamos un placeholder generado que coincide con el estilo "W" del PDF
-    logoUrl: "https://placehold.co/100x100/0055FF/FFFFFF?text=W&font=montserrat", 
+    logoUrl: "https://drive.google.com/file/d/1Y_xBdO2VaASGpS99BqAq-DmIbNTi61m8/view?usp=sharing", 
     primaryColor: "#0055FF", // Sapphire Blue (Brand Color)
     accentColor: "#00FFCC",  // Cyan Green (Innovation Accent)
     slogan: "Automatiza. Conecta. Fluye.",
