@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import LocationDetailsModal from './LocationDetailsModal';
 import SubscriptionManager from './SubscriptionManager';
+// ✅ IMPORTANTE: Importamos el Modal para usarlo en el bloqueo
+import SubscriptionModal from './SubscriptionModal'; 
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
 import {
@@ -36,6 +38,9 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [searchTerm, setSearchTerm] = useState("");
     const [userEmail, setUserEmail] = useState("");
 
+    // ✅ NUEVO ESTADO: Bloqueo de cuenta
+    const [isAccountSuspended, setIsAccountSuspended] = useState(false);
+
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
             ...options,
@@ -46,8 +51,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
         });
 
-        // ✅ CORRECCIÓN 1: Manejo de 403 (Token Expirado)
-        // Si el token es inválido o expiró, cerramos sesión inmediatamente
         if (res.status === 401 || res.status === 403) {
             onLogout();
             throw new Error("Sesión expirada");
@@ -58,7 +61,8 @@ export default function AgencyDashboard({ token, onLogout }) {
     // --- FUNCIONES DE CARGA ---
     const refreshData = async () => {
         if (!AGENCY_ID) { setLoading(false); return; }
-        setLoading(true);
+        // No ponemos setLoading(true) aquí para que el polling sea silencioso
+        if (!accountInfo) setLoading(true); 
 
         try {
             const [locRes, accRes] = await Promise.all([
@@ -70,9 +74,32 @@ export default function AgencyDashboard({ token, onLogout }) {
                 const data = await locRes.json();
                 if (Array.isArray(data)) setLocations(data);
             }
+            
             if (accRes.ok) {
                 const data = await accRes.json();
                 setAccountInfo(data);
+
+                // 🔥 LÓGICA DE BLOQUEO Y DETECCIÓN DE VENCIMIENTO 🔥
+                // 1. Si el backend ya dice "suspended"
+                if (data.plan === 'suspended') {
+                    setIsAccountSuspended(true);
+                    console.log("🔒 Cuenta suspendida por backend.");
+                } 
+                // 2. Si es trial y la fecha ya pasó (Doble check frontend)
+                else if (data.plan === 'trial' && data.trial_ends) {
+                    const now = new Date();
+                    const end = new Date(data.trial_ends);
+                    if (end < now) {
+                        setIsAccountSuspended(true);
+                        console.log("🔒 Cuenta bloqueada por vencimiento de Trial.");
+                    } else {
+                        // Si renovó o extendió, quitamos el bloqueo
+                        setIsAccountSuspended(false);
+                    }
+                } else {
+                    // Plan activo normal
+                    setIsAccountSuspended(false);
+                }
             }
         } catch (error) {
             console.error("Error refrescando datos", error);
@@ -82,24 +109,19 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     const autoSyncAgency = async (locationId) => {
-        setIsAutoSyncing(true); // Activa la pantalla de carga completa
+        setIsAutoSyncing(true); 
         const toastId = toast.loading('Finalizando instalación...', {
             description: 'Vinculando tu cuenta de GoHighLevel...'
         });
 
         try {
-            // ✅ CORRECCIÓN 2: Reintentos Inteligentes (Polling para Sync)
-            // Esperamos a que el webhook del backend termine de guardar el tenant
             let data;
             let attempts = 0;
-            const maxAttempts = 10; // Intentaremos por 20 segundos (10 x 2s)
+            const maxAttempts = 10; 
 
             while (attempts < maxAttempts) {
                 try {
-                    // Esperamos 2 segundos entre intentos
                     await new Promise(r => setTimeout(r, 2000));
-
-                    // Intentamos vincular (el backend verificará si el tenant ya existe)
                     const res = await authFetch(`/agency/sync-ghl`, {
                         method: "POST",
                         body: JSON.stringify({ locationIdToVerify: locationId })
@@ -107,10 +129,9 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                     if (res.ok) {
                         data = await res.json();
-                        break; // ¡Éxito! Salimos del bucle
+                        break; 
                     }
 
-                    // Si responde 404, significa que el webhook aun no termina. Seguimos intentando.
                     if (res.status === 404) {
                         console.log(`⏳ Intento ${attempts + 1}: Webhook aún procesando...`);
                         attempts++;
@@ -118,7 +139,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         throw new Error("Error de servidor");
                     }
                 } catch (e) {
-                    attempts++; // Errores de red, seguimos intentando
+                    attempts++; 
                 }
             }
 
@@ -126,14 +147,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                 throw new Error("El tiempo de espera de instalación se agotó. Por favor actualiza la página.");
             }
 
-            // --- INSTALACIÓN EXITOSA ---
-
-            // Guardamos la nueva agencia
             localStorage.setItem("agencyId", data.newAgencyId);
             setStoredAgencyId(data.newAgencyId);
 
-            // 3. POLLING FINAL (Verificar visibilidad en lista)
-            // Aunque ya vinculamos, esperamos a que aparezca en el endpoint de locations
             let found = false;
             let retriesLoc = 0;
             const maxRetriesLoc = 5;
@@ -153,7 +169,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                 retriesLoc++;
             }
 
-            // 4. Resultado final
             if (found) {
                 toast.success('¡Instalación completada!', { id: toastId, description: 'La subcuenta está lista.' });
             } else {
@@ -164,7 +179,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                 });
             }
 
-            // Limpiamos la URL y recargamos todo
             window.history.replaceState({}, document.title, window.location.pathname);
             if (data.newAgencyId) refreshData();
 
@@ -176,14 +190,10 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
-// --- EFECTOS DE INICIO ---
+    // --- EFECTOS DE INICIO ---
     useEffect(() => {
-        // 🔥 CAMBIO PARA PRODUCCIÓN:
-        // GHL envía automáticamente 'location_id' cuando abres el iframe.
-        // 'new_install' lo dejamos solo por si necesitas hacer pruebas manuales.
         const targetLocationId = queryParams.get("location_id") || queryParams.get("new_install");
 
-        // Si detectamos un ID en la URL, iniciamos la sincronización automática
         if (targetLocationId && !isAutoSyncing) {
             console.log("🔗 Detectado contexto de GHL/Instalación:", targetLocationId);
             autoSyncAgency(targetLocationId);
@@ -194,9 +204,20 @@ export default function AgencyDashboard({ token, onLogout }) {
             setUserEmail(payload.email);
         } catch (e) { }
     }, []);
+
+    // ✅ EFECTO DE POLLING Y CARGA INICIAL
     useEffect(() => {
         if (AGENCY_ID) {
             refreshData();
+
+            // Configurar intervalo para verificar vencimiento cada 60s
+            // Esto forzará el modal si el plan vence mientras el usuario está logueado
+            const interval = setInterval(() => {
+                console.log("⏰ Verificando estado de cuenta...");
+                refreshData();
+            }, 60000);
+
+            return () => clearInterval(interval);
         }
     }, [AGENCY_ID]);
 
@@ -288,6 +309,18 @@ export default function AgencyDashboard({ token, onLogout }) {
     // --- RENDER PRINCIPAL ---
     return (
         <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
+
+            {/* 🔥 MODAL DE BLOQUEO (Se renderiza por encima de todo si la cuenta está suspendida) */}
+            {isAccountSuspended && (
+                <div style={{ position: 'fixed', zIndex: 9999, inset: 0 }}>
+                    <SubscriptionModal 
+                        token={token} 
+                        accountInfo={accountInfo}
+                        onClose={() => {}} // Bloqueamos el cierre
+                        blocking={true}    // Activamos modo bloqueo
+                    />
+                </div>
+            )}
 
             {/* 1. SIDEBAR */}
             <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex flex-col z-30`}>
