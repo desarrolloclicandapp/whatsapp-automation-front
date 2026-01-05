@@ -17,7 +17,7 @@ const ADDONS = {
     SLOT_UNIT_VIP: 'price_1SfK827Mhd9qo6A89iZ68SRi'  // 3€ (VIP)
 };
 
-export default function SubscriptionModal({ onClose, token, accountInfo }) {
+export default function SubscriptionModal({ onClose, token, accountInfo, blocking = false }) {
     const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'payment_methods' | 'invoices'
     const [loading, setLoading] = useState(false);
 
@@ -93,8 +93,16 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
 
     // --- RENDER ---
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-gray-900 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[90vh] border border-gray-200 dark:border-gray-800">
+        <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/${blocking ? '90' : '70'} backdrop-blur-sm p-4 animate-in fade-in duration-200`}>
+            <div className="bg-white dark:bg-gray-900 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[90vh] border border-gray-200 dark:border-gray-800 relative">
+
+                 {/* 🔥 BLOQUEO DE SEGURIDAD */}
+                 {blocking && (
+                    <div className="absolute inset-0 z-50 bg-white/50 dark:bg-black/50 flex flex-col items-center justify-center text-center p-4 backdrop-blur-[2px] pointer-events-none" style={{display: 'none'}}>
+                       {/* Layer invisible para bloquear clicks si quisieras,
+                           pero mejor quitamos el botón X directamente abajo */}
+                    </div>
+                )}
 
                 {/* HEADER + TABS */}
                 <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 sticky top-0 z-10">
@@ -104,15 +112,24 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                                 <Layers size={24} />
                             </div>
                             <div>
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Gestión de Suscripción</h2>
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                                    {blocking ? "⚠️ Suscripción Vencida" : "Gestión de Suscripción"}
+                                </h2>
                                 <p className="text-xs text-gray-500">
-                                    Nivel Actual: <span className={`font-bold ${hasVolumeDiscount ? 'text-purple-600' : 'text-gray-600'}`}>{hasVolumeDiscount ? "VIP (Precios con Descuento)" : "Estándar"}</span>
+                                    {blocking ? "Actualiza tu plan para reactivar el servicio." : (
+                                        <>
+                                            Nivel Actual: <span className={`font-bold ${hasVolumeDiscount ? 'text-purple-600' : 'text-gray-600'}`}>{hasVolumeDiscount ? "VIP (Precios con Descuento)" : "Estándar"}</span>
+                                        </>
+                                    )}
                                 </p>
                             </div>
                         </div>
-                        <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-500">
-                            <X size={20} />
-                        </button>
+                        {!blocking && (
+                            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-500">
+                                <X size={20} />
+                            </button>
+                        )}
+                        {blocking && <span className="text-2xl" title="Bloqueado por falta de pago">🔒</span>}
                     </div>
 
                     <div className="flex px-8 gap-8 overflow-x-auto no-scrollbar">
