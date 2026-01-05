@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+
 const BrandingContext = createContext();
 
 // 🎨 CONFIGURACIÓN POR DEFECTO (WaFloW.ai Identity del PDF)
 const DEFAULT_BRANDING = {
     name: "WaFloW.ai",
     // Usamos un placeholder generado que coincide con el estilo "W" del PDF
-    logoUrl: "https://drive.google.com/file/d/1Y_xBdO2VaASGpS99BqAq-DmIbNTi61m8/view?usp=sharing", 
+    logoUrl: `${API_URL}/storage/WaFlowLogoColor256x256_1767639281998.png`, 
     primaryColor: "#0055FF", // Sapphire Blue (Brand Color)
     accentColor: "#00FFCC",  // Cyan Green (Innovation Accent)
     slogan: "Automatiza. Conecta. Fluye.",
