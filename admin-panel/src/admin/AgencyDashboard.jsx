@@ -10,7 +10,7 @@ import { useBranding } from '../context/BrandingContext';
 import {
     LayoutGrid, CreditCard, LifeBuoy, LogOut,
     Plus, Search, Building2, Smartphone, RefreshCw,
-    ExternalLink, Menu, CheckCircle2,
+    ExternalLink, Menu, CheckCircle2, ChevronRight, 
     AlertTriangle, TrendingUp, ShieldCheck, Settings, Trash2,
     User, Users, Moon, Sun, Mail, Hash, Palette, Upload, RotateCcw
 } from 'lucide-react';
