@@ -80,20 +80,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                 setAccountInfo(data);
 
                 // 🔥 LÓGICA DE BLOQUEO Y DETECCIÓN DE VENCIMIENTO 🔥
+                const planStatus = (data.plan || '').toLowerCase(); // Normalizar a minúsculas
+                
                 // 1. Si el backend ya dice "suspended"
-                if (data.plan === 'suspended') {
+                if (planStatus === 'suspended' || planStatus === 'cancelled' || planStatus === 'past_due') {
                     setIsAccountSuspended(true);
-                    console.log("🔒 Cuenta suspendida por backend.");
+                    console.warn("🔒 Cuenta suspendida por estado del plan:", planStatus);
                 } 
                 // 2. Si es trial y la fecha ya pasó (Doble check frontend)
-                else if (data.plan === 'trial' && data.trial_ends) {
+                else if (planStatus === 'trial' && data.trial_ends) {
                     const now = new Date();
                     const end = new Date(data.trial_ends);
-                    if (end < now) {
+                    
+                    // Verificar que la fecha sea válida antes de comparar
+                    if (!isNaN(end.getTime()) && end < now) {
                         setIsAccountSuspended(true);
-                        console.log("🔒 Cuenta bloqueada por vencimiento de Trial.");
+                        console.warn("🔒 Cuenta bloqueada por vencimiento de Trial. Fin:", end);
                     } else {
-                        // Si renovó o extendió, quitamos el bloqueo
                         setIsAccountSuspended(false);
                     }
                 } else {
@@ -210,12 +213,11 @@ export default function AgencyDashboard({ token, onLogout }) {
         if (AGENCY_ID) {
             refreshData();
 
-            // Configurar intervalo para verificar vencimiento cada 60s
+            // Configurar intervalo para verificar vencimiento cada 30s
             // Esto forzará el modal si el plan vence mientras el usuario está logueado
             const interval = setInterval(() => {
-                console.log("⏰ Verificando estado de cuenta...");
                 refreshData();
-            }, 60000);
+            }, 30000);
 
             return () => clearInterval(interval);
         }
@@ -312,13 +314,19 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             {/* 🔥 MODAL DE BLOQUEO (Se renderiza por encima de todo si la cuenta está suspendida) */}
             {isAccountSuspended && (
-                <div style={{ position: 'fixed', zIndex: 9999, inset: 0 }}>
-                    <SubscriptionModal 
-                        token={token} 
-                        accountInfo={accountInfo}
-                        onClose={() => {}} // Bloqueamos el cierre
-                        blocking={true}    // Activamos modo bloqueo
-                    />
+                <div 
+                    style={{ position: 'fixed', zIndex: 9999, inset: 0, backgroundColor: 'rgba(0,0,0,0.8)' }} 
+                    className="flex items-center justify-center backdrop-blur-sm"
+                >
+                    {/* Renderizamos el modal, pero forzamos que no se pueda cerrar */}
+                    <div className="w-full max-w-5xl h-[90vh]">
+                        <SubscriptionModal 
+                            token={token} 
+                            accountInfo={accountInfo || { limits: { max_subagencies: 0 } }} 
+                            onClose={() => {}} // Bloqueo de cierre
+                            blocking={true}    // Modo bloqueo activado
+                        />
+                    </div>
                 </div>
             )}
 
