@@ -12,7 +12,7 @@ import {
     Plus, Search, Building2, Smartphone, RefreshCw,
     ExternalLink, Menu, CheckCircle2, ChevronRight, 
     AlertTriangle, TrendingUp, ShieldCheck, Settings, Trash2,
-    User, Users, Moon, Sun, Mail, Hash, Palette, RotateCcw, Link
+    User, Users, Moon, Sun, Mail, Hash, Palette, RotateCcw, Link, MousePointer2
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -65,8 +65,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     // --- FUNCIONES DE CARGA ---
     const refreshData = async () => {
         if (!AGENCY_ID) { setLoading(false); return; }
-        // No forzamos loading=true para evitar parpadeos
-
+        
         try {
             const [locRes, accRes] = await Promise.all([
                 authFetch(`/agency/locations?agencyId=${AGENCY_ID}`),
@@ -180,11 +179,11 @@ export default function AgencyDashboard({ token, onLogout }) {
         loc.location_id?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // --- COMPONENTE DE MARCA BLANCA (SIMPLIFICADO) ---
+    // --- COMPONENTE DE MARCA BLANCA (AGENCIA) ---
     const WhiteLabelSettings = () => {
         const [form, setForm] = useState(branding || DEFAULT_BRANDING);
 
-        // Sincronizar si el contexto cambia (ej: reset)
+        // Sincronizar si el contexto cambia
         useEffect(() => {
             if(branding) setForm(branding);
         }, [branding]);
@@ -224,23 +223,25 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </div>
 
                 <form onSubmit={handleSave} className="space-y-8">
-                    {/* Sección Identidad - SOLO NOMBRE */}
+                    {/* Identidad */}
                     <div className="space-y-4">
-                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Identidad</h4>
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Identidad</h4>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre de Agencia</label>
                             <input type="text" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" style={{'--tw-ring-color': branding.primaryColor}} />
                         </div>
                     </div>
 
-                    {/* Sección Gráficos - SOLO URL LOGO */}
+                    {/* Gráficos (Solo URLs) */}
                     <div className="space-y-4">
-                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Gráficos</h4>
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Gráficos</h4>
+                        
+                        {/* Logo URL */}
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo URL (Cuadrado)</label>
                             <div className="flex gap-4 items-center">
                                 {/* Previsualización */}
-                                <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
+                                <div className="w-14 h-14 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
                                     <img src={form.logoUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display='none'} />
                                 </div>
                                 {/* Input URL */}
@@ -252,27 +253,47 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         onChange={e => setForm({...form, logoUrl: e.target.value})} 
                                         className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all text-sm" 
                                         style={{'--tw-ring-color': branding.primaryColor}} 
-                                        placeholder="https://ejemplo.com/milogo.png" 
+                                        placeholder="https://ejemplo.com/logo.png" 
                                     />
                                 </div>
                             </div>
-                            <p className="text-xs text-gray-400 mt-2 ml-20">Pega aquí el enlace directo a tu imagen (PNG/JPG).</p>
+                        </div>
+
+                        {/* ✅ Favicon URL (Nuevo) */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Favicon URL (Pestaña)</label>
+                            <div className="flex gap-4 items-center">
+                                <div className="w-14 h-14 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
+                                    <img src={form.faviconUrl} alt="Preview" className="w-8 h-8 object-contain" onError={(e) => e.target.style.display='none'} />
+                                </div>
+                                <div className="flex-1 relative">
+                                    <MousePointer2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input 
+                                        type="url" 
+                                        value={form.faviconUrl || ''} 
+                                        onChange={e => setForm({...form, faviconUrl: e.target.value})} 
+                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all text-sm" 
+                                        style={{'--tw-ring-color': branding.primaryColor}} 
+                                        placeholder="https://ejemplo.com/icon.png" 
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Sección Colores */}
+                    {/* Colores */}
                     <div className="space-y-4">
-                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Colores</h4>
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Colores</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Primario</label>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Primario</label>
                                 <div className="flex items-center gap-3">
                                     <input type="color" value={form.primaryColor || '#000000'} onChange={e => setForm({...form, primaryColor: e.target.value})} className="h-10 w-10 rounded-lg cursor-pointer border-0 shadow-sm" />
                                     <input type="text" value={form.primaryColor || ''} readOnly className="flex-1 p-2 rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 font-mono text-sm uppercase" />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Acento</label>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Acento</label>
                                 <div className="flex items-center gap-3">
                                     <input type="color" value={form.accentColor || '#000000'} onChange={e => setForm({...form, accentColor: e.target.value})} className="h-10 w-10 rounded-lg cursor-pointer border-0 shadow-sm" />
                                     <input type="text" value={form.accentColor || ''} readOnly className="flex-1 p-2 rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 font-mono text-sm uppercase" />
@@ -301,7 +322,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             {/* Modal de Bloqueo */}
             {isAccountSuspended && (
                 <div style={{ position: 'fixed', zIndex: 9999, inset: 0, backgroundColor: 'rgba(0,0,0,0.8)' }} className="flex items-center justify-center backdrop-blur-sm">
-                    {/* Modal no cerrable */}
                     <div className="w-full max-w-5xl h-[90vh]">
                         <SubscriptionModal 
                             token={token} 
@@ -371,7 +391,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </div>
                         ) : (
                             <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                {/* STAT CARDS */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                                     <StatCard title="Subcuentas" value={`${accountInfo.limits?.used_subagencies || 0} / ${accountInfo.limits?.max_subagencies || 0}`} icon={Building2} color="bg-indigo-500" />
                                     <StatCard title="Conexiones WA" value={`${accountInfo.limits?.used_slots || 0} / ${accountInfo.limits?.max_slots || 0}`} icon={Smartphone} color="bg-emerald-500" />
@@ -430,7 +449,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         )
                     )}
 
-                    {/* VISTA 2: SETTINGS (Con Marca Blanca) */}
+                    {/* VISTA 2: SETTINGS (Con Marca Blanca Limitada) */}
                     {activeTab === 'settings' && (
                         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4">
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
@@ -443,7 +462,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
-                            {/* TARJETA DE MARCA BLANCA */}
+                            {/* TARJETA DE MARCA BLANCA (Limitada) */}
                             <WhiteLabelSettings />
 
                             <SecurityCard token={token} />

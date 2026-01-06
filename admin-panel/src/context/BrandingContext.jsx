@@ -4,26 +4,27 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replac
 
 const BrandingContext = createContext();
 
-// 🎨 CONFIGURACIÓN POR DEFECTO ACTUALIZADA
+// 🎨 CONFIGURACIÓN POR DEFECTO ACTUALIZADA (Con Favicon)
 const DEFAULT_BRANDING = {
     name: "WaFloW.ai",
-    logoUrl: `${API_URL}/storage/WaFlowLogoColor192x192_1767643449031.png`, 
+    logoUrl: `${API_URL}/storage/WaFlowLogoColor192x192_1767643449031.png`,
+    // ✅ Nuevo campo Favicon (Por defecto usamos el mismo logo o uno específico)
+    faviconUrl: `${API_URL}/storage/WaFlowLogoColor192x192_1767643449031.png`, 
+    
     primaryColor: "#0055FF", 
     accentColor: "#00FFCC",  
     slogan: "Automatiza. Conecta. Fluye.",
     loginImage: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop",
     
-    // CAMPOS PARAMETRIZABLES
     description: "Tecnología humana para flujos inteligentes. Estabilidad, velocidad y escalabilidad para tu WhatsApp.",
     loginTitle: "Empieza Ahora",
     loginSubtitle: "Ingresa a la nueva era de la automatización.",
     
-    // ✅ Configuración del Botón CTA (Actualizada con backgroundColor)
     ctaButton: {
         show: false,
         text: "Ver Oferta",
         url: "https://waflow.ai/pricing",
-        backgroundColor: "" // Si está vacío, usa el estilo por defecto (Glass)
+        backgroundColor: "" 
     }
 };
 
@@ -48,7 +49,6 @@ export function BrandingProvider({ children }) {
                         setSystemBranding({ 
                             ...DEFAULT_BRANDING, 
                             ...data,
-                            // Aseguramos que ctaButton tenga todas las props nuevas
                             ctaButton: { ...DEFAULT_BRANDING.ctaButton, ...(data.ctaButton || {}) } 
                         });
                     }
@@ -85,7 +85,23 @@ export function BrandingProvider({ children }) {
         localStorage.removeItem('agencyBranding');
     };
 
+    // Marca activa final (mezcla sistema + agencia)
     const activeBranding = { ...systemBranding, ...agencyBranding };
+
+    // 🔥 EFECTO MÁGICO: Actualizar Favicon y Título del navegador
+    useEffect(() => {
+        // 1. Actualizar Favicon
+        const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+        link.type = 'image/x-icon';
+        link.rel = 'shortcut icon';
+        link.href = activeBranding.faviconUrl || DEFAULT_BRANDING.faviconUrl;
+        document.getElementsByTagName('head')[0].appendChild(link);
+
+        // 2. Actualizar Título de la Pestaña
+        if (activeBranding.name) {
+            document.title = activeBranding.name;
+        }
+    }, [activeBranding]);
 
     return (
         <BrandingContext.Provider value={{ 

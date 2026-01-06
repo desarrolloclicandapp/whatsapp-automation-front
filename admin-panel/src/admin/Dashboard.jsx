@@ -13,8 +13,10 @@ import {
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 export default function AdminDashboard({ token, onLogout }) {
+    // ✅ Hook para gestionar la Marca Global del Sistema
     const { systemBranding, updateSystemBranding, DEFAULT_BRANDING } = useBranding();
-    const [view, setView] = useState('agencies'); 
+
+    const [view, setView] = useState('agencies'); // 'agencies' | 'subaccounts' | 'branding'
     const [selectedAgency, setSelectedAgency] = useState(null);
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [agencies, setAgencies] = useState([]);
@@ -99,10 +101,13 @@ export default function AdminDashboard({ token, onLogout }) {
     const GlobalBrandingSettings = () => {
         const [form, setForm] = useState(systemBranding || DEFAULT_BRANDING);
         const [uploading, setUploading] = useState(false);
+        
+        // Estado para la galería
         const [galleryImages, setGalleryImages] = useState([]);
         const [loadingGallery, setLoadingGallery] = useState(false);
-        const [showGallery, setShowGallery] = useState(false); 
+        const [showGallery, setShowGallery] = useState(false); // 'logo' | 'favicon' | 'background'
 
+        // Cargar imágenes del servidor (Galería)
         const fetchGallery = async () => {
             setLoadingGallery(true);
             try {
@@ -118,6 +123,7 @@ export default function AdminDashboard({ token, onLogout }) {
             }
         };
 
+        // Cargar galería al montar el componente
         useEffect(() => { fetchGallery(); }, []);
 
         const handleFileUpload = async (e, field) => {
@@ -139,7 +145,7 @@ export default function AdminDashboard({ token, onLogout }) {
                 if (res.ok) {
                     setForm(prev => ({ ...prev, [field]: data.url }));
                     toast.success("Imagen subida correctamente 🚀");
-                    fetchGallery(); 
+                    fetchGallery(); // Recargar galería para ver la nueva imagen
                 } else {
                     throw new Error(data.error);
                 }
@@ -152,6 +158,7 @@ export default function AdminDashboard({ token, onLogout }) {
 
         const handleSelectImage = (url) => {
             if (showGallery === 'logo') setForm({ ...form, logoUrl: url });
+            if (showGallery === 'favicon') setForm({ ...form, faviconUrl: url });
             if (showGallery === 'background') setForm({ ...form, loginImage: url });
             setShowGallery(false);
             toast.success("Imagen seleccionada");
@@ -163,7 +170,7 @@ export default function AdminDashboard({ token, onLogout }) {
         };
 
         return (
-            <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4">
+            <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4">
                 <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                     <div className="flex items-center gap-3 mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
                         <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600">
@@ -180,17 +187,19 @@ export default function AdminDashboard({ token, onLogout }) {
                         {/* COLUMNA IZQUIERDA: FORMULARIO */}
                         <div className="space-y-6">
                             
+                            {/* Textos Básicos */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre Plataforma</label>
                                     <input type="text" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Eslogan Login</label>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Slogan Login</label>
                                     <input type="text" value={form.slogan || ''} onChange={e => setForm({...form, slogan: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" />
                                 </div>
                             </div>
 
+                            {/* Textos Avanzados (Login) */}
                             <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
                                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Textos Pantalla Login</h4>
                                 <div>
@@ -209,7 +218,7 @@ export default function AdminDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
-                            {/* CONFIGURACIÓN DEL BOTÓN CTA (CON COLOR) */}
+                            {/* Botón CTA */}
                             <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Botón Promocional (CTA)</h4>
@@ -232,97 +241,76 @@ export default function AdminDashboard({ token, onLogout }) {
                                                 <input type="url" value={form.ctaButton?.url || ''} onChange={e => setForm({...form, ctaButton: {...form.ctaButton, url: e.target.value}})} className="w-full p-2 rounded border dark:bg-gray-900 dark:border-gray-700 text-sm" placeholder="https://..." />
                                             </div>
                                         </div>
-                                        {/* ✅ NUEVO: COLOR DE FONDO DEL BOTÓN */}
+                                        {/* COLOR DE FONDO CTA */}
                                         <div className="col-span-2">
-                                            <label className="block text-xs font-bold mb-1 text-gray-500">Color de Fondo (Opcional)</label>
+                                            <label className="block text-xs font-bold mb-1 text-gray-500">Color Fondo Botón (Opcional)</label>
                                             <div className="flex items-center gap-3">
-                                                <input 
-                                                    type="color" 
-                                                    value={form.ctaButton?.backgroundColor || '#ffffff'} 
-                                                    onChange={e => setForm({...form, ctaButton: {...form.ctaButton, backgroundColor: e.target.value}})} 
-                                                    className="h-9 w-12 rounded cursor-pointer border border-gray-200" 
-                                                />
-                                                <input 
-                                                    type="text" 
-                                                    value={form.ctaButton?.backgroundColor || ''} 
-                                                    onChange={e => setForm({...form, ctaButton: {...form.ctaButton, backgroundColor: e.target.value}})} 
-                                                    className="flex-1 p-2 rounded border dark:bg-gray-900 dark:border-gray-700 text-sm font-mono" 
-                                                    placeholder="#RRGGBB (Vacío para transparente)" 
-                                                />
-                                                {form.ctaButton?.backgroundColor && (
-                                                    <button onClick={() => setForm({...form, ctaButton: {...form.ctaButton, backgroundColor: ""}})} className="text-xs text-red-500 hover:underline">
-                                                        Limpiar
-                                                    </button>
-                                                )}
+                                                <input type="color" value={form.ctaButton?.backgroundColor || '#ffffff'} onChange={e => setForm({...form, ctaButton: {...form.ctaButton, backgroundColor: e.target.value}})} className="h-9 w-12 rounded cursor-pointer border" />
+                                                <input type="text" value={form.ctaButton?.backgroundColor || ''} onChange={e => setForm({...form, ctaButton: {...form.ctaButton, backgroundColor: e.target.value}})} className="flex-1 p-2 rounded border dark:bg-gray-900 dark:border-gray-700 text-sm font-mono" placeholder="Vacío para efecto cristal" />
                                             </div>
-                                            <p className="text-[10px] text-gray-400 mt-1">Si lo dejas vacío, usará el estilo "cristal" por defecto.</p>
                                         </div>
                                     </div>
                                 )}
                             </div>
 
-                            {/* LOGO */}
-                            <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo Principal</label>
-                                <div className="flex gap-4 items-center">
-                                    <div className="w-20 h-20 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 p-2 overflow-hidden">
-                                        <img src={form.logoUrl} className="max-w-full max-h-full object-contain" alt="Logo" onError={(e) => e.target.style.display='none'} />
-                                    </div>
+                            {/* IMÁGENES (Logo, Favicon, Fondo) */}
+                            <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Imágenes</h4>
+                                <div className="grid grid-cols-3 gap-4">
+                                    {/* Logo */}
                                     <div className="flex flex-col gap-2">
-                                        <label className={`cursor-pointer bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-100 transition inline-flex items-center gap-2 justify-center ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                            <Upload size={16} /> {uploading ? 'Subiendo...' : 'Subir Nuevo'}
-                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'logoUrl')} disabled={uploading} />
-                                        </label>
-                                        <button onClick={() => setShowGallery('logo')} className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition inline-flex items-center gap-2 justify-center">
-                                            <ImageIcon size={16} /> Elegir de Galería
-                                        </button>
+                                        <label className="text-xs font-bold text-gray-500">Logo</label>
+                                        <div className="w-full aspect-square border rounded bg-gray-50 flex items-center justify-center p-2"><img src={form.logoUrl} className="max-w-full max-h-full object-contain" alt="Logo" onError={(e) => e.target.style.display='none'} /></div>
+                                        <div className="flex flex-col gap-1 text-xs">
+                                            <label className="cursor-pointer text-indigo-600 font-bold hover:underline">Subir <input type="file" className="hidden" onChange={(e) => handleFileUpload(e, 'logoUrl')} disabled={uploading}/></label>
+                                            <button onClick={() => setShowGallery('logo')} className="text-gray-500 hover:text-gray-900 text-left">Galería</button>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-
-                            {/* FONDO */}
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Fondo Login</label>
-                                <div className="flex gap-4 items-center">
-                                    <div className="w-32 h-20 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden">
-                                        <img src={form.loginImage} className="w-full h-full object-cover" alt="Fondo" onError={(e) => e.target.style.display='none'} />
-                                    </div>
+                                    {/* Favicon */}
                                     <div className="flex flex-col gap-2">
-                                        <label className={`cursor-pointer bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-100 transition inline-flex items-center gap-2 justify-center ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                            <Upload size={16} /> {uploading ? 'Subiendo...' : 'Subir Nuevo'}
-                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'loginImage')} disabled={uploading} />
-                                        </label>
-                                        <button onClick={() => setShowGallery('background')} className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition inline-flex items-center gap-2 justify-center">
-                                            <ImageIcon size={16} /> Elegir de Galería
-                                        </button>
+                                        <label className="text-xs font-bold text-gray-500">Favicon</label>
+                                        <div className="w-full aspect-square border rounded bg-gray-50 flex items-center justify-center p-4"><img src={form.faviconUrl} className="max-w-full max-h-full object-contain" alt="Fav" onError={(e) => e.target.style.display='none'} /></div>
+                                        <div className="flex flex-col gap-1 text-xs">
+                                            <label className="cursor-pointer text-indigo-600 font-bold hover:underline">Subir <input type="file" className="hidden" onChange={(e) => handleFileUpload(e, 'faviconUrl')} disabled={uploading}/></label>
+                                            <button onClick={() => setShowGallery('favicon')} className="text-gray-500 hover:text-gray-900 text-left">Galería</button>
+                                        </div>
+                                    </div>
+                                    {/* Fondo */}
+                                    <div className="flex flex-col gap-2">
+                                        <label className="text-xs font-bold text-gray-500">Fondo</label>
+                                        <div className="w-full aspect-square border rounded bg-gray-50 flex items-center justify-center overflow-hidden"><img src={form.loginImage} className="w-full h-full object-cover" alt="Fondo" onError={(e) => e.target.style.display='none'} /></div>
+                                        <div className="flex flex-col gap-1 text-xs">
+                                            <label className="cursor-pointer text-indigo-600 font-bold hover:underline">Subir <input type="file" className="hidden" onChange={(e) => handleFileUpload(e, 'loginImage')} disabled={uploading}/></label>
+                                            <button onClick={() => setShowGallery('background')} className="text-gray-500 hover:text-gray-900 text-left">Galería</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* COLORES */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-800">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Primario</label>
+                                    <label className="block text-xs font-bold mb-1 text-gray-500">Primario</label>
                                     <div className="flex items-center gap-2">
-                                        <input type="color" value={form.primaryColor} onChange={e => setForm({...form, primaryColor: e.target.value})} className="h-10 w-10 rounded cursor-pointer border-0" />
-                                        <input type="text" value={form.primaryColor} readOnly className="flex-1 p-2 rounded border border-gray-200 dark:border-gray-700 dark:bg-gray-800 font-mono text-sm" />
+                                        <input type="color" value={form.primaryColor} onChange={e => setForm({...form, primaryColor: e.target.value})} className="h-8 w-8 rounded cursor-pointer border" />
+                                        <input type="text" value={form.primaryColor} readOnly className="flex-1 p-1 text-xs border rounded" />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Acento</label>
+                                    <label className="block text-xs font-bold mb-1 text-gray-500">Acento</label>
                                     <div className="flex items-center gap-2">
-                                        <input type="color" value={form.accentColor} onChange={e => setForm({...form, accentColor: e.target.value})} className="h-10 w-10 rounded cursor-pointer border-0" />
-                                        <input type="text" value={form.accentColor} readOnly className="flex-1 p-2 rounded border border-gray-200 dark:border-gray-700 dark:bg-gray-800 font-mono text-sm" />
+                                        <input type="color" value={form.accentColor} onChange={e => setForm({...form, accentColor: e.target.value})} className="h-8 w-8 rounded cursor-pointer border" />
+                                        <input type="text" value={form.accentColor} readOnly className="flex-1 p-1 text-xs border rounded" />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="pt-4 flex justify-end gap-4 border-t border-gray-100 dark:border-gray-800">
+                            <div className="pt-4 flex justify-end gap-4">
                                 <button onClick={() => setForm(DEFAULT_BRANDING)} className="text-gray-500 hover:text-gray-700 flex items-center gap-2 text-sm font-medium px-4">
-                                    <RotateCcw size={16}/> Restaurar Defaults
+                                    <RotateCcw size={16}/> Restaurar
                                 </button>
-                                <button onClick={handleSave} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition">
-                                    <CheckCircle2 size={18}/> Guardar Cambios
+                                <button onClick={handleSave} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg flex items-center gap-2">
+                                    <CheckCircle2 size={18}/> Guardar Global
                                 </button>
                             </div>
                         </div>
@@ -340,11 +328,11 @@ export default function AdminDashboard({ token, onLogout }) {
 
                             {showGallery && (
                                 <div className="mb-4 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-3 py-2 rounded-lg text-xs font-bold text-center border border-indigo-100 dark:border-indigo-800">
-                                    Selecciona una imagen para: {showGallery === 'logo' ? 'EL LOGO' : 'EL FONDO'}
+                                    Selecciona una imagen para: {showGallery.toUpperCase()}
                                 </div>
                             )}
                             
-                            <div className="grid grid-cols-3 gap-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar content-start">
+                            <div className="grid grid-cols-3 gap-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar content-start">
                                 {loadingGallery ? (
                                     <div className="col-span-3 text-center py-10 text-gray-400">Cargando imágenes...</div>
                                 ) : galleryImages.length === 0 ? (
@@ -387,6 +375,7 @@ export default function AdminDashboard({ token, onLogout }) {
             <header className="bg-white dark:bg-gray-900 border-b border-gray-300 dark:border-gray-800 sticky top-0 z-20 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-4">
+                        {/* Botón Atrás (Subcuentas) */}
                         {view === 'subaccounts' && (
                             <button onClick={handleBackToAgencies} className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-600 dark:text-gray-300">
                                 <ArrowLeft size={20} />
