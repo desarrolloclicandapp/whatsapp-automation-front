@@ -12,7 +12,7 @@ import {
     Plus, Search, Building2, Smartphone, RefreshCw,
     ExternalLink, Menu, CheckCircle2, ChevronRight, 
     AlertTriangle, TrendingUp, ShieldCheck, Settings, Trash2,
-    User, Users, Moon, Sun, Mail, Hash, Palette, Upload, RotateCcw
+    User, Users, Moon, Sun, Mail, Hash, Palette, RotateCcw, Link
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -20,10 +20,8 @@ const INSTALL_APP_URL = import.meta.env.INSTALL_APP_URL || "https://gestion.clic
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "595984756159";
 
 export default function AgencyDashboard({ token, onLogout }) {
-    // Protección contra contexto vacío
-    const brandingContext = useBranding();
-    const branding = brandingContext?.branding || brandingContext?.DEFAULT_BRANDING || {};
-    const { updateBranding, resetBranding, DEFAULT_BRANDING } = brandingContext || {};
+    // Hook de Branding
+    const { branding, updateBranding, resetBranding, DEFAULT_BRANDING } = useBranding();
 
     const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));
     const queryParams = new URLSearchParams(window.location.search);
@@ -48,30 +46,26 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [isAccountSuspended, setIsAccountSuspended] = useState(false);
 
     const authFetch = async (endpoint, options = {}) => {
-        try {
-            const res = await fetch(`${API_URL}${endpoint}`, {
-                ...options,
-                headers: {
-                    ...options.headers,
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (res.status === 401 || res.status === 403) {
-                onLogout();
-                throw new Error("Sesión expirada");
+        const res = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                ...options.headers,
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
             }
-            return res;
-        } catch (e) {
-            console.error("AuthFetch error:", e);
-            throw e;
+        });
+
+        if (res.status === 401 || res.status === 403) {
+            onLogout();
+            throw new Error("Sesión expirada");
         }
+        return res;
     };
 
     // --- FUNCIONES DE CARGA ---
     const refreshData = async () => {
         if (!AGENCY_ID) { setLoading(false); return; }
+        // No forzamos loading=true para evitar parpadeos
 
         try {
             const [locRes, accRes] = await Promise.all([
@@ -88,6 +82,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 const data = await accRes.json();
                 setAccountInfo(data);
 
+                // Lógica de Bloqueo
                 const planStatus = (data.plan || '').toLowerCase();
                 
                 if (planStatus === 'suspended' || planStatus === 'cancelled' || planStatus === 'past_due') {
@@ -185,55 +180,25 @@ export default function AgencyDashboard({ token, onLogout }) {
         loc.location_id?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // --- COMPONENTE DE MARCA BLANCA LIMITADO (SOLO LOGO) ---
+    // --- COMPONENTE DE MARCA BLANCA (SIMPLIFICADO) ---
     const WhiteLabelSettings = () => {
         const [form, setForm] = useState(branding || DEFAULT_BRANDING);
-        const [uploading, setUploading] = useState(false);
 
+        // Sincronizar si el contexto cambia (ej: reset)
         useEffect(() => {
             if(branding) setForm(branding);
         }, [branding]);
-
-        const handleFileUpload = async (e, field) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            setUploading(true);
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                const res = await fetch(`${API_URL}/agency/upload`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: formData
-                });
-
-                const data = await res.json();
-                if (res.ok) {
-                    setForm(prev => ({ ...prev, [field]: data.url }));
-                    toast.success("Imagen subida correctamente");
-                } else {
-                    throw new Error(data.error || "Error al subir");
-                }
-            } catch (err) {
-                console.error(err);
-                toast.error("Fallo al subir imagen");
-            } finally {
-                setUploading(false);
-            }
-        };
 
         const handleSave = (e) => {
             e.preventDefault();
             if (updateBranding) {
                 updateBranding(form);
-                toast.success("Marca actualizada correctamente 🎨");
+                toast.success("Marca actualizada 🎨");
             }
         };
 
         const handleReset = () => {
-            if(confirm("¿Restaurar la marca original?")) {
+            if(confirm("¿Restaurar valores por defecto?")) {
                 if (resetBranding) {
                     resetBranding();
                     setForm(DEFAULT_BRANDING);
@@ -244,12 +209,12 @@ export default function AgencyDashboard({ token, onLogout }) {
 
         return (
             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
-                 <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
+                <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
                     <div>
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                             <Palette size={24} style={{color: branding.primaryColor}} /> Marca Blanca
                         </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Sube tus logos y personaliza el panel.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Personaliza el panel con tu identidad.</p>
                     </div>
                     <div className="flex gap-2">
                         <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-indigo-50 text-indigo-600 border-indigo-100">
@@ -259,7 +224,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </div>
 
                 <form onSubmit={handleSave} className="space-y-8">
-                    {/* Identidad - SOLO NOMBRE (Eslogan removido) */}
+                    {/* Sección Identidad - SOLO NOMBRE */}
                     <div className="space-y-4">
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Identidad</h4>
                         <div>
@@ -268,30 +233,34 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     </div>
 
-                    {/* Gráficos - SOLO LOGO (Fondo removido) */}
+                    {/* Sección Gráficos - SOLO URL LOGO */}
                     <div className="space-y-4">
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Gráficos</h4>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo (Cuadrado/PNG)</label>
-                            <div className="flex gap-4 items-start">
-                                <div className="w-20 h-20 rounded-xl border border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden shrink-0 shadow-sm relative group">
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo URL (Cuadrado)</label>
+                            <div className="flex gap-4 items-center">
+                                {/* Previsualización */}
+                                <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
                                     <img src={form.logoUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display='none'} />
-                                    {uploading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><RefreshCw className="animate-spin text-white" size={20}/></div>}
                                 </div>
-                                <div className="flex-1 space-y-2">
-                                    <div className="flex gap-2">
-                                        <label className="cursor-pointer bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2">
-                                            <Upload size={16} /> Subir Imagen
-                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'logoUrl')} disabled={uploading} />
-                                        </label>
-                                        <input type="text" value={form.logoUrl || ''} onChange={e => setForm({...form, logoUrl: e.target.value})} className="flex-1 p-2 text-xs rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none text-gray-500" placeholder="O pega una URL..." />
-                                    </div>
+                                {/* Input URL */}
+                                <div className="flex-1 relative">
+                                    <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input 
+                                        type="url" 
+                                        value={form.logoUrl || ''} 
+                                        onChange={e => setForm({...form, logoUrl: e.target.value})} 
+                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all text-sm" 
+                                        style={{'--tw-ring-color': branding.primaryColor}} 
+                                        placeholder="https://ejemplo.com/milogo.png" 
+                                    />
                                 </div>
                             </div>
+                            <p className="text-xs text-gray-400 mt-2 ml-20">Pega aquí el enlace directo a tu imagen (PNG/JPG).</p>
                         </div>
                     </div>
 
-                    {/* Colores */}
+                    {/* Sección Colores */}
                     <div className="space-y-4">
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Colores</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -313,11 +282,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                     </div>
 
                     <div className="pt-6 flex items-center gap-4 border-t border-gray-100 dark:border-gray-800">
-                        <button type="submit" disabled={uploading} className="text-white px-6 py-3 rounded-xl font-bold transition shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2" style={{backgroundColor: branding.primaryColor}}>
-                            <CheckCircle2 size={18} /> {uploading ? 'Subiendo...' : 'Guardar Cambios'}
+                        <button type="submit" className="text-white px-6 py-3 rounded-xl font-bold transition shadow-lg flex items-center gap-2 hover:-translate-y-0.5" style={{backgroundColor: branding.primaryColor}}>
+                            <CheckCircle2 size={18} /> Guardar Cambios
                         </button>
                         <button type="button" onClick={handleReset} className="text-gray-500 hover:text-red-500 font-medium text-sm transition flex items-center gap-2 px-4">
-                            <RotateCcw size={16} /> Restaurar Defaults
+                            <RotateCcw size={16} /> Restaurar
                         </button>
                     </div>
                 </form>
@@ -332,7 +301,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             {/* Modal de Bloqueo */}
             {isAccountSuspended && (
                 <div style={{ position: 'fixed', zIndex: 9999, inset: 0, backgroundColor: 'rgba(0,0,0,0.8)' }} className="flex items-center justify-center backdrop-blur-sm">
-                    {/* Renderizamos el modal, pero forzamos que no se pueda cerrar */}
+                    {/* Modal no cerrable */}
                     <div className="w-full max-w-5xl h-[90vh]">
                         <SubscriptionModal 
                             token={token} 
@@ -461,7 +430,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         )
                     )}
 
-                    {/* VISTA 2: SETTINGS (Con Marca Blanca Limitada) */}
+                    {/* VISTA 2: SETTINGS (Con Marca Blanca) */}
                     {activeTab === 'settings' && (
                         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4">
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
@@ -474,7 +443,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
-                            {/* TARJETA DE MARCA BLANCA (Limitada) */}
+                            {/* TARJETA DE MARCA BLANCA */}
                             <WhiteLabelSettings />
 
                             <SecurityCard token={token} />
