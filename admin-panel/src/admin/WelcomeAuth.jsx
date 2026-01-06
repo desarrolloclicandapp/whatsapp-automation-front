@@ -192,9 +192,6 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                     ) : (
                         /* Badges por defecto si no hay botón */
                         <div className="flex gap-3 text-xs font-bold uppercase tracking-widest text-white">
-                            <span className="px-4 py-2 rounded-full text-[#001F3F] shadow-[0_0_15px_rgba(255,255,255,0.3)]" style={{backgroundColor: branding.accentColor}}>Speed</span>
-                            <span className="px-4 py-2 rounded-full bg-white/10 backdrop-blur border border-white/20">Scalability</span>
-                            <span className="px-4 py-2 rounded-full bg-white/10 backdrop-blur border border-white/20">Trust</span>
                         </div>
                     )}
                 </div>
