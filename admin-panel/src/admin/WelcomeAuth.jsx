@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
-import { Smartphone, ArrowRight, CheckCircle2, User, Mail, Lock, Loader2, ShieldCheck, ArrowLeft, Globe, Zap } from 'lucide-react';
+import { Smartphone, ArrowRight, CheckCircle2, User, Mail, Lock, Loader2, ShieldCheck, ArrowLeft, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBranding } from '../context/BrandingContext'; 
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 export default function WelcomeAuth({ onLoginSuccess }) {
-    // ✅ CAMBIO: Usamos systemBranding del contexto.
-    // Esto mostrará lo que el Admin configure globalmente.
+    // ✅ Usamos systemBranding: La configuración global definida por el Super Admin
     const { systemBranding } = useBranding(); 
-    const branding = systemBranding;
+    const branding = systemBranding; 
 
     const [authMode, setAuthMode] = useState('USER'); 
     const [step, setStep] = useState('PHONE'); 
@@ -71,12 +70,6 @@ export default function WelcomeAuth({ onLoginSuccess }) {
             }
         } catch (err) { toast.error(err.message); }
         setLoading(false);
-    };
-
-    const submitName = (e) => {
-        e.preventDefault();
-        if (name.trim().length < 3) return toast.error("Escribe un nombre válido");
-        setStep('EMAIL');
     };
 
     const requestEmailOtp = async (e) => {
@@ -145,9 +138,9 @@ export default function WelcomeAuth({ onLoginSuccess }) {
     };
 
     return (
-        <div className="min-h-screen flex font-sans transition-colors relative" style={{backgroundColor: branding.backgroundColor}}>
+        <div className="min-h-screen flex font-sans transition-colors relative" style={{backgroundColor: branding.backgroundColor || '#001F3F'}}>
             
-            {/* --- PANEL IZQUIERDO (VISUAL IDENTITY WaFloW.ai) --- */}
+            {/* --- PANEL IZQUIERDO (Identidad Global del Sistema) --- */}
             <div className="hidden lg:flex w-1/2 relative overflow-hidden transition-all duration-1000">
                 
                 {/* Imagen de Fondo */}
@@ -158,7 +151,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
                 {/* Overlay con Gradiente de Marca */}
                 <div className="absolute inset-0" style={{
-                    background: `linear-gradient(135deg, ${branding.primaryColor}CC 0%, ${branding.backgroundColor}E6 50%, ${branding.accentColor}40 100%)`,
+                    background: `linear-gradient(135deg, ${branding.primaryColor}CC 0%, ${branding.backgroundColor || '#001F3F'}E6 50%, ${branding.accentColor}40 100%)`,
                     mixBlendMode: 'multiply'
                 }}></div>
 
@@ -170,24 +163,37 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                         <img src={branding.logoUrl} alt="Logo" className="w-16 h-16 object-contain filter drop-shadow-lg" onError={(e) => e.target.style.display = 'none'} />
                     </div>
 
-                    {/* Slogan */}
+                    {/* Slogan Dinámico */}
                     <h1 className="text-5xl font-extrabold mb-6 tracking-tight leading-tight drop-shadow-xl font-sans">
-                        {authMode === 'ADMIN' ? "Centro de Comando" : branding.slogan}
+                        {authMode === 'ADMIN' ? "Centro de Comando" : (branding.slogan || "Automatiza. Conecta. Fluye.")}
                     </h1>
                     
-                    {/* Voz de Marca */}
+                    {/* Descripción Dinámica */}
                     <p className="text-lg text-white/90 max-w-lg leading-relaxed font-light mb-10">
                         {authMode === 'ADMIN' 
                             ? "Gestión global de infraestructura y clientes." 
-                            : "Tecnología humana para flujos inteligentes. Estabilidad, velocidad y escalabilidad para tu WhatsApp."}
+                            : (branding.description || "Tecnología humana para flujos inteligentes. Estabilidad, velocidad y escalabilidad para tu WhatsApp.")}
                     </p>
 
-                    {/* Core Values */}
-                    <div className="flex gap-3 text-xs font-bold uppercase tracking-widest text-white">
-                        <span className="px-4 py-2 rounded-full text-[#001F3F] shadow-[0_0_15px_rgba(255,255,255,0.3)]" style={{backgroundColor: branding.accentColor}}>Speed</span>
-                        <span className="px-4 py-2 rounded-full bg-white/10 backdrop-blur border border-white/20">Scalability</span>
-                        <span className="px-4 py-2 rounded-full bg-white/10 backdrop-blur border border-white/20">Trust</span>
-                    </div>
+                    {/* 🔥 BOTÓN CTA (Reemplaza badges si está activo) */}
+                    {branding.ctaButton?.show ? (
+                        <a 
+                            href={branding.ctaButton.url} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="group flex items-center gap-3 bg-white/10 hover:bg-white/20 backdrop-blur border border-white/30 px-8 py-4 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] cursor-pointer"
+                        >
+                            <span className="font-bold text-base tracking-wide text-white">{branding.ctaButton.text}</span>
+                            <ExternalLink size={18} className="text-white group-hover:translate-x-1 transition-transform" />
+                        </a>
+                    ) : (
+                        /* Badges por defecto si no hay botón */
+                        <div className="flex gap-3 text-xs font-bold uppercase tracking-widest text-white">
+                            <span className="px-4 py-2 rounded-full text-[#001F3F] shadow-[0_0_15px_rgba(255,255,255,0.3)]" style={{backgroundColor: branding.accentColor}}>Speed</span>
+                            <span className="px-4 py-2 rounded-full bg-white/10 backdrop-blur border border-white/20">Scalability</span>
+                            <span className="px-4 py-2 rounded-full bg-white/10 backdrop-blur border border-white/20">Trust</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -209,7 +215,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                     {authMode === 'ADMIN' && (
                         <div className="space-y-8">
                             <div className="text-center">
-                                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg" style={{backgroundColor: branding.backgroundColor}}>
+                                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg" style={{backgroundColor: branding.backgroundColor || '#001F3F'}}>
                                     <ShieldCheck size={32} style={{color: branding.accentColor}} />
                                 </div>
                                 <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Panel</h2>
@@ -220,7 +226,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                     <input type="email" placeholder="admin@..." className="w-full p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white outline-none focus:ring-2 transition-all" style={{'--tw-ring-color': branding.primaryColor}} value={adminEmail} onChange={e => setAdminEmail(e.target.value)} required />
                                     <input type="password" placeholder="••••••" className="w-full p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white outline-none focus:ring-2 transition-all" style={{'--tw-ring-color': branding.primaryColor}} value={adminPass} onChange={e => setAdminPass(e.target.value)} required />
                                 </div>
-                                <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg hover:shadow-xl active:scale-95" style={{backgroundColor: branding.backgroundColor}}>
+                                <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg hover:shadow-xl active:scale-95" style={{backgroundColor: branding.backgroundColor || '#001F3F'}}>
                                     {loading ? <Loader2 className="animate-spin mx-auto"/> : "Iniciar Sesión"}
                                 </button>
                             </form>
@@ -233,17 +239,19 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                             {step === 'PHONE' && (
                                 <div className="space-y-8">
                                     <div className="text-center">
-                                        <div className="inline-block p-3 rounded-2xl mb-6 shadow-md" style={{backgroundColor: branding.primaryColor + '15'}}>
+                                        <div className="inline-block p-3 rounded-2xl mb-6 shadow-md" style={{backgroundColor: (branding.primaryColor || '#0055FF') + '15'}}>
                                             <img src={branding.logoUrl} alt="Logo" className="h-10 object-contain" onError={(e) => e.target.style.display='none'} />
                                         </div>
-                                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Empieza Ahora</h2>
-                                        <p className="text-gray-500 mt-2">Ingresa a la nueva era de la automatización.</p>
+                                        {/* TEXTOS DINÁMICOS DE FORMULARIO */}
+                                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{branding.loginTitle || "Empieza Ahora"}</h2>
+                                        <p className="text-gray-500 mt-2">{branding.loginSubtitle || "Ingresa a la nueva era de la automatización."}</p>
                                     </div>
                                     <form onSubmit={requestPhoneOtp} className="space-y-6">
                                         <div className="relative group">
                                             <span className="absolute left-4 top-4 text-gray-400 font-mono text-lg">+</span>
                                             <input type="tel" placeholder="595981..." className="w-full pl-10 p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white text-lg tracking-wide outline-none focus:ring-2 transition-all" style={{'--tw-ring-color': branding.accentColor}} value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g,''))} required />
                                         </div>
+                                        
                                         <button disabled={loading || phone.length < 8} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl active:scale-95 flex justify-center items-center gap-2" 
                                             style={{
                                                 background: `linear-gradient(to right, ${branding.primaryColor}, ${branding.accentColor})`,

@@ -4,37 +4,53 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replac
 
 const BrandingContext = createContext();
 
-// 🎨 BRANDING "HARDCODED" (Respaldo final)
-const FALLBACK_BRANDING = {
+// 🎨 CONFIGURACIÓN POR DEFECTO ACTUALIZADA
+const DEFAULT_BRANDING = {
     name: "WaFloW.ai",
     logoUrl: `${API_URL}/storage/WaFlowLogoColor192x192_1767643449031.png`, 
     primaryColor: "#0055FF", 
     accentColor: "#00FFCC",  
     slogan: "Automatiza. Conecta. Fluye.",
-    loginImage: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop" 
+    loginImage: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop",
+    
+    // ✅ NUEVOS CAMPOS PARAMETRIZABLES
+    description: "Tecnología humana para flujos inteligentes. Estabilidad, velocidad y escalabilidad para tu WhatsApp.",
+    loginTitle: "Empieza Ahora",
+    loginSubtitle: "Ingresa a la nueva era de la automatización.",
+    
+    // Configuración del Botón CTA
+    ctaButton: {
+        show: false, // Por defecto oculto
+        text: "Ver Oferta",
+        url: "https://waflow.ai/pricing"
+    }
 };
 
 export function BrandingProvider({ children }) {
-    // 1. Branding de la Agencia (Usuario logueado)
+    // 1. Branding de la Agencia (Usuario logueado - Panel Interno)
     const [agencyBranding, setAgencyBranding] = useState(() => {
         const saved = localStorage.getItem('agencyBranding');
         return saved ? JSON.parse(saved) : {};
     });
 
-    // 2. Branding del Sistema (Configurado por el Admin para el Login)
-    const [systemBranding, setSystemBranding] = useState(FALLBACK_BRANDING);
+    // 2. Branding del Sistema (Login Global)
+    const [systemBranding, setSystemBranding] = useState(DEFAULT_BRANDING);
 
-    // Cargar Branding del Sistema desde Backend al iniciar
+    // Cargar Branding del Sistema desde Backend
     useEffect(() => {
         const fetchSystemBranding = async () => {
             try {
-                // Nota: Necesitarás crear este endpoint GET /admin/global-branding en tu backend
-                // Si falla, usa el fallback
                 const res = await fetch(`${API_URL}/public/branding`);
                 if (res.ok) {
                     const data = await res.json();
                     if (Object.keys(data).length > 0) {
-                        setSystemBranding({ ...FALLBACK_BRANDING, ...data });
+                        // Mezclamos con default para asegurar que existan los nuevos campos
+                        // si la DB tiene datos viejos.
+                        setSystemBranding({ 
+                            ...DEFAULT_BRANDING, 
+                            ...data,
+                            ctaButton: { ...DEFAULT_BRANDING.ctaButton, ...(data.ctaButton || {}) } 
+                        });
                     }
                 }
             } catch (e) { console.error("Usando branding por defecto"); }
@@ -52,7 +68,6 @@ export function BrandingProvider({ children }) {
         const merged = { ...systemBranding, ...newSettings };
         setSystemBranding(merged);
         
-        // Guardar en Backend (Endpoint sugerido)
         try {
             await fetch(`${API_URL}/admin/global-branding`, {
                 method: 'POST',
@@ -65,24 +80,22 @@ export function BrandingProvider({ children }) {
         } catch(e) { console.error("Error guardando branding global", e); }
     };
 
-    // Resetear solo agencia
-    const resetAgencyBranding = () => {
+    const resetBranding = () => {
         setAgencyBranding({});
         localStorage.removeItem('agencyBranding');
     };
 
-    // Lógica de mezcla: Si hay branding de agencia, gana. Si no, usa sistema.
     const activeBranding = { ...systemBranding, ...agencyBranding };
 
     return (
         <BrandingContext.Provider value={{ 
-            branding: activeBranding, // Lo que ve el usuario dentro del panel
-            systemBranding: systemBranding, // Lo que se ve en el Login (Puro)
-            agencyBranding: agencyBranding, // La capa de personalización
+            branding: activeBranding, 
+            systemBranding: systemBranding, 
+            agencyBranding: agencyBranding, 
             updateBranding: updateAgencyBranding, 
             updateSystemBranding,
-            resetBranding: resetAgencyBranding,
-            DEFAULT_BRANDING: FALLBACK_BRANDING 
+            resetBranding: resetBranding,
+            DEFAULT_BRANDING: DEFAULT_BRANDING 
         }}>
             {children}
         </BrandingContext.Provider>

@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import {
     Settings, Search, Palette, Upload,
     RefreshCw, Building2, Smartphone, CheckCircle2,
-    ArrowLeft, LogOut, RotateCcw, Image as ImageIcon, Trash2
+    ArrowLeft, LogOut, RotateCcw, Image as ImageIcon, Link
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -183,19 +183,67 @@ export default function AdminDashboard({ token, onLogout }) {
                         
                         {/* COLUMNA IZQUIERDA: FORMULARIO */}
                         <div className="space-y-6">
+                            
+                            {/* Textos Básicos */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre Plataforma</label>
                                     <input type="text" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Eslogan Login</label>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Slogan (Izquierda)</label>
                                     <input type="text" value={form.slogan || ''} onChange={e => setForm({...form, slogan: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" />
                                 </div>
                             </div>
 
+                            {/* Textos Avanzados (Login) */}
+                            <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Textos Pantalla Login</h4>
+                                <div>
+                                    <label className="block text-sm font-bold mb-1 dark:text-gray-300">Descripción (Bajada)</label>
+                                    <textarea rows={2} value={form.description || ''} onChange={e => setForm({...form, description: e.target.value})} className="w-full p-2 rounded-lg border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2" placeholder="Tecnología humana para flujos inteligentes..." />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold mb-1 dark:text-gray-300">Título Formulario</label>
+                                        <input type="text" value={form.loginTitle || ''} onChange={e => setForm({...form, loginTitle: e.target.value})} className="w-full p-2 rounded-lg border dark:bg-gray-800 dark:border-gray-700" placeholder="Empieza Ahora" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold mb-1 dark:text-gray-300">Subtítulo Formulario</label>
+                                        <input type="text" value={form.loginSubtitle || ''} onChange={e => setForm({...form, loginSubtitle: e.target.value})} className="w-full p-2 rounded-lg border dark:bg-gray-800 dark:border-gray-700" placeholder="Ingresa a la nueva era..." />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Botón CTA */}
+                            <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Botón Promocional (CTA)</h4>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" className="sr-only peer" checked={form.ctaButton?.show || false} onChange={e => setForm({...form, ctaButton: {...form.ctaButton, show: e.target.checked}})} />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                                        <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">Activar</span>
+                                    </label>
+                                </div>
+                                {form.ctaButton?.show && (
+                                    <div className="grid grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-xl">
+                                        <div>
+                                            <label className="block text-xs font-bold mb-1 text-gray-500">Texto Botón</label>
+                                            <input type="text" value={form.ctaButton?.text || ''} onChange={e => setForm({...form, ctaButton: {...form.ctaButton, text: e.target.value}})} className="w-full p-2 rounded border dark:bg-gray-900 dark:border-gray-700 text-sm" placeholder="Ver Oferta" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold mb-1 text-gray-500">URL Destino</label>
+                                            <div className="flex items-center">
+                                                <Link size={14} className="mr-2 text-gray-400"/>
+                                                <input type="url" value={form.ctaButton?.url || ''} onChange={e => setForm({...form, ctaButton: {...form.ctaButton, url: e.target.value}})} className="w-full p-2 rounded border dark:bg-gray-900 dark:border-gray-700 text-sm" placeholder="https://..." />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* LOGO */}
-                            <div>
+                            <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo Principal</label>
                                 <div className="flex gap-4 items-center">
                                     <div className="w-20 h-20 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 p-2 overflow-hidden">
