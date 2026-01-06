@@ -13,21 +13,22 @@ const DEFAULT_BRANDING = {
     slogan: "Automatiza. Conecta. Fluye.",
     loginImage: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop",
     
-    // ✅ NUEVOS CAMPOS PARAMETRIZABLES
+    // CAMPOS PARAMETRIZABLES
     description: "Tecnología humana para flujos inteligentes. Estabilidad, velocidad y escalabilidad para tu WhatsApp.",
     loginTitle: "Empieza Ahora",
     loginSubtitle: "Ingresa a la nueva era de la automatización.",
     
-    // Configuración del Botón CTA
+    // ✅ Configuración del Botón CTA (Actualizada con backgroundColor)
     ctaButton: {
-        show: false, // Por defecto oculto
+        show: false,
         text: "Ver Oferta",
-        url: "https://waflow.ai/pricing"
+        url: "https://waflow.ai/pricing",
+        backgroundColor: "" // Si está vacío, usa el estilo por defecto (Glass)
     }
 };
 
 export function BrandingProvider({ children }) {
-    // 1. Branding de la Agencia (Usuario logueado - Panel Interno)
+    // 1. Branding de la Agencia (Usuario logueado)
     const [agencyBranding, setAgencyBranding] = useState(() => {
         const saved = localStorage.getItem('agencyBranding');
         return saved ? JSON.parse(saved) : {};
@@ -36,7 +37,7 @@ export function BrandingProvider({ children }) {
     // 2. Branding del Sistema (Login Global)
     const [systemBranding, setSystemBranding] = useState(DEFAULT_BRANDING);
 
-    // Cargar Branding del Sistema desde Backend
+    // Cargar Branding del Sistema
     useEffect(() => {
         const fetchSystemBranding = async () => {
             try {
@@ -44,11 +45,10 @@ export function BrandingProvider({ children }) {
                 if (res.ok) {
                     const data = await res.json();
                     if (Object.keys(data).length > 0) {
-                        // Mezclamos con default para asegurar que existan los nuevos campos
-                        // si la DB tiene datos viejos.
                         setSystemBranding({ 
                             ...DEFAULT_BRANDING, 
                             ...data,
+                            // Aseguramos que ctaButton tenga todas las props nuevas
                             ctaButton: { ...DEFAULT_BRANDING.ctaButton, ...(data.ctaButton || {}) } 
                         });
                     }

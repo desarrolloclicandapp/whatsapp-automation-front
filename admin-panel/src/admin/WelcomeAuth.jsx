@@ -181,7 +181,10 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                             href={branding.ctaButton.url} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="group flex items-center gap-3 bg-white/10 hover:bg-white/20 backdrop-blur border border-white/30 px-8 py-4 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] cursor-pointer"
+                            className="group flex items-center gap-3 px-8 py-4 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] cursor-pointer backdrop-blur border border-white/30"
+                            style={{
+                                backgroundColor: branding.ctaButton.backgroundColor || 'rgba(255, 255, 255, 0.1)'
+                            }}
                         >
                             <span className="font-bold text-base tracking-wide text-white">{branding.ctaButton.text}</span>
                             <ExternalLink size={18} className="text-white group-hover:translate-x-1 transition-transform" />
@@ -189,7 +192,10 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                     ) : (
                         /* Badges por defecto si no hay botón */
                         <div className="flex gap-3 text-xs font-bold uppercase tracking-widest text-white">
-                       </div>
+                            <span className="px-4 py-2 rounded-full text-[#001F3F] shadow-[0_0_15px_rgba(255,255,255,0.3)]" style={{backgroundColor: branding.accentColor}}>Speed</span>
+                            <span className="px-4 py-2 rounded-full bg-white/10 backdrop-blur border border-white/20">Scalability</span>
+                            <span className="px-4 py-2 rounded-full bg-white/10 backdrop-blur border border-white/20">Trust</span>
+                        </div>
                     )}
                 </div>
             </div>
@@ -248,7 +254,6 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                             <span className="absolute left-4 top-4 text-gray-400 font-mono text-lg">+</span>
                                             <input type="tel" placeholder="595981..." className="w-full pl-10 p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white text-lg tracking-wide outline-none focus:ring-2 transition-all" style={{'--tw-ring-color': branding.accentColor}} value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g,''))} required />
                                         </div>
-                                        
                                         <button disabled={loading || phone.length < 8} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl active:scale-95 flex justify-center items-center gap-2" 
                                             style={{
                                                 background: `linear-gradient(to right, ${branding.primaryColor}, ${branding.accentColor})`,

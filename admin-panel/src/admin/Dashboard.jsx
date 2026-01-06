@@ -14,7 +14,7 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replac
 
 export default function AdminDashboard({ token, onLogout }) {
     const { systemBranding, updateSystemBranding, DEFAULT_BRANDING } = useBranding();
-    const [view, setView] = useState('agencies'); // 'agencies' | 'subaccounts' | 'branding'
+    const [view, setView] = useState('agencies'); 
     const [selectedAgency, setSelectedAgency] = useState(null);
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [agencies, setAgencies] = useState([]);
@@ -99,13 +99,10 @@ export default function AdminDashboard({ token, onLogout }) {
     const GlobalBrandingSettings = () => {
         const [form, setForm] = useState(systemBranding || DEFAULT_BRANDING);
         const [uploading, setUploading] = useState(false);
-        
-        // Estado para la galería
         const [galleryImages, setGalleryImages] = useState([]);
         const [loadingGallery, setLoadingGallery] = useState(false);
-        const [showGallery, setShowGallery] = useState(false); // 'logo' | 'background' | false
+        const [showGallery, setShowGallery] = useState(false); 
 
-        // Cargar imágenes del servidor (Galería)
         const fetchGallery = async () => {
             setLoadingGallery(true);
             try {
@@ -121,7 +118,6 @@ export default function AdminDashboard({ token, onLogout }) {
             }
         };
 
-        // Cargar galería al montar
         useEffect(() => { fetchGallery(); }, []);
 
         const handleFileUpload = async (e, field) => {
@@ -143,7 +139,7 @@ export default function AdminDashboard({ token, onLogout }) {
                 if (res.ok) {
                     setForm(prev => ({ ...prev, [field]: data.url }));
                     toast.success("Imagen subida correctamente 🚀");
-                    fetchGallery(); // Recargar galería para ver la nueva imagen
+                    fetchGallery(); 
                 } else {
                     throw new Error(data.error);
                 }
@@ -167,7 +163,7 @@ export default function AdminDashboard({ token, onLogout }) {
         };
 
         return (
-            <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4">
+            <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4">
                 <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                     <div className="flex items-center gap-3 mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
                         <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600">
@@ -184,19 +180,17 @@ export default function AdminDashboard({ token, onLogout }) {
                         {/* COLUMNA IZQUIERDA: FORMULARIO */}
                         <div className="space-y-6">
                             
-                            {/* Textos Básicos */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre Plataforma</label>
                                     <input type="text" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Slogan (Izquierda)</label>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Eslogan Login</label>
                                     <input type="text" value={form.slogan || ''} onChange={e => setForm({...form, slogan: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" />
                                 </div>
                             </div>
 
-                            {/* Textos Avanzados (Login) */}
                             <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
                                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Textos Pantalla Login</h4>
                                 <div>
@@ -215,7 +209,7 @@ export default function AdminDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
-                            {/* Botón CTA */}
+                            {/* CONFIGURACIÓN DEL BOTÓN CTA (CON COLOR) */}
                             <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Botón Promocional (CTA)</h4>
@@ -237,6 +231,31 @@ export default function AdminDashboard({ token, onLogout }) {
                                                 <Link size={14} className="mr-2 text-gray-400"/>
                                                 <input type="url" value={form.ctaButton?.url || ''} onChange={e => setForm({...form, ctaButton: {...form.ctaButton, url: e.target.value}})} className="w-full p-2 rounded border dark:bg-gray-900 dark:border-gray-700 text-sm" placeholder="https://..." />
                                             </div>
+                                        </div>
+                                        {/* ✅ NUEVO: COLOR DE FONDO DEL BOTÓN */}
+                                        <div className="col-span-2">
+                                            <label className="block text-xs font-bold mb-1 text-gray-500">Color de Fondo (Opcional)</label>
+                                            <div className="flex items-center gap-3">
+                                                <input 
+                                                    type="color" 
+                                                    value={form.ctaButton?.backgroundColor || '#ffffff'} 
+                                                    onChange={e => setForm({...form, ctaButton: {...form.ctaButton, backgroundColor: e.target.value}})} 
+                                                    className="h-9 w-12 rounded cursor-pointer border border-gray-200" 
+                                                />
+                                                <input 
+                                                    type="text" 
+                                                    value={form.ctaButton?.backgroundColor || ''} 
+                                                    onChange={e => setForm({...form, ctaButton: {...form.ctaButton, backgroundColor: e.target.value}})} 
+                                                    className="flex-1 p-2 rounded border dark:bg-gray-900 dark:border-gray-700 text-sm font-mono" 
+                                                    placeholder="#RRGGBB (Vacío para transparente)" 
+                                                />
+                                                {form.ctaButton?.backgroundColor && (
+                                                    <button onClick={() => setForm({...form, ctaButton: {...form.ctaButton, backgroundColor: ""}})} className="text-xs text-red-500 hover:underline">
+                                                        Limpiar
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] text-gray-400 mt-1">Si lo dejas vacío, usará el estilo "cristal" por defecto.</p>
                                         </div>
                                     </div>
                                 )}
@@ -308,7 +327,7 @@ export default function AdminDashboard({ token, onLogout }) {
                             </div>
                         </div>
 
-                        {/* COLUMNA DERECHA: GALERÍA (Se activa al hacer clic en "Elegir") */}
+                        {/* COLUMNA DERECHA: GALERÍA */}
                         <div className={`border-l border-gray-100 dark:border-gray-800 pl-0 lg:pl-10 transition-all duration-300 ${!showGallery ? 'hidden lg:block lg:opacity-40 lg:pointer-events-none grayscale' : ''}`}>
                             <div className="flex justify-between items-center mb-4">
                                 <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -368,7 +387,6 @@ export default function AdminDashboard({ token, onLogout }) {
             <header className="bg-white dark:bg-gray-900 border-b border-gray-300 dark:border-gray-800 sticky top-0 z-20 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        {/* Botón Atrás (Subcuentas) */}
                         {view === 'subaccounts' && (
                             <button onClick={handleBackToAgencies} className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-600 dark:text-gray-300">
                                 <ArrowLeft size={20} />
