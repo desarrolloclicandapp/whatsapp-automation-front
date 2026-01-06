@@ -107,41 +107,50 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
     // --- ACCIONES PRINCIPALES ---
 
-    const handleAddSlot = async () => {
-        const loadingId = toast.loading("Creando dispositivo...");
-        try {
-            const res = await authFetch(`/agency/add-slot`, {
-                method: "POST",
-                body: JSON.stringify({ locationId: location.location_id })
-            });
-            const data = await res.json();
-            toast.dismiss(loadingId);
+const handleAddSlot = async () => {
+    const loadingId = toast.loading("Creando dispositivo...");
+    try {
+        const res = await authFetch(`/agency/add-slot`, {
+            method: "POST",
+            body: JSON.stringify({ locationId: location.location_id })
+        });
 
-            if (res.ok) {
-                toast.success("Dispositivo agregado", { description: "Listo para vincular." });
-                loadData();
-                if (onDataChange) onDataChange();
-            } else if (res.status === 403) {
+        // Si authFetch devuelve null es porque hizo logout automático (401/403 real), salimos.
+        if (!res) return;
+
+        const data = await res.json();
+        toast.dismiss(loadingId);
+
+        // 🔥 NUEVA LÓGICA: Verificar 'data.success' aunque el status sea 200
+        if (data.success) {
+            toast.success("Dispositivo agregado", { description: "Listo para vincular." });
+            loadData();
+            if (onDataChange) onDataChange();
+        } else {
+            // Manejo de errores lógicos (Límites, etc.)
+            if (data.requiresUpgrade) {
                 toast.error("Límite Alcanzado", {
-                    description: "Has llegado al máximo de dispositivos de tu plan.",
+                    description: data.error,
                     duration: 6000,
                     icon: <AlertTriangle className="text-amber-500" />,
                     action: {
                         label: 'Ampliar Plan',
                         onClick: () => {
                             onClose();
-                            if (onUpgrade) onUpgrade();
+                            if (onUpgrade) onUpgrade(); // Abre el modal de suscripción
                         }
                     }
                 });
             } else {
-                toast.error("Error", { description: data.error });
+                toast.error("Error", { description: data.error || "No se pudo agregar el dispositivo." });
             }
-        } catch (e) {
-            toast.dismiss(loadingId);
-            toast.error("Error de conexión");
         }
-    };
+    } catch (e) {
+        toast.dismiss(loadingId);
+        toast.error("Error de conexión");
+        console.error(e);
+    }
+};
 
     const handleDeleteSlot = (slotId) => {
         toast("¿Eliminar dispositivo?", {
