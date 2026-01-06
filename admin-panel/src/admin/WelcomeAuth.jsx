@@ -6,10 +6,10 @@ import { useBranding } from '../context/BrandingContext';
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 export default function WelcomeAuth({ onLoginSuccess }) {
-    // ✅ CLAVE: Usamos DEFAULT_BRANDING para forzar la marca WaFloW en el Login
-    // Ignoramos la personalización 'branding' aquí para que el login siempre sea "oficial".
-    const { DEFAULT_BRANDING } = useBranding(); 
-    const branding = DEFAULT_BRANDING; 
+    // ✅ CAMBIO: Usamos systemBranding del contexto.
+    // Esto mostrará lo que el Admin configure globalmente.
+    const { systemBranding } = useBranding(); 
+    const branding = systemBranding;
 
     const [authMode, setAuthMode] = useState('USER'); 
     const [step, setStep] = useState('PHONE'); 
