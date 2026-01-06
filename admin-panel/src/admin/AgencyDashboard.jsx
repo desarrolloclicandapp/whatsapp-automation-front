@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import LocationDetailsModal from './LocationDetailsModal';
 import SubscriptionManager from './SubscriptionManager';
 import SubscriptionModal from './SubscriptionModal'; 
-import SubscriptionBlocker from './SubscriptionBlocker'; // ✅ Nuevo componente de bloqueo
+import SubscriptionBlocker from './SubscriptionBlocker'; // Componente de bloqueo total
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
 import { useBranding } from '../context/BrandingContext'; 
@@ -176,7 +176,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         loc.location_id?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // --- COMPONENTE DE MARCA BLANCA (SÓLO URLS) ---
+    // --- COMPONENTE DE MARCA BLANCA (AGENCIA) ---
     const WhiteLabelSettings = () => {
         const [form, setForm] = useState(branding || DEFAULT_BRANDING);
 
@@ -207,7 +207,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
                     <div>
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Palette size={24} style={{color: branding.primaryColor}} /> Marca Blanca
+                            <Palette size={24} className="text-indigo-600" /> Marca Blanca
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Personaliza el panel con tu identidad.</p>
                     </div>
@@ -224,7 +224,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Identidad</h4>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre de Agencia</label>
-                            <input type="text" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" style={{'--tw-ring-color': branding.primaryColor}} />
+                            <input type="text" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" style={{'--tw-ring-color': branding.primaryColor}} />
                         </div>
                     </div>
 
@@ -297,7 +297,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                     </div>
 
                     <div className="pt-6 flex items-center gap-4 border-t border-gray-100 dark:border-gray-800">
-                        <button type="submit" className="text-white px-6 py-3 rounded-xl font-bold transition shadow-lg flex items-center gap-2 hover:-translate-y-0.5" style={{backgroundColor: branding.primaryColor}}>
+                        {/* Botón Guardar con color fijo del sistema */}
+                        <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg flex items-center gap-2 hover:-translate-y-0.5">
                             <CheckCircle2 size={18} /> Guardar Cambios
                         </button>
                         <button type="button" onClick={handleReset} className="text-gray-500 hover:text-red-500 font-medium text-sm transition flex items-center gap-2 px-4">
@@ -313,7 +314,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     return (
         <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
 
-            {/* 🔥 BLOQUEO TOTAL POR SUSCRIPCIÓN (Reemplaza al anterior modal) */}
+            {/* BLOQUEO TOTAL POR SUSCRIPCIÓN */}
             {isAccountSuspended && (
                 <SubscriptionBlocker 
                     token={token} 
@@ -379,7 +380,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </div>
                         ) : (
                             <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                {/* STAT CARDS */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                                     <StatCard title="Subcuentas" value={`${accountInfo.limits?.used_subagencies || 0} / ${accountInfo.limits?.max_subagencies || 0}`} icon={Building2} color="bg-indigo-500" />
                                     <StatCard title="Conexiones WA" value={`${accountInfo.limits?.used_slots || 0} / ${accountInfo.limits?.max_slots || 0}`} icon={Smartphone} color="bg-emerald-500" />
