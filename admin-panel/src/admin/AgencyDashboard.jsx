@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import LocationDetailsModal from './LocationDetailsModal';
 import SubscriptionManager from './SubscriptionManager';
-import SubscriptionModal from './SubscriptionModal'; 
-import SubscriptionBlocker from './SubscriptionBlocker'; // Componente de bloqueo total
+import SubscriptionModal from './SubscriptionModal'; // ✅ Usaremos esto para el Popup
+import SubscriptionBlocker from './SubscriptionBlocker';
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
 import { useBranding } from '../context/BrandingContext'; 
@@ -21,7 +21,6 @@ const INSTALL_APP_URL = import.meta.env.INSTALL_APP_URL || "https://gestion.clic
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "595984756159";
 
 export default function AgencyDashboard({ token, onLogout }) {
-    // Hook de Branding
     const { branding, updateBranding, resetBranding, DEFAULT_BRANDING } = useBranding();
 
     const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));
@@ -29,11 +28,9 @@ export default function AgencyDashboard({ token, onLogout }) {
     const AGENCY_ID = storedAgencyId || queryParams.get("agencyId");
     const { theme, toggleTheme } = useTheme();
 
-    // Estado de UI
     const [activeTab, setActiveTab] = useState('overview');
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
-    // Datos
     const [locations, setLocations] = useState([]);
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -43,8 +40,10 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [searchTerm, setSearchTerm] = useState("");
     const [userEmail, setUserEmail] = useState("");
 
-    // Bloqueo de cuenta
     const [isAccountSuspended, setIsAccountSuspended] = useState(false);
+    
+    // ✅ Estado para controlar el Popup de Upgrade
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -57,13 +56,14 @@ export default function AgencyDashboard({ token, onLogout }) {
         });
 
         if (res.status === 401 || res.status === 403) {
+            // 🔥 IMPORTANTE: El backend ahora devuelve 200 con success:false para límites.
+            // Si llega un 401/403 real, es porque el token expiró.
             onLogout();
             throw new Error("Sesión expirada");
         }
         return res;
     };
 
-    // --- FUNCIONES DE CARGA ---
     const refreshData = async () => {
         if (!AGENCY_ID) { setLoading(false); return; }
 
@@ -168,14 +168,35 @@ export default function AgencyDashboard({ token, onLogout }) {
         } catch (err) { toast.error("Error", {id: tId}); }
     };
 
-    const handleInstallApp = () => { window.location.href = INSTALL_APP_URL; };
+    // ✅ NUEVA LÓGICA: Validar antes de ir al marketplace
+    const handleInstallApp = async () => { 
+        const tId = toast.loading("Verificando plan...");
+        try {
+            // Consultamos al backend si podemos crear más tenants
+            const res = await authFetch('/agency/validate-limits?type=tenant');
+            const data = await res.json();
+            
+            toast.dismiss(tId);
+
+            if (data.allowed) {
+                // Si está permitido, redirigimos al marketplace
+                window.location.href = INSTALL_APP_URL;
+            } else {
+                // ❌ Si no, mostramos el Popup de Upgrade
+                toast.error("Límite alcanzado", { description: data.reason });
+                setShowUpgradeModal(true);
+            }
+        } catch (e) {
+            toast.dismiss(tId);
+            toast.error("Error verificando límites");
+        }
+    };
 
     const filteredLocations = locations.filter(loc =>
         loc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loc.location_id?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // --- COMPONENTE DE MARCA BLANCA (AGENCIA) ---
     const WhiteLabelSettings = () => {
         const [form, setForm] = useState(branding || DEFAULT_BRANDING);
 
@@ -311,6 +332,16 @@ export default function AgencyDashboard({ token, onLogout }) {
                 />
             )}
 
+            {/* ✅ POPUP DE MEJORA DE PLAN (Para límites de subcuentas o slots) */}
+            {showUpgradeModal && (
+                <SubscriptionModal 
+                    token={token}
+                    accountInfo={accountInfo}
+                    onClose={() => setShowUpgradeModal(false)}
+                    onDataChange={refreshData} // Recargar datos si compra algo
+                />
+            )}
+
             <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex flex-col z-30`}>
                 <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden" style={{backgroundColor: branding.primaryColor}}>
@@ -386,6 +417,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <input type="text" placeholder="Buscar..." className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{'--tw-ring-color': branding.primaryColor}} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                                             </div>
                                             <button onClick={refreshData} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 hover:text-indigo-600 transition"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
+                                            
+                                            {/* ✅ BOTÓN NUEVA SUBCUENTA (Con Validación) */}
                                             <button onClick={handleInstallApp} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{backgroundColor: branding.primaryColor}}><Plus size={18} /> Nueva</button>
                                         </div>
                                     </div>
@@ -456,7 +489,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                     token={token}
                     onLogout={onLogout}
                     onClose={() => setSelectedLocation(null)}
-                    onUpgrade={() => setActiveTab('billing')}
+                    // ✅ PASAMOS EL CALLBACK PARA ABRIR EL MODAL DE UPGRADE
+                    onUpgrade={() => setShowUpgradeModal(true)} 
                     onDataChange={refreshData}
                 />
             )}
