@@ -26,7 +26,15 @@ function App() {
     };
 
     const logout = () => {
-        localStorage.clear();
+        // ❌ ANTES: localStorage.clear(); (Esto borraba tu logo y colores)
+        
+        // ✅ AHORA: Borramos solo lo necesario para cerrar sesión
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("agencyId");
+        
+        // NOTA: Mantenemos 'agencyBranding' y 'theme' para que no se pierda la personalización
+        
         setToken(null);
         setRole(null);
         window.history.pushState({}, document.title, "/");

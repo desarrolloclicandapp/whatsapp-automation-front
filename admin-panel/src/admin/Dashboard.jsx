@@ -13,16 +13,25 @@ import {
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 export default function AdminDashboard({ token, onLogout }) {
-    // ✅ Hook para gestionar la Marca Global del Sistema
     const { systemBranding, updateSystemBranding, DEFAULT_BRANDING } = useBranding();
-
-    const [view, setView] = useState('agencies'); // 'agencies' | 'subaccounts' | 'branding'
+    const [view, setView] = useState('agencies'); 
     const [selectedAgency, setSelectedAgency] = useState(null);
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [agencies, setAgencies] = useState([]);
     const [subaccounts, setSubaccounts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+
+    // ✅ FIX FAVICON: Forzar el icono del sistema al entrar al Admin
+    useEffect(() => {
+        const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+        link.type = 'image/x-icon';
+        link.rel = 'shortcut icon';
+        // Usamos el favicon del sistema o el default, ignorando el de la agencia local
+        link.href = systemBranding.faviconUrl || DEFAULT_BRANDING.faviconUrl;
+        document.getElementsByTagName('head')[0].appendChild(link);
+        document.title = "Panel Maestro | Admin"; // Título forzado
+    }, [systemBranding]);
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -123,7 +132,6 @@ export default function AdminDashboard({ token, onLogout }) {
             }
         };
 
-        // Cargar galería al montar el componente
         useEffect(() => { fetchGallery(); }, []);
 
         const handleFileUpload = async (e, field) => {
@@ -145,7 +153,7 @@ export default function AdminDashboard({ token, onLogout }) {
                 if (res.ok) {
                     setForm(prev => ({ ...prev, [field]: data.url }));
                     toast.success("Imagen subida correctamente 🚀");
-                    fetchGallery(); // Recargar galería para ver la nueva imagen
+                    fetchGallery(); // Recargar galería
                 } else {
                     throw new Error(data.error);
                 }
@@ -187,7 +195,6 @@ export default function AdminDashboard({ token, onLogout }) {
                         {/* COLUMNA IZQUIERDA: FORMULARIO */}
                         <div className="space-y-6">
                             
-                            {/* Textos Básicos */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre Plataforma</label>
@@ -199,7 +206,6 @@ export default function AdminDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
-                            {/* Textos Avanzados (Login) */}
                             <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
                                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Textos Pantalla Login</h4>
                                 <div>
@@ -218,7 +224,7 @@ export default function AdminDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
-                            {/* Botón CTA */}
+                            {/* CONFIGURACIÓN DEL BOTÓN CTA */}
                             <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Botón Promocional (CTA)</h4>
@@ -289,28 +295,16 @@ export default function AdminDashboard({ token, onLogout }) {
 
                             {/* COLORES */}
                             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-                                <div>
-                                    <label className="block text-xs font-bold mb-1 text-gray-500">Primario</label>
-                                    <div className="flex items-center gap-2">
-                                        <input type="color" value={form.primaryColor} onChange={e => setForm({...form, primaryColor: e.target.value})} className="h-8 w-8 rounded cursor-pointer border" />
-                                        <input type="text" value={form.primaryColor} readOnly className="flex-1 p-1 text-xs border rounded" />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold mb-1 text-gray-500">Acento</label>
-                                    <div className="flex items-center gap-2">
-                                        <input type="color" value={form.accentColor} onChange={e => setForm({...form, accentColor: e.target.value})} className="h-8 w-8 rounded cursor-pointer border" />
-                                        <input type="text" value={form.accentColor} readOnly className="flex-1 p-1 text-xs border rounded" />
-                                    </div>
-                                </div>
+                                <div><label className="block text-xs font-bold mb-1 text-gray-500">Primario</label><div className="flex gap-2"><input type="color" value={form.primaryColor} onChange={e => setForm({...form, primaryColor: e.target.value})} className="h-8 w-8 rounded cursor-pointer border" /><input type="text" value={form.primaryColor} readOnly className="flex-1 p-1 text-xs border rounded" /></div></div>
+                                <div><label className="block text-xs font-bold mb-1 text-gray-500">Acento</label><div className="flex gap-2"><input type="color" value={form.accentColor} onChange={e => setForm({...form, accentColor: e.target.value})} className="h-8 w-8 rounded cursor-pointer border" /><input type="text" value={form.accentColor} readOnly className="flex-1 p-1 text-xs border rounded" /></div></div>
                             </div>
 
                             <div className="pt-4 flex justify-end gap-4">
                                 <button onClick={() => setForm(DEFAULT_BRANDING)} className="text-gray-500 hover:text-gray-700 flex items-center gap-2 text-sm font-medium px-4">
-                                    <RotateCcw size={16}/> Restaurar
+                                    <RotateCcw size={16}/> Restaurar Defaults
                                 </button>
-                                <button onClick={handleSave} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg flex items-center gap-2">
-                                    <CheckCircle2 size={18}/> Guardar Global
+                                <button onClick={handleSave} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition">
+                                    <CheckCircle2 size={18}/> Guardar Cambios
                                 </button>
                             </div>
                         </div>
@@ -348,8 +342,6 @@ export default function AdminDashboard({ token, onLogout }) {
                                             className={`group relative aspect-square rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-black/20 transition-all hover:border-indigo-500 hover:shadow-md ${showGallery ? 'cursor-pointer' : 'cursor-default'}`}
                                         >
                                             <img src={img.url} alt={img.name} className="w-full h-full object-contain p-1" loading="lazy" />
-                                            
-                                            {/* Hover Overlay */}
                                             {showGallery && (
                                                 <div className="absolute inset-0 bg-indigo-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-[1px]">
                                                     <span className="bg-white text-indigo-600 text-xs font-bold px-3 py-1.5 rounded-full shadow-lg transform scale-90 group-hover:scale-100 transition">
@@ -362,7 +354,6 @@ export default function AdminDashboard({ token, onLogout }) {
                                 )}
                             </div>
                         </div>
-
                     </div>
                 </div>
             </div>
