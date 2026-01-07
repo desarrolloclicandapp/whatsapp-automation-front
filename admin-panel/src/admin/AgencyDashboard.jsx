@@ -5,6 +5,7 @@ import SubscriptionManager from './SubscriptionManager';
 import SubscriptionModal from './SubscriptionModal'; // ✅ Usaremos esto para el Popup
 import SubscriptionBlocker from './SubscriptionBlocker';
 import ThemeToggle from '../components/ThemeToggle';
+import LanguageSelector from '../components/LanguageSelector'; // ✅ Importar
 import { useTheme } from '../context/ThemeContext';
 import { useBranding } from '../context/BrandingContext';
 
@@ -384,6 +385,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </h2>
                     </div>
                     <div className="flex items-center gap-4">
+                        <LanguageSelector />
                         <ThemeToggle />
                         <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div>
                     </div>
