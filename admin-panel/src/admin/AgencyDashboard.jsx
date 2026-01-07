@@ -145,6 +145,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     useEffect(() => {
         const targetLocationId = queryParams.get("location_id") || queryParams.get("new_install");
+        console.log("queryParams", queryParams);
         if (targetLocationId && !isAutoSyncing) autoSyncAgency(targetLocationId);
         try { const payload = JSON.parse(atob(token.split('.')[1])); setUserEmail(payload.email); } catch (e) { }
     }, []);
