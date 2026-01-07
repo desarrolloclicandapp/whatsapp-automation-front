@@ -103,7 +103,8 @@ const PLANS_VOLUME = [
 ];
 
 // PLAN FOUNDER LIFETIME
-const PLAN_FOUNDER_LIFETIME = {
+// PLAN FOUNDER LIFETIME
+const PLAN_LIFETIME = {
     id: 'price_FOUNDERS_950_TEMP',
     name: 'Founder\'s Pass',
     priceValue: 950,
@@ -334,7 +335,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                     const isBase = true; // Todos son base o addon
 
                                     // Buscar plan en cualquiera de las listas para info
-                                    const allPlans = [...PLANS_STANDARD, ...PLANS_FOUNDER, ...PLANS_VOLUME, PLAN_FOUNDER_LIFETIME];
+                                    const allPlans = [...PLANS_STANDARD, ...PLANS_FOUNDER, ...PLANS_VOLUME, PLAN_LIFETIME];
                                     const currentPlan = allPlans.find(p => p.id === sub.stripe_price_id);
                                     const currentPriceVal = currentPlan ? currentPlan.priceValue : 0;
 
