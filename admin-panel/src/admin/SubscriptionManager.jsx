@@ -310,39 +310,16 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
             {activeTab === 'services' && (
                 <div className="space-y-8">
                     {/* 2. CATÁLOGO PARA NUEVOS PLANES (MOVIDO AL INICIO) */}
-                    {(showPlans || subscriptions.length === 0) && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
+                    {(showPlans || (subscriptions.length === 0 && !fetching)) && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-top-4">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Shield size={18} className="text-indigo-500" /> Catálogo de Planes</h3>
                                 {subscriptions.length > 0 && <button onClick={() => setShowPlans(false)} className="text-sm text-gray-500 hover:text-gray-900 underline">Ocultar Catálogo</button>}
                             </div>
+
+                            {/* 1. PLANES REGULARES (Grid) */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-                                {/* CARD ESPECIAL: LIFETIME (Solo si no lo tiene) */}
-                                {showLifetimeOption && (
-                                    <div className={`bg-gray-900 border-2 border-yellow-400 rounded-2xl p-6 flex flex-col transition-all hover:shadow-2xl hover:scale-[1.02] relative overflow-hidden`}>
-                                        <div className="absolute top-0 right-0 bg-yellow-400 text-black text-[10px] font-extrabold px-3 py-1 rounded-bl-lg">PAGO ÚNICO</div>
-                                        <div className="mb-4">
-                                            <h4 className="text-lg font-bold text-white flex items-center gap-2">Lifetime Access <Crown size={16} className="text-yellow-400" /></h4>
-                                            <div className="flex items-baseline gap-1 mt-2">
-                                                <span className="text-3xl font-extrabold text-white">{PLAN_LIFETIME.price}</span>
-                                                <span className="text-sm text-gray-400">/una vez</span>
-                                            </div>
-                                        </div>
-                                        <ul className="space-y-3 mb-8 flex-1">
-                                            {PLAN_LIFETIME.features.map((feat, i) => (
-                                                <li key={i} className="flex gap-2 text-sm text-gray-300">
-                                                    <Check size={16} className="text-yellow-400 shrink-0" /> {feat}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                        <button onClick={() => handlePurchase(PLAN_LIFETIME.id)} className={`w-full py-3 rounded-xl font-bold text-black transition shadow-lg bg-yellow-400 hover:bg-yellow-300`}>
-                                            {loading ? 'Procesando...' : 'Obtener Acceso de por Vida'}
-                                        </button>
-                                    </div>
-                                )}
-
-                                {/* PLANES REGULARES / DISCOUNTED */}
                                 {availablePlans.map((plan) => (
                                     <div key={plan.id} className={`bg-white dark:bg-gray-900 border rounded-2xl p-6 flex flex-col transition-all hover:shadow-xl ${plan.recommended ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200 dark:border-gray-800'}`}>
                                         <div className="mb-4"><h4 className="text-lg font-bold text-gray-900 dark:text-white">{plan.name}</h4><div className="flex items-baseline gap-1 mt-2"><span className="text-3xl font-extrabold text-gray-900 dark:text-white">{plan.price}</span><span className="text-sm text-gray-500">/mes</span></div></div>
@@ -351,6 +328,34 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                     </div>
                                 ))}
                             </div>
+
+                            {/* 2. CARD ESPECIAL: LIFETIME (Banner Abajo) */}
+                            {showLifetimeOption && (
+                                <div className="mt-4">
+                                    <div className={`bg-gray-900 border-2 border-yellow-400 rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between shadow-2xl relative overflow-hidden group`}>
+                                        <div className="absolute top-0 right-0 bg-yellow-400 text-black text-[10px] font-extrabold px-3 py-1 rounded-bl-lg z-10">PAGO ÚNICO</div>
+                                        <div className="flex-1 mb-6 md:mb-0 z-10">
+                                            <h4 className="text-2xl font-bold text-white flex items-center gap-2 mb-2">Lifetime Access <Crown size={24} className="text-yellow-400" /></h4>
+                                            <p className="text-gray-300 mb-4 max-w-xl">Obtén acceso de por vida a 10 subcuentas y 50 números con un solo pago. Sin mensualidades.</p>
+                                            <div className="flex flex-wrap gap-3">
+                                                {PLAN_LIFETIME.features.map((feat, i) => (
+                                                    <span key={i} className="flex items-center gap-2 text-sm text-gray-300 bg-white/10 px-3 py-1 rounded-full">
+                                                        <Check size={14} className="text-yellow-400 shrink-0" /> {feat}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-center md:items-end gap-3 z-10 min-w-[200px]">
+                                            <div className="flex items-baseline gap-1">
+                                                <span className="text-4xl font-extrabold text-white">{PLAN_LIFETIME.price}</span>
+                                            </div>
+                                            <button onClick={() => handlePurchase(PLAN_LIFETIME.id)} className={`w-full py-3 px-6 rounded-xl font-bold text-black transition shadow-lg bg-yellow-400 hover:bg-yellow-300 hover:scale-105 active:scale-95`}>
+                                                {loading ? '...' : 'Obtener Acceso'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -484,99 +489,62 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                         )}
                     </div>
 
-                    {/* 2. CATÁLOGO PARA NUEVOS PLANES */}
-                    {(showPlans || subscriptions.length === 0) && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Shield size={18} className="text-indigo-500" /> Catálogo de Planes</h3>
-                                {subscriptions.length > 0 && <span className="text-sm text-gray-500">Estos planes se sumarán a tu suscripción actual.</span>}
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-                                {/* CARD ESPECIAL: LIFETIME (Solo si no lo tiene) */}
-                                {showLifetimeOption && (
-                                    <div className={`bg-gray-900 border-2 border-yellow-400 rounded-2xl p-6 flex flex-col transition-all hover:shadow-2xl hover:scale-[1.02] relative overflow-hidden`}>
-                                        <div className="absolute top-0 right-0 bg-yellow-400 text-black text-[10px] font-extrabold px-3 py-1 rounded-bl-lg">PAGO ÚNICO</div>
-                                        <div className="mb-4">
-                                            <h4 className="text-lg font-bold text-white flex items-center gap-2">Lifetime Access <Crown size={16} className="text-yellow-400" /></h4>
-                                            <div className="flex items-baseline gap-1 mt-2">
-                                                <span className="text-3xl font-extrabold text-white">{PLAN_LIFETIME.price}</span>
-                                                <span className="text-sm text-gray-400">/una vez</span>
-                                            </div>
-                                        </div>
-                                        <ul className="space-y-3 mb-8 flex-1">
-                                            {PLAN_LIFETIME.features.map((feat, i) => (
-                                                <li key={i} className="flex gap-2 text-sm text-gray-300">
-                                                    <Check size={16} className="text-yellow-400 shrink-0" /> {feat}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                        <button onClick={() => handlePurchase(PLAN_LIFETIME.id)} className={`w-full py-3 rounded-xl font-bold text-black transition shadow-lg bg-yellow-400 hover:bg-yellow-300`}>
-                                            {loading ? 'Procesando...' : 'Obtener Acceso de por Vida'}
-                                        </button>
-                                    </div>
-                                )}
 
-                                {/* PLANES REGULARES / DISCOUNTED */}
-                                {availablePlans.map((plan) => (
-                                    <div key={plan.id} className={`bg-white dark:bg-gray-900 border rounded-2xl p-6 flex flex-col transition-all hover:shadow-xl ${plan.recommended ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200 dark:border-gray-800'}`}>
-                                        <div className="mb-4"><h4 className="text-lg font-bold text-gray-900 dark:text-white">{plan.name}</h4><div className="flex items-baseline gap-1 mt-2"><span className="text-3xl font-extrabold text-gray-900 dark:text-white">{plan.price}</span><span className="text-sm text-gray-500">/mes</span></div></div>
-                                        <ul className="space-y-3 mb-8 flex-1">{plan.features.map((feat, i) => <li key={i} className="flex gap-2 text-sm text-gray-600 dark:text-gray-300"><Check size={16} className="text-emerald-500 shrink-0" /> {feat}</li>)}</ul>
-                                        <button onClick={() => handlePurchase(plan.id)} className={`w-full py-3 rounded-xl font-bold text-white transition shadow-lg ${plan.color} hover:opacity-90`}>{loading ? 'Procesando...' : 'Contratar Plan'}</button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+
 
                     {/* 3. SECCIÓN EXTRAS (Con descuento VIP) */}
-                    {subscriptions.length > 0 && (
-                        <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-800">
-                            <div className="flex items-center gap-3">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><PlusCircle size={18} className="text-emerald-500" /> Extras</h3>
-                                {hasVolumeDiscount && (
-                                    <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] font-bold uppercase rounded border border-yellow-200 tracking-wide animate-pulse">
-                                        ⚡ Precios VIP Activos
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* SUBAGENCIA EXTRA */}
-                                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl flex items-center justify-between hover:border-indigo-300 transition group">
-                                    <div className="flex items-center gap-4"><div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl"><Building2 size={24} /></div><div><h4 className="font-bold text-gray-900 dark:text-white">Subagencia Extra</h4><p className="text-xs text-gray-500">+1 Agencia / 5 Slots {hasVolumeDiscount ? '(VIP Pack)' : '(Regular)'}</p></div></div>
-                                    <div className="text-right">
-                                        {/* Precio tachado si hay descuento */}
-                                        {hasVolumeDiscount && <span className="block text-xs text-gray-400 line-through">20€</span>}
-                                        <p className="text-xl font-bold text-gray-900 dark:text-white">{subDisplayPrice}</p>
-                                        <button onClick={() => handlePurchase(subPriceId)} className="text-sm font-bold text-indigo-600 hover:underline">Añadir</button>
-                                    </div>
+                    {
+                        subscriptions.length > 0 && (
+                            <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-800">
+                                <div className="flex items-center gap-3">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><PlusCircle size={18} className="text-emerald-500" /> Extras</h3>
+                                    {hasVolumeDiscount && (
+                                        <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] font-bold uppercase rounded border border-yellow-200 tracking-wide animate-pulse">
+                                            ⚡ Precios VIP Activos
+                                        </span>
+                                    )}
                                 </div>
 
-                                {/* SLOT EXTRA */}
-                                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl flex items-center justify-between hover:border-emerald-300 transition group">
-                                    <div className="flex items-center gap-4"><div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-xl"><Smartphone size={24} /></div><div><h4 className="font-bold text-gray-900 dark:text-white">Slot Extra</h4><p className="text-xs text-gray-500">+1 Número WhatsApp</p></div></div>
-                                    <div className="text-right">
-                                        {hasVolumeDiscount && <span className="block text-xs text-gray-400 line-through">5€</span>}
-                                        <p className="text-xl font-bold text-gray-900 dark:text-white">{slotDisplayPrice}</p>
-                                        <button onClick={() => handlePurchase(slotPriceId)} className="text-sm font-bold text-emerald-600 hover:underline">Añadir</button>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* SUBAGENCIA EXTRA */}
+                                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl flex items-center justify-between hover:border-indigo-300 transition group">
+                                        <div className="flex items-center gap-4"><div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl"><Building2 size={24} /></div><div><h4 className="font-bold text-gray-900 dark:text-white">Subagencia Extra</h4><p className="text-xs text-gray-500">+1 Agencia / 5 Slots {hasVolumeDiscount ? '(VIP Pack)' : '(Regular)'}</p></div></div>
+                                        <div className="text-right">
+                                            {/* Precio tachado si hay descuento */}
+                                            {hasVolumeDiscount && <span className="block text-xs text-gray-400 line-through">20€</span>}
+                                            <p className="text-xl font-bold text-gray-900 dark:text-white">{subDisplayPrice}</p>
+                                            <button onClick={() => handlePurchase(subPriceId)} className="text-sm font-bold text-indigo-600 hover:underline">Añadir</button>
+                                        </div>
+                                    </div>
+
+                                    {/* SLOT EXTRA */}
+                                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl flex items-center justify-between hover:border-emerald-300 transition group">
+                                        <div className="flex items-center gap-4"><div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-xl"><Smartphone size={24} /></div><div><h4 className="font-bold text-gray-900 dark:text-white">Slot Extra</h4><p className="text-xs text-gray-500">+1 Número WhatsApp</p></div></div>
+                                        <div className="text-right">
+                                            {hasVolumeDiscount && <span className="block text-xs text-gray-400 line-through">5€</span>}
+                                            <p className="text-xl font-bold text-gray-900 dark:text-white">{slotDisplayPrice}</p>
+                                            <button onClick={() => handlePurchase(slotPriceId)} className="text-sm font-bold text-emerald-600 hover:underline">Añadir</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )
+                    }
+                </div >
             )}
 
             {/* TAB PAGOS/FACTURAS (Solo Portal) */}
-            {(activeTab === 'payments' || activeTab === 'invoices') && (
-                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center">
-                    <div className="w-20 h-20 bg-gray-50 dark:bg-gray-800 rounded-full mx-auto mb-6 flex items-center justify-center text-gray-400"><CreditCard size={40} /></div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Gestión de Facturación</h3>
-                    <p className="text-gray-500 mb-8">Gestiona tarjetas y facturas de forma segura.</p>
-                    <button onClick={handlePortal} className="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold mx-auto flex items-center gap-2">Ir al Portal Seguro <ExternalLink size={18} /></button>
-                </div>
-            )}
-        </div>
+            {
+                (activeTab === 'payments' || activeTab === 'invoices') && (
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+                        <div className="w-20 h-20 bg-gray-50 dark:bg-gray-800 rounded-full mx-auto mb-6 flex items-center justify-center text-gray-400"><CreditCard size={40} /></div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Gestión de Facturación</h3>
+                        <p className="text-gray-500 mb-8">Gestiona tarjetas y facturas de forma segura.</p>
+                        <button onClick={handlePortal} className="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold mx-auto flex items-center gap-2">Ir al Portal Seguro <ExternalLink size={18} /></button>
+                    </div>
+                )
+            }
+        </div >
     );
 }
