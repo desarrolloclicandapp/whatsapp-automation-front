@@ -117,8 +117,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         method: "POST",
                         body: JSON.stringify({ locationIdToVerify: locationId })
                     });
-                    setTimeout(() => toast.success('Finalizando instalación...'), 5000);
-                    return;
+
                     if (res.ok) {
                         data = await res.json();
                         break;
