@@ -309,13 +309,58 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
 
             {activeTab === 'services' && (
                 <div className="space-y-8">
+                    {/* 2. CATÁLOGO PARA NUEVOS PLANES (MOVIDO AL INICIO) */}
+                    {(showPlans || subscriptions.length === 0) && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Shield size={18} className="text-indigo-500" /> Catálogo de Planes</h3>
+                                {subscriptions.length > 0 && <button onClick={() => setShowPlans(false)} className="text-sm text-gray-500 hover:text-gray-900 underline">Ocultar Catálogo</button>}
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                                {/* CARD ESPECIAL: LIFETIME (Solo si no lo tiene) */}
+                                {showLifetimeOption && (
+                                    <div className={`bg-gray-900 border-2 border-yellow-400 rounded-2xl p-6 flex flex-col transition-all hover:shadow-2xl hover:scale-[1.02] relative overflow-hidden`}>
+                                        <div className="absolute top-0 right-0 bg-yellow-400 text-black text-[10px] font-extrabold px-3 py-1 rounded-bl-lg">PAGO ÚNICO</div>
+                                        <div className="mb-4">
+                                            <h4 className="text-lg font-bold text-white flex items-center gap-2">Lifetime Access <Crown size={16} className="text-yellow-400" /></h4>
+                                            <div className="flex items-baseline gap-1 mt-2">
+                                                <span className="text-3xl font-extrabold text-white">{PLAN_LIFETIME.price}</span>
+                                                <span className="text-sm text-gray-400">/una vez</span>
+                                            </div>
+                                        </div>
+                                        <ul className="space-y-3 mb-8 flex-1">
+                                            {PLAN_LIFETIME.features.map((feat, i) => (
+                                                <li key={i} className="flex gap-2 text-sm text-gray-300">
+                                                    <Check size={16} className="text-yellow-400 shrink-0" /> {feat}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        <button onClick={() => handlePurchase(PLAN_LIFETIME.id)} className={`w-full py-3 rounded-xl font-bold text-black transition shadow-lg bg-yellow-400 hover:bg-yellow-300`}>
+                                            {loading ? 'Procesando...' : 'Obtener Acceso de por Vida'}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* PLANES REGULARES / DISCOUNTED */}
+                                {availablePlans.map((plan) => (
+                                    <div key={plan.id} className={`bg-white dark:bg-gray-900 border rounded-2xl p-6 flex flex-col transition-all hover:shadow-xl ${plan.recommended ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200 dark:border-gray-800'}`}>
+                                        <div className="mb-4"><h4 className="text-lg font-bold text-gray-900 dark:text-white">{plan.name}</h4><div className="flex items-baseline gap-1 mt-2"><span className="text-3xl font-extrabold text-gray-900 dark:text-white">{plan.price}</span><span className="text-sm text-gray-500">/mes</span></div></div>
+                                        <ul className="space-y-3 mb-8 flex-1">{plan.features.map((feat, i) => <li key={i} className="flex gap-2 text-sm text-gray-600 dark:text-gray-300"><Check size={16} className="text-emerald-500 shrink-0" /> {feat}</li>)}</ul>
+                                        <button onClick={() => handlePurchase(plan.id)} className={`w-full py-3 rounded-xl font-bold text-white transition shadow-lg ${plan.color} hover:opacity-90`}>{loading ? 'Procesando...' : 'Contratar Plan'}</button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* LISTA DE SERVICIOS */}
                     <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
                         <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
                             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2"><Package size={20} className="text-indigo-500" /> Servicios Activos</h3>
                             {subscriptions.length > 0 && (
                                 <button onClick={() => setShowPlans(!showPlans)} className={`text-xs font-bold px-4 py-2 rounded-lg transition border flex items-center gap-2 ${showPlans ? 'bg-gray-200 text-gray-700 border-gray-300' : 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 shadow-sm'}`}>
-                                    {showPlans ? <>Cerrar Catálogo <ChevronRight size={14} className="rotate-90" /></> : <><Plus size={14} /> Contratar Nuevo Plan</>}
+                                    {showPlans ? <>Ocultar Catálogo <ChevronRight size={14} className="rotate-90" /></> : <><Plus size={14} /> Ver Catálogo de Planes</>}
                                 </button>
                             )}
                         </div>
