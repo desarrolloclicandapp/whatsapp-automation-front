@@ -21,7 +21,7 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replac
 // 1. PLANES ESTÁNDAR (Usuarios Nuevos / <10 Subs)
 const PLANS_STANDARD = [
     {
-        id: 'price_STARTER_29_TEMP',
+        id: 'price_1SmumgHSoN0LpQiB9BrDVtoV',
         name: 'Plan Starter',
         priceValue: 29,
         price: '29$',
@@ -31,7 +31,7 @@ const PLANS_STANDARD = [
         badge: 'Start'
     },
     {
-        id: 'price_GROWTH_49_TEMP',
+        id: 'price_1Smuo8HSoN0LpQiB5z8FHJwp',
         name: 'Plan Growth',
         priceValue: 49,
         price: '49$',
@@ -42,7 +42,7 @@ const PLANS_STANDARD = [
         badge: 'Popular'
     },
     {
-        id: 'price_AGENCY_149_TEMP',
+        id: 'price_1Smup2HSoN0LpQiBOCHw8R0Y',
         name: 'Plan Agency',
         priceValue: 149,
         price: '149$',
@@ -57,7 +57,7 @@ const PLANS_STANDARD = [
 // Tienen reglas de slot especiales acumulativas
 const PLANS_FOUNDER = [
     {
-        id: 'price_STARTER_15_TEMP', // Precio Reducido
+        id: 'price_1SmxK5HSoN0LpQiB4051Ko2I', // Precio Reducido
         name: 'Starter Addon',
         priceValue: 15,
         price: '15$',
@@ -67,7 +67,7 @@ const PLANS_FOUNDER = [
         badge: 'Founder Benefit'
     },
     {
-        id: 'price_GROWTH_49_TEMP', // Precio NO Reducido (Standard)
+        id: 'price_1Smxb3HSoN0LpQiBBaaGKcOo', // Precio NO Reducido (Standard)
         name: 'Growth Addon',
         priceValue: 49,
         price: '49$',
@@ -76,7 +76,7 @@ const PLANS_FOUNDER = [
         color: 'bg-indigo-600',
     },
     {
-        id: 'price_AGENCY_149_TEMP', // Precio NO Reducido (Standard)
+        id: 'price_1SmxcGHSoN0LpQiB2boUJAkF', // Precio NO Reducido (Standard)
         name: 'Agency Addon',
         priceValue: 149,
         price: '149$',
@@ -90,7 +90,7 @@ const PLANS_FOUNDER = [
 // Solo el Starter reducido, según requerimiento.
 const PLANS_VOLUME = [
     {
-        id: 'price_STARTER_15_TEMP',
+        id: 'price_1Smv3OHSoN0LpQiBZnKxPhQ3',
         name: 'Starter Volumen',
         priceValue: 15,
         price: '15$',
@@ -103,9 +103,8 @@ const PLANS_VOLUME = [
 ];
 
 // PLAN FOUNDER LIFETIME
-// PLAN FOUNDER LIFETIME
 const PLAN_LIFETIME = {
-    id: 'price_FOUNDERS_950_TEMP',
+    id: 'price_1SmuqPHSoN0LpQiBoPVJaaRY',
     name: 'Founder\'s Pass',
     priceValue: 950,
     price: '950$',
@@ -116,7 +115,6 @@ const PLAN_LIFETIME = {
     badge: 'LIMITED'
 };
 
-// --- ADD-ONS ---
 // --- ADD-ONS ---
 const ADDONS = {
     // Definir si usaremos addons específicos o reutilizamos planes
