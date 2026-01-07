@@ -11,64 +11,134 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replac
 
 // --- CONFIGURACIÓN DE PLANES BASE ---
 // Ordenados por precio para calcular upgrades/downgrades
-const BASE_PLANS = [
+// --- CONFIGURACIÓN DE PLANES ---
+// Definimos los grupos de planes para usarlos según el estado del usuario
+
+// 1. PLANES ESTÁNDAR (Usuarios Nuevos / <10 Subs)
+const PLANS_STANDARD = [
     {
-        id: 'price_1SfJpk7Mhd9qo6A8AmFiKTdk',
-        name: 'Plan Regular',
-        priceValue: 20, // Para lógica de comparación
-        price: '20€',
-        limits: { subs: 1, slots: 5 },
-        features: ['1 Subcuenta', '5 Números incluidos'],
+        id: 'price_STARTER_29_TEMP',
+        name: 'Plan Starter',
+        priceValue: 29,
+        price: '29$',
+        limits: { subs: 1 },
+        features: ['1 Subcuenta', '99 Números vinculables', '290$ Anual'],
         color: 'bg-blue-600',
         badge: 'Start'
     },
     {
-        id: 'price_1SfJqb7Mhd9qo6A8zP0xydlX',
-        name: 'Agencia Pro',
-        priceValue: 90,
-        price: '90€',
-        limits: { subs: 5, slots: 25 },
-        features: ['5 Subcuentas', '25 Números incluidos', 'Marca Blanca'],
+        id: 'price_GROWTH_49_TEMP',
+        name: 'Plan Growth',
+        priceValue: 49,
+        price: '49$',
+        limits: { subs: 3 },
+        features: ['3 Subcuentas', '99 Números vinculables', '490$ Anual'],
         color: 'bg-indigo-600',
         recommended: true,
         badge: 'Popular'
     },
     {
-        id: 'price_1SfJrZ7Mhd9qo6A8WOn6BGbJ',
-        name: 'Enterprise',
-        priceValue: 200,
-        price: '200€',
-        limits: { subs: 10, slots: 50 },
-        features: ['10 Subcuentas', '50 Números incluidos', 'API', 'Descuento VIP'],
+        id: 'price_AGENCY_149_TEMP',
+        name: 'Plan Agency',
+        priceValue: 149,
+        price: '149$',
+        limits: { subs: 10 },
+        features: ['10 Subcuentas', '99 Números vinculables', '1490$ Anual'],
         color: 'bg-purple-600',
-        badge: 'VIP'
+        badge: 'Agency'
     }
 ];
 
+// 2. PLANES FOUNDER (Usuarios que compraron el pase de $950)
+// Tienen reglas de slot especiales acumulativas
+const PLANS_FOUNDER = [
+    {
+        id: 'price_STARTER_15_TEMP', // Precio Reducido
+        name: 'Starter Addon',
+        priceValue: 15,
+        price: '15$',
+        limits: { subs: 1 },
+        features: ['1 Subcuenta Extra', '+5 Números', 'Precio Reducido (150$/y)'],
+        color: 'bg-emerald-600',
+        badge: 'Founder Benefit'
+    },
+    {
+        id: 'price_GROWTH_49_TEMP', // Precio NO Reducido (Standard)
+        name: 'Growth Addon',
+        priceValue: 49,
+        price: '49$',
+        limits: { subs: 3 },
+        features: ['3 Subcuentas Extra', '+15 Números', '490$ Anual'],
+        color: 'bg-indigo-600',
+    },
+    {
+        id: 'price_AGENCY_149_TEMP', // Precio NO Reducido (Standard)
+        name: 'Agency Addon',
+        priceValue: 149,
+        price: '149$',
+        limits: { subs: 10 },
+        features: ['10 Subcuentas Extra', '+50 Números', '1490$ Anual'],
+        color: 'bg-purple-600',
+    }
+];
+
+// 3. PLANES VOLUMEN (Usuarios Standard con >= 10 Subs)
+// Solo el Starter reducido, según requerimiento.
+const PLANS_VOLUME = [
+    {
+        id: 'price_STARTER_15_TEMP',
+        name: 'Starter Volumen',
+        priceValue: 15,
+        price: '15$',
+        limits: { subs: 1 },
+        features: ['1 Subcuenta Extra', 'Números Infinitos (99)', 'Precio Volumen (150$/y)'],
+        color: 'bg-orange-600',
+        badge: 'Volumen'
+    }
+    // Podríamos añadir los otros a precio full si el cliente quiere crecer rápido
+];
+
+// PLAN FOUNDER LIFETIME
+const PLAN_FOUNDER_LIFETIME = {
+    id: 'price_FOUNDERS_950_TEMP',
+    name: 'Founder\'s Pass',
+    priceValue: 950,
+    price: '950$',
+    limits: { subs: 10, slots: 50 },
+    features: ['PAGO ÚNICO (Lifetime)', '10 Subcuentas', '50 Números INICIALES', 'Acceso a Addons Especiales'],
+    color: 'bg-black border-2 border-yellow-400',
+    isOneTime: true,
+    badge: 'LIMITED'
+};
+
+// --- ADD-ONS ---
 // --- ADD-ONS ---
 const ADDONS = {
-    // ID del Plan Regular (20€) para usuarios normales
-    SUB_UNIT_STD: 'price_1SfJpk7Mhd9qo6A8AmFiKTdk',
-    // ID del Pack VIP (10€) para usuarios con >10 agencias
-    // ¡Asegúrate de que este ID exista en tu STRIPE_CONFIG del backend!
-    SUB_UNIT_VIP: 'price_1SfK547Mhd9qo6A8SfvT8GF4',
-
-    SLOT_UNIT_STD: 'price_1SfK787Mhd9qo6A8WmPRs9Zy', // 5€
-    SLOT_UNIT_VIP: 'price_1SfK827Mhd9qo6A89iZ68SRi'  // 3€
+    // Definir si usaremos addons específicos o reutilizamos planes
+    // Por ahora dejamos placeholder
+    SUB_UNIT_STD: 'price_STARTER_29_TEMP',
+    SUB_UNIT_VIP: 'price_DISC_REGULAR_15_TEMP',
+    SLOT_UNIT_STD: 'price_1SfK787Mhd9qo6A8WmPRs9Zy',
+    SLOT_UNIT_VIP: 'price_1SfK827Mhd9qo6A89iZ68SRi'
 };
 
 // --- MAPEO DE DETALLES ---
 const PLAN_DETAILS = {
-    'price_1SfJpk7Mhd9qo6A8AmFiKTdk': { label: '1 Subcuenta / 5 Slots' },
-    'price_1SfJqb7Mhd9qo6A8zP0xydlX': { label: '5 Subcuentas / 25 Slots' },
-    'price_1SfJrZ7Mhd9qo6A8WOn6BGbJ': { label: '10 Subcuentas / 50 Slots' },
+    // New IDs
+    'price_STARTER_29_TEMP': { label: 'Starter: 1 Sub / 99 Num' },
+    'price_GROWTH_49_TEMP': { label: 'Growth: 3 Sub / 99 Num' },
+    'price_AGENCY_149_TEMP': { label: 'Agency: 10 Sub / 99 Num' },
 
-    // VIP IDs - Asegúrate de que estos IDs coincidan con los de tu backend
-    'price_1SfK547Mhd9qo6A8SfvT8GF4': { label: '+1 Subcuenta (VIP)' },
+    'price_ONETIME_950_TEMP': { label: 'LIFETIME: 10 Sub / 50 Num' },
 
-    // Slot IDs
-    'price_1SfK787Mhd9qo6A8WmPRs9Zy': { label: '+1 Slot Extra' },
-    'price_1SfK827Mhd9qo6A89iZ68SRi': { label: '+1 Slot Extra (VIP)' }
+    'price_DISC_REGULAR_15_TEMP': { label: 'Regular Addon' },
+    'price_DISC_PRO_35_TEMP': { label: 'Pro Addon' },
+    'price_DISC_ENTERPRISE_125_TEMP': { label: 'Enterprise Addon' },
+
+    // Old IDs (Backwards compat)
+    'price_1SfJpk7Mhd9qo6A8AmFiKTdk': { label: 'Legacy Regular' },
+    'price_1SfJqb7Mhd9qo6A8zP0xydlX': { label: 'Legacy Pro' },
+    'price_1SfJrZ7Mhd9qo6A8WOn6BGbJ': { label: 'Legacy Enterprise' },
 };
 
 export default function SubscriptionManager({ token, accountInfo, onDataChange }) {
@@ -81,15 +151,33 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
 
     // 1. Calcular Volumen
     const totalSubs = accountInfo?.limits?.max_subagencies || 0;
-    const hasVolumeDiscount = totalSubs >= 10;
 
-    // 2. Seleccionar Precios Dinámicos
-    // Si es VIP, usa el precio reducido. Si no, usa el precio estándar.
+    // Check si tiene plan LIFETIME entre sus suscripciones activas
+    const hasLifetime = subscriptions.some(s => s.stripe_price_id === PLAN_LIFETIME.id);
+
+    // Regla de Volumen: >= 10 subcuentas
+    // (Ojo: Si tiene Lifetime, ya tiene 10, pero Lifetime tiene PRECEDENCIA para mostrar
+    // los planes limitados en números. Si NO tiene Lifetime pero tiene 10+, muestra ilimitados)
+    const isVolumeUser = totalSubs >= 10 && !hasLifetime;
+
+    // DETERMINAR QUÉ PLANES MOSTRAR EL EN CATÁLOGO
+    let availablePlans = [];
+    let showLifetimeOption = !hasLifetime; // Si ya lo tiene, no mostrarlo para comprar otra vez
+
+    if (hasLifetime) {
+        // Usuario Lifetime -> Planes con Descuento pero LIMITADOS en Slots
+        availablePlans = PLANS_DISC_LIMITED;
+    } else if (isVolumeUser) {
+        // Usuario Volumen -> Planes con Descuento e INFINITOS Slots
+        availablePlans = PLANS_DISC_INFINITE;
+    } else {
+        // Usuario Normal -> Planes Estándar
+        availablePlans = PLANS_STANDARD;
+    }
+
     const subPriceId = hasVolumeDiscount ? ADDONS.SUB_UNIT_VIP : ADDONS.SUB_UNIT_STD;
-    const subDisplayPrice = hasVolumeDiscount ? "10€ (VIP)" : "20€";
-
-    const slotPriceId = hasVolumeDiscount ? ADDONS.SLOT_UNIT_VIP : ADDONS.SLOT_UNIT_STD;
-    const slotDisplayPrice = hasVolumeDiscount ? "3€ (VIP)" : "5€";
+    const subDisplayPrice = hasVolumeDiscount ? "15$" : "29$";
+    const slotDisplayPrice = hasVolumeDiscount ? "3$" : "5$"; // Mantener logic de slots sueltos igual
 
     useEffect(() => { fetchSubscriptions(); }, []);
 
@@ -235,10 +323,11 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                 {subscriptions.map(sub => {
                                     const details = PLAN_DETAILS[sub.stripe_price_id];
                                     const isEditing = editingSubId === sub.stripe_subscription_id;
-                                    const isBase = sub.type === 'base';
+                                    const isBase = true; // Todos son base o addon
 
-                                    // Buscar el plan actual para comparar precios
-                                    const currentPlan = BASE_PLANS.find(p => p.id === sub.stripe_price_id);
+                                    // Buscar plan en cualquiera de las listas para info
+                                    const allPlans = [...PLANS_STANDARD, ...PLANS_FOUNDER, ...PLANS_VOLUME, PLAN_FOUNDER_LIFETIME];
+                                    const currentPlan = allPlans.find(p => p.id === sub.stripe_price_id);
                                     const currentPriceVal = currentPlan ? currentPlan.priceValue : 0;
 
                                     return (
@@ -289,8 +378,11 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                                         <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
                                                             <TrendingUp size={16} className="text-indigo-600" /> Cambiar nivel de suscripción:
                                                         </p>
+                                                        <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                                                            <TrendingUp size={16} className="text-indigo-600" /> Cambiar nivel de suscripción:
+                                                        </p>
                                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                            {BASE_PLANS.map(plan => {
+                                                            {availablePlans.map(plan => {
                                                                 const isCurrent = plan.id === sub.stripe_price_id;
                                                                 // Si el precio es menor al actual, es Downgrade
                                                                 const isDowngrade = plan.priceValue < currentPriceVal;
@@ -346,7 +438,33 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                 {subscriptions.length > 0 && <span className="text-sm text-gray-500">Estos planes se sumarán a tu suscripción actual.</span>}
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {BASE_PLANS.map((plan) => (
+
+                                {/* CARD ESPECIAL: LIFETIME (Solo si no lo tiene) */}
+                                {showLifetimeOption && (
+                                    <div className={`bg-gray-900 border-2 border-yellow-400 rounded-2xl p-6 flex flex-col transition-all hover:shadow-2xl hover:scale-[1.02] relative overflow-hidden`}>
+                                        <div className="absolute top-0 right-0 bg-yellow-400 text-black text-[10px] font-extrabold px-3 py-1 rounded-bl-lg">PAGO ÚNICO</div>
+                                        <div className="mb-4">
+                                            <h4 className="text-lg font-bold text-white flex items-center gap-2">Lifetime Access <Crown size={16} className="text-yellow-400" /></h4>
+                                            <div className="flex items-baseline gap-1 mt-2">
+                                                <span className="text-3xl font-extrabold text-white">{PLAN_LIFETIME.price}</span>
+                                                <span className="text-sm text-gray-400">/una vez</span>
+                                            </div>
+                                        </div>
+                                        <ul className="space-y-3 mb-8 flex-1">
+                                            {PLAN_LIFETIME.features.map((feat, i) => (
+                                                <li key={i} className="flex gap-2 text-sm text-gray-300">
+                                                    <Check size={16} className="text-yellow-400 shrink-0" /> {feat}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        <button onClick={() => handlePurchase(PLAN_LIFETIME.id)} className={`w-full py-3 rounded-xl font-bold text-black transition shadow-lg bg-yellow-400 hover:bg-yellow-300`}>
+                                            {loading ? 'Procesando...' : 'Obtener Acceso de por Vida'}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* PLANES REGULARES / DISCOUNTED */}
+                                {availablePlans.map((plan) => (
                                     <div key={plan.id} className={`bg-white dark:bg-gray-900 border rounded-2xl p-6 flex flex-col transition-all hover:shadow-xl ${plan.recommended ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200 dark:border-gray-800'}`}>
                                         <div className="mb-4"><h4 className="text-lg font-bold text-gray-900 dark:text-white">{plan.name}</h4><div className="flex items-baseline gap-1 mt-2"><span className="text-3xl font-extrabold text-gray-900 dark:text-white">{plan.price}</span><span className="text-sm text-gray-500">/mes</span></div></div>
                                         <ul className="space-y-3 mb-8 flex-1">{plan.features.map((feat, i) => <li key={i} className="flex gap-2 text-sm text-gray-600 dark:text-gray-300"><Check size={16} className="text-emerald-500 shrink-0" /> {feat}</li>)}</ul>
