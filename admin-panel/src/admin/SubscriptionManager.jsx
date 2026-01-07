@@ -7,7 +7,7 @@ import {
     TrendingUp, XCircle, ArrowDown
 } from 'lucide-react';
 
-import { hasVolumeDiscount } from '../admin/SubscriptionModal';
+
 
 
 
@@ -163,6 +163,10 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
     // (Ojo: Si tiene Lifetime, ya tiene 10, pero Lifetime tiene PRECEDENCIA para mostrar
     // los planes limitados en números. Si NO tiene Lifetime pero tiene 10+, muestra ilimitados)
     const isVolumeUser = totalSubs >= 10 && !hasLifetime;
+
+    // Define hasVolumeDiscount for styling and pricing purposes
+    // Applies if Logic Volume User (>=10) OR Lifetime User (Founder)
+    const hasVolumeDiscount = totalSubs >= 10 || hasLifetime;
 
     // DETERMINAR QUÉ PLANES MOSTRAR EL EN CATÁLOGO
     let availablePlans = [];
