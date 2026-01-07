@@ -7,6 +7,8 @@ import {
     TrendingUp, XCircle, ArrowDown
 } from 'lucide-react';
 
+const hasVolumeDiscount = totalSubs >= 10;
+
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 // --- CONFIGURACIÓN DE PLANES BASE ---
