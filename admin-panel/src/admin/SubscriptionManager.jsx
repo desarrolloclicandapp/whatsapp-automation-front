@@ -310,7 +310,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
             {activeTab === 'services' && (
                 <div className="space-y-8">
                     {/* 2. CATÁLOGO PARA NUEVOS PLANES (MOVIDO AL INICIO) */}
-                    {(showPlans || subscriptions.length === 0) && (
+                    {(showPlans || (subscriptions.length === 0 && !fetching)) && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Shield size={18} className="text-indigo-500" /> Catálogo de Planes</h3>
