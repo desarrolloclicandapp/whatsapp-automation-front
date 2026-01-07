@@ -86,4 +86,55 @@ export const en = {
     "dash.subs.title": "Active Subaccounts",
     "dash.subs.search": "Search...",
     "dash.subs.new": "New",
+
+    // LOCATION / SLOTS MODAL
+    "slots.title": "Device Management",
+    "slots.subtitle": "Advanced management for devices and rules.",
+    "slots.new": "New Device",
+    "slots.empty": "No devices configured.",
+    "slots.loading": "Loading data...",
+
+    // Slot Card
+    "slots.card.disconnected": "Disconnected",
+    "slots.card.priority": "Priority",
+    "slots.card.managing": "Editing",
+    "slots.card.manage": "Manage",
+
+    // Tabs
+    "slots.tab.general": "General",
+    "slots.tab.integration": "Integration",
+    "slots.tab.keywords": "Keywords",
+    "slots.tab.groups": "Groups",
+
+    // Settings
+    "slots.settings.order": "Sending Order",
+    "slots.settings.behavior": "Behavior",
+    "slots.settings.priority_level": "Priority Level",
+    "slots.settings.source_label": "Source Signature",
+    "slots.settings.source_desc": "Append 'Source: [Name]' at the end.",
+    "slots.settings.transcribe": "AI Transcription",
+    "slots.settings.transcribe_desc": "Audio to Text (Whisper).",
+    "slots.settings.create_contacts": "Create Contacts",
+    "slots.settings.create_contacts_desc": "Register unknown numbers in GHL.",
+    "slots.settings.alert_disconnect": "Disconnect Alert",
+    "slots.settings.alert_disconnect_desc": "Notify number if disconnected.",
+
+    // GHL
+    "slots.ghl.tag_auto": "Auto Tag (Incoming)",
+    "slots.ghl.tag_auto_ph": "Ex: whatsapp-sales",
+    "slots.ghl.user": "Assigned User",
+    "slots.ghl.user_none": "-- Unassigned --",
+    "slots.ghl.routing": "Routing Tag (Priority)",
+    "slots.ghl.routing_ph": "Ex: support",
+    "slots.ghl.routing_desc": "If contact has this tag, this number is used.",
+
+    // Keywords
+    "slots.kw.input": "If customer says...",
+    "slots.kw.tag": "Add tag...",
+
+    // Groups
+    "slots.groups.detected": "Detected Groups",
+    "slots.groups.participants": "participants",
+    "slots.groups.sync": "Sync Members",
+    "slots.groups.connect_first": "Connect WhatsApp first.",
 };

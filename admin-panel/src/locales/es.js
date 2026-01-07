@@ -86,4 +86,55 @@ export const es = {
     "dash.subs.title": "Subcuentas Activas",
     "dash.subs.search": "Buscar...",
     "dash.subs.new": "Nueva",
+
+    // LOCATION / SLOTS MODAL
+    "slots.title": "Gestión de Dispositivos",
+    "slots.subtitle": "Gestión avanzada de dispositivos y reglas.",
+    "slots.new": "Nuevo Dispositivo",
+    "slots.empty": "No hay dispositivos configurados.",
+    "slots.loading": "Cargando datos...",
+
+    // Slot Card
+    "slots.card.disconnected": "Desconectado",
+    "slots.card.priority": "Prioridad",
+    "slots.card.managing": "Editando",
+    "slots.card.manage": "Gestionar",
+
+    // Tabs
+    "slots.tab.general": "General",
+    "slots.tab.integration": "Integración",
+    "slots.tab.keywords": "Keywords",
+    "slots.tab.groups": "Grupos",
+
+    // Settings
+    "slots.settings.order": "Orden de Envío",
+    "slots.settings.behavior": "Comportamiento",
+    "slots.settings.priority_level": "Nivel de Prioridad",
+    "slots.settings.source_label": "Firma de Origen",
+    "slots.settings.source_desc": "Añadir 'Source: [Nombre]' al final.",
+    "slots.settings.transcribe": "Transcripción IA",
+    "slots.settings.transcribe_desc": "Audio a Texto (Whisper).",
+    "slots.settings.create_contacts": "Crear Contactos",
+    "slots.settings.create_contacts_desc": "Registrar desconocidos en GHL.",
+    "slots.settings.alert_disconnect": "Alerta Desconexión",
+    "slots.settings.alert_disconnect_desc": "Avisar al número si se desconecta.",
+
+    // GHL
+    "slots.ghl.tag_auto": "Tag Automático (Entrante)",
+    "slots.ghl.tag_auto_ph": "Ej: whatsapp-ventas",
+    "slots.ghl.user": "Usuario Responsable",
+    "slots.ghl.user_none": "-- Sin asignar --",
+    "slots.ghl.routing": "Tag de Enrutamiento (Prioridad)",
+    "slots.ghl.routing_ph": "Ej: soporte",
+    "slots.ghl.routing_desc": "Si el contacto tiene este tag, se usará este número.",
+
+    // Keywords
+    "slots.kw.input": "Si el cliente dice...",
+    "slots.kw.tag": "Agregar tag...",
+
+    // Groups
+    "slots.groups.detected": "Grupos Detectados",
+    "slots.groups.participants": "participantes",
+    "slots.groups.sync": "Sincronizar Miembros",
+    "slots.groups.connect_first": "Conecta WhatsApp primero.",
 };

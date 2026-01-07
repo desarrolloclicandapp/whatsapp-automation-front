@@ -5,10 +5,12 @@ import {
     RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
+import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange }) {
+    const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
     const [keywords, setKeywords] = useState([]);
     const [ghlUsers, setGhlUsers] = useState([]);
@@ -107,50 +109,50 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
     // --- ACCIONES PRINCIPALES ---
 
-const handleAddSlot = async () => {
-    const loadingId = toast.loading("Creando dispositivo...");
-    try {
-        const res = await authFetch(`/agency/add-slot`, {
-            method: "POST",
-            body: JSON.stringify({ locationId: location.location_id })
-        });
+    const handleAddSlot = async () => {
+        const loadingId = toast.loading("Creando dispositivo...");
+        try {
+            const res = await authFetch(`/agency/add-slot`, {
+                method: "POST",
+                body: JSON.stringify({ locationId: location.location_id })
+            });
 
-        // Si authFetch devuelve null es porque hizo logout automático (401/403 real), salimos.
-        if (!res) return;
+            // Si authFetch devuelve null es porque hizo logout automático (401/403 real), salimos.
+            if (!res) return;
 
-        const data = await res.json();
-        toast.dismiss(loadingId);
+            const data = await res.json();
+            toast.dismiss(loadingId);
 
-        // 🔥 NUEVA LÓGICA: Verificar 'data.success' aunque el status sea 200
-        if (data.success) {
-            toast.success("Dispositivo agregado", { description: "Listo para vincular." });
-            loadData();
-            if (onDataChange) onDataChange();
-        } else {
-            // Manejo de errores lógicos (Límites, etc.)
-            if (data.requiresUpgrade) {
-                toast.error("Límite Alcanzado", {
-                    description: data.error,
-                    duration: 6000,
-                    icon: <AlertTriangle className="text-amber-500" />,
-                    action: {
-                        label: 'Ampliar Plan',
-                        onClick: () => {
-                            onClose();
-                            if (onUpgrade) onUpgrade(); // Abre el modal de suscripción
-                        }
-                    }
-                });
+            // 🔥 NUEVA LÓGICA: Verificar 'data.success' aunque el status sea 200
+            if (data.success) {
+                toast.success("Dispositivo agregado", { description: "Listo para vincular." });
+                loadData();
+                if (onDataChange) onDataChange();
             } else {
-                toast.error("Error", { description: data.error || "No se pudo agregar el dispositivo." });
+                // Manejo de errores lógicos (Límites, etc.)
+                if (data.requiresUpgrade) {
+                    toast.error("Límite Alcanzado", {
+                        description: data.error,
+                        duration: 6000,
+                        icon: <AlertTriangle className="text-amber-500" />,
+                        action: {
+                            label: 'Ampliar Plan',
+                            onClick: () => {
+                                onClose();
+                                if (onUpgrade) onUpgrade(); // Abre el modal de suscripción
+                            }
+                        }
+                    });
+                } else {
+                    toast.error("Error", { description: data.error || "No se pudo agregar el dispositivo." });
+                }
             }
+        } catch (e) {
+            toast.dismiss(loadingId);
+            toast.error("Error de conexión");
+            console.error(e);
         }
-    } catch (e) {
-        toast.dismiss(loadingId);
-        toast.error("Error de conexión");
-        console.error(e);
-    }
-};
+    };
 
     const handleDeleteSlot = (slotId) => {
         toast("¿Eliminar dispositivo?", {
@@ -327,7 +329,7 @@ const handleAddSlot = async () => {
                             </div>
                             {locationName || location.location_id}
                         </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 ml-14">Gestión avanzada de dispositivos y reglas.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 ml-14">{t('slots.subtitle')}</p>
                     </div>
                     <button onClick={onClose} className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-400 hover:text-gray-600">
                         <X size={24} />
@@ -338,7 +340,7 @@ const handleAddSlot = async () => {
                 <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50 dark:bg-black/20">
                     <div className="flex justify-end mb-8">
                         <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
-                            <Plus size={18} /> Nuevo Dispositivo
+                            <Plus size={18} /> {t('slots.new')}
                         </button>
                     </div>
 
@@ -347,7 +349,7 @@ const handleAddSlot = async () => {
                     ) : slots.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl bg-white dark:bg-gray-900/50">
                             <Smartphone className="text-gray-300 dark:text-gray-600 w-16 h-16 mb-4" />
-                            <p className="text-gray-500 dark:text-gray-400 font-medium text-lg">No hay dispositivos configurados.</p>
+                            <p className="text-gray-500 dark:text-gray-400 font-medium text-lg">{t('slots.empty')}</p>
                         </div>
                     ) : (
                         <div className="space-y-6">
@@ -384,16 +386,16 @@ const handleAddSlot = async () => {
                                                         </div>
                                                     </div>
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1 flex items-center gap-2">
-                                                        {isConnected ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{slot.phone_number}</span> : 'Desconectado'}
+                                                        {isConnected ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{slot.phone_number}</span> : t('slots.card.disconnected')}
                                                         <span className="text-gray-300 dark:text-gray-600">•</span>
-                                                        <span>Prioridad: {currentPrio}</span>
+                                                        <span>{t('slots.card.priority')}: {currentPrio}</span>
                                                     </p>
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center gap-3">
                                                 <span className={`text-xs font-bold px-3 py-1.5 rounded-lg uppercase tracking-wide transition-colors ${isExpanded ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
-                                                    {isExpanded ? 'Editando' : 'Gestionar'}
+                                                    {isExpanded ? t('slots.card.managing') : t('slots.card.manage')}
                                                 </span>
                                                 <button onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.slot_id); }} className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition" disabled={deletingSlotId === slot.slot_id}>
                                                     {deletingSlotId === slot.slot_id ? <Loader2 className="animate-spin" size={20} /> : <Trash2 size={20} />}
@@ -407,10 +409,10 @@ const handleAddSlot = async () => {
 
                                                 {/* TABS */}
                                                 <div className="flex border-b border-gray-200 dark:border-gray-800 px-6 bg-white dark:bg-gray-900/50">
-                                                    <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label="General" />
-                                                    <TabButton active={activeSlotTab === 'ghl'} onClick={() => setActiveSlotTab('ghl')} icon={<Link2 size={16} />} label="Integración" />
-                                                    <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label="Keywords" />
-                                                    <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label="Grupos" disabled={!isConnected} />
+                                                    <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />
+                                                    <TabButton active={activeSlotTab === 'ghl'} onClick={() => setActiveSlotTab('ghl')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
+                                                    <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
+                                                    <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
                                                 </div>
 
                                                 <div className="p-8">
@@ -418,21 +420,21 @@ const handleAddSlot = async () => {
                                                     {activeSlotTab === 'general' && (
                                                         <div className="max-w-2xl">
                                                             <div className="mb-8">
-                                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Orden de Envío</h4>
+                                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{t('slots.settings.order')}</h4>
                                                                 <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Nivel de Prioridad:</label>
+                                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.settings.priority_level')}:</label>
                                                                     <select className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none" value={currentPrio} onChange={(e) => changePriority(slot.slot_id, e.target.value)}>
                                                                         {Array.from({ length: slots.length }, (_, k) => k + 1).map(p => <option key={p} value={p}>{p} {p === 1 ? '(Alta)' : ''}</option>)}
                                                                         {currentPrio > slots.length && <option value={currentPrio}>{currentPrio}</option>}
                                                                     </select>
                                                                 </div>
                                                             </div>
-                                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Comportamiento</h4>
+                                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{t('slots.settings.behavior')}</h4>
                                                             <div className="space-y-3 bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700">
-                                                                <SettingRow label="Firma de Origen" desc="Añadir 'Source: [Nombre]' al final." checked={settings.show_source_label ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'show_source_label', settings)} />
-                                                                <SettingRow label="Transcripción IA" desc="Audio a Texto (Whisper)." checked={settings.transcribe_audio ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'transcribe_audio', settings)} />
-                                                                <SettingRow label="Crear Contactos" desc="Registrar desconocidos en GHL." checked={settings.create_unknown_contacts ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'create_unknown_contacts', settings)} />
-                                                                <SettingRow label="Alerta Desconexión" desc="Avisar al número si se desconecta." checked={settings.send_disconnect_message ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'send_disconnect_message', settings)} />
+                                                                <SettingRow label={t('slots.settings.source_label')} desc={t('slots.settings.source_desc')} checked={settings.show_source_label ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'show_source_label', settings)} />
+                                                                <SettingRow label={t('slots.settings.transcribe')} desc={t('slots.settings.transcribe_desc')} checked={settings.transcribe_audio ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'transcribe_audio', settings)} />
+                                                                <SettingRow label={t('slots.settings.create_contacts')} desc={t('slots.settings.create_contacts_desc')} checked={settings.create_unknown_contacts ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'create_unknown_contacts', settings)} />
+                                                                <SettingRow label={t('slots.settings.alert_disconnect')} desc={t('slots.settings.alert_disconnect_desc')} checked={settings.send_disconnect_message ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'send_disconnect_message', settings)} />
                                                             </div>
                                                         </div>
                                                     )}
@@ -441,19 +443,19 @@ const handleAddSlot = async () => {
                                                     {activeSlotTab === 'ghl' && (
                                                         <div className="max-w-2xl space-y-6">
                                                             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Tag Automático (Entrante)</label>
-                                                                <input type="text" placeholder="Ej: whatsapp-ventas" className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.ghl_contact_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_contact_tag', e.target.value, settings)} />
+                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.ghl.tag_auto')}</label>
+                                                                <input type="text" placeholder={t('slots.ghl.tag_auto_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.ghl_contact_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_contact_tag', e.target.value, settings)} />
                                                             </div>
                                                             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Usuario Responsable</label>
+                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.ghl.user')}</label>
                                                                 <select className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={settings.ghl_assigned_user || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_assigned_user', e.target.value, settings)}>
-                                                                    <option value="">-- Sin asignar --</option>
+                                                                    <option value="">{t('slots.ghl.user_none')}</option>
                                                                     {ghlUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                                 </select>
                                                             </div>
                                                             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Tag de Enrutamiento (Prioridad)</label>
-                                                                <input type="text" placeholder="Ej: soporte" className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.routing_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, settings)} />
+                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.ghl.routing')}</label>
+                                                                <input type="text" placeholder={t('slots.ghl.routing_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.routing_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, settings)} />
                                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usará este número.</p>
                                                             </div>
                                                         </div>
@@ -462,8 +464,8 @@ const handleAddSlot = async () => {
                                                     {activeSlotTab === 'keywords' && (
                                                         <div className="max-w-2xl">
                                                             <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
-                                                                <input name="keyword" required placeholder="Si el cliente dice..." className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                                                <input name="tag" required placeholder="Agregar tag..." className="w-1/3 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                                <input name="keyword" required placeholder={t('slots.kw.input')} className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                                <input name="tag" required placeholder={t('slots.kw.tag')} className="w-1/3 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
                                                                 <button type="submit" className="bg-indigo-600 text-white px-5 rounded-xl hover:bg-indigo-700 font-bold"><Plus size={20} /></button>
                                                             </form>
                                                             <div className="space-y-2">
@@ -480,7 +482,7 @@ const handleAddSlot = async () => {
                                                     {activeSlotTab === 'groups' && (
                                                         <div className="max-w-2xl">
                                                             <div className="flex justify-between items-center mb-6">
-                                                                <h4 className="font-bold text-gray-700 dark:text-gray-300">Grupos Detectados</h4>
+                                                                <h4 className="font-bold text-gray-700 dark:text-gray-300">{t('slots.groups.detected')}</h4>
                                                                 <button onClick={() => loadGroups(slot.slot_id)} className="text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 p-2 rounded-lg transition"><RefreshCw size={18} /></button>
                                                             </div>
                                                             {loadingGroups ? <div className="text-center py-10"><RefreshCw className="animate-spin mx-auto text-indigo-500" /></div> :
@@ -489,13 +491,13 @@ const handleAddSlot = async () => {
                                                                         const isActive = settings.groups?.[g.id]?.active;
                                                                         return (
                                                                             <div key={g.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                                <div><h5 className="font-bold text-gray-800 dark:text-white">{g.subject}</h5><p className="text-xs text-gray-500 dark:text-gray-400">{g.participants} participantes</p></div>
+                                                                                <div><h5 className="font-bold text-gray-800 dark:text-white">{g.subject}</h5><p className="text-xs text-gray-500 dark:text-gray-400">{g.participants} {t('slots.groups.participants')}</p></div>
                                                                                 <div className="flex items-center gap-4">
                                                                                     <label className="relative inline-flex items-center cursor-pointer">
                                                                                         <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, settings)} />
                                                                                         <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                                                                                     </label>
-                                                                                    <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg" title="Sincronizar Miembros"><Users size={18} /></button>
+                                                                                    <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg" title={t('slots.groups.sync')}><Users size={18} /></button>
                                                                                 </div>
                                                                             </div>
                                                                         )
