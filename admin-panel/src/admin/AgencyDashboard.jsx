@@ -6,12 +6,12 @@ import SubscriptionModal from './SubscriptionModal'; // ✅ Usaremos esto para e
 import SubscriptionBlocker from './SubscriptionBlocker';
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
-import { useBranding } from '../context/BrandingContext'; 
+import { useBranding } from '../context/BrandingContext';
 
 import {
     LayoutGrid, CreditCard, LifeBuoy, LogOut,
     Plus, Search, Building2, Smartphone, RefreshCw,
-    ExternalLink, Menu, CheckCircle2, ChevronRight, 
+    ExternalLink, Menu, CheckCircle2, ChevronRight,
     AlertTriangle, TrendingUp, ShieldCheck, Settings, Trash2,
     User, Users, Moon, Sun, Mail, Hash, Palette, RotateCcw, Link, MousePointer2
 } from 'lucide-react';
@@ -41,7 +41,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [userEmail, setUserEmail] = useState("");
 
     const [isAccountSuspended, setIsAccountSuspended] = useState(false);
-    
+
     // ✅ Estado para controlar el Popup de Upgrade
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
@@ -77,7 +77,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 const data = await locRes.json();
                 if (Array.isArray(data)) setLocations(data);
             }
-            
+
             if (accRes && accRes.ok) {
                 const data = await accRes.json();
                 setAccountInfo(data);
@@ -85,7 +85,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 const planStatus = (data.plan || '').toLowerCase();
                 const now = new Date();
                 const trialEnd = data.trial_ends ? new Date(data.trial_ends) : null;
-                
+
                 if (planStatus === 'suspended' || planStatus === 'cancelled' || planStatus === 'past_due') {
                     setIsAccountSuspended(true);
                 } else if (planStatus === 'trial' && trialEnd && trialEnd < now) {
@@ -102,13 +102,13 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     const autoSyncAgency = async (locationId) => {
-        setIsAutoSyncing(true); 
+        setIsAutoSyncing(true);
         const toastId = toast.loading('Finalizando instalación...');
 
         try {
             let data;
             let attempts = 0;
-            const maxAttempts = 10; 
+            const maxAttempts = 10;
 
             while (attempts < maxAttempts) {
                 try {
@@ -117,10 +117,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                         method: "POST",
                         body: JSON.stringify({ locationIdToVerify: locationId })
                     });
-
+                    setTimeout(() => toast.success('Finalizando instalación...'), 5000);
+                    return;
                     if (res.ok) {
                         data = await res.json();
-                        break; 
+                        break;
                     }
                     if (res.status === 404) attempts++;
                     else throw new Error("Error de servidor");
@@ -131,7 +132,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             localStorage.setItem("agencyId", data.newAgencyId);
             setStoredAgencyId(data.newAgencyId);
-            
+
             refreshData();
             toast.success('¡Instalación completada!', { id: toastId });
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -152,7 +153,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     useEffect(() => {
         if (AGENCY_ID) {
             refreshData();
-            const interval = setInterval(refreshData, 30000); 
+            const interval = setInterval(refreshData, 30000);
             return () => clearInterval(interval);
         }
     }, [AGENCY_ID]);
@@ -163,19 +164,19 @@ export default function AgencyDashboard({ token, onLogout }) {
         const tId = toast.loading("Eliminando...");
         try {
             const res = await authFetch(`/agency/tenants/${locationId}`, { method: 'DELETE' });
-            if (res.ok) { toast.success("Eliminado", {id: tId}); refreshData(); }
+            if (res.ok) { toast.success("Eliminado", { id: tId }); refreshData(); }
             else throw new Error("Error");
-        } catch (err) { toast.error("Error", {id: tId}); }
+        } catch (err) { toast.error("Error", { id: tId }); }
     };
 
     // ✅ NUEVA LÓGICA: Validar antes de ir al marketplace
-    const handleInstallApp = async () => { 
+    const handleInstallApp = async () => {
         const tId = toast.loading("Verificando plan...");
         try {
             // Consultamos al backend si podemos crear más tenants
             const res = await authFetch('/agency/validate-limits?type=tenant');
             const data = await res.json();
-            
+
             toast.dismiss(tId);
 
             if (data.allowed) {
@@ -201,7 +202,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         const [form, setForm] = useState(branding || DEFAULT_BRANDING);
 
         useEffect(() => {
-            if(branding) setForm(branding);
+            if (branding) setForm(branding);
         }, [branding]);
 
         const handleSave = (e) => {
@@ -213,7 +214,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         };
 
         const handleReset = () => {
-            if(confirm("¿Restaurar valores por defecto?")) {
+            if (confirm("¿Restaurar valores por defecto?")) {
                 if (resetBranding) {
                     resetBranding();
                     setForm(DEFAULT_BRANDING);
@@ -243,7 +244,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Identidad</h4>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre de Agencia</label>
-                            <input type="text" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all" style={{'--tw-ring-color': branding.primaryColor}} />
+                            <input type="text" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all" style={{ '--tw-ring-color': branding.primaryColor }} />
                         </div>
                     </div>
 
@@ -253,17 +254,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo URL (Cuadrado)</label>
                             <div className="flex gap-4 items-center">
                                 <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
-                                    <img src={form.logoUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display='none'} />
+                                    <img src={form.logoUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display = 'none'} />
                                 </div>
                                 <div className="flex-1 relative">
                                     <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input 
-                                        type="url" 
-                                        value={form.logoUrl || ''} 
-                                        onChange={e => setForm({...form, logoUrl: e.target.value})} 
-                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm" 
-                                        style={{'--tw-ring-color': branding.primaryColor}} 
-                                        placeholder="https://ejemplo.com/milogo.png" 
+                                    <input
+                                        type="url"
+                                        value={form.logoUrl || ''}
+                                        onChange={e => setForm({ ...form, logoUrl: e.target.value })}
+                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm"
+                                        style={{ '--tw-ring-color': branding.primaryColor }}
+                                        placeholder="https://ejemplo.com/milogo.png"
                                     />
                                 </div>
                             </div>
@@ -273,17 +274,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Favicon URL (Pestaña)</label>
                             <div className="flex gap-4 items-center">
                                 <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
-                                    <img src={form.faviconUrl} alt="Preview" className="w-8 h-8 object-contain" onError={(e) => e.target.style.display='none'} />
+                                    <img src={form.faviconUrl} alt="Preview" className="w-8 h-8 object-contain" onError={(e) => e.target.style.display = 'none'} />
                                 </div>
                                 <div className="flex-1 relative">
                                     <MousePointer2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input 
-                                        type="url" 
-                                        value={form.faviconUrl || ''} 
-                                        onChange={e => setForm({...form, faviconUrl: e.target.value})} 
-                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm" 
-                                        style={{'--tw-ring-color': branding.primaryColor}} 
-                                        placeholder="https://ejemplo.com/icon.png" 
+                                    <input
+                                        type="url"
+                                        value={form.faviconUrl || ''}
+                                        onChange={e => setForm({ ...form, faviconUrl: e.target.value })}
+                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm"
+                                        style={{ '--tw-ring-color': branding.primaryColor }}
+                                        placeholder="https://ejemplo.com/icon.png"
                                     />
                                 </div>
                             </div>
@@ -296,14 +297,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Primario</label>
                                 <div className="flex items-center gap-3">
-                                    <input type="color" value={form.primaryColor || '#000000'} onChange={e => setForm({...form, primaryColor: e.target.value})} className="h-10 w-10 rounded-lg cursor-pointer border-0 shadow-sm" />
+                                    <input type="color" value={form.primaryColor || '#000000'} onChange={e => setForm({ ...form, primaryColor: e.target.value })} className="h-10 w-10 rounded-lg cursor-pointer border-0 shadow-sm" />
                                     <input type="text" value={form.primaryColor || ''} readOnly className="flex-1 p-2 rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 font-mono text-sm uppercase" />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Acento</label>
                                 <div className="flex items-center gap-3">
-                                    <input type="color" value={form.accentColor || '#000000'} onChange={e => setForm({...form, accentColor: e.target.value})} className="h-10 w-10 rounded-lg cursor-pointer border-0 shadow-sm" />
+                                    <input type="color" value={form.accentColor || '#000000'} onChange={e => setForm({ ...form, accentColor: e.target.value })} className="h-10 w-10 rounded-lg cursor-pointer border-0 shadow-sm" />
                                     <input type="text" value={form.accentColor || ''} readOnly className="flex-1 p-2 rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 font-mono text-sm uppercase" />
                                 </div>
                             </div>
@@ -326,15 +327,15 @@ export default function AgencyDashboard({ token, onLogout }) {
     return (
         <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
             {isAccountSuspended && (
-                <SubscriptionBlocker 
-                    token={token} 
-                    onLogout={onLogout} 
+                <SubscriptionBlocker
+                    token={token}
+                    onLogout={onLogout}
                 />
             )}
 
             {/* ✅ POPUP DE MEJORA DE PLAN (Para límites de subcuentas o slots) */}
             {showUpgradeModal && (
-                <SubscriptionModal 
+                <SubscriptionModal
                     token={token}
                     accountInfo={accountInfo}
                     onClose={() => setShowUpgradeModal(false)}
@@ -344,8 +345,8 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex flex-col z-30`}>
                 <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden" style={{backgroundColor: branding.primaryColor}}>
-                        <img src={branding.logoUrl} alt="Logo" className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden" style={{ backgroundColor: branding.primaryColor }}>
+                        <img src={branding.logoUrl} alt="Logo" className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                     </div>
                     {sidebarOpen && <span className="ml-3 font-bold text-gray-900 dark:text-white tracking-tight truncate">{branding.name}</span>}
                 </div>
@@ -384,7 +385,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     </div>
                     <div className="flex items-center gap-4">
                         <ThemeToggle />
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{backgroundColor: branding.primaryColor}}>AG</div>
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div>
                     </div>
                 </header>
 
@@ -414,12 +415,12 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <div className="flex w-full md:w-auto gap-3">
                                             <div className="relative flex-1 md:w-64">
                                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                                <input type="text" placeholder="Buscar..." className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{'--tw-ring-color': branding.primaryColor}} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                                <input type="text" placeholder="Buscar..." className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                                             </div>
                                             <button onClick={refreshData} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 hover:text-indigo-600 transition"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
-                                            
+
                                             {/* ✅ BOTÓN NUEVA SUBCUENTA (Con Validación) */}
-                                            <button onClick={handleInstallApp} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{backgroundColor: branding.primaryColor}}><Plus size={18} /> Nueva</button>
+                                            <button onClick={handleInstallApp} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{ backgroundColor: branding.primaryColor }}><Plus size={18} /> Nueva</button>
                                         </div>
                                     </div>
 
@@ -490,7 +491,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     onLogout={onLogout}
                     onClose={() => setSelectedLocation(null)}
                     // ✅ PASAMOS EL CALLBACK PARA ABRIR EL MODAL DE UPGRADE
-                    onUpgrade={() => setShowUpgradeModal(true)} 
+                    onUpgrade={() => setShowUpgradeModal(true)}
                     onDataChange={refreshData}
                 />
             )}
