@@ -61,4 +61,29 @@ export const es = {
     "sub.portal.title": "Gestión de Facturación",
     "sub.portal.desc": "Gestiona tarjetas y facturas de forma segura.",
     "sub.portal.button": "Ir al Portal Seguro",
+
+    // DASHBOARD
+    "dash.nav.management": "Gestión",
+    "dash.nav.overview": "Panel Principal",
+    "dash.nav.billing": "Suscripción",
+    "dash.nav.settings": "Configuración",
+    "dash.nav.support": "Soporte Técnico",
+    "dash.nav.logout": "Cerrar Sesión",
+
+    "dash.header.overview": "Panel Principal",
+    "dash.header.billing": "Gestión de Suscripción",
+    "dash.header.settings": "Configuración",
+
+    "dash.stats.subaccounts": "Subcuentas",
+    "dash.stats.connections": "Conexiones WA",
+    "dash.stats.plan": "Plan Actual",
+    "dash.stats.active": "Activo",
+    "dash.stats.trial": "Prueba",
+
+    "dash.upgrade.title": "Mejorar Plan",
+    "dash.upgrade.prompt": "¿Necesitas más?",
+
+    "dash.subs.title": "Subcuentas Activas",
+    "dash.subs.search": "Buscar...",
+    "dash.subs.new": "Nueva",
 };

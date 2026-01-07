@@ -6,6 +6,7 @@ import SubscriptionModal from './SubscriptionModal'; // ✅ Usaremos esto para e
 import SubscriptionBlocker from './SubscriptionBlocker';
 import ThemeToggle from '../components/ThemeToggle';
 import LanguageSelector from '../components/LanguageSelector'; // ✅ Importar
+import { useLanguage } from '../context/LanguageContext'; // ✅ Hook Import
 import { useTheme } from '../context/ThemeContext';
 import { useBranding } from '../context/BrandingContext';
 
@@ -22,6 +23,7 @@ const INSTALL_APP_URL = import.meta.env.INSTALL_APP_URL || "https://gestion.clic
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "595984756159";
 
 export default function AgencyDashboard({ token, onLogout }) {
+    const { t } = useLanguage();
     const { branding, updateBranding, resetBranding, DEFAULT_BRANDING } = useBranding();
 
     const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));
@@ -353,23 +355,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </div>
 
                 <div className="flex-1 p-4 overflow-y-auto">
-                    <p className={`text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>Gestión</p>
-                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="overview" icon={LayoutGrid} label="Panel Principal" branding={branding} sidebarOpen={sidebarOpen} />
-                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="billing" icon={CreditCard} label="Suscripción" branding={branding} sidebarOpen={sidebarOpen} />
-                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="settings" icon={Settings} label="Configuración" branding={branding} sidebarOpen={sidebarOpen} />
+                    <p className={`text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>{t('dash.nav.management')}</p>
+                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="overview" icon={LayoutGrid} label={t('dash.nav.overview')} branding={branding} sidebarOpen={sidebarOpen} />
+                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="billing" icon={CreditCard} label={t('dash.nav.billing')} branding={branding} sidebarOpen={sidebarOpen} />
+                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="settings" icon={Settings} label={t('dash.nav.settings')} branding={branding} sidebarOpen={sidebarOpen} />
 
                     <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
 
                     <a href={`https://wa.me/${SUPPORT_PHONE}`} target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}>
                         <LifeBuoy size={20} />
-                        {sidebarOpen && <span>Soporte Técnico</span>}
+                        {sidebarOpen && <span>{t('dash.nav.support')}</span>}
                     </a>
                 </div>
 
                 <div className="p-4 border-t border-gray-200 dark:border-gray-800">
                     <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all font-medium text-sm">
                         <LogOut size={20} />
-                        {sidebarOpen && <span>Cerrar Sesión</span>}
+                        {sidebarOpen && <span>{t('dash.nav.logout')}</span>}
                     </button>
                 </div>
             </aside>
@@ -381,7 +383,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <Menu size={20} />
                         </button>
                         <h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">
-                            {activeTab === 'overview' ? 'Panel Principal' : activeTab === 'billing' ? 'Gestión de Suscripción' : 'Configuración'}
+                            {activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : t('dash.header.settings')}
                         </h2>
                     </div>
                     <div className="flex items-center gap-4">
@@ -400,11 +402,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                         ) : (
                             <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                                    <StatCard title="Subcuentas" value={`${accountInfo.limits?.used_subagencies || 0} / ${accountInfo.limits?.max_subagencies || 0}`} icon={Building2} color="bg-indigo-500" />
-                                    <StatCard title="Conexiones WA" value={`${accountInfo.limits?.used_slots || 0} / ${accountInfo.limits?.max_slots || 0}`} icon={Smartphone} color="bg-emerald-500" />
-                                    <StatCard title="Plan Actual" value={accountInfo.plan === 'active' ? 'Activo' : 'Trial'} subtext={accountInfo.trial_ends ? `Fin: ${new Date(accountInfo.trial_ends).toLocaleDateString()}` : null} icon={ShieldCheck} color={accountInfo.plan === 'active' ? "bg-blue-500" : "bg-amber-500"} />
+                                    <StatCard title={t('dash.stats.subaccounts')} value={`${accountInfo.limits?.used_subagencies || 0} / ${accountInfo.limits?.max_subagencies || 0}`} icon={Building2} color="bg-indigo-500" />
+                                    <StatCard title={t('dash.stats.connections')} value={`${accountInfo.limits?.used_slots || 0} / ${accountInfo.limits?.max_slots || 0}`} icon={Smartphone} color="bg-emerald-500" />
+                                    <StatCard title={t('dash.stats.plan')} value={accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')} subtext={accountInfo.trial_ends ? `Fin: ${new Date(accountInfo.trial_ends).toLocaleDateString()}` : null} icon={ShieldCheck} color={accountInfo.plan === 'active' ? "bg-blue-500" : "bg-amber-500"} />
                                     <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:shadow-indigo-500/25 transition-shadow" onClick={() => setActiveTab('billing')}>
-                                        <div><p className="text-indigo-200 text-xs font-bold uppercase tracking-wide mb-1">¿Necesitas más?</p><h3 className="text-xl font-bold">Mejorar Plan</h3></div>
+                                        <div><p className="text-indigo-200 text-xs font-bold uppercase tracking-wide mb-1">{t('dash.upgrade.prompt')}</p><h3 className="text-xl font-bold">{t('dash.upgrade.title')}</h3></div>
                                         <div className="self-end bg-white/20 p-2 rounded-lg mt-1"><TrendingUp size={20} /></div>
                                     </div>
                                 </div>
@@ -413,16 +415,16 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                                 <div className="space-y-6">
                                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Users className="text-gray-400" /> Subcuentas Activas</h3>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Users className="text-gray-400" /> {t('dash.subs.title')}</h3>
                                         <div className="flex w-full md:w-auto gap-3">
                                             <div className="relative flex-1 md:w-64">
                                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                                <input type="text" placeholder="Buscar..." className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                                <input type="text" placeholder={t('dash.subs.search')} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                                             </div>
                                             <button onClick={refreshData} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 hover:text-indigo-600 transition"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
 
                                             {/* ✅ BOTÓN NUEVA SUBCUENTA (Con Validación) */}
-                                            <button onClick={handleInstallApp} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{ backgroundColor: branding.primaryColor }}><Plus size={18} /> Nueva</button>
+                                            <button onClick={handleInstallApp} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{ backgroundColor: branding.primaryColor }}><Plus size={18} /> {t('dash.subs.new')}</button>
                                         </div>
                                     </div>
 

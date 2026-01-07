@@ -61,4 +61,29 @@ export const en = {
     "sub.portal.title": "Billing Management",
     "sub.portal.desc": "Manage cards and invoices securely.",
     "sub.portal.button": "Go to Secure Portal",
+
+    // DASHBOARD
+    "dash.nav.management": "Management",
+    "dash.nav.overview": "Dashboard",
+    "dash.nav.billing": "Subscription",
+    "dash.nav.settings": "Settings",
+    "dash.nav.support": "Support",
+    "dash.nav.logout": "Logout",
+
+    "dash.header.overview": "Dashboard",
+    "dash.header.billing": "Subscription Management",
+    "dash.header.settings": "Settings",
+
+    "dash.stats.subaccounts": "Subaccounts",
+    "dash.stats.connections": "WA Connections",
+    "dash.stats.plan": "Current Plan",
+    "dash.stats.active": "Active",
+    "dash.stats.trial": "Trial",
+
+    "dash.upgrade.title": "Upgrade Plan",
+    "dash.upgrade.prompt": "Need more?",
+
+    "dash.subs.title": "Active Subaccounts",
+    "dash.subs.search": "Search...",
+    "dash.subs.new": "New",
 };
