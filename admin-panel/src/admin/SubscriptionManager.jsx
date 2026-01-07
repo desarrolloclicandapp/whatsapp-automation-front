@@ -25,8 +25,10 @@ const PLANS_STANDARD = [
         name: 'Plan Starter',
         priceValue: 29,
         price: '29$',
+        annualId: 'price_1SmuvRHSoN0LpQiB3MXFsBqV',
+        annualPrice: '290$',
         limits: { subs: 1 },
-        features: ['1 Subcuenta', '99 Números vinculables', '290$ Anual'],
+        features: ['1 Subcuenta', '99 Números vinculables', 'Ahorra 2 meses con Anual'],
         color: 'bg-blue-600',
         badge: 'Start'
     },
@@ -35,8 +37,10 @@ const PLANS_STANDARD = [
         name: 'Plan Growth',
         priceValue: 49,
         price: '49$',
+        annualId: 'price_1Smv4cHSoN0LpQiBe5sq49mt',
+        annualPrice: '490$',
         limits: { subs: 3 },
-        features: ['3 Subcuentas', '99 Números vinculables', '490$ Anual'],
+        features: ['3 Subcuentas', '99 Números vinculables', 'Ahorra 2 meses con Anual'],
         color: 'bg-indigo-600',
         recommended: true,
         badge: 'Popular'
@@ -46,8 +50,10 @@ const PLANS_STANDARD = [
         name: 'Plan Agency',
         priceValue: 149,
         price: '149$',
+        annualId: 'price_1SmusiHSoN0LpQiBBaC65w6e',
+        annualPrice: '1490$',
         limits: { subs: 10 },
-        features: ['10 Subcuentas', '99 Números vinculables', '1490$ Anual'],
+        features: ['10 Subcuentas', '99 Números vinculables', 'Ahorra 2 meses con Anual'],
         color: 'bg-purple-600',
         badge: 'Agency'
     }
@@ -61,6 +67,8 @@ const PLANS_FOUNDER = [
         name: 'Starter Addon',
         priceValue: 15,
         price: '15$',
+        annualId: null, // No provisto aún, solo mensual
+        annualPrice: '150$',
         limits: { subs: 1 },
         features: ['1 Subcuenta Extra', '+5 Números', 'Precio Reducido (150$/y)'],
         color: 'bg-emerald-600',
@@ -71,8 +79,10 @@ const PLANS_FOUNDER = [
         name: 'Growth Addon',
         priceValue: 49,
         price: '49$',
+        annualId: 'price_1Smv4cHSoN0LpQiBe5sq49mt',
+        annualPrice: '490$',
         limits: { subs: 3 },
-        features: ['3 Subcuentas Extra', '+15 Números', '490$ Anual'],
+        features: ['3 Subcuentas Extra', '+15 Números', 'Ahorra 2 meses con Anual'],
         color: 'bg-indigo-600',
     },
     {
@@ -80,8 +90,10 @@ const PLANS_FOUNDER = [
         name: 'Agency Addon',
         priceValue: 149,
         price: '149$',
+        annualId: 'price_1SmusiHSoN0LpQiBBaC65w6e',
+        annualPrice: '1490$',
         limits: { subs: 10 },
-        features: ['10 Subcuentas Extra', '+50 Números', '1490$ Anual'],
+        features: ['10 Subcuentas Extra', '+50 Números', 'Ahorra 2 meses con Anual'],
         color: 'bg-purple-600',
     }
 ];
@@ -94,6 +106,8 @@ const PLANS_VOLUME = [
         name: 'Starter Volumen',
         priceValue: 15,
         price: '15$',
+        annualId: null, // No provisto aún
+        annualPrice: '150$',
         limits: { subs: 1 },
         features: ['1 Subcuenta Extra', 'Números Infinitos (99)', 'Precio Volumen (150$/y)'],
         color: 'bg-orange-600',
@@ -151,6 +165,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
     const [fetching, setFetching] = useState(true);
     const [showPlans, setShowPlans] = useState(false);
     const [editingSubId, setEditingSubId] = useState(null);
+    const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'annual'
 
     // 1. Calcular Volumen
     const totalSubs = accountInfo?.limits?.max_subagencies || 0;
@@ -315,16 +330,49 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                 {subscriptions.length > 0 && <button onClick={() => setShowPlans(false)} className="text-sm text-gray-500 hover:text-gray-900 underline">Ocultar Catálogo</button>}
                             </div>
 
+                            {/* TOGGLE MENSUAL / ANUAL */}
+                            <div className="flex justify-center mb-8">
+                                <div className="bg-gray-100 dark:bg-gray-800 p-1 rounded-xl flex items-center relative">
+                                    <button
+                                        onClick={() => setBillingCycle('monthly')}
+                                        className={`px-6 py-2 rounded-lg text-sm font-bold transition-all z-10 ${billingCycle === 'monthly' ? 'bg-white text-gray-900 shadow-md transform scale-105' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        Mensual
+                                    </button>
+                                    <button
+                                        onClick={() => setBillingCycle('annual')}
+                                        className={`px-6 py-2 rounded-lg text-sm font-bold transition-all z-10 flex items-center gap-2 ${billingCycle === 'annual' ? 'bg-indigo-600 text-white shadow-md transform scale-105' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        Anual <span className="bg-green-100 text-green-700 text-[10px] px-1.5 rounded-full border border-green-200">-20%</span>
+                                    </button>
+                                </div>
+                            </div>
+
                             {/* 1. PLANES REGULARES (Grid) */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-                                {availablePlans.map((plan) => (
-                                    <div key={plan.id} className={`bg-white dark:bg-gray-900 border rounded-2xl p-6 flex flex-col transition-all hover:shadow-xl ${plan.recommended ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200 dark:border-gray-800'}`}>
-                                        <div className="mb-4"><h4 className="text-lg font-bold text-gray-900 dark:text-white">{plan.name}</h4><div className="flex items-baseline gap-1 mt-2"><span className="text-3xl font-extrabold text-gray-900 dark:text-white">{plan.price}</span><span className="text-sm text-gray-500">/mes</span></div></div>
-                                        <ul className="space-y-3 mb-8 flex-1">{plan.features.map((feat, i) => <li key={i} className="flex gap-2 text-sm text-gray-600 dark:text-gray-300"><Check size={16} className="text-emerald-500 shrink-0" /> {feat}</li>)}</ul>
-                                        <button onClick={() => handlePurchase(plan.id)} className={`w-full py-3 rounded-xl font-bold text-white transition shadow-lg ${plan.color} hover:opacity-90`}>{loading ? 'Procesando...' : 'Contratar Plan'}</button>
-                                    </div>
-                                ))}
+                                {availablePlans.map((plan) => {
+                                    const isAnnual = billingCycle === 'annual';
+                                    // Si no hay plan anual (ej: addons discount), forzamos mensual visualmente o deshabilitamos
+                                    const effectivePrice = isAnnual ? (plan.annualPrice || plan.price) : plan.price;
+                                    const effectiveId = isAnnual ? (plan.annualId || plan.id) : plan.id;
+                                    const savings = isAnnual && plan.annualId ? "Ahorras ~20%" : null;
+
+                                    return (
+                                        <div key={plan.id} className={`bg-white dark:bg-gray-900 border rounded-2xl p-6 flex flex-col transition-all hover:shadow-xl ${plan.recommended ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200 dark:border-gray-800'}`}>
+                                            <div className="mb-4">
+                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">{plan.name}</h4>
+                                                <div className="flex items-baseline gap-1 mt-2">
+                                                    <span className="text-3xl font-extrabold text-gray-900 dark:text-white">{effectivePrice}</span>
+                                                    <span className="text-sm text-gray-500">/{isAnnual ? 'año' : 'mes'}</span>
+                                                </div>
+                                                {savings && <p className="text-xs font-bold text-green-600 mt-1">{savings}</p>}
+                                            </div>
+                                            <ul className="space-y-3 mb-8 flex-1">{plan.features.map((feat, i) => <li key={i} className="flex gap-2 text-sm text-gray-600 dark:text-gray-300"><Check size={16} className="text-emerald-500 shrink-0" /> {feat}</li>)}</ul>
+                                            <button onClick={() => handlePurchase(effectiveId)} className={`w-full py-3 rounded-xl font-bold text-white transition shadow-lg ${plan.color} hover:opacity-90`}>{loading ? 'Procesando...' : 'Contratar Plan'}</button>
+                                        </div>
+                                    );
+                                })}
                             </div>
 
                             {/* 2. CARD ESPECIAL: LIFETIME (Banner Abajo) */}
