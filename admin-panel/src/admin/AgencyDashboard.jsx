@@ -85,15 +85,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                 const data = await accRes.json();
                 setAccountInfo(data);
 
+                console.log('🔍 Account info received:', data);
                 const planStatus = (data.plan || '').toLowerCase();
                 const now = new Date();
                 const trialEnd = data.trial_ends ? new Date(data.trial_ends) : null;
 
+                console.log('📊 Plan Status:', planStatus);
+                console.log('⏰ Trial End:', trialEnd);
+                console.log('🕐 Current Time:', now);
+
                 if (planStatus === 'suspended' || planStatus === 'cancelled' || planStatus === 'past_due') {
+                    console.log('❌ Account SUSPENDED: Status is', planStatus);
                     setIsAccountSuspended(true);
                 } else if (planStatus === 'trial' && trialEnd && trialEnd < now) {
+                    console.log('❌ Account SUSPENDED: Trial expired');
                     setIsAccountSuspended(true);
                 } else {
+                    console.log('✅ Account is ACTIVE');
                     setIsAccountSuspended(false);
                 }
             }
