@@ -15,7 +15,8 @@ import {
     Plus, Search, Building2, Smartphone, RefreshCw,
     ExternalLink, Menu, CheckCircle2, ChevronRight,
     AlertTriangle, TrendingUp, ShieldCheck, Settings, Trash2,
-    User, Users, Moon, Sun, Mail, Hash, Palette, RotateCcw, Link, MousePointer2
+    User, Users, Moon, Sun, Mail, Hash, Palette, RotateCcw, Link, MousePointer2,
+    Key, Copy, Terminal
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -47,6 +48,12 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     // ✅ Estado para controlar el Popup de Upgrade
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+    // ✅ Estado para Claves API
+    const [apiKeys, setApiKeys] = useState([]);
+    const [loadingKeys, setLoadingKeys] = useState(false);
+    const [showNewKeyModal, setShowNewKeyModal] = useState(false);
+    const [generatedKey, setGeneratedKey] = useState(null);
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -164,10 +171,68 @@ export default function AgencyDashboard({ token, onLogout }) {
     useEffect(() => {
         if (AGENCY_ID) {
             refreshData();
+            fetchApiKeys(); // ✅ Load keys on mount
             const interval = setInterval(refreshData, 30000);
             return () => clearInterval(interval);
         }
     }, [AGENCY_ID]);
+
+    const fetchApiKeys = async () => {
+        setLoadingKeys(true);
+        try {
+            const res = await authFetch('/agency/api-keys');
+            if (res.ok) {
+                const data = await res.json();
+                setApiKeys(data.keys);
+            }
+        } catch (e) {
+            console.error("Error fetching API keys:", e);
+        } finally {
+            setLoadingKeys(false);
+        }
+    };
+
+    const handleGenerateKey = async (e) => {
+        e.preventDefault();
+        const name = e.target.keyName.value;
+        if (!name) return toast.error("Nombre requerido");
+
+        const tId = toast.loading("Generando clave...");
+        try {
+            const res = await authFetch('/agency/api-keys', {
+                method: 'POST',
+                body: JSON.stringify({ keyName: name })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success("Clave generada con éxito", { id: tId });
+                setGeneratedKey(data.apiKey);
+                setShowNewKeyModal(true);
+                fetchApiKeys();
+                e.target.reset();
+            } else {
+                toast.error(data.error || "Error al generar", { id: tId });
+            }
+        } catch (err) {
+            toast.error("Error de conexión", { id: tId });
+        }
+    };
+
+    const handleRevokeKey = async (id) => {
+        if (!confirm("¿Seguro que quieres eliminar esta clave API? Esta acción no se puede deshacer.")) return;
+        const tId = toast.loading("Eliminando...");
+        try {
+            const res = await authFetch(`/agency/api-keys/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                toast.success("Clave eliminada", { id: tId });
+                fetchApiKeys();
+            } else {
+                toast.error("Error al eliminar", { id: tId });
+            }
+        } catch (err) {
+            toast.error("Error de conexión", { id: tId });
+        }
+    };
 
     const handleDeleteTenant = async (e, locationId, name) => {
         e.stopPropagation();
@@ -484,6 +549,117 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <WhiteLabelSettings />
 
                             <SecurityCard token={token} />
+
+                            {/* ✅ GESTIÓN DE CLAVES API (n8n) */}
+                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
+                                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <Key size={24} className="text-emerald-500" /> Claves API
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestiona las claves API para autenticar N8N y el acceso a la API</p>
+                                        <p className="text-xs text-gray-400 mt-1 font-medium">Límite: hasta 5 claves activas</p>
+                                    </div>
+                                    <form onSubmit={handleGenerateKey} className="flex gap-2 w-full md:w-auto">
+                                        <input
+                                            name="keyName"
+                                            placeholder="Nombre (ej: n8n Production)"
+                                            required
+                                            className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm flex-1 md:w-48"
+                                        />
+                                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg transition flex items-center gap-2 shrink-0">
+                                            <Plus size={18} /> Crear clave API
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-800">
+                                                <th className="pb-4 pl-2">Nombre</th>
+                                                <th className="pb-4">ID de clave</th>
+                                                <th className="pb-4">Creado</th>
+                                                <th className="pb-4 text-right pr-2">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                                            {apiKeys.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="4" className="py-8 text-center text-gray-400 text-sm">No hay claves API activas.</td>
+                                                </tr>
+                                            ) : (
+                                                apiKeys.map(key => (
+                                                    <tr key={key.id} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                                                        <td className="py-4 pl-2">
+                                                            <div className="font-bold text-gray-900 dark:text-white text-sm">{key.key_name}</div>
+                                                        </td>
+                                                        <td className="py-4">
+                                                            <div className="flex items-center gap-2 font-mono text-xs text-gray-500 dark:text-gray-400">
+                                                                <Terminal size={14} className="text-gray-300" />
+                                                                {key.key_prefix}••••••••••••
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4">
+                                                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                                {new Date(key.created_at).toLocaleString()}
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 text-right pr-2">
+                                                            <button
+                                                                onClick={() => handleRevokeKey(key.id)}
+                                                                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-600 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* MODAL PARA MOSTRAR LA NUEVA CLAVE */}
+                            {showNewKeyModal && (
+                                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                                    <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+                                        <div className="mb-6 text-center">
+                                            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600">
+                                                <ShieldCheck size={32} />
+                                            </div>
+                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Clave API Generada</h3>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Copia esta clave ahora. Por seguridad, no se volverá a mostrar.</p>
+                                        </div>
+
+                                        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 mb-6 relative group">
+                                            <div className="font-mono text-sm break-all pr-10 text-indigo-600 dark:text-indigo-400 font-bold">
+                                                {generatedKey}
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(generatedKey);
+                                                    toast.success("Copiado al portapapeles");
+                                                }}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-indigo-600 transition"
+                                            >
+                                                <Copy size={18} />
+                                            </button>
+                                        </div>
+
+                                        <button
+                                            onClick={() => {
+                                                setShowNewKeyModal(false);
+                                                setGeneratedKey(null);
+                                            }}
+                                            className="w-full py-3 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl font-bold hover:opacity-90 transition"
+                                        >
+                                            Entendido, la he guardado
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-center justify-between">
                                 <div><h4 className="text-sm font-bold text-gray-900 dark:text-white">Modo Oscuro</h4><p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Alternar tema.</p></div>
