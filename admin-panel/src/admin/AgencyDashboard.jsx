@@ -55,6 +55,10 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [showNewKeyModal, setShowNewKeyModal] = useState(false);
     const [generatedKey, setGeneratedKey] = useState(null);
 
+    // ✅ Estado para Webhooks
+    const [webhooks, setWebhooks] = useState([]);
+    const [showNewWebhookModal, setShowNewWebhookModal] = useState(false);
+
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
             ...options,
@@ -172,10 +176,68 @@ export default function AgencyDashboard({ token, onLogout }) {
         if (AGENCY_ID) {
             refreshData();
             fetchApiKeys(); // ✅ Load keys on mount
+            fetchWebhooks(); // ✅ Load webhooks on mount
             const interval = setInterval(refreshData, 30000);
             return () => clearInterval(interval);
         }
     }, [AGENCY_ID]);
+
+    const fetchWebhooks = async () => {
+        try {
+            const res = await authFetch('/agency/webhooks');
+            if (res.ok) {
+                const data = await res.json();
+                setWebhooks(data.hooks);
+            }
+        } catch (e) {
+            console.error("Error fetching webhooks:", e);
+        }
+    };
+
+    const handleCreateWebhook = async (e) => {
+        e.preventDefault();
+        const name = e.target.hookName.value;
+        const url = e.target.hookUrl.value;
+        const events = Array.from(e.target.elements)
+            .filter(el => el.name === "events" && el.checked)
+            .map(el => el.value);
+
+        if (!name || !url) return toast.error("Nombre y URL requeridos");
+
+        const tId = toast.loading("Creando suscripción...");
+        try {
+            const res = await authFetch('/agency/webhooks', {
+                method: 'POST',
+                body: JSON.stringify({ name, targetUrl: url, events })
+            });
+            if (res.ok) {
+                toast.success("Webhook creado", { id: tId });
+                fetchWebhooks();
+                setShowNewWebhookModal(false);
+                e.target.reset();
+            } else {
+                toast.error("Error al crear", { id: tId });
+            }
+        } catch (err) {
+            toast.error("Error de conexión", { id: tId });
+        }
+    };
+
+    const handleDeleteWebhook = async (id) => {
+        if (!confirm("¿Eliminar esta suscripción de Webhook?")) return;
+        const tId = toast.loading("Eliminando...");
+        try {
+            const res = await authFetch(`/agency/webhooks/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                toast.success("Webhook eliminado", { id: tId });
+                fetchWebhooks();
+            } else {
+                toast.error("Error al eliminar", { id: tId });
+            }
+        } catch (err) {
+            toast.error("Error de conexión", { id: tId });
+        }
+    };
 
     const fetchApiKeys = async () => {
         setLoadingKeys(true);
@@ -620,6 +682,136 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </table>
                                 </div>
                             </div>
+
+                            {/* ✅ GESTIÓN DE WEBHOOKS (n8n) */}
+                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
+                                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <Link size={24} className="text-blue-500" /> Webhook
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Añade un webhook para recibir eventos e integrarte con servicios externos</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowNewWebhookModal(true)}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg transition flex items-center gap-2"
+                                    >
+                                        <Plus size={18} /> Crear suscripción
+                                    </button>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-800">
+                                                <th className="pb-4 pl-2">Nombre</th>
+                                                <th className="pb-4">URL de destino</th>
+                                                <th className="pb-4">Eventos</th>
+                                                <th className="pb-4">Creado</th>
+                                                <th className="pb-4 text-right pr-2">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                                            {webhooks.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="5" className="py-8 text-center text-gray-400 text-sm">No hay webhooks configurados.</td>
+                                                </tr>
+                                            ) : (
+                                                webhooks.map(hook => (
+                                                    <tr key={hook.id} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                                                        <td className="py-4 pl-2">
+                                                            <div className="font-bold text-gray-900 dark:text-white text-sm">{hook.name}</div>
+                                                        </td>
+                                                        <td className="py-4">
+                                                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]" title={hook.target_url}>
+                                                                {hook.target_url}
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4">
+                                                            <div className="flex gap-1.5">
+                                                                {hook.events?.includes("whatsapp inbound message") && (
+                                                                    <div title="Inbound" className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600">
+                                                                        <TrendingUp size={12} className="rotate-180" />
+                                                                    </div>
+                                                                )}
+                                                                {hook.events?.includes("whatsapp outbound message") && (
+                                                                    <div title="Outbound" className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+                                                                        <TrendingUp size={12} />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4">
+                                                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                                {new Date(hook.created_at).toLocaleString()}
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 text-right pr-2">
+                                                            <button
+                                                                onClick={() => handleDeleteWebhook(hook.id)}
+                                                                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-600 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* MODAL PARA CREAR WEBHOOK */}
+                            {showNewWebhookModal && (
+                                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                                    <div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Nueva Suscripción Webhook</h3>
+                                            <button onClick={() => setShowNewWebhookModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition">
+                                                <Settings size={20} className="rotate-45" />
+                                            </button>
+                                        </div>
+
+                                        <form onSubmit={handleCreateWebhook} className="space-y-6">
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre</label>
+                                                <input name="hookName" placeholder="Ej: n8n Workflow Producción" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL de Destino</label>
+                                                <input name="hookUrl" type="url" placeholder="https://tu-n8n.com/webhook/..." required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Eventos a Suscribir</label>
+                                                <div className="grid grid-cols-1 gap-3">
+                                                    <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer hover:border-blue-500 transition-all">
+                                                        <input type="checkbox" name="events" value="whatsapp inbound message" defaultChecked className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                                        <div className="flex-1">
+                                                            <div className="text-sm font-bold text-gray-900 dark:text-white">Mensaje de WhatsApp (Entrante)</div>
+                                                            <div className="text-xs text-gray-500">Se activa cuando recibes un mensaje.</div>
+                                                        </div>
+                                                    </label>
+                                                    <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer hover:border-blue-500 transition-all">
+                                                        <input type="checkbox" name="events" value="whatsapp outbound message" defaultChecked className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                                        <div className="flex-1">
+                                                            <div className="text-sm font-bold text-gray-900 dark:text-white">Mensaje de WhatsApp (Saliente)</div>
+                                                            <div className="text-xs text-gray-500">Se activa cuando envías un mensaje.</div>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-2 flex gap-3">
+                                                <button type="button" onClick={() => setShowNewWebhookModal(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition">Cancelar</button>
+                                                <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg transition">Crear Suscripción</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* MODAL PARA MOSTRAR LA NUEVA CLAVE */}
                             {showNewKeyModal && (
