@@ -15,6 +15,7 @@ import {
     Plus, Search, Building2, Smartphone, RefreshCw,
     ExternalLink, Menu, CheckCircle2, ChevronRight,
     AlertTriangle, TrendingUp, ShieldCheck, Settings, Trash2,
+    Lock,
     User, Users, Moon, Sun, Mail, Hash, Palette, RotateCcw, Link, MousePointer2,
     Key, Copy, Terminal
 } from 'lucide-react';
@@ -26,6 +27,7 @@ const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "595984756159";
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
     const { branding, updateBranding, resetBranding, DEFAULT_BRANDING, systemBranding } = useBranding();
+    const isRestricted = accountInfo?.plan === 'trial' || accountInfo?.plan === 'starter'; // 🔒 Restricción global
 
     const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));
     const queryParams = new URLSearchParams(window.location.search);
@@ -345,7 +347,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const WhiteLabelSettings = () => {
         const [form, setForm] = useState(branding || DEFAULT_BRANDING);
-        const isTrial = accountInfo?.plan === 'trial'; // 🔒 Restricción de plan
+        // isRestricted viene del componente padre
 
         useEffect(() => {
             if (branding) setForm(branding);
@@ -374,7 +376,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
                     <div>
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Palette size={24} className="text-indigo-600" /> Marca Blanca
+                            <Palette size={24} className="text-indigo-500" /> Marca Blanca
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Personaliza el panel con tu identidad.</p>
                     </div>
@@ -390,13 +392,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Identidad</h4>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre de Agencia</label>
-                            <input disabled={isTrial} type="text" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all disabled:opacity-50" style={{ '--tw-ring-color': branding.primaryColor }} />
+                            <input disabled={isRestricted} type="text" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all disabled:opacity-50" style={{ '--tw-ring-color': branding.primaryColor }} />
                         </div>
                     </div>
 
                     <div className="space-y-4">
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Gráficos</h4>
-                        <div className={`${isTrial ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                        <div className={`${isRestricted ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo URL (Cuadrado)</label>
                             <div className="flex gap-4 items-center">
                                 <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
@@ -416,7 +418,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </div>
                         </div>
 
-                        <div className={`${isTrial ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                        <div className={`${isRestricted ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Favicon URL (Pestaña)</label>
                             <div className="flex gap-4 items-center">
                                 <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
@@ -437,7 +439,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     </div>
 
-                    <div className={`space-y-4 ${isTrial ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                    <div className={`space-y-4 ${isRestricted ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Colores</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
@@ -458,7 +460,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     </div>
 
                     <div className="pt-6 flex flex-col md:flex-row items-center gap-4 border-t border-gray-100 dark:border-gray-800">
-                        {isTrial ? (
+                        {isRestricted ? (
                             <div className="w-full flex items-center justify-between bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100 dark:border-amber-900/30">
                                 <div className="flex items-center gap-3 text-amber-700 dark:text-amber-400">
                                     <AlertTriangle size={20} />
@@ -635,8 +637,20 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <SecurityCard token={token} />
 
                             {/* ✅ GESTIÓN DE CLAVES API (n8n) */}
-                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
-                                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                            <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4 relative overflow-hidden`}>
+                                {isRestricted && (
+                                    <div className="absolute inset-0 bg-white/40 dark:bg-gray-900/40 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center text-center p-6">
+                                        <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center text-amber-600 mb-4">
+                                            <Lock size={24} />
+                                        </div>
+                                        <h4 className="text-lg font-bold text-gray-900 dark:text-white">Claves API No Disponibles</h4>
+                                        <p className="text-sm text-gray-500 max-w-xs mt-2">Esta función para usar <b>N8N</b> y Automatizaciones avanzadas requiere un plan superior al Starter.</p>
+                                        <button onClick={() => setActiveTab('billing')} className="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md hover:bg-indigo-700 transition">
+                                            Ver Planes →
+                                        </button>
+                                    </div>
+                                )}
+                                <div className={`flex flex-col md:flex-row justify-between items-start mb-6 gap-4 ${isRestricted ? 'opacity-20 grayscale pointer-events-none' : ''}`}>
                                     <div>
                                         <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                             <Key size={24} className="text-emerald-500" /> Claves API
@@ -706,8 +720,20 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </div>
 
                             {/* ✅ GESTIÓN DE WEBHOOKS (n8n) */}
-                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
-                                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                            <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4 relative overflow-hidden`}>
+                                {isRestricted && (
+                                    <div className="absolute inset-0 bg-white/40 dark:bg-gray-900/40 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center text-center p-6">
+                                        <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 mb-4">
+                                            <Link size={24} />
+                                        </div>
+                                        <h4 className="text-lg font-bold text-gray-900 dark:text-white">Webhooks No Disponibles</h4>
+                                        <p className="text-sm text-gray-500 max-w-xs mt-2">Recibe eventos en tiempo real integrando servicios externos. Disponible en planes superiores.</p>
+                                        <button onClick={() => setActiveTab('billing')} className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md hover:bg-blue-700 transition">
+                                            Mejorar plan →
+                                        </button>
+                                    </div>
+                                )}
+                                <div className={`flex flex-col md:flex-row justify-between items-start mb-6 gap-4 ${isRestricted ? 'opacity-20 grayscale pointer-events-none' : ''}`}>
                                     <div>
                                         <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                             <Link size={24} className="text-blue-500" /> Webhook
