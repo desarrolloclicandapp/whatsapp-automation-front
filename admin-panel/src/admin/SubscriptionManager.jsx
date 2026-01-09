@@ -121,8 +121,8 @@ const PLANS_VOLUME = [
 const PLAN_LIFETIME = {
     id: 'price_1SmuqPHSoN0LpQiBoPVJaaRY',
     name: 'Founder\'s Pass',
-    priceValue: 950,
-    price: '950$',
+    priceValue: 997,
+    price: '997$',
     limits: { subs: 10, slots: 50 },
     features: ['PAGO ÚNICO (Lifetime)', '10 Subcuentas', '50 Números INICIALES', 'Acceso a Addons Especiales'],
     color: 'bg-black border-2 border-yellow-400',
