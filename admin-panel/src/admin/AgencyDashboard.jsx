@@ -25,7 +25,7 @@ const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "595984756159";
 
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
-    const { branding, updateBranding, resetBranding, DEFAULT_BRANDING } = useBranding();
+    const { branding, updateBranding, resetBranding, DEFAULT_BRANDING, systemBranding } = useBranding();
 
     const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));
     const queryParams = new URLSearchParams(window.location.search);
@@ -345,6 +345,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const WhiteLabelSettings = () => {
         const [form, setForm] = useState(branding || DEFAULT_BRANDING);
+        const isTrial = accountInfo?.plan === 'trial'; // 🔒 Restricción de plan
 
         useEffect(() => {
             if (branding) setForm(branding);
@@ -389,13 +390,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Identidad</h4>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre de Agencia</label>
-                            <input type="text" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all" style={{ '--tw-ring-color': branding.primaryColor }} />
+                            <input disabled={isTrial} type="text" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all disabled:opacity-50" style={{ '--tw-ring-color': branding.primaryColor }} />
                         </div>
                     </div>
 
                     <div className="space-y-4">
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Gráficos</h4>
-                        <div>
+                        <div className={`${isTrial ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo URL (Cuadrado)</label>
                             <div className="flex gap-4 items-center">
                                 <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
@@ -405,17 +406,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                     <input
                                         type="url"
-                                        value={form.logoUrl || ''}
-                                        onChange={e => setForm({ ...form, logoUrl: e.target.value })}
+                                        value={form.logoUrl === systemBranding?.logoUrl ? '' : (form.logoUrl || '')}
+                                        onChange={e => setForm({ ...form, logoUrl: e.target.value || systemBranding.logoUrl })}
                                         className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm"
                                         style={{ '--tw-ring-color': branding.primaryColor }}
-                                        placeholder="https://ejemplo.com/milogo.png"
+                                        placeholder="Carga tu propio logo (URL)"
                                     />
                                 </div>
                             </div>
                         </div>
 
-                        <div>
+                        <div className={`${isTrial ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Favicon URL (Pestaña)</label>
                             <div className="flex gap-4 items-center">
                                 <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
@@ -425,18 +426,18 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <MousePointer2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                     <input
                                         type="url"
-                                        value={form.faviconUrl || ''}
-                                        onChange={e => setForm({ ...form, faviconUrl: e.target.value })}
+                                        value={form.faviconUrl === systemBranding?.faviconUrl ? '' : (form.faviconUrl || '')}
+                                        onChange={e => setForm({ ...form, faviconUrl: e.target.value || systemBranding.faviconUrl })}
                                         className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm"
                                         style={{ '--tw-ring-color': branding.primaryColor }}
-                                        placeholder="https://ejemplo.com/icon.png"
+                                        placeholder="Carga tu propio favicon (URL)"
                                     />
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className={`space-y-4 ${isTrial ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Colores</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
@@ -456,13 +457,27 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     </div>
 
-                    <div className="pt-6 flex items-center gap-4 border-t border-gray-100 dark:border-gray-800">
-                        <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg flex items-center gap-2 hover:-translate-y-0.5">
-                            <CheckCircle2 size={18} /> Guardar Cambios
-                        </button>
-                        <button type="button" onClick={handleReset} className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 font-medium text-sm transition flex items-center gap-2 px-4">
-                            <RotateCcw size={16} /> Restaurar
-                        </button>
+                    <div className="pt-6 flex flex-col md:flex-row items-center gap-4 border-t border-gray-100 dark:border-gray-800">
+                        {isTrial ? (
+                            <div className="w-full flex items-center justify-between bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100 dark:border-amber-900/30">
+                                <div className="flex items-center gap-3 text-amber-700 dark:text-amber-400">
+                                    <AlertTriangle size={20} />
+                                    <span className="text-sm font-medium">Esta función solo está disponible en planes <b>Superiores al Starter</b>.</span>
+                                </div>
+                                <button type="button" onClick={() => setActiveTab('billing')} className="text-sm font-bold text-indigo-600 hover:underline">
+                                    Mejorar plan →
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <button type="submit" className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg flex items-center gap-2 hover:-translate-y-0.5">
+                                    <CheckCircle2 size={18} /> Guardar Cambios
+                                </button>
+                                <button type="button" onClick={handleReset} className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 font-medium text-sm transition flex items-center gap-2 px-4">
+                                    <RotateCcw size={16} /> Restaurar
+                                </button>
+                            </>
+                        )}
                     </div>
                 </form>
             </div>
