@@ -27,7 +27,6 @@ const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "595984756159";
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
     const { branding, updateBranding, resetBranding, DEFAULT_BRANDING, systemBranding } = useBranding();
-    const isRestricted = accountInfo?.plan === 'trial' || accountInfo?.plan === 'starter'; // 🔒 Restricción global
 
     const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));
     const queryParams = new URLSearchParams(window.location.search);
@@ -43,6 +42,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [isAutoSyncing, setIsAutoSyncing] = useState(false);
 
     const [accountInfo, setAccountInfo] = useState(null);
+    const isRestricted = accountInfo?.plan === 'trial' || accountInfo?.plan === 'starter'; // 🔒 Restricción global
     const [searchTerm, setSearchTerm] = useState("");
     const [userEmail, setUserEmail] = useState("");
 
