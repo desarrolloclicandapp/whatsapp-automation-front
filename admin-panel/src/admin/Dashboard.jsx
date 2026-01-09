@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import {
     Settings, Search, Palette, Upload,
     RefreshCw, Building2, Smartphone, CheckCircle2,
-    ArrowLeft, LogOut, RotateCcw, Image as ImageIcon, Link
+    ArrowLeft, LogOut, RotateCcw, Image as ImageIcon, Link, Users, Trash2
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -19,6 +19,7 @@ export default function AdminDashboard({ token, onLogout }) {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [agencies, setAgencies] = useState([]);
     const [subaccounts, setSubaccounts] = useState([]);
+    const [users, setUsers] = useState([]); // ✅ Nuevo estado para usuarios
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
 
@@ -77,8 +78,39 @@ export default function AdminDashboard({ token, onLogout }) {
         }
     };
 
+    const fetchUsers = async () => {
+        setLoading(true);
+        try {
+            const res = await authFetch(`/admin/users`);
+            const data = await res.json();
+            setUsers(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error("Error cargando usuarios:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteUser = async (userId) => {
+        if (!confirm("¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.")) return;
+        
+        try {
+            const res = await authFetch(`/admin/users/${userId}`, { method: 'DELETE' });
+            if (res.ok) {
+                toast.success("Usuario eliminado correctamente");
+                fetchUsers();
+            } else {
+                const data = await res.json();
+                toast.error(data.error || "Error al eliminar usuario");
+            }
+        } catch (error) {
+            toast.error("Error de conexión");
+        }
+    };
+
     useEffect(() => {
         if (view === 'agencies') fetchAgencies();
+        if (view === 'users') fetchUsers();
     }, [view]);
 
     const handleAgencyClick = (agency) => {
@@ -104,6 +136,12 @@ export default function AdminDashboard({ token, onLogout }) {
     const filteredSubaccounts = subaccounts.filter(s => 
         (s.name && s.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (s.location_id && s.location_id.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    const filteredUsers = users.filter(u => 
+        (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (u.agency_id && u.agency_id.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     // --- SUBCOMPONENTE: MARCA GLOBAL + GALERÍA ---
@@ -377,18 +415,25 @@ export default function AdminDashboard({ token, onLogout }) {
                         
                         <div>
                             <h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">
-                                {view === 'branding' ? 'Configuración Global' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}
+                                {view === 'branding' ? 'Configuración Global' : view === 'users' ? 'Gestión de Usuarios' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}
                             </h1>
                             {view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} subcuentas</p>}
+                            {view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}
                         </div>
 
                         {/* TABS DE NAVEGACIÓN */}
                         <div className="hidden md:flex items-center gap-1 ml-6 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700">
                             <button 
                                 onClick={() => { setView('agencies'); setSubaccounts([]); setSelectedAgency(null); }} 
-                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view !== 'branding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'agencies' || view === 'subaccounts' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
                             >
                                 <Building2 size={16} /> Agencias
+                            </button>
+                            <button 
+                                onClick={() => setView('users')} 
+                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'users' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+                            >
+                                <Users size={16} /> Usuarios
                             </button>
                             <button 
                                 onClick={() => setView('branding')} 
@@ -427,6 +472,77 @@ export default function AdminDashboard({ token, onLogout }) {
 
                 {/* --- VISTA: MARCA GLOBAL --- */}
                 {view === 'branding' && <GlobalBrandingSettings />}
+
+                {/* --- VISTA: USUARIOS --- */}
+                {view === 'users' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                        <div className="relative w-full max-w-md">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Buscar por email, nombre o agencia..."
+                                className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm text-sm"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+
+                        {loading ? (
+                            <div className="text-center py-24">
+                                <RefreshCw className="animate-spin mx-auto text-indigo-600 mb-4" size={40} />
+                                <p className="text-gray-500">Cargando usuarios...</p>
+                            </div>
+                        ) : filteredUsers.length === 0 ? (
+                            <div className="text-center py-16 bg-white dark:bg-gray-900 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700">
+                                <Users className="mx-auto text-gray-300 mb-4" size={64} />
+                                <p className="text-gray-500 text-lg">No se encontraron usuarios.</p>
+                            </div>
+                        ) : (
+                            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-sm overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="bg-gray-50 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">
+                                            <tr>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Usuario</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Rol</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Agencia ID</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Registro</th>
+                                                <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                            {filteredUsers.map(user => (
+                                                <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-gray-900 dark:text-white">{user.name || 'Sin nombre'}</div>
+                                                        <div className="text-xs text-gray-500">{user.email}</div>
+                                                        {user.phone && <div className="text-[10px] text-indigo-500 font-mono">+{user.phone}</div>}
+                                                    </td>
+                                                    <td className="px-6 py-4 font-medium text-xs">
+                                                        <span className={`px-2 py-1 rounded-full ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                            {user.role?.toUpperCase()}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 font-mono text-xs text-gray-500">{user.agency_id || '-'}</td>
+                                                    <td className="px-6 py-4 text-xs text-gray-500">{new Date(user.created_at).toLocaleDateString()}</td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <button 
+                                                            onClick={() => handleDeleteUser(user.id)}
+                                                            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                            title="Eliminar Usuario"
+                                                        >
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* --- VISTA: AGENCIAS / SUBCUENTAS --- */}
                 {(view === 'agencies' || view === 'subaccounts') && (
