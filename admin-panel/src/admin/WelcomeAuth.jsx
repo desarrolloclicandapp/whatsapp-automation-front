@@ -26,6 +26,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
     const [loading, setLoading] = useState(false);
     const [tempToken, setTempToken] = useState(null);
+    const [tempAgencyId, setTempAgencyId] = useState(null);
 
     // --- LÓGICA DE AUTH ---
 
@@ -62,6 +63,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
             if (data.token) {
                 if (data.isNewUser) {
                     setTempToken(data.token);
+                    setTempAgencyId(data.agencyId || data.user?.agencyId);
                     setStep('NAME');
                 } else {
                     toast.success("¡Bienvenido de nuevo! 👋");
@@ -120,7 +122,11 @@ export default function WelcomeAuth({ onLoginSuccess }) {
             if (!updateRes.ok) throw new Error("Error guardando perfil");
 
             toast.success("¡Cuenta verificada y creada! 🚀");
-            onLoginSuccess({ token: tempToken, role: 'agency' });
+            onLoginSuccess({
+                token: tempToken,
+                role: 'agency',
+                agencyId: tempAgencyId
+            });
 
         } catch (err) { toast.error(err.message); }
         setLoading(false);

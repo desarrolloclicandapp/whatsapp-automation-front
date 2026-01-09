@@ -79,42 +79,49 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     const refreshData = async () => {
-        if (!AGENCY_ID) { setLoading(false); return; }
-
         try {
-            const [locRes, accRes] = await Promise.all([
-                authFetch(`/agency/locations?agencyId=${AGENCY_ID}`),
-                authFetch('/agency/info')
-            ]);
-
-            if (locRes && locRes.ok) {
-                const data = await locRes.json();
-                if (Array.isArray(data)) setLocations(data);
-            }
+            // ✅ Intentamos obtener /agency/info siempre, 
+            // ya que nos devolverá el agencyId si no lo tenemos.
+            const accRes = await authFetch('/agency/info');
 
             if (accRes && accRes.ok) {
                 const data = await accRes.json();
                 setAccountInfo(data);
 
-                console.log('🔍 Account info received:', data);
+                // Si no teníamos el AGENCY_ID, lo recuperamos de aquí
+                let effectiveAgencyId = AGENCY_ID;
+                if (!effectiveAgencyId && data.agencyId) {
+                    console.log('✨ Auto-recuperando Agency ID:', data.agencyId);
+                    effectiveAgencyId = data.agencyId;
+                    setStoredAgencyId(data.agencyId);
+                    localStorage.setItem("agencyId", data.agencyId);
+                }
+
+                // Ahora que (posiblemente) tenemos el ID, cargamos las locaciones
+                if (effectiveAgencyId) {
+                    const locRes = await authFetch(`/agency/locations?agencyId=${effectiveAgencyId}`);
+                    if (locRes && locRes.ok) {
+                        const locData = await locRes.json();
+                        if (Array.isArray(locData)) setLocations(locData);
+                    }
+                }
+
+                // Lógica de suspensión...
                 const planStatus = (data.plan || '').toLowerCase();
                 const now = new Date();
                 const trialEnd = data.trial_ends ? new Date(data.trial_ends) : null;
 
-                console.log('📊 Plan Status:', planStatus);
-                console.log('⏰ Trial End:', trialEnd);
-                console.log('🕐 Current Time:', now);
-
                 if (planStatus === 'suspended' || planStatus === 'cancelled' || planStatus === 'past_due') {
-                    console.log('❌ Account SUSPENDED: Status is', planStatus);
                     setIsAccountSuspended(true);
                 } else if (planStatus === 'trial' && trialEnd && trialEnd < now) {
-                    console.log('❌ Account SUSPENDED: Trial expired');
                     setIsAccountSuspended(true);
                 } else {
-                    console.log('✅ Account is ACTIVE');
                     setIsAccountSuspended(false);
                 }
+            } else if (!AGENCY_ID) {
+                // Si no hay respuesta y no hay ID, no podemos hacer más
+                setLoading(false);
+                return;
             }
         } catch (error) {
             console.error("Error refrescando datos", error);
