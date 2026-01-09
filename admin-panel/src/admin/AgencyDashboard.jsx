@@ -13,7 +13,7 @@ import { useBranding } from '../context/BrandingContext';
 import {
     LayoutGrid, CreditCard, LifeBuoy, LogOut,
     Plus, Search, Building2, Smartphone, RefreshCw,
-    ExternalLink, Menu, CheckCircle2, ChevronRight,
+    ExternalLink, Menu, CheckCircle2, ChevronRight, ArrowRight, Zap, Calendar,
     AlertTriangle, TrendingUp, ShieldCheck, Settings, Trash2,
     Lock,
     User, Users, Moon, Sun, Mail, Hash, Palette, RotateCcw, Link, MousePointer2,
@@ -571,6 +571,29 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
 
                                 <div className="border-t border-gray-200 dark:border-gray-800"></div>
+
+                                {accountInfo.plan === 'trial' && (
+                                    <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="flex items-center gap-5">
+                                            <div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner">
+                                                <Zap size={28} fill="currentColor" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">Periodo de Prueba Activo (Trial) ⚡</h4>
+                                                <p className="text-sm text-amber-800 dark:text-amber-400 mt-1 max-w-2xl">
+                                                    Tu acceso gratuito vence el <span className="font-bold underlineDecoration decoration-amber-500/30">{new Date(accountInfo.trial_ends).toLocaleDateString()}</span>.
+                                                    Contrata un plan ahora para mantener tus automatizaciones activas y desbloquear todas las funciones PRO.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setActiveTab('billing')}
+                                            className="w-full md:w-auto px-8 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-extrabold text-sm shadow-xl shadow-amber-600/20 transition-all flex items-center justify-center gap-3 hover:-translate-y-0.5 active:scale-95"
+                                        >
+                                            Elegir un Plan <ArrowRight size={18} />
+                                        </button>
+                                    </div>
+                                )}
 
                                 <div className="space-y-6">
                                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
