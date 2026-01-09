@@ -25,6 +25,25 @@ export default function WelcomeAuth({ onLoginSuccess }) {
     const [adminPass, setAdminPass] = useState("");
 
     const [loading, setLoading] = useState(false);
+    const [ghlExists, setGhlExists] = useState(false);
+
+    useEffect(() => {
+        const checkExistingGHL = async () => {
+            const locId = sessionStorage.getItem("ghl_location_id");
+            if (!locId) return;
+
+            try {
+                const res = await fetch(`${API_URL}/agency/location-details/${locId}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem("authToken")}` }
+                });
+                // Si la subcuenta ya existe en nuestra DB, marcamos que la agencia existe
+                if (res.ok) setGhlExists(true);
+            } catch (e) {
+                console.error("Error verificando GHL:", e);
+            }
+        };
+        checkExistingGHL();
+    }, []);
     const [tempToken, setTempToken] = useState(null);
     const [tempAgencyId, setTempAgencyId] = useState(null);
 
@@ -331,8 +350,14 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                             {step === 'EMAIL' && (
                                 <div className="space-y-8 animate-in fade-in slide-in-from-right-8">
                                     <div className="text-center">
-                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Bienvenido ✨</h2>
-                                        <p className="text-gray-500 mt-2">Validemos tu email corporativo.</p>
+                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                                            {ghlExists ? "Unirse a Agencia ✨" : "Bienvenido ✨"}
+                                        </h2>
+                                        <p className="text-gray-500 mt-2">
+                                            {ghlExists 
+                                                ? "Esta agencia ya está registrada. Vincula tu cuenta." 
+                                                : "Validemos tu email corporativo."}
+                                        </p>
                                     </div>
                                     <form onSubmit={requestEmailOtp} className="space-y-6">
                                         <div className="relative">

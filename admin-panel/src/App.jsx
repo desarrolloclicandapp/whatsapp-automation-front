@@ -9,6 +9,16 @@ function App() {
     const [token, setToken] = useState(localStorage.getItem("authToken"));
     const [role, setRole] = useState(localStorage.getItem("userRole"));
 
+    useEffect(() => {
+        // Capturar location_id de la URL si viene de GHL
+        const params = new URLSearchParams(window.location.search);
+        const locId = params.get("location_id");
+        if (locId) {
+            sessionStorage.setItem("ghl_location_id", locId);
+            console.log("📍 Location ID capturado:", locId);
+        }
+    }, []);
+
     // Manejar Login Exitoso
     const handleLoginSuccess = (data) => {
         localStorage.setItem("authToken", data.token);
