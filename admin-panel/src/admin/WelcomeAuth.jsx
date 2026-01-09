@@ -342,9 +342,6 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                         <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg flex justify-center items-center gap-2" style={{ backgroundColor: branding.primaryColor }}>
                                             {loading ? <Loader2 className="animate-spin" /> : <>Enviar Código <Mail size={18} /></>}
                                         </button>
-                                        <button type="button" onClick={() => setStep('PHONE')} className="w-full text-sm text-gray-400 hover:text-gray-600 flex items-center justify-center gap-2">
-                                            <ArrowLeft size={14} /> Volver atrás
-                                        </button>
                                     </form>
                                 </div>
                             )}
