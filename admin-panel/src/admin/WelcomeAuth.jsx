@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Smartphone, ArrowRight, CheckCircle2, User, Mail, Lock, Loader2, ShieldCheck, ArrowLeft, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBranding } from '../context/BrandingContext';
