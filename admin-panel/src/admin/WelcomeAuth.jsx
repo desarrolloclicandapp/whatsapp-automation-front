@@ -11,7 +11,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
     const branding = systemBranding;
 
     const [authMode, setAuthMode] = useState('USER');
-    const [step, setStep] = useState('PHONE');
+    const [step, setStep] = useState('EMAIL');
 
     // Estados del formulario
     const [phone, setPhone] = useState("");
@@ -55,20 +55,15 @@ export default function WelcomeAuth({ onLoginSuccess }) {
         try {
             const res = await fetch(`${API_URL}/auth/otp/verify`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phone, code: phoneCode })
+                body: JSON.stringify({ phone, code: phoneCode, email }) // Pasamos el email para vincular
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Código incorrecto");
 
             if (data.token) {
-                if (data.isNewUser) {
-                    setTempToken(data.token);
-                    setTempAgencyId(data.agencyId || data.user?.agencyId);
-                    setStep('NAME');
-                } else {
-                    toast.success("¡Bienvenido de nuevo! 👋");
-                    onLoginSuccess({ token: data.token, role: 'agency', agencyId: data.user.agencyId });
-                }
+                setTempToken(data.token);
+                setTempAgencyId(data.agencyId || data.user?.agencyId);
+                setStep('NAME');
             }
         } catch (err) { toast.error(err.message); }
         setLoading(false);
@@ -99,17 +94,40 @@ export default function WelcomeAuth({ onLoginSuccess }) {
         setStep('EMAIL');
     };
 
-    const verifyEmailOtpAndFinish = async (e) => {
+    const verifyEmailOtp = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
-            const verifyRes = await fetch(`${API_URL}/auth/otp/email/verify`, {
+            const res = await fetch(`${API_URL}/auth/otp/email/verify`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, code: emailCode })
             });
-            const verifyData = await verifyRes.json();
-            if (!verifyRes.ok) throw new Error(verifyData.error || "Código de email incorrecto");
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Código incorrecto");
 
+            if (data.token) {
+                // ✅ USUARIO EXISTE -> Entrar directamente
+                toast.success("¡Bienvenido de nuevo! 👋");
+                onLoginSuccess({
+                    token: data.token,
+                    role: 'agency',
+                    agencyId: data.agencyId || data.user?.agencyId
+                });
+            } else {
+                // 🆕 USUARIO NUEVO -> Pedir teléfono
+                toast.info("Verificación exitosa. Vamos a configurar tu WhatsApp.");
+                setStep('PHONE');
+            }
+        } catch (err) { toast.error(err.message); }
+        setLoading(false);
+    };
+
+    const finishRegistration = async (e) => {
+        e.preventDefault();
+        if (name.trim().length < 2) return toast.error("Nombre muy corto");
+
+        setLoading(true);
+        try {
             const updateRes = await fetch(`${API_URL}/auth/profile/complete`, {
                 method: "POST",
                 headers: {
@@ -121,7 +139,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
             if (!updateRes.ok) throw new Error("Error guardando perfil");
 
-            toast.success("¡Cuenta verificada y creada! 🚀");
+            toast.success("¡Cuenta configurada! 🚀");
             onLoginSuccess({
                 token: tempToken,
                 role: 'agency',
@@ -214,7 +232,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
                 {/* Botón Switch Modo (User/Admin) */}
                 <button
-                    onClick={() => { setAuthMode(authMode === 'USER' ? 'ADMIN' : 'USER'); setStep('PHONE'); setAdminEmail(""); setAdminPass(""); }}
+                    onClick={() => { setAuthMode(authMode === 'USER' ? 'ADMIN' : 'USER'); setStep(authMode === 'USER' ? 'PHONE' : 'EMAIL'); setAdminEmail(""); setAdminPass(""); }}
                     className="absolute top-8 right-8 px-5 py-2 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-opacity-80 transition-all bg-gray-100 dark:bg-white/5 rounded-full flex items-center gap-2"
                     style={{ color: authMode === 'USER' ? branding.primaryColor : undefined }}
                 >
@@ -268,7 +286,10 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                                 background: `linear-gradient(to right, ${branding.primaryColor}, ${branding.accentColor})`,
                                                 textShadow: '0 1px 2px rgba(0,0,0,0.1)'
                                             }}>
-                                            {loading ? <Loader2 className="animate-spin" /> : <>Continuar <ArrowRight size={20} /></>}
+                                            {loading ? <Loader2 className="animate-spin" /> : <>Enviar Código OTP <ArrowRight size={20} /></>}
+                                        </button>
+                                        <button type="button" onClick={() => setStep('EMAIL')} className="w-full text-sm text-gray-400 hover:text-gray-600 flex items-center justify-center gap-2">
+                                            <ArrowLeft size={14} /> Usar otro email
                                         </button>
                                     </form>
                                 </div>
@@ -298,10 +319,10 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                         <h2 className="text-3xl font-bold text-gray-900 dark:text-white">¡Hola!</h2>
                                         <p className="text-gray-500 mt-2">¿Cómo se llama tu agencia?</p>
                                     </div>
-                                    <form onSubmit={submitName} className="space-y-6">
+                                    <form onSubmit={finishRegistration} className="space-y-6">
                                         <input type="text" placeholder="Agencia Pro..." autoFocus className="w-full p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white text-lg outline-none focus:ring-2 transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={name} onChange={e => setName(e.target.value)} required />
-                                        <button className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg flex justify-center items-center gap-2" style={{ backgroundColor: branding.primaryColor }}>
-                                            Siguiente <ArrowRight size={20} />
+                                        <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg flex justify-center items-center gap-2" style={{ backgroundColor: branding.primaryColor }}>
+                                            {loading ? <Loader2 className="animate-spin" /> : <>Finalizar <CheckCircle2 size={20} /></>}
                                         </button>
                                     </form>
                                 </div>
@@ -334,10 +355,10 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Revisa tu Email 📧</h2>
                                         <p className="text-gray-500 mt-2">Código enviado a <span className="font-bold">{email}</span></p>
                                     </div>
-                                    <form onSubmit={verifyEmailOtpAndFinish} className="space-y-6">
+                                    <form onSubmit={verifyEmailOtp} className="space-y-6">
                                         <input type="text" maxLength={6} placeholder="000000" className="w-full text-center text-4xl font-bold tracking-[0.5em] p-4 rounded-xl border-2 dark:bg-gray-800 dark:text-white outline-none focus:ring-4 transition-all" style={{ borderColor: branding.primaryColor }} value={emailCode} onChange={e => setEmailCode(e.target.value)} required />
-                                        <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg flex justify-center items-center gap-2" style={{ backgroundColor: branding.accentColor, color: branding.backgroundColor }}>
-                                            {loading ? <Loader2 className="animate-spin" /> : <>Finalizar <CheckCircle2 size={20} /></>}
+                                        <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg flex justify-center items-center gap-2" style={{ backgroundColor: branding.primaryColor }}>
+                                            {loading ? <Loader2 className="animate-spin" /> : <>Verificar <ArrowRight size={18} /></>}
                                         </button>
                                         <button type="button" onClick={() => setStep('EMAIL')} className="w-full text-sm text-gray-400 hover:text-opacity-80 transition" style={{ color: branding.primaryColor }}>
                                             ¿Email incorrecto? Corregir
