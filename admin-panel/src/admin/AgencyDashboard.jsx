@@ -127,7 +127,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
-    const autoSyncAgency = async (locationId) => {
+    const autoSyncAgency = async (locationId, code) => {
         setIsAutoSyncing(true);
         const toastId = toast.loading('Finalizando instalación...');
 
@@ -141,7 +141,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     await new Promise(r => setTimeout(r, 2000));
                     const res = await authFetch(`/agency/sync-ghl`, {
                         method: "POST",
-                        body: JSON.stringify({ locationIdToVerify: locationId })
+                        body: JSON.stringify({ locationIdToVerify: locationId, code: code })
                     });
 
                     if (res.ok) {
@@ -171,7 +171,8 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     useEffect(() => {
         const targetLocationId = queryParams.get("location_id") || queryParams.get("new_install");
-        if (targetLocationId && !isAutoSyncing) autoSyncAgency(targetLocationId);
+        const oauthCode = queryParams.get("code");
+        if (targetLocationId && !isAutoSyncing) autoSyncAgency(targetLocationId, oauthCode);
         try { const payload = JSON.parse(atob(token.split('.')[1])); setUserEmail(payload.email); } catch (e) { }
     }, []);
 
