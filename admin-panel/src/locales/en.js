@@ -82,10 +82,31 @@ export const en = {
 
     "dash.upgrade.title": "Upgrade Plan",
     "dash.upgrade.prompt": "Need more?",
+    "dash.upgrade.cta": "Upgrade",
 
     "dash.subs.title": "Active Subaccounts",
     "dash.subs.search": "Search...",
     "dash.subs.new": "New",
+
+    "dash.settings.dev_title": "Developers",
+    "dash.settings.dev_desc": "Manage API keys and Webhooks for integrations.",
+    "dash.settings.api_keys": "API Keys",
+    "dash.settings.key_name_placeholder": "Name...",
+    "dash.settings.no_keys": "No active keys.",
+    "dash.settings.webhooks": "Webhooks",
+    "dash.settings.no_webhooks": "No configured webhooks.",
+    "dash.settings.restriction_msg": "Requires Growth plan or higher.",
+    "dash.settings.key_generated": "Generated Key",
+    "dash.settings.key_copy_warning": "Copy it now, you won't see it again.",
+    "dash.settings.new_webhook": "New Webhook",
+
+    "common.create": "Create",
+    "common.name": "Name",
+    "common.prefix": "Prefix",
+    "common.action": "Action",
+    "common.copied": "Copied",
+    "common.understood": "Understood",
+    "common.events": "Events",
 
     // LOCATION / SLOTS MODAL
     "slots.title": "Device Management",
