@@ -170,8 +170,11 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     useEffect(() => {
+        console.log("📍 URL Search Params:", window.location.search);
         const targetLocationId = queryParams.get("location_id") || queryParams.get("new_install");
         const oauthCode = queryParams.get("code");
+        console.log(`🔎 Parsed Params -> Location: ${targetLocationId}, Code: ${oauthCode ? 'PRESENT' : 'MISSING'}`);
+        
         if (targetLocationId && !isAutoSyncing) autoSyncAgency(targetLocationId, oauthCode);
         try { const payload = JSON.parse(atob(token.split('.')[1])); setUserEmail(payload.email); } catch (e) { }
     }, []);
