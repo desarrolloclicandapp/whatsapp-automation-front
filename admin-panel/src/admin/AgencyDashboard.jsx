@@ -2,27 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import LocationDetailsModal from './LocationDetailsModal';
 import SubscriptionManager from './SubscriptionManager';
-import SubscriptionModal from './SubscriptionModal'; // ✅ Usaremos esto para el Popup
+import SubscriptionModal from './SubscriptionModal'; 
 import SubscriptionBlocker from './SubscriptionBlocker';
 import ThemeToggle from '../components/ThemeToggle';
-import LanguageSelector from '../components/LanguageSelector'; // ✅ Importar
-import { useLanguage } from '../context/LanguageContext'; // ✅ Hook Import
+import LanguageSelector from '../components/LanguageSelector'; 
+import { useLanguage } from '../context/LanguageContext'; 
 import { useTheme } from '../context/ThemeContext';
 import { useBranding } from '../context/BrandingContext';
 
 import {
     LayoutGrid, CreditCard, LifeBuoy, LogOut,
     Plus, Search, Building2, Smartphone, RefreshCw,
-    ExternalLink, Menu, CheckCircle2, ChevronRight, ArrowRight, Zap, Calendar,
-    AlertTriangle, TrendingUp, ShieldCheck, Settings, Trash2,
-    Lock,
-    User, Users, Moon, Sun, Mail, Hash, Palette, RotateCcw, Link, MousePointer2,
-    Key, Copy, Terminal
+    ExternalLink, Menu, CheckCircle2, ChevronRight, ArrowRight, Zap,
+    TrendingUp, ShieldCheck, Settings, Trash2,
+    Lock, User, Users, Moon, Sun, Link, MousePointer2,
+    Key, Copy, Terminal, Globe, Save // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
-const INSTALL_APP_URL = import.meta.env.INSTALL_APP_URL || "https://gestion.clicandapp.com/integration/691623d58a49cdcb2c56ce9c";
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "595984756159";
+
+// 🔥 LÓGICA DE EXTRACCIÓN DE APP ID (Compatible con tu .env actual)
+// Toma la URL completa y se queda solo con el ID final (ej: 691623d58a49cdcb2c56ce9c)
+const RAW_INSTALL_URL = import.meta.env.VITE_INSTALL_APP_URL || "https://gestion.clicandapp.com/integration/691623d58a49cdcb2c56ce9c";
+const APP_ID = RAW_INSTALL_URL.includes('/integration/') 
+    ? RAW_INSTALL_URL.split('/integration/')[1] 
+    : "691623d58a49cdcb2c56ce9c"; // Fallback por seguridad
 
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
@@ -42,22 +47,21 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [isAutoSyncing, setIsAutoSyncing] = useState(false);
 
     const [accountInfo, setAccountInfo] = useState(null);
-    const isRestricted = accountInfo?.plan === 'trial' || accountInfo?.plan === 'starter'; // 🔒 Restricción global
+    const isRestricted = accountInfo?.plan === 'trial' || accountInfo?.plan === 'starter'; 
     const [searchTerm, setSearchTerm] = useState("");
     const [userEmail, setUserEmail] = useState("");
 
     const [isAccountSuspended, setIsAccountSuspended] = useState(false);
-
-    // ✅ Estado para controlar el Popup de Upgrade
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-    // ✅ Estado para Claves API
+    // ✅ NUEVO: Estado para Dominio CRM (Persistente en LocalStorage)
+    const [crmDomain, setCrmDomain] = useState(localStorage.getItem("crmDomain") || "app.gohighlevel.com");
+
+    // Estados API Keys & Webhooks
     const [apiKeys, setApiKeys] = useState([]);
     const [loadingKeys, setLoadingKeys] = useState(false);
     const [showNewKeyModal, setShowNewKeyModal] = useState(false);
     const [generatedKey, setGeneratedKey] = useState(null);
-
-    // ✅ Estado para Webhooks
     const [webhooks, setWebhooks] = useState([]);
     const [showNewWebhookModal, setShowNewWebhookModal] = useState(false);
 
@@ -72,8 +76,6 @@ export default function AgencyDashboard({ token, onLogout }) {
         });
 
         if (res.status === 401 || res.status === 403) {
-            // 🔥 IMPORTANTE: El backend ahora devuelve 200 con success:false para límites.
-            // Si llega un 401/403 real, es porque el token expiró.
             onLogout();
             throw new Error("Sesión expirada");
         }
@@ -82,24 +84,19 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const refreshData = async () => {
         try {
-            // ✅ Intentamos obtener /agency/info siempre, 
-            // ya que nos devolverá el agencyId si no lo tenemos.
             const accRes = await authFetch('/agency/info');
 
             if (accRes && accRes.ok) {
                 const data = await accRes.json();
                 setAccountInfo(data);
 
-                // Si no teníamos el AGENCY_ID, lo recuperamos de aquí
                 let effectiveAgencyId = AGENCY_ID;
                 if (!effectiveAgencyId && data.agencyId) {
-                    console.log('✨ Auto-recuperando Agency ID:', data.agencyId);
                     effectiveAgencyId = data.agencyId;
                     setStoredAgencyId(data.agencyId);
                     localStorage.setItem("agencyId", data.agencyId);
                 }
 
-                // Ahora que (posiblemente) tenemos el ID, cargamos las locaciones
                 if (effectiveAgencyId) {
                     const locRes = await authFetch(`/agency/locations?agencyId=${effectiveAgencyId}`);
                     if (locRes && locRes.ok) {
@@ -108,7 +105,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                     }
                 }
 
-                // Lógica de suspensión...
                 const planStatus = (data.plan || '').toLowerCase();
                 const now = new Date();
                 const trialEnd = data.trial_ends ? new Date(data.trial_ends) : null;
@@ -121,7 +117,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                     setIsAccountSuspended(false);
                 }
             } else if (!AGENCY_ID) {
-                // Si no hay respuesta y no hay ID, no podemos hacer más
                 setLoading(false);
                 return;
             }
@@ -176,7 +171,6 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     useEffect(() => {
         const targetLocationId = queryParams.get("location_id") || queryParams.get("new_install");
-        console.log("queryParams", queryParams);
         if (targetLocationId && !isAutoSyncing) autoSyncAgency(targetLocationId);
         try { const payload = JSON.parse(atob(token.split('.')[1])); setUserEmail(payload.email); } catch (e) { }
     }, []);
@@ -184,8 +178,8 @@ export default function AgencyDashboard({ token, onLogout }) {
     useEffect(() => {
         if (AGENCY_ID) {
             refreshData();
-            fetchApiKeys(); // ✅ Load keys on mount
-            fetchWebhooks(); // ✅ Load webhooks on mount
+            fetchApiKeys(); 
+            fetchWebhooks(); 
             const interval = setInterval(refreshData, 30000);
             return () => clearInterval(interval);
         }
@@ -198,9 +192,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 const data = await res.json();
                 setWebhooks(data.hooks);
             }
-        } catch (e) {
-            console.error("Error fetching webhooks:", e);
-        }
+        } catch (e) { console.error("Error webhooks:", e); }
     };
 
     const handleCreateWebhook = async (e) => {
@@ -213,7 +205,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
         if (!name || !url) return toast.error("Nombre y URL requeridos");
 
-        const tId = toast.loading("Creando suscripción...");
+        const tId = toast.loading("Creando...");
         try {
             const res = await authFetch('/agency/webhooks', {
                 method: 'POST',
@@ -227,25 +219,21 @@ export default function AgencyDashboard({ token, onLogout }) {
             } else {
                 toast.error("Error al crear", { id: tId });
             }
-        } catch (err) {
-            toast.error("Error de conexión", { id: tId });
-        }
+        } catch (err) { toast.error("Error conexión", { id: tId }); }
     };
 
     const handleDeleteWebhook = async (id) => {
-        if (!confirm("¿Eliminar esta suscripción de Webhook?")) return;
+        if (!confirm("¿Eliminar Webhook?")) return;
         const tId = toast.loading("Eliminando...");
         try {
             const res = await authFetch(`/agency/webhooks/${id}`, { method: 'DELETE' });
             if (res.ok) {
-                toast.success("Webhook eliminado", { id: tId });
+                toast.success("Eliminado", { id: tId });
                 fetchWebhooks();
             } else {
                 toast.error("Error al eliminar", { id: tId });
             }
-        } catch (err) {
-            toast.error("Error de conexión", { id: tId });
-        }
+        } catch (err) { toast.error("Error conexión", { id: tId }); }
     };
 
     const fetchApiKeys = async () => {
@@ -256,11 +244,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 const data = await res.json();
                 setApiKeys(data.keys);
             }
-        } catch (e) {
-            console.error("Error fetching API keys:", e);
-        } finally {
-            setLoadingKeys(false);
-        }
+        } catch (e) { console.error("Error keys:", e); } finally { setLoadingKeys(false); }
     };
 
     const handleGenerateKey = async (e) => {
@@ -268,7 +252,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         const name = e.target.keyName.value;
         if (!name) return toast.error("Nombre requerido");
 
-        const tId = toast.loading("Generando clave...");
+        const tId = toast.loading("Generando...");
         try {
             const res = await authFetch('/agency/api-keys', {
                 method: 'POST',
@@ -276,21 +260,19 @@ export default function AgencyDashboard({ token, onLogout }) {
             });
             const data = await res.json();
             if (res.ok) {
-                toast.success("Clave generada con éxito", { id: tId });
+                toast.success("Clave generada", { id: tId });
                 setGeneratedKey(data.apiKey);
                 setShowNewKeyModal(true);
                 fetchApiKeys();
                 e.target.reset();
             } else {
-                toast.error(data.error || "Error al generar", { id: tId });
+                toast.error(data.error || "Error", { id: tId });
             }
-        } catch (err) {
-            toast.error("Error de conexión", { id: tId });
-        }
+        } catch (err) { toast.error("Error conexión", { id: tId }); }
     };
 
     const handleRevokeKey = async (id) => {
-        if (!confirm("¿Seguro que quieres eliminar esta clave API? Esta acción no se puede deshacer.")) return;
+        if (!confirm("¿Eliminar clave API?")) return;
         const tId = toast.loading("Eliminando...");
         try {
             const res = await authFetch(`/agency/api-keys/${id}`, { method: 'DELETE' });
@@ -298,11 +280,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                 toast.success("Clave eliminada", { id: tId });
                 fetchApiKeys();
             } else {
-                toast.error("Error al eliminar", { id: tId });
+                toast.error("Error", { id: tId });
             }
-        } catch (err) {
-            toast.error("Error de conexión", { id: tId });
-        }
+        } catch (err) { toast.error("Error conexión", { id: tId }); }
     };
 
     const handleDeleteTenant = async (e, locationId, name) => {
@@ -316,21 +296,23 @@ export default function AgencyDashboard({ token, onLogout }) {
         } catch (err) { toast.error("Error", { id: tId }); }
     };
 
-    // ✅ NUEVA LÓGICA: Validar antes de ir al marketplace
+    // ✅ LÓGICA DE INSTALACIÓN DINÁMICA
     const handleInstallApp = async () => {
         const tId = toast.loading("Verificando plan...");
         try {
-            // Consultamos al backend si podemos crear más tenants
             const res = await authFetch('/agency/validate-limits?type=tenant');
             const data = await res.json();
 
             toast.dismiss(tId);
 
             if (data.allowed) {
-                // Si está permitido, redirigimos al marketplace
-                window.location.href = INSTALL_APP_URL;
+                // 🔥 URL Dinámica usando el dominio preferido del usuario
+                // Si el usuario no configuró nada, usa app.gohighlevel.com por defecto
+                const installUrl = `https://${crmDomain}/integration/${APP_ID}`;
+                
+                console.log("Redirigiendo a:", installUrl);
+                window.location.href = installUrl;
             } else {
-                // ❌ Si no, mostramos el Popup de Upgrade
                 toast.error("Límite alcanzado", { description: data.reason });
                 setShowUpgradeModal(true);
             }
@@ -340,6 +322,17 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
+    // ✅ GUARDAR DOMINIO CRM
+    const handleSaveCrmDomain = () => {
+        // Limpieza básica de la URL (quitar https://, barras finales, etc)
+        let cleaned = crmDomain.replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
+        if (!cleaned) cleaned = "app.gohighlevel.com";
+        
+        setCrmDomain(cleaned);
+        localStorage.setItem("crmDomain", cleaned);
+        toast.success("Dominio CRM guardado", { description: `Instalaciones usarán: ${cleaned}` });
+    };
+
     const filteredLocations = locations.filter(loc =>
         loc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loc.location_id?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -347,11 +340,8 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const WhiteLabelSettings = () => {
         const [form, setForm] = useState(branding || DEFAULT_BRANDING);
-        // isRestricted viene del componente padre
 
-        useEffect(() => {
-            if (branding) setForm(branding);
-        }, [branding]);
+        useEffect(() => { if (branding) setForm(branding); }, [branding]);
 
         const handleSave = (e) => {
             e.preventDefault();
@@ -381,9 +371,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Personaliza el panel con tu identidad.</p>
                     </div>
                     <div className="flex gap-2">
-                        <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800">
-                            Pro Feature
-                        </span>
+                        <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800">Pro Feature</span>
                     </div>
                 </div>
 
@@ -392,7 +380,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Identidad</h4>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre de Agencia</label>
-                            <input disabled={isRestricted} type="text" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all disabled:opacity-50" style={{ '--tw-ring-color': branding.primaryColor }} />
+                            <input disabled={isRestricted} type="text" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all disabled:opacity-50" />
                         </div>
                     </div>
 
@@ -401,60 +389,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <div className={`${isRestricted ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo URL (Cuadrado)</label>
                             <div className="flex gap-4 items-center">
-                                <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
-                                    <img src={form.logoUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display = 'none'} />
-                                </div>
-                                <div className="flex-1 relative">
-                                    <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        type="url"
-                                        value={form.logoUrl === systemBranding?.logoUrl ? '' : (form.logoUrl || '')}
-                                        onChange={e => setForm({ ...form, logoUrl: e.target.value || systemBranding.logoUrl })}
-                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm"
-                                        style={{ '--tw-ring-color': branding.primaryColor }}
-                                        placeholder="Carga tu propio logo (URL)"
-                                    />
-                                </div>
+                                <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm"><img src={form.logoUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display = 'none'} /></div>
+                                <div className="flex-1 relative"><Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.logoUrl === systemBranding?.logoUrl ? '' : (form.logoUrl || '')} onChange={e => setForm({ ...form, logoUrl: e.target.value || systemBranding.logoUrl })} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm" placeholder="URL Logo" /></div>
                             </div>
                         </div>
-
                         <div className={`${isRestricted ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Favicon URL (Pestaña)</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Favicon URL</label>
                             <div className="flex gap-4 items-center">
-                                <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm">
-                                    <img src={form.faviconUrl} alt="Preview" className="w-8 h-8 object-contain" onError={(e) => e.target.style.display = 'none'} />
-                                </div>
-                                <div className="flex-1 relative">
-                                    <MousePointer2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        type="url"
-                                        value={form.faviconUrl === systemBranding?.faviconUrl ? '' : (form.faviconUrl || '')}
-                                        onChange={e => setForm({ ...form, faviconUrl: e.target.value || systemBranding.faviconUrl })}
-                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm"
-                                        style={{ '--tw-ring-color': branding.primaryColor }}
-                                        placeholder="Carga tu propio favicon (URL)"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className={`space-y-4 ${isRestricted ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Colores</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Primario</label>
-                                <div className="flex items-center gap-3">
-                                    <input type="color" value={form.primaryColor || '#000000'} onChange={e => setForm({ ...form, primaryColor: e.target.value })} className="h-10 w-10 rounded-lg cursor-pointer border-0 shadow-sm" />
-                                    <input type="text" value={form.primaryColor || ''} readOnly className="flex-1 p-2 rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 font-mono text-sm uppercase" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Color Acento</label>
-                                <div className="flex items-center gap-3">
-                                    <input type="color" value={form.accentColor || '#000000'} onChange={e => setForm({ ...form, accentColor: e.target.value })} className="h-10 w-10 rounded-lg cursor-pointer border-0 shadow-sm" />
-                                    <input type="text" value={form.accentColor || ''} readOnly className="flex-1 p-2 rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 font-mono text-sm uppercase" />
-                                </div>
+                                <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm"><img src={form.faviconUrl} alt="Preview" className="w-8 h-8 object-contain" onError={(e) => e.target.style.display = 'none'} /></div>
+                                <div className="flex-1 relative"><MousePointer2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.faviconUrl === systemBranding?.faviconUrl ? '' : (form.faviconUrl || '')} onChange={e => setForm({ ...form, faviconUrl: e.target.value || systemBranding.faviconUrl })} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm" placeholder="URL Favicon" /></div>
                             </div>
                         </div>
                     </div>
@@ -462,22 +405,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                     <div className="pt-6 flex flex-col md:flex-row items-center gap-4 border-t border-gray-100 dark:border-gray-800">
                         {isRestricted ? (
                             <div className="w-full flex items-center justify-between bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100 dark:border-amber-900/30">
-                                <div className="flex items-center gap-3 text-amber-700 dark:text-amber-400">
-                                    <AlertTriangle size={20} />
-                                    <span className="text-sm font-medium">Esta función solo está disponible en planes <b>Superiores al Starter</b>.</span>
-                                </div>
-                                <button type="button" onClick={() => setActiveTab('billing')} className="text-sm font-bold text-indigo-600 hover:underline">
-                                    Mejorar plan →
-                                </button>
+                                <div className="flex items-center gap-3 text-amber-700 dark:text-amber-400"><Lock size={20} /><span className="text-sm font-medium">Requiere plan <b>Growth</b> o superior.</span></div>
+                                <button type="button" onClick={() => setActiveTab('billing')} className="text-sm font-bold text-indigo-600 hover:underline">Mejorar →</button>
                             </div>
                         ) : (
                             <>
-                                <button type="submit" className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg flex items-center gap-2 hover:-translate-y-0.5">
-                                    <CheckCircle2 size={18} /> Guardar Cambios
-                                </button>
-                                <button type="button" onClick={handleReset} className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 font-medium text-sm transition flex items-center gap-2 px-4">
-                                    <RotateCcw size={16} /> Restaurar
-                                </button>
+                                <button type="submit" className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg flex items-center gap-2"><CheckCircle2 size={18} /> Guardar Cambios</button>
+                                <button type="button" onClick={handleReset} className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 font-medium text-sm transition flex items-center gap-2 px-4"><RotateCcw size={16} /> Restaurar</button>
                             </>
                         )}
                     </div>
@@ -488,152 +422,65 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     return (
         <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
-            {isAccountSuspended && (
-                <SubscriptionBlocker
-                    token={token}
-                    onLogout={onLogout}
-                />
-            )}
-
-            {/* ✅ POPUP DE MEJORA DE PLAN (Para límites de subcuentas o slots) */}
-            {showUpgradeModal && (
-                <SubscriptionModal
-                    token={token}
-                    accountInfo={accountInfo}
-                    onClose={() => setShowUpgradeModal(false)}
-                    onDataChange={refreshData} // Recargar datos si compra algo
-                />
-            )}
+            {isAccountSuspended && <SubscriptionBlocker token={token} onLogout={onLogout} />}
+            {showUpgradeModal && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
 
             <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex flex-col z-30`}>
                 <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden" style={{ backgroundColor: branding.primaryColor }}>
-                        <img src={branding.logoUrl} alt="Logo" className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
-                    </div>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden" style={{ backgroundColor: branding.primaryColor }}><img src={branding.logoUrl} alt="Logo" className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} /></div>
                     {sidebarOpen && <span className="ml-3 font-bold text-gray-900 dark:text-white tracking-tight truncate">{branding.name}</span>}
                 </div>
-
                 <div className="flex-1 p-4 overflow-y-auto">
                     <p className={`text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>{t('dash.nav.management')}</p>
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="overview" icon={LayoutGrid} label={t('dash.nav.overview')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="billing" icon={CreditCard} label={t('dash.nav.billing')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="settings" icon={Settings} label={t('dash.nav.settings')} branding={branding} sidebarOpen={sidebarOpen} />
-
                     <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
-
-                    <a href={`https://wa.me/${SUPPORT_PHONE}`} target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}>
-                        <LifeBuoy size={20} />
-                        {sidebarOpen && <span>{t('dash.nav.support')}</span>}
-                    </a>
+                    <a href={`https://wa.me/${SUPPORT_PHONE}`} target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}><LifeBuoy size={20} />{sidebarOpen && <span>{t('dash.nav.support')}</span>}</a>
                 </div>
-
                 <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-                    <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all font-medium text-sm">
-                        <LogOut size={20} />
-                        {sidebarOpen && <span>{t('dash.nav.logout')}</span>}
-                    </button>
+                    <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all font-medium text-sm"><LogOut size={20} />{sidebarOpen && <span>{t('dash.nav.logout')}</span>}</button>
                 </div>
             </aside>
 
             <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F8FAFC] dark:bg-[#0f1117]">
                 <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 z-20">
-                    <div className="flex items-center gap-4">
-                        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500">
-                            <Menu size={20} />
-                        </button>
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">
-                            {activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : t('dash.header.settings')}
-                        </h2>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <LanguageSelector />
-                        <ThemeToggle />
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div>
-                    </div>
+                    <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : t('dash.header.settings')}</h2></div>
+                    <div className="flex items-center gap-4"><LanguageSelector /><ThemeToggle /><div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div></div>
                 </header>
 
                 <main className="flex-1 overflow-y-auto p-6 md:p-8">
                     {activeTab === 'overview' && (
-                        !accountInfo ? (
-                            <div className="flex justify-center items-center h-full text-gray-400">
-                                <RefreshCw className="animate-spin mr-2" /> Cargando panel...
-                            </div>
-                        ) : (
+                        !accountInfo ? (<div className="flex justify-center items-center h-full text-gray-400"><RefreshCw className="animate-spin mr-2" /> Cargando panel...</div>) : (
                             <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                                     <StatCard title={t('dash.stats.subaccounts')} value={`${accountInfo.limits?.used_subagencies || 0} / ${accountInfo.limits?.max_subagencies || 0}`} icon={Building2} color="bg-indigo-500" />
                                     <StatCard title={t('dash.stats.connections')} value={`${accountInfo.limits?.used_slots || 0} / ${accountInfo.limits?.max_slots || 0}`} icon={Smartphone} color="bg-emerald-500" />
                                     <StatCard title={t('dash.stats.plan')} value={accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')} subtext={accountInfo.trial_ends ? `Fin: ${new Date(accountInfo.trial_ends).toLocaleDateString()}` : null} icon={ShieldCheck} color={accountInfo.plan === 'active' ? "bg-blue-500" : "bg-amber-500"} />
-                                    <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:shadow-indigo-500/25 transition-shadow" onClick={() => setActiveTab('billing')}>
-                                        <div><p className="text-indigo-200 text-xs font-bold uppercase tracking-wide mb-1">{t('dash.upgrade.prompt')}</p><h3 className="text-xl font-bold">{t('dash.upgrade.title')}</h3></div>
-                                        <div className="self-end bg-white/20 p-2 rounded-lg mt-1"><TrendingUp size={20} /></div>
-                                    </div>
+                                    <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:shadow-indigo-500/25 transition-shadow" onClick={() => setActiveTab('billing')}><div><p className="text-indigo-200 text-xs font-bold uppercase tracking-wide mb-1">{t('dash.upgrade.prompt')}</p><h3 className="text-xl font-bold">{t('dash.upgrade.title')}</h3></div><div className="self-end bg-white/20 p-2 rounded-lg mt-1"><TrendingUp size={20} /></div></div>
                                 </div>
-
                                 <div className="border-t border-gray-200 dark:border-gray-800"></div>
-
-                                {accountInfo.plan === 'trial' && (
-                                    <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in zoom-in-95 duration-500">
-                                        <div className="flex items-center gap-5">
-                                            <div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner">
-                                                <Zap size={28} fill="currentColor" />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">Periodo de Prueba Activo (Trial) ⚡</h4>
-                                                <p className="text-sm text-amber-800 dark:text-amber-400 mt-1 max-w-2xl">
-                                                    Tu acceso gratuito vence el <span className="font-bold underlineDecoration decoration-amber-500/30">{new Date(accountInfo.trial_ends).toLocaleDateString()}</span>.
-                                                    Contrata un plan ahora para mantener tus automatizaciones activas y desbloquear todas las funciones PRO.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => setActiveTab('billing')}
-                                            className="w-full md:w-auto px-8 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-extrabold text-sm shadow-xl shadow-amber-600/20 transition-all flex items-center justify-center gap-3 hover:-translate-y-0.5 active:scale-95"
-                                        >
-                                            Elegir un Plan <ArrowRight size={18} />
-                                        </button>
-                                    </div>
-                                )}
-
+                                {accountInfo.plan === 'trial' && (<div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in zoom-in-95 duration-500"><div className="flex items-center gap-5"><div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner"><Zap size={28} fill="currentColor" /></div><div><h4 className="text-lg font-bold text-gray-900 dark:text-white">Periodo de Prueba Activo (Trial) ⚡</h4><p className="text-sm text-amber-800 dark:text-amber-400 mt-1 max-w-2xl">Tu acceso gratuito vence el <span className="font-bold underlineDecoration decoration-amber-500/30">{new Date(accountInfo.trial_ends).toLocaleDateString()}</span>. Contrata un plan ahora.</p></div></div><button onClick={() => setActiveTab('billing')} className="w-full md:w-auto px-8 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-extrabold text-sm shadow-xl shadow-amber-600/20 transition-all flex items-center justify-center gap-3 hover:-translate-y-0.5 active:scale-95">Elegir un Plan <ArrowRight size={18} /></button></div>)}
                                 <div className="space-y-6">
                                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Users className="text-gray-400" /> {t('dash.subs.title')}</h3>
                                         <div className="flex w-full md:w-auto gap-3">
-                                            <div className="relative flex-1 md:w-64">
-                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                                <input type="text" placeholder={t('dash.subs.search')} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                                            </div>
+                                            <div className="relative flex-1 md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder={t('dash.subs.search')} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
                                             <button onClick={refreshData} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 hover:text-indigo-600 transition"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
-
-                                            {/* ✅ BOTÓN NUEVA SUBCUENTA (Con Validación) */}
                                             <button onClick={handleInstallApp} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{ backgroundColor: branding.primaryColor }}><Plus size={18} /> {t('dash.subs.new')}</button>
                                         </div>
                                     </div>
-
                                     {loading && locations.length === 0 ? <div className="py-20 text-center text-gray-400">Cargando datos...</div> : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             {filteredLocations.map(loc => (
                                                 <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer relative overflow-hidden hover:border-indigo-500">
                                                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 dark:bg-indigo-900/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                                                    <div className="relative z-10">
-                                                        <div className="flex justify-between items-start mb-4">
-                                                            <div className="w-12 h-12 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors shadow-sm"><Building2 size={24} /></div>
-                                                            <button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button>
-                                                        </div>
-                                                        <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate pr-2">{loc.name || "Sin Nombre"}</h4>
-                                                        <p className="text-xs font-mono text-gray-400 mb-6 bg-gray-50 dark:bg-gray-800/50 inline-block px-1.5 py-0.5 rounded">{loc.location_id}</p>
-                                                        <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800">
-                                                            <p className="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2"><Smartphone size={16} className="text-indigo-500" /> {loc.total_slots || 0} <span className="text-gray-400 font-normal text-xs">Conexiones</span></p>
-                                                            <div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all"><ChevronRight size={16} /></div>
-                                                        </div>
-                                                    </div>
+                                                    <div className="relative z-10"><div className="flex justify-between items-start mb-4"><div className="w-12 h-12 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors shadow-sm"><Building2 size={24} /></div><button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button></div><h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate pr-2">{loc.name || "Sin Nombre"}</h4><p className="text-xs font-mono text-gray-400 mb-6 bg-gray-50 dark:bg-gray-800/50 inline-block px-1.5 py-0.5 rounded">{loc.location_id}</p><div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800"><p className="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2"><Smartphone size={16} className="text-indigo-500" /> {loc.total_slots || 0} <span className="text-gray-400 font-normal text-xs">Conexiones</span></p><div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all"><ChevronRight size={16} /></div></div></div>
                                                 </div>
                                             ))}
                                             {!searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
                                                 <div key={`empty-${idx}`} onClick={handleInstallApp} className="group relative bg-gray-50/50 dark:bg-gray-900/20 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 transition-all duration-300 min-h-[220px]">
-                                                    <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-all"><Plus size={32} className="text-gray-300 group-hover:text-indigo-600" /></div>
-                                                    <h4 className="font-bold text-gray-900 dark:text-white mb-1">Espacio Disponible</h4>
-                                                    <p className="text-xs text-gray-500 px-6">Tienes licencia para conectar una nueva subagencia.</p>
+                                                    <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-all"><Plus size={32} className="text-gray-300 group-hover:text-indigo-600" /></div><h4 className="font-bold text-gray-900 dark:text-white mb-1">Espacio Disponible</h4><p className="text-xs text-gray-500 px-6">Tienes licencia para conectar una nueva subagencia.</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -655,274 +502,69 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
-                            <WhiteLabelSettings />
-
-                            <SecurityCard token={token} />
-
-                            {/* ✅ GESTIÓN DE CLAVES API (n8n) */}
-                            <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4 relative overflow-hidden`}>
-                                {isRestricted && (
-                                    <div className="absolute inset-0 bg-white/40 dark:bg-gray-900/40 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center text-center p-6">
-                                        <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center text-amber-600 mb-4">
-                                            <Lock size={24} />
-                                        </div>
-                                        <h4 className="text-lg font-bold text-gray-900 dark:text-white">Claves API No Disponibles</h4>
-                                        <p className="text-sm text-gray-500 max-w-xs mt-2">Esta función para usar <b>N8N</b> y Automatizaciones avanzadas requiere un plan superior al Starter.</p>
-                                        <button onClick={() => setActiveTab('billing')} className="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md hover:bg-indigo-700 transition">
-                                            Ver Planes →
-                                        </button>
-                                    </div>
-                                )}
-                                <div className={`flex flex-col md:flex-row justify-between items-start mb-6 gap-4 ${isRestricted ? 'opacity-20 grayscale pointer-events-none' : ''}`}>
+                            {/* ✅ NUEVO: CONFIGURACIÓN DE DOMINIO CRM */}
+                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
                                     <div>
-                                        <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                            <Key size={24} className="text-emerald-500" /> Claves API
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <Globe size={20} className="text-blue-500" /> Configuración de Dominio CRM
                                         </h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestiona las claves API para autenticar N8N y el acceso a la API</p>
-                                        <p className="text-xs text-gray-400 mt-1 font-medium">Límite: hasta 5 claves activas</p>
+                                        <p className="text-sm text-gray-500 mt-1">
+                                            Define el dominio donde instalarás las subcuentas (ej: <b>app.gohighlevel.com</b> o tu marca blanca).
+                                        </p>
                                     </div>
-                                    <form onSubmit={handleGenerateKey} className="flex gap-2 w-full md:w-auto">
-                                        <input
-                                            name="keyName"
-                                            placeholder="Nombre (ej: n8n Production)"
-                                            required
-                                            className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm flex-1 md:w-48"
-                                        />
-                                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg transition flex items-center gap-2 shrink-0">
-                                            <Plus size={18} /> Crear clave API
-                                        </button>
-                                    </form>
-                                </div>
-
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-800">
-                                                <th className="pb-4 pl-2">Nombre</th>
-                                                <th className="pb-4">ID de clave</th>
-                                                <th className="pb-4">Creado</th>
-                                                <th className="pb-4 text-right pr-2">Acción</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                                            {apiKeys.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan="4" className="py-8 text-center text-gray-400 text-sm">No hay claves API activas.</td>
-                                                </tr>
-                                            ) : (
-                                                apiKeys.map(key => (
-                                                    <tr key={key.id} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                                                        <td className="py-4 pl-2">
-                                                            <div className="font-bold text-gray-900 dark:text-white text-sm">{key.key_name}</div>
-                                                        </td>
-                                                        <td className="py-4">
-                                                            <div className="flex items-center gap-2 font-mono text-xs text-gray-500 dark:text-gray-400">
-                                                                <Terminal size={14} className="text-gray-300" />
-                                                                {key.key_prefix}••••••••••••
-                                                            </div>
-                                                        </td>
-                                                        <td className="py-4">
-                                                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                                {new Date(key.created_at).toLocaleString()}
-                                                            </div>
-                                                        </td>
-                                                        <td className="py-4 text-right pr-2">
-                                                            <button
-                                                                onClick={() => handleRevokeKey(key.id)}
-                                                                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-600 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition"
-                                                            >
-                                                                <Trash2 size={18} />
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            {/* ✅ GESTIÓN DE WEBHOOKS (n8n) */}
-                            <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4 relative overflow-hidden`}>
-                                {isRestricted && (
-                                    <div className="absolute inset-0 bg-white/40 dark:bg-gray-900/40 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center text-center p-6">
-                                        <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 mb-4">
-                                            <Link size={24} />
-                                        </div>
-                                        <h4 className="text-lg font-bold text-gray-900 dark:text-white">Webhooks No Disponibles</h4>
-                                        <p className="text-sm text-gray-500 max-w-xs mt-2">Recibe eventos en tiempo real integrando servicios externos. Disponible en planes superiores.</p>
-                                        <button onClick={() => setActiveTab('billing')} className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md hover:bg-blue-700 transition">
-                                            Mejorar plan →
-                                        </button>
-                                    </div>
-                                )}
-                                <div className={`flex flex-col md:flex-row justify-between items-start mb-6 gap-4 ${isRestricted ? 'opacity-20 grayscale pointer-events-none' : ''}`}>
-                                    <div>
-                                        <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                            <Link size={24} className="text-blue-500" /> Webhook
-                                        </h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Añade un webhook para recibir eventos e integrarte con servicios externos</p>
-                                    </div>
-                                    <button
-                                        onClick={() => setShowNewWebhookModal(true)}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg transition flex items-center gap-2"
+                                    <button 
+                                        onClick={handleSaveCrmDomain}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2"
                                     >
-                                        <Plus size={18} /> Crear suscripción
+                                        <Save size={16} /> Guardar Dominio
                                     </button>
                                 </div>
-
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-800">
-                                                <th className="pb-4 pl-2">Nombre</th>
-                                                <th className="pb-4">URL de destino</th>
-                                                <th className="pb-4">Eventos</th>
-                                                <th className="pb-4">Creado</th>
-                                                <th className="pb-4 text-right pr-2">Acción</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                                            {webhooks.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan="5" className="py-8 text-center text-gray-400 text-sm">No hay webhooks configurados.</td>
-                                                </tr>
-                                            ) : (
-                                                webhooks.map(hook => (
-                                                    <tr key={hook.id} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                                                        <td className="py-4 pl-2">
-                                                            <div className="font-bold text-gray-900 dark:text-white text-sm">{hook.name}</div>
-                                                        </td>
-                                                        <td className="py-4">
-                                                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]" title={hook.target_url}>
-                                                                {hook.target_url}
-                                                            </div>
-                                                        </td>
-                                                        <td className="py-4">
-                                                            <div className="flex gap-1.5">
-                                                                {hook.events?.includes("whatsapp inbound message") && (
-                                                                    <div title="Inbound" className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600">
-                                                                        <TrendingUp size={12} className="rotate-180" />
-                                                                    </div>
-                                                                )}
-                                                                {hook.events?.includes("whatsapp outbound message") && (
-                                                                    <div title="Outbound" className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
-                                                                        <TrendingUp size={12} />
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                        <td className="py-4">
-                                                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                                {new Date(hook.created_at).toLocaleString()}
-                                                            </div>
-                                                        </td>
-                                                        <td className="py-4 text-right pr-2">
-                                                            <button
-                                                                onClick={() => handleDeleteWebhook(hook.id)}
-                                                                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-600 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition"
-                                                            >
-                                                                <Trash2 size={18} />
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
+                                <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Dominio de Instalación</label>
+                                    <div className="flex gap-2">
+                                        <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-l-xl text-gray-500 select-none">https://</div>
+                                        <input 
+                                            type="text" 
+                                            className="flex-1 p-3 border-y border-r border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-r-xl outline-none focus:ring-2 focus:ring-indigo-500" 
+                                            value={crmDomain}
+                                            onChange={(e) => setCrmDomain(e.target.value)}
+                                            placeholder="app.gohighlevel.com"
+                                        />
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">
+                                        Link de instalación actual: <span className="font-mono text-indigo-500">https://{crmDomain}/integration/{APP_ID}</span>
+                                    </p>
                                 </div>
                             </div>
 
-                            {/* MODAL PARA CREAR WEBHOOK */}
-                            {showNewWebhookModal && (
-                                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                    <div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Nueva Suscripción Webhook</h3>
-                                            <button onClick={() => setShowNewWebhookModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition">
-                                                <Settings size={20} className="rotate-45" />
-                                            </button>
-                                        </div>
+                            <WhiteLabelSettings />
+                            <SecurityCard token={token} />
 
-                                        <form onSubmit={handleCreateWebhook} className="space-y-6">
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre</label>
-                                                <input name="hookName" placeholder="Ej: n8n Workflow Producción" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL de Destino</label>
-                                                <input name="hookUrl" type="url" placeholder="https://tu-n8n.com/webhook/..." required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Eventos a Suscribir</label>
-                                                <div className="grid grid-cols-1 gap-3">
-                                                    <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer hover:border-blue-500 transition-all">
-                                                        <input type="checkbox" name="events" value="whatsapp inbound message" defaultChecked className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                                        <div className="flex-1">
-                                                            <div className="text-sm font-bold text-gray-900 dark:text-white">Mensaje de WhatsApp (Entrante)</div>
-                                                            <div className="text-xs text-gray-500">Se activa cuando recibes un mensaje.</div>
-                                                        </div>
-                                                    </label>
-                                                    <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer hover:border-blue-500 transition-all">
-                                                        <input type="checkbox" name="events" value="whatsapp outbound message" defaultChecked className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                                        <div className="flex-1">
-                                                            <div className="text-sm font-bold text-gray-900 dark:text-white">Mensaje de WhatsApp (Saliente)</div>
-                                                            <div className="text-xs text-gray-500">Se activa cuando envías un mensaje.</div>
-                                                        </div>
-                                                    </label>
-                                                </div>
-                                            </div>
-
-                                            <div className="pt-2 flex gap-3">
-                                                <button type="button" onClick={() => setShowNewWebhookModal(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition">Cancelar</button>
-                                                <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg transition">Crear Suscripción</button>
-                                            </div>
-                                        </form>
-                                    </div>
+                            {/* CLAVES API */}
+                            <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden ${isRestricted ? 'opacity-50 pointer-events-none' : ''}`}>
+                                {isRestricted && <div className="absolute inset-0 z-10 bg-white/50 dark:bg-black/50 backdrop-blur-sm flex items-center justify-center"><div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl text-center"><Lock size={32} className="mx-auto text-amber-500 mb-2" /><h3 className="font-bold text-gray-900 dark:text-white">Función PRO</h3><p className="text-sm text-gray-500">Mejora tu plan para acceder.</p></div></div>}
+                                <div className="flex justify-between items-start mb-6">
+                                    <div><h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><Key size={20} className="text-emerald-500" /> Claves API</h3><p className="text-sm text-gray-500 mt-1">Conecta n8n y apps externas.</p></div>
+                                    <form onSubmit={handleGenerateKey} className="flex gap-2"><input name="keyName" placeholder="Nombre..." required className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none text-sm" /><button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded-xl font-bold text-sm shadow flex items-center gap-2"><Plus size={16} /> Crear</button></form>
                                 </div>
-                            )}
+                                <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs font-bold text-gray-400 uppercase border-b dark:border-gray-700"><th className="pb-3">Nombre</th><th className="pb-3">Prefijo</th><th className="pb-3 text-right">Acción</th></tr></thead><tbody className="divide-y dark:divide-gray-800">{apiKeys.map(k => (<tr key={k.id}><td className="py-3 font-bold text-sm dark:text-white">{k.key_name}</td><td className="py-3 font-mono text-xs text-gray-500">{k.key_prefix}...</td><td className="py-3 text-right"><button onClick={() => handleRevokeKey(k.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><Trash2 size={16} /></button></td></tr>))}</tbody></table>{apiKeys.length===0 && <p className="text-center py-6 text-sm text-gray-400">Sin claves activas.</p>}</div>
+                            </div>
 
-                            {/* MODAL PARA MOSTRAR LA NUEVA CLAVE */}
-                            {showNewKeyModal && (
-                                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                    <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200">
-                                        <div className="mb-6 text-center">
-                                            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600">
-                                                <ShieldCheck size={32} />
-                                            </div>
-                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Clave API Generada</h3>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Copia esta clave ahora. Por seguridad, no se volverá a mostrar.</p>
-                                        </div>
-
-                                        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 mb-6 relative group">
-                                            <div className="font-mono text-sm break-all pr-10 text-indigo-600 dark:text-indigo-400 font-bold">
-                                                {generatedKey}
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(generatedKey);
-                                                    toast.success("Copiado al portapapeles");
-                                                }}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-indigo-600 transition"
-                                            >
-                                                <Copy size={18} />
-                                            </button>
-                                        </div>
-
-                                        <button
-                                            onClick={() => {
-                                                setShowNewKeyModal(false);
-                                                setGeneratedKey(null);
-                                            }}
-                                            className="w-full py-3 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl font-bold hover:opacity-90 transition"
-                                        >
-                                            Entendido, la he guardado
-                                        </button>
-                                    </div>
+                            {/* WEBHOOKS */}
+                            <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden ${isRestricted ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <div className="flex justify-between items-start mb-6">
+                                    <div><h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><Link size={20} className="text-blue-500" /> Webhooks</h3><p className="text-sm text-gray-500 mt-1">Recibe eventos en tiempo real.</p></div>
+                                    <button onClick={() => setShowNewWebhookModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow flex items-center gap-2"><Plus size={16} /> Crear</button>
                                 </div>
-                            )}
+                                <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs font-bold text-gray-400 uppercase border-b dark:border-gray-700"><th className="pb-3">Nombre</th><th className="pb-3">URL</th><th className="pb-3 text-right">Acción</th></tr></thead><tbody className="divide-y dark:divide-gray-800">{webhooks.map(h => (<tr key={h.id}><td className="py-3 font-bold text-sm dark:text-white">{h.name}</td><td className="py-3 text-xs text-gray-500 truncate max-w-[200px]">{h.target_url}</td><td className="py-3 text-right"><button onClick={() => handleDeleteWebhook(h.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><Trash2 size={16} /></button></td></tr>))}</tbody></table>{webhooks.length===0 && <p className="text-center py-6 text-sm text-gray-400">Sin webhooks configurados.</p>}</div>
+                            </div>
+
+                            {/* MODAL API KEY */}
+                            {showNewKeyModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="mb-6 text-center"><div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600"><ShieldCheck size={32} /></div><h3 className="text-xl font-bold text-gray-900 dark:text-white">Clave Generada</h3><p className="text-sm text-gray-500 mt-2">Cópiala ahora, no podrás verla después.</p></div><div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 mb-6 relative group"><div className="font-mono text-sm break-all pr-10 text-indigo-600 dark:text-indigo-400 font-bold">{generatedKey}</div><button onClick={() => { navigator.clipboard.writeText(generatedKey); toast.success("Copiado"); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-indigo-600 transition"><Copy size={18} /></button></div><button onClick={() => { setShowNewKeyModal(false); setGeneratedKey(null); }} className="w-full py-3 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl font-bold hover:opacity-90 transition">Entendido</button></div></div>)}
+
+                            {/* MODAL WEBHOOK */}
+                            {showNewWebhookModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900 dark:text-white">Nuevo Webhook</h3><button onClick={() => setShowNewWebhookModal(false)} className="text-gray-400 hover:text-gray-600"><Settings size={20} className="rotate-45" /></button></div><form onSubmit={handleCreateWebhook} className="space-y-6"><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre</label><input name="hookName" placeholder="Ej: n8n Producción" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL</label><input name="hookUrl" type="url" placeholder="https://..." required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Eventos</label><div className="grid grid-cols-1 gap-3"><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp inbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Inbound Message</div></div></label><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp outbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Outbound Message</div></div></label></div></div><div className="flex gap-3"><button type="button" onClick={() => setShowNewWebhookModal(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl font-bold">Cancelar</button><button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Crear</button></div></form></div></div>)}
 
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-center justify-between">
                                 <div><h4 className="text-sm font-bold text-gray-900 dark:text-white">Modo Oscuro</h4><p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Alternar tema.</p></div>
@@ -941,7 +583,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                     token={token}
                     onLogout={onLogout}
                     onClose={() => setSelectedLocation(null)}
-                    // ✅ PASAMOS EL CALLBACK PARA ABRIR EL MODAL DE UPGRADE
                     onUpgrade={() => setShowUpgradeModal(true)}
                     onDataChange={refreshData}
                 />
