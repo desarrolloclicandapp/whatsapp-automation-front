@@ -542,30 +542,111 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <WhiteLabelSettings />
                             <SecurityCard token={token} />
 
-                            {/* CLAVES API */}
-                            <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden ${isRestricted ? 'opacity-50 pointer-events-none' : ''}`}>
-                                {isRestricted && <div className="absolute inset-0 z-10 bg-white/50 dark:bg-black/50 backdrop-blur-sm flex items-center justify-center"><div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl text-center"><Lock size={32} className="mx-auto text-amber-500 mb-2" /><h3 className="font-bold text-gray-900 dark:text-white">Función PRO</h3><p className="text-sm text-gray-500">Mejora tu plan para acceder.</p></div></div>}
-                                <div className="flex justify-between items-start mb-6">
-                                    <div><h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><Key size={20} className="text-emerald-500" /> Claves API</h3><p className="text-sm text-gray-500 mt-1">Conecta n8n y apps externas.</p></div>
-                                    <form onSubmit={handleGenerateKey} className="flex gap-2"><input name="keyName" placeholder="Nombre..." required className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none text-sm" /><button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded-xl font-bold text-sm shadow flex items-center gap-2"><Plus size={16} /> Crear</button></form>
+                            <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4`}>
+                                <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <Terminal size={24} className="text-pink-500" /> {t('dash.settings.dev_title') || "Desarrolladores"}
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('dash.settings.dev_desc') || "Gestiona claves API y Webhooks para integraciones."}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-pink-50 text-pink-600 border-pink-100 dark:bg-pink-900/30 dark:border-pink-800">Pro Feature</span>
+                                    </div>
                                 </div>
-                                <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs font-bold text-gray-400 uppercase border-b dark:border-gray-700"><th className="pb-3">Nombre</th><th className="pb-3">Prefijo</th><th className="pb-3 text-right">Acción</th></tr></thead><tbody className="divide-y dark:divide-gray-800">{apiKeys.map(k => (<tr key={k.id}><td className="py-3 font-bold text-sm dark:text-white">{k.key_name}</td><td className="py-3 font-mono text-xs text-gray-500">{k.key_prefix}...</td><td className="py-3 text-right"><button onClick={() => handleRevokeKey(k.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><Trash2 size={16} /></button></td></tr>))}</tbody></table>{apiKeys.length===0 && <p className="text-center py-6 text-sm text-gray-400">Sin claves activas.</p>}</div>
-                            </div>
 
-                            {/* WEBHOOKS */}
-                            <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden ${isRestricted ? 'opacity-50 pointer-events-none' : ''}`}>
-                                <div className="flex justify-between items-start mb-6">
-                                    <div><h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><Link size={20} className="text-blue-500" /> Webhooks</h3><p className="text-sm text-gray-500 mt-1">Recibe eventos en tiempo real.</p></div>
-                                    <button onClick={() => setShowNewWebhookModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow flex items-center gap-2"><Plus size={16} /> Crear</button>
+                                <div className="space-y-8">
+                                    {/* API KEYS SECTION */}
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-800 pb-2">
+                                            <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">{t('dash.settings.api_keys') || "Claves API"}</h4>
+                                            <form onSubmit={handleGenerateKey} className="flex gap-2">
+                                                <input disabled={isRestricted} name="keyName" placeholder={t('dash.settings.key_name_placeholder') || "Nombre..."} required className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none text-sm disabled:opacity-50" />
+                                                <button disabled={isRestricted} type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl font-bold text-sm shadow flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                                    <Plus size={16} /> {t('common.create') || "Crear"}
+                                                </button>
+                                            </form>
+                                        </div>
+                                        <div className={`overflow-x-auto ${isRestricted ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                                            <table className="w-full text-left">
+                                                <thead>
+                                                    <tr className="text-xs font-bold text-gray-400 uppercase border-b dark:border-gray-700">
+                                                        <th className="pb-3">{t('common.name') || "Nombre"}</th>
+                                                        <th className="pb-3">{t('common.prefix') || "Prefijo"}</th>
+                                                        <th className="pb-3 text-right">{t('common.action') || "Acción"}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y dark:divide-gray-800">
+                                                    {apiKeys.map(k => (
+                                                        <tr key={k.id}>
+                                                            <td className="py-3 font-bold text-sm dark:text-white">{k.key_name}</td>
+                                                            <td className="py-3 font-mono text-xs text-gray-500">{k.key_prefix}...</td>
+                                                            <td className="py-3 text-right">
+                                                                <button onClick={() => handleRevokeKey(k.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><Trash2 size={16} /></button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                            {apiKeys.length === 0 && <p className="text-center py-6 text-sm text-gray-400">{t('dash.settings.no_keys') || "Sin claves activas."}</p>}
+                                        </div>
+                                    </div>
+
+                                    {/* WEBHOOKS SECTION */}
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-800 pb-2">
+                                            <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">{t('dash.settings.webhooks') || "Webhooks"}</h4>
+                                            <button disabled={isRestricted} onClick={() => setShowNewWebhookModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                                <Plus size={16} /> {t('common.create') || "Crear"}
+                                            </button>
+                                        </div>
+                                        <div className={`overflow-x-auto ${isRestricted ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                                            <table className="w-full text-left">
+                                                <thead>
+                                                    <tr className="text-xs font-bold text-gray-400 uppercase border-b dark:border-gray-700">
+                                                        <th className="pb-3">{t('common.name') || "Nombre"}</th>
+                                                        <th className="pb-3">URL</th>
+                                                        <th className="pb-3 text-right">{t('common.action') || "Acción"}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y dark:divide-gray-800">
+                                                    {webhooks.map(h => (
+                                                        <tr key={h.id}>
+                                                            <td className="py-3 font-bold text-sm dark:text-white">{h.name}</td>
+                                                            <td className="py-3 text-xs text-gray-500 truncate max-w-[200px]">{h.target_url}</td>
+                                                            <td className="py-3 text-right">
+                                                                <button onClick={() => handleDeleteWebhook(h.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><Trash2 size={16} /></button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                            {webhooks.length === 0 && <p className="text-center py-6 text-sm text-gray-400">{t('dash.settings.no_webhooks') || "Sin webhooks configurados."}</p>}
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs font-bold text-gray-400 uppercase border-b dark:border-gray-700"><th className="pb-3">Nombre</th><th className="pb-3">URL</th><th className="pb-3 text-right">Acción</th></tr></thead><tbody className="divide-y dark:divide-gray-800">{webhooks.map(h => (<tr key={h.id}><td className="py-3 font-bold text-sm dark:text-white">{h.name}</td><td className="py-3 text-xs text-gray-500 truncate max-w-[200px]">{h.target_url}</td><td className="py-3 text-right"><button onClick={() => handleDeleteWebhook(h.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><Trash2 size={16} /></button></td></tr>))}</tbody></table>{webhooks.length===0 && <p className="text-center py-6 text-sm text-gray-400">Sin webhooks configurados.</p>}</div>
+
+                                {/* RESTRICTION BANNER */}
+                                {isRestricted && (
+                                    <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
+                                        <div className="w-full flex items-center justify-between bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100 dark:border-amber-900/30">
+                                            <div className="flex items-center gap-3 text-amber-700 dark:text-amber-400">
+                                                <Lock size={20} />
+                                                <span className="text-sm font-medium">{t('dash.settings.restriction_msg') || "Requiere plan Growth o superior."}</span>
+                                            </div>
+                                            <button type="button" onClick={() => setActiveTab('billing')} className="text-sm font-bold text-indigo-600 hover:underline">
+                                                {t('dash.upgrade.cta') || "Mejorar"} →
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* MODAL API KEY */}
-                            {showNewKeyModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="mb-6 text-center"><div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600"><ShieldCheck size={32} /></div><h3 className="text-xl font-bold text-gray-900 dark:text-white">Clave Generada</h3><p className="text-sm text-gray-500 mt-2">Cópiala ahora, no podrás verla después.</p></div><div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 mb-6 relative group"><div className="font-mono text-sm break-all pr-10 text-indigo-600 dark:text-indigo-400 font-bold">{generatedKey}</div><button onClick={() => { navigator.clipboard.writeText(generatedKey); toast.success("Copiado"); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-indigo-600 transition"><Copy size={18} /></button></div><button onClick={() => { setShowNewKeyModal(false); setGeneratedKey(null); }} className="w-full py-3 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl font-bold hover:opacity-90 transition">Entendido</button></div></div>)}
+                            {showNewKeyModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="mb-6 text-center"><div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600"><ShieldCheck size={32} /></div><h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('dash.settings.key_generated') || "Clave Generada"}</h3><p className="text-sm text-gray-500 mt-2">{t('dash.settings.key_copy_warning') || "Cópiala ahora, no podrás verla después."}</p></div><div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 mb-6 relative group"><div className="font-mono text-sm break-all pr-10 text-indigo-600 dark:text-indigo-400 font-bold">{generatedKey}</div><button onClick={() => { navigator.clipboard.writeText(generatedKey); toast.success(t('common.copied') || "Copiado"); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-indigo-600 transition"><Copy size={18} /></button></div><button onClick={() => { setShowNewKeyModal(false); setGeneratedKey(null); }} className="w-full py-3 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl font-bold hover:opacity-90 transition">{t('common.understood') || "Entendido"}</button></div></div>)}
 
                             {/* MODAL WEBHOOK */}
-                            {showNewWebhookModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900 dark:text-white">Nuevo Webhook</h3><button onClick={() => setShowNewWebhookModal(false)} className="text-gray-400 hover:text-gray-600"><Settings size={20} className="rotate-45" /></button></div><form onSubmit={handleCreateWebhook} className="space-y-6"><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre</label><input name="hookName" placeholder="Ej: n8n Producción" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL</label><input name="hookUrl" type="url" placeholder="https://..." required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Eventos</label><div className="grid grid-cols-1 gap-3"><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp inbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Inbound Message</div></div></label><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp outbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Outbound Message</div></div></label></div></div><div className="flex gap-3"><button type="button" onClick={() => setShowNewWebhookModal(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl font-bold">Cancelar</button><button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Crear</button></div></form></div></div>)}
+                            {showNewWebhookModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('dash.settings.new_webhook') || "Nuevo Webhook"}</h3><button onClick={() => setShowNewWebhookModal(false)} className="text-gray-400 hover:text-gray-600"><Settings size={20} className="rotate-45" /></button></div><form onSubmit={handleCreateWebhook} className="space-y-6"><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('common.name') || "Nombre"}</label><input name="hookName" placeholder="Ej: n8n Producción" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL</label><input name="hookUrl" type="url" placeholder="https://..." required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">{t('common.events') || "Eventos"}</label><div className="grid grid-cols-1 gap-3"><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp inbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Inbound Message</div></div></label><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp outbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Outbound Message</div></div></label></div></div><div className="flex gap-3"><button type="button" onClick={() => setShowNewWebhookModal(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl font-bold">{t('common.cancel') || "Cancelar"}</button><button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">{t('common.create') || "Crear"}</button></div></form></div></div>)}
 
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-center justify-between">
                                 <div><h4 className="text-sm font-bold text-gray-900 dark:text-white">Modo Oscuro</h4><p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Alternar tema.</p></div>
