@@ -8,7 +8,7 @@ import {
     Settings, Search, Palette, Upload,
     RefreshCw, Building2, Smartphone, CheckCircle2,
     ArrowLeft, LogOut, RotateCcw, Image as ImageIcon, Link, Users, Trash2,
-    Clock, CalendarDays, Plus, AlertCircle // ✅ Iconos nuevos para Trial
+    Clock, CalendarDays, Plus, AlertCircle, Save
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -24,8 +24,9 @@ export default function AdminDashboard({ token, onLogout }) {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
 
-    // ✅ NUEVO ESTADO: Modal de Gestión de Trial
+    // ✅ ESTADO PARA MODAL DE TRIAL
     const [trialModal, setTrialModal] = useState({ show: false, userId: null, userName: '', currentEnd: null });
+    const [trialDaysInput, setTrialDaysInput] = useState(0); // Input de días
 
     // ✅ FIX FAVICON
     useEffect(() => {
@@ -53,6 +54,8 @@ export default function AdminDashboard({ token, onLogout }) {
         }
         return res;
     };
+
+    // --- CARGA DE DATOS ---
 
     const fetchAgencies = async () => {
         setLoading(true);
@@ -82,7 +85,8 @@ export default function AdminDashboard({ token, onLogout }) {
         } catch (error) { console.error("Error usuarios:", error); } finally { setLoading(false); }
     };
 
-    // ✅ MEJORA: Eliminación con confirmación detallada
+    // --- ACCIONES DE USUARIO ---
+
     const handleDeleteUser = async (userId, userName) => {
         if (!confirm(`⚠️ ¿Estás seguro de eliminar al usuario "${userName || 'Sin nombre'}"?\n\nEsta acción borrará sus datos, subcuentas y conexiones permanentemente.`)) return;
         
@@ -98,10 +102,14 @@ export default function AdminDashboard({ token, onLogout }) {
         } catch (error) { toast.error("Error de conexión"); }
     };
 
-    // ✅ NUEVA FUNCIÓN: Extender/Reducir Trial
-    const handleExtendTrial = async (days) => {
+    // ✅ LÓGICA EXTENSIÓN TRIAL (Usando el input manual)
+    const handleSaveTrial = async () => {
         const { userId } = trialModal;
-        if (!userId) return;
+        const days = parseInt(trialDaysInput);
+
+        if (!userId || isNaN(days) || days === 0) {
+            return toast.warning("Ingresa una cantidad de días válida.");
+        }
 
         try {
             const res = await authFetch(`/admin/users/${userId}/trial`, {
@@ -121,6 +129,19 @@ export default function AdminDashboard({ token, onLogout }) {
         } catch (e) {
             toast.error("Error de conexión");
         }
+    };
+
+    // Helper para calcular fecha de vencimiento PRELIMINAR
+    const calculatePreviewDate = () => {
+        if (!trialModal.currentEnd) return new Date();
+        
+        // Lógica replicada del backend: Si ya venció, base es HOY. Si no, base es trial_ends_at.
+        let baseDate = new Date(trialModal.currentEnd);
+        if (baseDate < new Date()) baseDate = new Date();
+
+        const preview = new Date(baseDate);
+        preview.setDate(preview.getDate() + parseInt(trialDaysInput || 0));
+        return preview.toLocaleDateString();
     };
 
     useEffect(() => {
@@ -143,7 +164,7 @@ export default function AdminDashboard({ token, onLogout }) {
         fetchAgencies();
     };
 
-    // ✅ FILTROS SEGUROS (Anti-Crash)
+    // ✅ FILTROS SEGUROS
     const filteredAgencies = agencies.filter(a => 
         (a.agency_id || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
         (a.agency_name || "").toLowerCase().includes(searchTerm.toLowerCase())
@@ -160,7 +181,7 @@ export default function AdminDashboard({ token, onLogout }) {
         (u.agency_id || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // --- SUBCOMPONENTE: MARCA GLOBAL + GALERÍA (TU CÓDIGO ORIGINAL COMPLETO) ---
+    // --- SUBCOMPONENTE: MARCA GLOBAL + GALERÍA ---
     const GlobalBrandingSettings = () => {
         const [form, setForm] = useState(systemBranding || DEFAULT_BRANDING);
         const [uploading, setUploading] = useState(false);
@@ -176,7 +197,7 @@ export default function AdminDashboard({ token, onLogout }) {
                     const data = await res.json();
                     setGalleryImages(data);
                 }
-            } catch (e) { toast.error("No se pudo cargar la galería"); } finally { setLoadingGallery(false); }
+            } catch (e) { toast.error("Error cargando galería"); } finally { setLoadingGallery(false); }
         };
 
         useEffect(() => { fetchGallery(); }, []);
@@ -226,8 +247,8 @@ export default function AdminDashboard({ token, onLogout }) {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre Plataforma</label><input type="text" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" /></div>
-                                <div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Slogan Login</label><input type="text" value={form.slogan || ''} onChange={e => setForm({...form, slogan: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" /></div>
+                                <div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre Plataforma</label><input type="text" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" /></div>
+                                <div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Slogan Login</label><input type="text" value={form.slogan || ''} onChange={e => setForm({...form, slogan: e.target.value})} className="w-full p-3 rounded-xl border dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" /></div>
                             </div>
                             <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
                                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Textos Pantalla Login</h4>
@@ -256,7 +277,7 @@ export default function AdminDashboard({ token, onLogout }) {
                             <div className="pt-4 flex justify-end gap-4"><button onClick={()=>setForm(DEFAULT_BRANDING)} className="text-gray-500 hover:text-gray-700 flex items-center gap-2 text-sm font-medium px-4"><RotateCcw size={16}/> Restaurar Defaults</button><button onClick={handleSave} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition"><CheckCircle2 size={18}/> Guardar Cambios</button></div>
                         </div>
                         <div className={`border-l border-gray-100 dark:border-gray-800 pl-0 lg:pl-10 transition-all duration-300 ${!showGallery ? 'hidden lg:block lg:opacity-40 lg:pointer-events-none grayscale' : ''}`}>
-                            <div className="flex justify-between items-center mb-4"><h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2"><ImageIcon size={20} className="text-indigo-500"/> Galería del Servidor</h4><button onClick={() => fetchGallery()} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500" title="Recargar Galería"><RefreshCw size={16} className={loadingGallery ? 'animate-spin' : ''}/></button></div>
+                            <div className="flex justify-between items-center mb-4"><h4 className="font-bold dark:text-white flex items-center gap-2"><ImageIcon size={20} className="text-indigo-500"/> Galería del Servidor</h4><button onClick={() => fetchGallery()} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500" title="Recargar Galería"><RefreshCw size={16} className={loadingGallery ? 'animate-spin' : ''}/></button></div>
                             {showGallery && (<div className="mb-4 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-3 py-2 rounded-lg text-xs font-bold text-center border border-indigo-100 dark:border-indigo-800">Selecciona una imagen para: {showGallery.toUpperCase()}</div>)}
                             <div className="grid grid-cols-3 gap-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar content-start">
                                 {loadingGallery ? (<div className="col-span-3 text-center py-10 text-gray-400">Cargando imágenes...</div>) : galleryImages.length === 0 ? (<div className="col-span-3 text-center py-10 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl"><ImageIcon className="mx-auto text-gray-300 mb-2" size={32}/><p className="text-sm text-gray-400">No hay imágenes guardadas.</p></div>) : (galleryImages.map((img, idx) => (<div key={idx} onClick={() => showGallery && handleSelectImage(img.url)} className={`group relative aspect-square rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-black/20 transition-all hover:border-indigo-500 hover:shadow-md ${showGallery ? 'cursor-pointer' : 'cursor-default'}`}><img src={img.url} alt={img.name} className="w-full h-full object-contain p-1" loading="lazy" />{showGallery && (<div className="absolute inset-0 bg-indigo-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-[1px]"><span className="bg-white text-indigo-600 text-xs font-bold px-3 py-1.5 rounded-full shadow-lg transform scale-90 group-hover:scale-100 transition">Seleccionar</span></div>)}</div>)))}
@@ -297,12 +318,12 @@ export default function AdminDashboard({ token, onLogout }) {
                 {/* VISTA: BRANDING */}
                 {view === 'branding' && <GlobalBrandingSettings />}
 
-                {/* VISTA: USUARIOS (CON TRIAL Y DELETE) */}
+                {/* VISTA: USUARIOS (CON TRIAL MODAL MODIFICADO) */}
                 {view === 'users' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                         <div className="relative w-full max-w-md">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                            <input type="text" placeholder="Buscar por email, nombre o agencia..." className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                            <input type="text" placeholder="Buscar por email, nombre o agencia..." className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                         </div>
 
                         {loading ? (
@@ -342,7 +363,14 @@ export default function AdminDashboard({ token, onLogout }) {
                                                         <td className="px-6 py-4 text-right">
                                                             <div className="flex justify-end items-center gap-2">
                                                                 {canManageTrial && (
-                                                                    <button onClick={() => setTrialModal({ show: true, userId: user.id, userName: user.email, currentEnd: user.trial_ends_at })} className="p-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30 rounded-lg transition" title="Extender/Reducir Trial">
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            setTrialModal({ show: true, userId: user.id, userName: user.email, currentEnd: user.trial_ends_at });
+                                                                            setTrialDaysInput(0); // Resetear input al abrir
+                                                                        }} 
+                                                                        className="p-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30 rounded-lg transition border border-transparent hover:border-indigo-100 dark:hover:border-indigo-800"
+                                                                        title="Extender/Reducir Trial"
+                                                                    >
                                                                         <CalendarDays size={18} />
                                                                     </button>
                                                                 )}
@@ -381,10 +409,10 @@ export default function AdminDashboard({ token, onLogout }) {
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in">
                                         {filteredAgencies.map((agency) => (
-                                            <div key={agency.agency_id} onClick={() => handleAgencyClick(agency)} className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-sm hover:shadow-xl hover:border-indigo-500 cursor-pointer group relative overflow-hidden">
+                                            <div key={agency.agency_id} onClick={() => handleAgencyClick(agency)} className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-sm hover:shadow-xl hover:border-indigo-500 dark:hover:border-indigo-500 transition-all duration-200 cursor-pointer group relative overflow-hidden">
                                                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition transform group-hover:scale-110"><Building2 size={80} className="text-indigo-900 dark:text-white" /></div>
                                                 <div className="relative z-10">
-                                                    <div className="flex items-center gap-4 mb-6"><div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl text-indigo-600 dark:text-indigo-400"><Building2 size={28} /></div><div className="overflow-hidden"><h3 className="font-bold text-lg dark:text-white group-hover:text-indigo-600 truncate">{agency.agency_name || agency.agency_id}</h3><p className="text-xs uppercase tracking-wider text-gray-500 font-bold mt-0.5">Agencia Partner</p></div></div>
+                                                    <div className="flex items-center gap-4 mb-6"><div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300 shadow-sm"><Building2 size={28} /></div><div className="overflow-hidden"><h3 className="font-bold text-lg dark:text-white group-hover:text-indigo-600 truncate">{agency.agency_name || agency.agency_id}</h3><p className="text-xs uppercase tracking-wider text-gray-500 font-bold mt-0.5">Agencia Partner</p></div></div>
                                                     <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800"><div className="text-center w-1/2 border-r border-gray-200 dark:border-gray-800"><p className="text-2xl font-bold dark:text-white">{agency.total_subaccounts}</p><p className="text-xs text-gray-500 uppercase font-medium">Total</p></div><div className="text-center w-1/2"><p className="text-2xl font-bold text-emerald-600">{agency.active_subaccounts || 0}</p><p className="text-xs text-gray-500 uppercase font-medium">Activas</p></div></div>
                                                 </div>
                                             </div>
@@ -425,23 +453,54 @@ export default function AdminDashboard({ token, onLogout }) {
                     </>
                 )}
 
-                {/* MODAL DE GESTIÓN DE TRIAL */}
+                {/* MODAL DE GESTIÓN DE TRIAL ACTUALIZADO (INPUT FLEXIBLE) */}
                 {trialModal.show && (
                     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6">
                             <div className="text-center mb-6">
-                                <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-3"><Clock size={24} /></div>
+                                <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <Clock size={24} />
+                                </div>
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">Gestionar Trial</h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Usuario: <span className="font-bold">{trialModal.userName || 'Usuario'}</span></p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Usuario: <span className="font-bold text-gray-800 dark:text-white">{trialModal.userName || 'Usuario'}</span></p>
                                 <p className="text-xs text-gray-400 mt-1">Vence: {trialModal.currentEnd ? new Date(trialModal.currentEnd).toLocaleDateString() : 'Hoy'}</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-3 mb-6">
-                                <button onClick={() => handleExtendTrial(7)} className="flex items-center justify-center gap-1 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-xl font-bold text-sm transition"><Plus size={14} /> 7 Días</button>
-                                <button onClick={() => handleExtendTrial(14)} className="flex items-center justify-center gap-1 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-xl font-bold text-sm transition"><Plus size={14} /> 14 Días</button>
-                                <button onClick={() => handleExtendTrial(30)} className="flex items-center justify-center gap-1 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-xl font-bold text-sm transition"><Plus size={14} /> 30 Días</button>
-                                <button onClick={() => handleExtendTrial(-7)} className="flex items-center justify-center gap-1 py-3 bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-xl font-bold text-sm transition">- 7 Días</button>
+
+                            {/* SECCIÓN DE INPUT FLEXIBLE */}
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Días a agregar/quitar</label>
+                                <input 
+                                    type="number" 
+                                    className="w-full p-4 text-center text-lg font-bold bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-900 dark:text-white"
+                                    value={trialDaysInput}
+                                    onChange={e => setTrialDaysInput(e.target.value)}
+                                    placeholder="0"
+                                />
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                                    Usa números positivos para extender (ej: 7) o negativos para reducir (ej: -5).
+                                </p>
                             </div>
-                            <button onClick={() => setTrialModal({ show: false, userId: null, userName: '', currentEnd: null })} className="w-full py-3 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium text-sm transition">Cancelar</button>
+
+                            {/* PREVIEW DE FECHA */}
+                            <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800 mb-6 flex justify-between items-center">
+                                <span className="text-sm font-bold text-indigo-800 dark:text-indigo-300">Nueva Fecha:</span>
+                                <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">{calculatePreviewDate()}</span>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={() => setTrialModal({ show: false, userId: null, userName: '', currentEnd: null })}
+                                    className="flex-1 py-3 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium text-sm transition"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    onClick={handleSaveTrial}
+                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition"
+                                >
+                                    <Save size={18} /> Guardar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
