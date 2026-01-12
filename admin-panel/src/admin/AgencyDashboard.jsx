@@ -543,7 +543,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </div>
 
                             <WhiteLabelSettings />
-                            <SecurityCard token={token} />
+                            {/* <SecurityCard token={token} /> */}
 
                             <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4`}>
                                 <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
@@ -700,39 +700,39 @@ const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
     </div>
 );
 
-const SecurityCard = ({ token }) => {
-    const [passData, setPassData] = useState({ current: '', new: '', confirm: '' });
-    const [loading, setLoading] = useState(false);
+//const SecurityCard = ({ token }) => {
+//    const [passData, setPassData] = useState({ current: '', new: '', confirm: '' });
+//    const [loading, setLoading] = useState(false);
 
-    const handleChangePassword = async (e) => {
-        e.preventDefault();
-        if (passData.new !== passData.confirm) return toast.error("Las contraseñas no coinciden");
-        if (passData.new.length < 6) return toast.error("Mínimo 6 caracteres");
+//    const handleChangePassword = async (e) => {
+//        e.preventDefault();
+//        if (passData.new !== passData.confirm) return toast.error("Las contraseñas no coinciden");
+//        if (passData.new.length < 6) return toast.error("Mínimo 6 caracteres");
 
-        setLoading(true);
-        try {
-            const res = await fetch(`${API_URL}/auth/change-password`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ currentPassword: passData.current, newPassword: passData.new })
-            });
-            const data = await res.json();
-            if (res.ok) { toast.success("Contraseña actualizada"); setPassData({ current: '', new: '', confirm: '' }); }
-            else toast.error(data.error);
-        } catch (err) { toast.error("Error de conexión"); } finally { setLoading(false); }
-    };
+//        setLoading(true);
+//        try {
+//            const res = await fetch(`${API_URL}/auth/change-password`, {
+//                method: 'POST',
+//                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+//                body: JSON.stringify({ currentPassword: passData.current, newPassword: passData.new })
+//            });
+//            const data = await res.json();
+//            if (res.ok) { toast.success("Contraseña actualizada"); setPassData({ current: '', new: '', confirm: '' }); }
+//            else toast.error(data.error);
+//        } catch (err) { toast.error("Error de conexión"); } finally { setLoading(false); }
+//    };
 
-    return (
-        <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2"><ShieldCheck size={20} /> Seguridad</h3>
-            <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
-                <div><label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Actual</label><input type="password" required className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" value={passData.current} onChange={e => setPassData({ ...passData, current: e.target.value })} /></div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Nueva</label><input type="password" required className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" value={passData.new} onChange={e => setPassData({ ...passData, new: e.target.value })} /></div>
-                    <div><label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Confirmar</label><input type="password" required className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" value={passData.confirm} onChange={e => setPassData({ ...passData, confirm: e.target.value })} /></div>
-                </div>
-                <button type="submit" disabled={loading} className="mt-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg hover:bg-indigo-700 transition">{loading ? "..." : "Actualizar"}</button>
-            </form>
-        </div>
-    );
-};
+//    return (
+//        <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+//            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2"><ShieldCheck size={20} /> Seguridad</h3>
+//            <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
+//                <div><label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Actual</label><input type="password" required className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" value={passData.current} onChange={e => setPassData({ ...passData, current: e.target.value })} /></div>
+//                <div className="grid grid-cols-2 gap-4">
+//                    <div><label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Nueva</label><input type="password" required className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" value={passData.new} onChange={e => setPassData({ ...passData, new: e.target.value })} /></div>
+//                    <div><label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Confirmar</label><input type="password" required className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" value={passData.confirm} onChange={e => setPassData({ ...passData, confirm: e.target.value })} /></div>
+//                </div>
+//                <button type="submit" disabled={loading} className="mt-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg hover:bg-indigo-700 transition">{loading ? "..." : "Actualizar"}</button>
+//            </form>
+//        </div>
+//    );
+//};

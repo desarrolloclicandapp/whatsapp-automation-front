@@ -397,9 +397,19 @@ export default function AdminDashboard({ token, onLogout }) {
                                                             {user.agency_id && <div className="mt-1 text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded w-fit">{user.agency_id}</div>}
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${user.plan_status === 'active' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : user.plan_status === 'trial' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
-                                                                {user.plan_status ? user.plan_status.toUpperCase() : 'TRIAL'}
-                                                            </span>
+                                                            {user.active_plans && user.active_plans.length > 0 ? (
+                                                                <div className="flex flex-col gap-1 items-start">
+                                                                    {user.active_plans.map((p, idx) => (
+                                                                        <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border bg-emerald-100 text-emerald-700 border-emerald-200">
+                                                                            {p.name || 'Plan Activo'} {p.quantity > 1 ? `(x${p.quantity})` : ''}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${user.plan_status === 'active' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : user.plan_status === 'trial' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                                                    {user.plan_status ? user.plan_status.toUpperCase() : 'TRIAL'}
+                                                                </span>
+                                                            )}
                                                         </td>
                                                         <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 tabular-nums">
                                                             {user.trial_ends_at ? new Date(user.trial_ends_at).toLocaleDateString() : '-'}
