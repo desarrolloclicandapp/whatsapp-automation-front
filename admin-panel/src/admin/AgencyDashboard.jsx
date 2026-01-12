@@ -16,7 +16,7 @@ import {
     ExternalLink, Menu, CheckCircle2, ChevronRight, ArrowRight, Zap,
     TrendingUp, ShieldCheck, Settings, Trash2,
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
-    Key, Copy, Terminal, Globe, Save // ✅ Iconos
+    Key, Copy, Terminal, Globe, Save, Palette, RotateCcw // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
