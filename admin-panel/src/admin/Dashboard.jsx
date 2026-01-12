@@ -26,7 +26,7 @@ export default function AdminDashboard({ token, onLogout }) {
 
     // ✅ ESTADO PARA MODAL DE TRIAL
     const [trialModal, setTrialModal] = useState({ show: false, userId: null, userName: '', currentEnd: null });
-    const [trialDaysInput, setTrialDaysInput] = useState(0); // Input de días
+    const [trialDaysInput, setTrialDaysInput] = useState(0);
 
     // ✅ FIX FAVICON
     useEffect(() => {
@@ -85,7 +85,7 @@ export default function AdminDashboard({ token, onLogout }) {
         } catch (error) { console.error("Error usuarios:", error); } finally { setLoading(false); }
     };
 
-    // --- ACCIONES DE USUARIO ---
+    // --- ACCIONES ADMINISTRATIVAS ---
 
     const handleDeleteUser = async (userId, userName) => {
         if (!confirm(`⚠️ ¿Estás seguro de eliminar al usuario "${userName || 'Sin nombre'}"?\n\nEsta acción borrará sus datos, subcuentas y conexiones permanentemente.`)) return;
@@ -102,7 +102,25 @@ export default function AdminDashboard({ token, onLogout }) {
         } catch (error) { toast.error("Error de conexión"); }
     };
 
-    // ✅ LÓGICA EXTENSIÓN TRIAL (Usando el input manual)
+    // ✅ Eliminar Agencia desde Panel Principal
+    const handleDeleteAgency = async (e, agencyId, agencyName) => {
+        e.stopPropagation(); 
+        if (!confirm(`🚨 PELIGRO: ¿Eliminar la agencia "${agencyName || agencyId}"?\n\nEsto borrará TODAS sus subcuentas, desconectará los números de WhatsApp y desvinculará a los usuarios.`)) return;
+
+        const tId = toast.loading("Eliminando agencia y desconectando...");
+        try {
+            const res = await authFetch(`/admin/agencies/${agencyId}`, { method: 'DELETE' });
+            if (res.ok) {
+                toast.success("Agencia eliminada correctamente", { id: tId });
+                fetchAgencies(); 
+            } else {
+                const data = await res.json();
+                toast.error(data.error || "Error al eliminar", { id: tId });
+            }
+        } catch (error) { toast.error("Error de conexión", { id: tId }); }
+    };
+
+    // ✅ Guardar cambios del Trial
     const handleSaveTrial = async () => {
         const { userId } = trialModal;
         const days = parseInt(trialDaysInput);
@@ -122,7 +140,7 @@ export default function AdminDashboard({ token, onLogout }) {
                 const msg = days > 0 ? `Trial extendido ${days} días` : `Trial reducido ${Math.abs(days)} días`;
                 toast.success(msg);
                 setTrialModal({ show: false, userId: null, userName: '', currentEnd: null });
-                fetchUsers(); // Recargar tabla
+                fetchUsers(); 
             } else {
                 toast.error(data.error || "Error actualizando trial");
             }
@@ -131,18 +149,16 @@ export default function AdminDashboard({ token, onLogout }) {
         }
     };
 
-    // Helper para calcular fecha de vencimiento PRELIMINAR
     const calculatePreviewDate = () => {
         if (!trialModal.currentEnd) return new Date();
-        
-        // Lógica replicada del backend: Si ya venció, base es HOY. Si no, base es trial_ends_at.
         let baseDate = new Date(trialModal.currentEnd);
         if (baseDate < new Date()) baseDate = new Date();
-
         const preview = new Date(baseDate);
         preview.setDate(preview.getDate() + parseInt(trialDaysInput || 0));
         return preview.toLocaleDateString();
     };
+
+    // --- EFECTOS ---
 
     useEffect(() => {
         if (view === 'agencies') fetchAgencies();
@@ -164,7 +180,6 @@ export default function AdminDashboard({ token, onLogout }) {
         fetchAgencies();
     };
 
-    // ✅ FILTROS SEGUROS
     const filteredAgencies = agencies.filter(a => 
         (a.agency_id || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
         (a.agency_name || "").toLowerCase().includes(searchTerm.toLowerCase())
@@ -181,7 +196,7 @@ export default function AdminDashboard({ token, onLogout }) {
         (u.agency_id || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // --- SUBCOMPONENTE: MARCA GLOBAL + GALERÍA ---
+    // --- SUBCOMPONENTE: MARCA GLOBAL (Código Completo) ---
     const GlobalBrandingSettings = () => {
         const [form, setForm] = useState(systemBranding || DEFAULT_BRANDING);
         const [uploading, setUploading] = useState(false);
@@ -247,8 +262,8 @@ export default function AdminDashboard({ token, onLogout }) {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre Plataforma</label><input type="text" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" /></div>
-                                <div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Slogan Login</label><input type="text" value={form.slogan || ''} onChange={e => setForm({...form, slogan: e.target.value})} className="w-full p-3 rounded-xl border dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" /></div>
+                                <div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre Plataforma</label><input type="text" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" /></div>
+                                <div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Slogan Login</label><input type="text" value={form.slogan || ''} onChange={e => setForm({...form, slogan: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 transition-all" /></div>
                             </div>
                             <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
                                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Textos Pantalla Login</h4>
@@ -318,12 +333,12 @@ export default function AdminDashboard({ token, onLogout }) {
                 {/* VISTA: BRANDING */}
                 {view === 'branding' && <GlobalBrandingSettings />}
 
-                {/* VISTA: USUARIOS (CON TRIAL MODAL MODIFICADO) */}
+                {/* VISTA: USUARIOS */}
                 {view === 'users' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                         <div className="relative w-full max-w-md">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                            <input type="text" placeholder="Buscar por email, nombre o agencia..." className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                            <input type="text" placeholder="Buscar por email, nombre o agencia..." className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                         </div>
 
                         {loading ? (
@@ -366,7 +381,7 @@ export default function AdminDashboard({ token, onLogout }) {
                                                                     <button 
                                                                         onClick={() => {
                                                                             setTrialModal({ show: true, userId: user.id, userName: user.email, currentEnd: user.trial_ends_at });
-                                                                            setTrialDaysInput(0); // Resetear input al abrir
+                                                                            setTrialDaysInput(0); 
                                                                         }} 
                                                                         className="p-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30 rounded-lg transition border border-transparent hover:border-indigo-100 dark:hover:border-indigo-800"
                                                                         title="Extender/Reducir Trial"
@@ -409,8 +424,17 @@ export default function AdminDashboard({ token, onLogout }) {
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in">
                                         {filteredAgencies.map((agency) => (
-                                            <div key={agency.agency_id} onClick={() => handleAgencyClick(agency)} className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-sm hover:shadow-xl hover:border-indigo-500 dark:hover:border-indigo-500 transition-all duration-200 cursor-pointer group relative overflow-hidden">
-                                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition transform group-hover:scale-110"><Building2 size={80} className="text-indigo-900 dark:text-white" /></div>
+                                            <div key={agency.agency_id} onClick={() => handleAgencyClick(agency)} className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-sm hover:border-indigo-500 cursor-pointer group relative overflow-hidden transition-all hover:shadow-lg">
+                                                
+                                                {/* ✅ BOTÓN BORRAR AGENCIA */}
+                                                <button 
+                                                    onClick={(e) => handleDeleteAgency(e, agency.agency_id, agency.agency_name)}
+                                                    className="absolute top-4 right-4 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100 z-20"
+                                                    title="Eliminar Agencia Completa"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+
                                                 <div className="relative z-10">
                                                     <div className="flex items-center gap-4 mb-6"><div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300 shadow-sm"><Building2 size={28} /></div><div className="overflow-hidden"><h3 className="font-bold text-lg dark:text-white group-hover:text-indigo-600 truncate">{agency.agency_name || agency.agency_id}</h3><p className="text-xs uppercase tracking-wider text-gray-500 font-bold mt-0.5">Agencia Partner</p></div></div>
                                                     <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800"><div className="text-center w-1/2 border-r border-gray-200 dark:border-gray-800"><p className="text-2xl font-bold dark:text-white">{agency.total_subaccounts}</p><p className="text-xs text-gray-500 uppercase font-medium">Total</p></div><div className="text-center w-1/2"><p className="text-2xl font-bold text-emerald-600">{agency.active_subaccounts || 0}</p><p className="text-xs text-gray-500 uppercase font-medium">Activas</p></div></div>
@@ -437,7 +461,7 @@ export default function AdminDashboard({ token, onLogout }) {
                                                         <tr key={sub.location_id} className="hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition">
                                                             <td className="px-6 py-4"><div className="font-bold text-gray-900 dark:text-white text-base">{sub.name || "Sin Nombre"}</div></td>
                                                             <td className="px-6 py-4"><div className="flex items-center gap-3"><div className="bg-gray-100 dark:bg-gray-800 p-1.5 rounded text-gray-500"><Smartphone size={16} /></div><div className="font-mono text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded border border-gray-200 dark:border-gray-700">{sub.location_id}</div></div></td>
-                                                            <td className="px-6 py-4"><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${sub.status === 'active' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : sub.status === 'trial' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-red-100 text-red-800 border-red-200'}`}>{sub.status === 'active' && <CheckCircle2 size={12} className="mr-1" />}{sub.status?.toUpperCase()}</span></td>
+                                                            <td className="px-6 py-4"><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${sub.status === 'active' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : sub.status === 'trial' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-red-100 text-red-700 border-red-200'}`}>{sub.status?.toUpperCase()}</span></td>
                                                             <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 capitalize font-medium">{sub.plan_name || 'Trial'}</td>
                                                             <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 tabular-nums">{new Date(sub.created_at).toLocaleDateString()}</td>
                                                             <td className="px-6 py-4 text-right"><button onClick={() => setSelectedLocation(sub)} className="inline-flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:text-indigo-600 hover:border-indigo-600 px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm"><Settings size={16} /> Gestionar</button></td>
@@ -453,7 +477,7 @@ export default function AdminDashboard({ token, onLogout }) {
                     </>
                 )}
 
-                {/* MODAL DE GESTIÓN DE TRIAL ACTUALIZADO (INPUT FLEXIBLE) */}
+                {/* MODAL DE GESTIÓN DE TRIAL CON INPUT */}
                 {trialModal.show && (
                     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6">
@@ -466,40 +490,26 @@ export default function AdminDashboard({ token, onLogout }) {
                                 <p className="text-xs text-gray-400 mt-1">Vence: {trialModal.currentEnd ? new Date(trialModal.currentEnd).toLocaleDateString() : 'Hoy'}</p>
                             </div>
 
-                            {/* SECCIÓN DE INPUT FLEXIBLE */}
                             <div className="mb-6">
                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Días a agregar/quitar</label>
                                 <input 
                                     type="number" 
-                                    className="w-full p-4 text-center text-lg font-bold bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-900 dark:text-white"
+                                    className="w-full p-4 text-center text-lg font-bold bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white"
                                     value={trialDaysInput}
                                     onChange={e => setTrialDaysInput(e.target.value)}
                                     placeholder="0"
                                 />
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-                                    Usa números positivos para extender (ej: 7) o negativos para reducir (ej: -5).
-                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">Usa números positivos para extender (ej: 7) o negativos para reducir (ej: -5).</p>
                             </div>
 
-                            {/* PREVIEW DE FECHA */}
                             <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800 mb-6 flex justify-between items-center">
                                 <span className="text-sm font-bold text-indigo-800 dark:text-indigo-300">Nueva Fecha:</span>
                                 <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">{calculatePreviewDate()}</span>
                             </div>
 
                             <div className="flex gap-3">
-                                <button 
-                                    onClick={() => setTrialModal({ show: false, userId: null, userName: '', currentEnd: null })}
-                                    className="flex-1 py-3 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium text-sm transition"
-                                >
-                                    Cancelar
-                                </button>
-                                <button 
-                                    onClick={handleSaveTrial}
-                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition"
-                                >
-                                    <Save size={18} /> Guardar
-                                </button>
+                                <button onClick={() => setTrialModal({ show: false, userId: null, userName: '', currentEnd: null })} className="flex-1 py-3 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium text-sm transition">Cancelar</button>
+                                <button onClick={handleSaveTrial} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition"><Save size={18} /> Guardar</button>
                             </div>
                         </div>
                     </div>
