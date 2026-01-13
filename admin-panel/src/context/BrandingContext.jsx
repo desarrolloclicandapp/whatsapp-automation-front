@@ -59,15 +59,61 @@ export function BrandingProvider({ children }) {
         } catch(e) { console.error("Error guardando en el servidor"); }
     };
 
-    const updateAgencyBranding = (newSettings) => {
+    // ✅ CARGAR BRANDING DE AGENCIA (Privado)
+    const loadAgencyBranding = async (token) => {
+        if (!token) return;
+        try {
+            const res = await fetch(`${API_URL}/agency/branding`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (Object.keys(data).length > 0) {
+                    setAgencyBranding(data);
+                    localStorage.setItem('agencyBranding', JSON.stringify(data));
+                }
+            }
+        } catch (e) {
+            console.error("Error loading agency branding", e);
+        }
+    };
+
+    const updateAgencyBranding = async (newSettings, token) => {
         const merged = { ...agencyBranding, ...newSettings };
         setAgencyBranding(merged);
         localStorage.setItem('agencyBranding', JSON.stringify(merged));
+
+        // ✅ PERSISTIR EN SERVIDOR
+        if (token) {
+            try {
+                await fetch(`${API_URL}/agency/branding`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` 
+                    },
+                    body: JSON.stringify(merged)
+                });
+            } catch (e) { console.error("Error saving agency branding", e); }
+        }
     };
 
-    const resetAgencyBranding = () => {
+    const resetAgencyBranding = async (token) => {
         setAgencyBranding({});
         localStorage.removeItem('agencyBranding');
+        
+        if (token) {
+            try {
+                await fetch(`${API_URL}/agency/branding`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` 
+                    },
+                    body: JSON.stringify({})
+                });
+            } catch (e) { console.error("Error resetting agency branding", e); }
+        }
     };
 
     const activeBranding = { ...systemBranding, ...agencyBranding };
@@ -87,6 +133,7 @@ export function BrandingProvider({ children }) {
             systemBranding, 
             updateBranding: updateAgencyBranding, 
             updateSystemBranding,
+            loadAgencyBranding, // ✅ EXPOSED
             resetBranding: resetAgencyBranding,
             DEFAULT_BRANDING 
         }}>
