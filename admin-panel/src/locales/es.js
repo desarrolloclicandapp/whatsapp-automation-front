@@ -99,6 +99,9 @@ export const es = {
     "dash.settings.key_generated": "Clave Generada",
     "dash.settings.key_copy_warning": "Cópiala ahora, no podrás verla después.",
     "dash.settings.new_webhook": "Nuevo Webhook",
+    
+    "dash.locked.title": "Función Premium Bloqueada",
+    "dash.locked.desc": "Esta característica está disponible exclusivamente para planes Growth y superiores.",
 
     "common.create": "Crear",
     "common.name": "Nombre",

@@ -99,6 +99,9 @@ export const en = {
     "dash.settings.key_generated": "Generated Key",
     "dash.settings.key_copy_warning": "Copy it now, you won't see it again.",
     "dash.settings.new_webhook": "New Webhook",
+    
+    "dash.locked.title": "Premium Feature Locked",
+    "dash.locked.desc": "This feature is exclusively available for Growth plans and higher.",
 
     "common.create": "Create",
     "common.name": "Name",
