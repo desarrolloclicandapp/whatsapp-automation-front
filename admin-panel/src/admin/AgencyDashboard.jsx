@@ -83,9 +83,92 @@ export default function AgencyDashboard({ token, onLogout }) {
         return res;
     };
 
-    // ... (refreshData code omitted)
+    const refreshData = async () => {
+        try {
+            const accRes = await authFetch('/agency/info');
 
-    // ... (autoSyncAgency code omitted)
+            if (accRes && accRes.ok) {
+                const data = await accRes.json();
+                setAccountInfo(data);
+
+                let effectiveAgencyId = AGENCY_ID;
+                if (!effectiveAgencyId && data.agencyId) {
+                    effectiveAgencyId = data.agencyId;
+                    setStoredAgencyId(data.agencyId);
+                    localStorage.setItem("agencyId", data.agencyId);
+                }
+
+                if (effectiveAgencyId) {
+                    const locRes = await authFetch(`/agency/locations?agencyId=${effectiveAgencyId}`);
+                    if (locRes && locRes.ok) {
+                        const locData = await locRes.json();
+                        if (Array.isArray(locData)) setLocations(locData);
+                    }
+                }
+
+                const planStatus = (data.plan || '').toLowerCase();
+                const now = new Date();
+                const trialEnd = data.trial_ends ? new Date(data.trial_ends) : null;
+
+                if (planStatus === 'suspended' || planStatus === 'cancelled' || planStatus === 'past_due') {
+                    setIsAccountSuspended(true);
+                } else if (planStatus === 'trial' && trialEnd && trialEnd < now) {
+                    setIsAccountSuspended(true);
+                } else {
+                    setIsAccountSuspended(false);
+                }
+            } else if (!AGENCY_ID) {
+                setLoading(false);
+                return;
+            }
+        } catch (error) {
+            console.error("Error refrescando datos", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const autoSyncAgency = async (locationId, code) => {
+        setIsAutoSyncing(true);
+        const toastId = toast.loading('Finalizando instalación...');
+
+        try {
+            let data;
+            let attempts = 0;
+            const maxAttempts = 10;
+
+            while (attempts < maxAttempts) {
+                try {
+                    await new Promise(r => setTimeout(r, 2000));
+                    const res = await authFetch(`/agency/sync-ghl`, {
+                        method: "POST",
+                        body: JSON.stringify({ locationIdToVerify: locationId, code: code })
+                    });
+
+                    if (res.ok) {
+                        data = await res.json();
+                        break;
+                    }
+                    if (res.status === 404) attempts++;
+                    else throw new Error("Error de servidor");
+                } catch (e) { attempts++; }
+            }
+
+            if (!data || !data.success) throw new Error("Tiempo de espera agotado.");
+
+            localStorage.setItem("agencyId", data.newAgencyId);
+            setStoredAgencyId(data.newAgencyId);
+
+            refreshData();
+            toast.success('¡Instalación completada!', { id: toastId });
+            window.history.replaceState({}, document.title, window.location.pathname);
+
+        } catch (error) {
+            toast.error(error.message, { id: toastId });
+        } finally {
+            setIsAutoSyncing(false);
+        }
+    };
 
     useEffect(() => {
         console.log("📍 URL Search Params:", window.location.search);
