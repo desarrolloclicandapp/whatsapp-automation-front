@@ -129,6 +129,7 @@ export const en = {
     "slots.tab.integration": "Integration",
     "slots.tab.keywords": "Keywords",
     "slots.tab.groups": "Groups",
+    "slots.tab.connection": "Connection QR",
 
     // Settings
     "slots.settings.order": "Sending Order",
