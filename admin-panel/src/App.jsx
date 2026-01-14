@@ -38,7 +38,6 @@ function App() {
 
     return (
         <>
-            {/* ✅ TOASTER PERSONALIZADO (ESTILO PRO) */}
             <Toaster
                 position="top-center"
                 richColors
