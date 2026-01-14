@@ -187,6 +187,34 @@ export default function AdminDashboard({ token, onLogout }) {
         return preview.toLocaleDateString();
     };
 
+    // ✅ NUEVO: Lógica para Dar Plan Admin
+    const executeGrantAdmin = async (userId) => {
+        const tId = toast.loading("Aplicando Plan Admin...");
+        try {
+            const res = await authFetch(`/admin/users/${userId}/grant-admin`, { method: 'POST' });
+            const data = await res.json();
+            
+            if (res.ok) {
+                toast.success("¡Usuario actualizado a Admin Service! 👑", { id: tId });
+                fetchUsers();
+            } else {
+                toast.error(data.error || "Error al actualizar", { id: tId });
+            }
+        } catch (error) {
+            toast.error("Error de conexión", { id: tId });
+        }
+        setConfirmModal({ ...confirmModal, show: false });
+    };
+
+    const handleGrantAdmin = (userId, userName) => {
+        openConfirm(
+            "Otorgar Servicio Admin",
+            `¿Deseas convertir a "${userName}" en Admin Service?\n\nBeneficios:\n• Tiempo ilimitado (Sin expiración)\n• 50 Agencias permitidas\n• 99 Números WhatsApp`,
+            () => executeGrantAdmin(userId),
+            false // No es destructivo
+        );
+    };
+
     // --- EFECTOS ---
 
     useEffect(() => {
@@ -428,6 +456,18 @@ export default function AdminDashboard({ token, onLogout }) {
                                                                         <CalendarDays size={18} />
                                                                     </button>
                                                                 )}
+                                                                
+                                                                {/* ✅ Botón Crown: Dar Plan Admin */}
+                                                                <button
+                                                                    onClick={() => handleGrantAdmin(user.id, user.name || user.email)}
+                                                                    className="p-2 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition"
+                                                                    title="Dar Plan Admin (Ilimitado)"
+                                                                >
+                                                                    <div className="flex items-center justify-center">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>
+                                                                    </div>
+                                                                </button>
+
                                                                 <button onClick={() => handleDeleteUser(user.id, user.name || user.email)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition" title="Eliminar Usuario">
                                                                     <Trash2 size={18} />
                                                                 </button>
