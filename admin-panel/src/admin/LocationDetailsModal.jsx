@@ -61,7 +61,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const handleEvent = (payload) => {
             // Doble verificación: aunque el backend filtre, aseguramos que sea para nosotros
             if (payload.locationId === location.location_id) {
-                if (payload.type === 'connection' || payload.type === 'qr') {
+                // 🔥 FIX: No recargar todo el modal por eventos de QR (lo maneja el componente hijo)
+                if (payload.type === 'connection') {
                     loadData();
                 }
             }
