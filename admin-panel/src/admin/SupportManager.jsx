@@ -5,7 +5,13 @@ import { useSocket } from '../hooks/useSocket';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
-export default function SupportManager({ token }) {
+export default function SupportManager({ 
+    token, 
+    apiPrefix = "/admin/support", 
+    socketRoom = "__SYSTEM_SUPPORT__",
+    title = "Bot de Alertas y Soporte",
+    showDisconnectWarning = true
+}) {
     const [status, setStatus] = useState({ connected: false, myNumber: null });
     const [qr, setQr] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -29,7 +35,7 @@ export default function SupportManager({ token }) {
     // Consultar estado inicial
     const checkStatus = async () => {
         try {
-            const res = await authFetch('/admin/support/status');
+            const res = await authFetch(`${apiPrefix}/status`);
             if (res.ok) {
                 const data = await res.json();
                 setStatus({ connected: data.connected, myNumber: data.myNumber });
@@ -56,11 +62,11 @@ export default function SupportManager({ token }) {
         checkStatus();
 
         if (socket) {
-            socket.emit('join_room', '__SYSTEM_SUPPORT__');
+            socket.emit('join_room', socketRoom);
         }
 
         const handleEvent = (payload) => {
-            if (payload.locationId === '__SYSTEM_SUPPORT__') {
+            if (payload.locationId === socketRoom) {
                 if (payload.type === 'qr') {
                     setQr(payload.data);
                     setLoading(false);
@@ -82,7 +88,7 @@ export default function SupportManager({ token }) {
             if (socket) socket.off('wa_event', handleEvent);
             stopPolling();
         };
-    }, [socket]);
+    }, [socket, socketRoom, apiPrefix]);
 
     const handleConnect = async () => {
         setLoading(true);
@@ -90,7 +96,7 @@ export default function SupportManager({ token }) {
         
         try {
             // 1. Iniciar proceso en backend
-            const res = await authFetch('/admin/support/start', { method: 'POST' });
+            const res = await authFetch(`${apiPrefix}/start`, { method: 'POST' });
             if (!res.ok) throw new Error("Fallo al iniciar");
 
             // 2. Activar Polling de Respaldo (Por si el socket falla)
@@ -98,7 +104,7 @@ export default function SupportManager({ token }) {
             stopPolling(); // Limpiar anteriores por si acaso
             pollInterval.current = setInterval(async () => {
                 try {
-                    const qrRes = await authFetch('/admin/support/qr');
+                    const qrRes = await authFetch(`${apiPrefix}/qr`);
                     if (qrRes.ok) {
                         const data = await qrRes.json();
                         if (data.qr) {
@@ -109,7 +115,7 @@ export default function SupportManager({ token }) {
                         }
                     }
                     // También verificamos si ya se conectó
-                    const statusRes = await authFetch('/admin/support/status');
+                    const statusRes = await authFetch(`${apiPrefix}/status`);
                     const statusData = await statusRes.json();
                     if (statusData.connected) {
                         setStatus(statusData);
@@ -130,7 +136,7 @@ export default function SupportManager({ token }) {
         if (!confirm("¿Desconectar soporte?")) return;
         setLoading(true);
         try {
-            await authFetch('/admin/support/disconnect', { method: 'DELETE' });
+            await authFetch(`${apiPrefix}/disconnect`, { method: 'DELETE' });
             setStatus({ connected: false, myNumber: null });
             setQr(null);
             stopPolling();
@@ -146,11 +152,13 @@ export default function SupportManager({ token }) {
                         {status.connected ? <ShieldCheck size={28} /> : <ShieldAlert size={28} />}
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-gray-800 dark:text-white">Bot de Alertas y Soporte</h3>
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white">{title}</h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                             {status.connected
                                 ? `Conectado: +${status.myNumber}`
-                                : "Desconectado. No se enviarán alertas de desconexión."}
+                                : showDisconnectWarning 
+                                    ? "Desconectado. No se enviarán alertas de desconexión."
+                                    : "Conecta tu propio número para enviar alertas."}
                         </p>
                     </div>
                 </div>

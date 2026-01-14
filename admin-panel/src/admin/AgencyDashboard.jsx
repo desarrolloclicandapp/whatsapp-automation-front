@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import LocationDetailsModal from './LocationDetailsModal';
 import SubscriptionManager from './SubscriptionManager';
+import SupportManager from './SupportManager';
 import SubscriptionModal from './SubscriptionModal'; 
 import SubscriptionBlocker from './SubscriptionBlocker';
 import ThemeToggle from '../components/ThemeToggle';
@@ -572,6 +573,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </p>
                                 </div>
                             </div>
+
+                            {/* ✅ NUEVO: AGENCIA SOPORTE */}
+                            {!isRestricted && (
+                                <SupportManager 
+                                    token={token} 
+                                    apiPrefix="/agency/support" 
+                                    socketRoom={`__AGENCY_SUPPORT_${AGENCY_ID}__`}
+                                    title="Tu Número de Soporte (Marca Blanca)"
+                                    showDisconnectWarning={false}
+                                />
+                            )}
 
                             <WhiteLabelSettings />
                             {/* <SecurityCard token={token} /> */}
