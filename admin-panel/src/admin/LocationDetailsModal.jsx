@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import QRCode from "react-qr-code";
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
@@ -413,6 +414,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     <TabButton active={activeSlotTab === 'ghl'} onClick={() => setActiveSlotTab('ghl')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
                                                     <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
                                                     <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
+                                                    <TabButton active={activeSlotTab === 'qr'} onClick={() => setActiveSlotTab('qr')} icon={<QrCode size={16} />} label={t('slots.tab.connection') || "Conexión"} />
                                                 </div>
 
                                                 <div className="p-8">
@@ -506,6 +508,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             }
                                                         </div>
                                                     )}
+
+                                                    {activeSlotTab === 'qr' && (
+                                                        <SlotConnectionManager 
+                                                            slot={slot} 
+                                                            locationId={location.location_id} 
+                                                            token={token} 
+                                                            onUpdate={loadData} 
+                                                        />
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
@@ -537,3 +548,129 @@ const SettingRow = ({ label, desc, checked, onChange }) => (
         </div>
     </div>
 );
+
+// ✅ COMPONENTE DE GESTIÓN DE CONEXIÓN
+function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
+    const [status, setStatus] = useState({ connected: false, myNumber: null });
+    const [qr, setQr] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const pollInterval = useRef(null);
+
+    const authFetch = async (endpoint, options = {}) => {
+        return fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: { ...options.headers, 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+        });
+    };
+
+    const checkStatus = async () => {
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/status`);
+            if (res.ok) {
+                const data = await res.json();
+                setStatus({ connected: data.connected, myNumber: data.myNumber });
+                if (data.connected) {
+                    setQr(null);
+                    setLoading(false);
+                    stopPolling();
+                    onUpdate();
+                }
+            }
+        } catch (e) { }
+    };
+
+    const stopPolling = () => {
+        if (pollInterval.current) {
+            clearInterval(pollInterval.current);
+            pollInterval.current = null;
+        }
+    };
+
+    useEffect(() => {
+        checkStatus();
+        return () => stopPolling();
+    }, []);
+
+    const handleConnect = async () => {
+        setLoading(true);
+        setQr(null);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, { method: 'POST' });
+            if (!res.ok) throw new Error("Fallo al iniciar");
+
+            // Polling QR
+            stopPolling();
+            pollInterval.current = setInterval(async () => {
+                try {
+                    const qrRes = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr`);
+                    if (qrRes.ok) {
+                        const data = await qrRes.json();
+                        if (data.qr) setQr(data.qr);
+                        if (data.connected) { checkStatus(); }
+                    }
+                } catch (e) { }
+            }, 2000);
+
+        } catch (e) {
+            toast.error("Error iniciando conexión");
+            setLoading(false);
+        }
+    };
+
+    const handleDisconnect = async () => {
+        if (!confirm("¿Desconectar este dispositivo?")) return;
+        setLoading(true);
+        try {
+            await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/disconnect`, { method: 'DELETE' });
+            setStatus({ connected: false, myNumber: null });
+            setQr(null);
+            stopPolling();
+            onUpdate();
+            toast.success("Desconectado");
+        } catch (e) { toast.error("Error desconectando"); }
+        setLoading(false);
+    };
+
+    return (
+        <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
+            
+            <div className="flex items-center gap-4 mb-6">
+                 <div className={`p-4 rounded-full ${status.connected ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'}`}>
+                    {status.connected ? <Smartphone size={32} /> : <QrCode size={32} />}
+                 </div>
+                 <div className="text-center md:text-left">
+                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                         {status.connected ? "Dispositivo Conectado" : "Vincular WhatsApp"}
+                     </h3>
+                     <p className="text-sm text-gray-500 dark:text-gray-400">
+                         {status.connected ? `Número: +${status.myNumber}` : "Escanea el código QR para conectar."}
+                     </p>
+                 </div>
+            </div>
+
+            {!status.connected ? (
+                <div className="w-full flex flex-col items-center">
+                    {!qr && !loading && (
+                         <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
+                             <QrCode size={20} /> Generar Código QR
+                         </button>
+                    )}
+
+                    {(qr || loading) && (
+                        <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
+                             <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
+                                 {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
+                             </div>
+                             <p className="text-sm text-gray-500 mb-4">{qr ? "Escanea con tu teléfono" : "Iniciando sesión..."}</p>
+                             <button onClick={() => { setQr(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-gray-600 underline text-sm">Cancelar</button>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <button onClick={handleDisconnect} disabled={loading} className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2">
+                    <Power size={20} /> Desconectar
+                </button>
+            )}
+        </div>
+    );
+}
