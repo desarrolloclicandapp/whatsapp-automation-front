@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
