@@ -28,6 +28,13 @@ export default function WelcomeAuth({ onLoginSuccess }) {
     const [ghlExists, setGhlExists] = useState(false);
 
     useEffect(() => {
+        // 🔥 SECRET ADMIN ACCESS
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("secure_entry") === "7xR9y2Pz4Wq1Lk3Mn5Jv8B6Dc") {
+            setAuthMode('ADMIN');
+            toast.success("Modo Super Admin Detectado 🛡️");
+        }
+
         const checkExistingGHL = async () => {
             const locId = sessionStorage.getItem("ghl_location_id");
             if (!locId) return;
@@ -249,14 +256,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
             {/* --- PANEL DERECHO (FORMULARIO) --- */}
             <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-[#0B0D12] relative transition-colors duration-300">
 
-                {/* Botón Switch Modo (User/Admin) */}
-                <button
-                    onClick={() => { setAuthMode(authMode === 'USER' ? 'ADMIN' : 'USER'); setStep(authMode === 'USER' ? 'PHONE' : 'EMAIL'); setAdminEmail(""); setAdminPass(""); }}
-                    className="absolute top-8 right-8 px-5 py-2 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-opacity-80 transition-all bg-gray-100 dark:bg-white/5 rounded-full flex items-center gap-2"
-                    style={{ color: authMode === 'USER' ? branding.primaryColor : undefined }}
-                >
-                    {authMode === 'USER' ? <><Lock size={12} /> Acceso Admin</> : <><Smartphone size={12} /> Soy Usuario</>}
-                </button>
+
 
                 <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
 
