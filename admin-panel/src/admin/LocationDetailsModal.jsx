@@ -5,10 +5,165 @@ import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
     RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save
 } from 'lucide-react';
-import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
+import { useSocket } from '../hooks/useSocket';
 import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+
+// --- HELPER COMPONENTS ---
+
+const TabButton = ({ active, onClick, icon, label, disabled }) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`relative flex items-center gap-2 px-6 py-4 text-sm font-bold transition-colors whitespace-nowrap ${active ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+        {icon} {label}
+        {active && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-t-full"></div>}
+    </button>
+);
+
+const SettingRow = ({ label, desc, checked, onChange }) => (
+    <div
+        className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors cursor-pointer group shadow-sm"
+        onClick={onChange}
+    >
+        <div className="pr-4">
+            <p className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{label}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{desc}</p>
+        </div>
+        <div className={`w-12 h-7 flex items-center rounded-full p-1 transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'}`}>
+            <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`}></div>
+        </div>
+    </div>
+);
+
+function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
+    const [status, setStatus] = useState({ connected: false, myNumber: null });
+    const [qr, setQr] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const pollInterval = useRef(null);
+
+    const authFetch = async (endpoint, options = {}) => {
+        return fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: { ...options.headers, 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+        });
+    };
+
+    const checkStatus = async () => {
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/status`);
+            if (res.ok) {
+                const data = await res.json();
+                setStatus({ connected: data.connected, myNumber: data.myNumber });
+                if (data.connected) {
+                    setQr(null);
+                    setLoading(false);
+                    stopPolling();
+                    onUpdate();
+                }
+            }
+        } catch (e) { }
+    };
+
+    const stopPolling = () => {
+        if (pollInterval.current) {
+            clearInterval(pollInterval.current);
+            pollInterval.current = null;
+        }
+    };
+
+    useEffect(() => {
+        checkStatus();
+        return () => stopPolling();
+    }, []);
+
+    const handleConnect = async () => {
+        setLoading(true);
+        setQr(null);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, { method: 'POST' });
+            if (!res.ok) throw new Error("Fallo al iniciar");
+
+            // Polling QR
+            stopPolling();
+            pollInterval.current = setInterval(async () => {
+                try {
+                    const qrRes = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr`);
+                    if (qrRes.ok) {
+                        const data = await qrRes.json();
+                        if (data.qr) setQr(data.qr);
+                        if (data.connected) { checkStatus(); }
+                    }
+                } catch (e) { }
+            }, 2000);
+
+        } catch (e) {
+            toast.error("Error iniciando conexión");
+            setLoading(false);
+        }
+    };
+
+    const handleDisconnect = async () => {
+        if (!confirm("¿Desconectar este dispositivo?")) return;
+        setLoading(true);
+        try {
+            await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/disconnect`, { method: 'DELETE' });
+            setStatus({ connected: false, myNumber: null });
+            setQr(null);
+            stopPolling();
+            onUpdate();
+            toast.success("Desconectado");
+        } catch (e) { toast.error("Error desconectando"); }
+        setLoading(false);
+    };
+
+    return (
+        <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
+
+            <div className="flex items-center gap-4 mb-6">
+                 <div className={`p-4 rounded-full ${status.connected ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'}`}>
+                    {status.connected ? <Smartphone size={32} /> : <QrCode size={32} />}
+                 </div>
+                 <div className="text-center md:text-left">
+                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                         {status.connected ? "Dispositivo Conectado" : "Vincular WhatsApp"}
+                     </h3>
+                     <p className="text-sm text-gray-500 dark:text-gray-400">
+                         {status.connected ? `Número: +${status.myNumber}` : "Escanea el código QR para conectar."}
+                     </p>
+                 </div>
+            </div>
+
+            {!status.connected ? (
+                <div className="w-full flex flex-col items-center">
+                    {!qr && !loading && (
+                         <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
+                             <QrCode size={20} /> Generar Código QR
+                         </button>
+                    )}
+
+                    {(qr || loading) && (
+                        <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
+                             <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
+                                 {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
+                             </div>
+                             <p className="text-sm text-gray-500 mb-4">{qr ? "Escanea con tu teléfono" : "Iniciando sesión..."}</p>
+                             <button onClick={() => { setQr(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-gray-600 underline text-sm">Cancelar</button>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <button onClick={handleDisconnect} disabled={loading} className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2">
+                    <Power size={20} /> Desconectar
+                </button>
+            )}
+        </div>
+    );
+}
+
+// --- MAIN COMPONENT ---
 
 export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange }) {
     const { t } = useLanguage();
@@ -50,18 +205,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     useEffect(() => {
         loadData(); // Carga inicial
 
-        // 1. Unirse a la sala (Room) de esta ubicación
-        // Esto es CRÍTICO para recibir eventos ahora que el backend usa io.to()
         if (socket && location.location_id) {
             console.log(`🔌 Uniéndose a sala: ${location.location_id}`);
             socket.emit('join_room', location.location_id);
         }
 
-        // 2. Manejar eventos entrantes
         const handleEvent = (payload) => {
-            // Doble verificación: aunque el backend filtre, aseguramos que sea para nosotros
             if (payload.locationId === location.location_id) {
-                // 🔥 FIX: No recargar todo el modal por eventos de QR (lo maneja el componente hijo)
                 if (payload.type === 'connection') {
                     loadData();
                 }
@@ -75,8 +225,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         return () => {
             if (socket) {
                 socket.off('wa_event', handleEvent);
-                // No es estrictamente necesario emitir 'leave_room' si el socket se desconecta,
-                // pero al desmontar el componente dejamos de escuchar.
             }
         };
     }, [location, socket]);
@@ -119,19 +267,16 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 body: JSON.stringify({ locationId: location.location_id })
             });
 
-            // Si authFetch devuelve null es porque hizo logout automático (401/403 real), salimos.
             if (!res) return;
 
             const data = await res.json();
             toast.dismiss(loadingId);
 
-            // 🔥 NUEVA LÓGICA: Verificar 'data.success' aunque el status sea 200
             if (data.success) {
                 toast.success("Dispositivo agregado", { description: "Listo para vincular." });
                 loadData();
                 if (onDataChange) onDataChange();
             } else {
-                // Manejo de errores lógicos (Límites, etc.)
                 if (data.requiresUpgrade) {
                     toast.error("Límite Alcanzado", {
                         description: data.error,
@@ -141,7 +286,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                             label: 'Ampliar Plan',
                             onClick: () => {
                                 onClose();
-                                if (onUpgrade) onUpgrade(); // Abre el modal de suscripción
+                                if (onUpgrade) onUpgrade();
                             }
                         }
                     });
@@ -319,130 +464,153 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-200 dark:border-gray-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-gray-900 rounded-[28px] shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-200 dark:border-gray-800 ring-1 ring-black/5">
 
                 {/* HEADER */}
-                <div className="px-8 py-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-900 sticky top-0 z-10">
+                <div className="px-8 py-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-20">
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
-                                <Smartphone size={24} />
+                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3 tracking-tight">
+                            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl text-indigo-600 dark:text-indigo-400 shadow-sm">
+                                <Smartphone size={28} strokeWidth={2} />
                             </div>
                             {locationName || location.location_id}
                         </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 ml-14">{t('slots.subtitle')}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1.5 ml-[4.5rem] font-medium">{t('slots.subtitle')}</p>
                     </div>
-                    <button onClick={onClose} className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-400 hover:text-gray-600">
-                        <X size={24} />
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition text-gray-400 hover:text-gray-600">
+                        <X size={26} />
                     </button>
                 </div>
 
                 {/* BODY */}
-                <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50 dark:bg-black/20">
-                    <div className="flex justify-end mb-8">
-                        <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
-                            <Plus size={18} /> {t('slots.new')}
-                        </button>
-                    </div>
-
-                    {loading ? (
-                        <div className="flex justify-center p-20"><RefreshCw className="animate-spin text-indigo-500 w-10 h-10" /></div>
-                    ) : slots.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl bg-white dark:bg-gray-900/50">
-                            <Smartphone className="text-gray-300 dark:text-gray-600 w-16 h-16 mb-4" />
-                            <p className="text-gray-500 dark:text-gray-400 font-medium text-lg">{t('slots.empty')}</p>
+                <div className="flex-1 overflow-y-auto bg-gray-50/80 dark:bg-[#0B0D11]">
+                    <div className="max-w-5xl mx-auto p-8">
+                        <div className="flex justify-between items-center mb-8">
+                             <h3 className="text-lg font-bold text-gray-900 dark:text-white">Dispositivos Conectados</h3>
+                             <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-500/20 dark:shadow-none transition-all hover:scale-[1.02] active:scale-95">
+                                <Plus size={20} /> {t('slots.new')}
+                            </button>
                         </div>
-                    ) : (
-                        <div className="space-y-6">
-                            {slots.map(slot => {
-                                const isExpanded = expandedSlotId === slot.slot_id;
-                                const isConnected = !!slot.phone_number;
-                                const currentPrio = slot.priority || 99;
-                                const settings = slot.settings || {};
 
-                                return (
-                                    <div key={slot.slot_id} className={`bg-white dark:bg-gray-900 border rounded-2xl transition-all duration-300 overflow-hidden ${isExpanded ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-xl' : 'border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md'}`}>
+                        {loading ? (
+                            <div className="flex flex-col items-center justify-center p-20 gap-4">
+                                <RefreshCw className="animate-spin text-indigo-500 w-8 h-8" />
+                                <p className="text-gray-400 font-medium">Cargando...</p>
+                            </div>
+                        ) : slots.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-24 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-white/50 dark:bg-gray-900/20">
+                                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6 text-gray-300 dark:text-gray-600">
+                                    <Smartphone size={32} />
+                                </div>
+                                <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('slots.empty')}</h4>
+                                <p className="text-gray-500 dark:text-gray-400 max-w-sm text-center">No hay dispositivos conectados en esta ubicación.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {slots.map(slot => {
+                                    const isExpanded = expandedSlotId === slot.slot_id;
+                                    const isConnected = !!slot.phone_number;
+                                    const currentPrio = slot.priority || 99;
+                                    const settings = slot.settings || {};
 
-                                        {/* CABECERA SLOT */}
-                                        <div className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" onClick={() => handleExpandSlot(slot.slot_id)}>
-                                            <div className="flex items-center gap-5">
-                                                <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
-                                                <div>
-                                                    <div className="flex items-center gap-3">
-                                                        <h3 className="font-bold text-gray-900 dark:text-white text-xl">{slot.slot_name || `Dispositivo ${slot.slot_id}`}</h3>
-                                                        <div className="flex gap-1">
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
-                                                                className={`p-1.5 rounded-lg transition ${slot.is_favorite ? 'text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
-                                                                title="Favorito"
-                                                            >
-                                                                <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
-                                                            </button>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); editSlotName(slot.slot_id, slot.slot_name); }}
-                                                                className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition"
-                                                            >
-                                                                <Edit2 size={16} />
-                                                            </button>
+                                    return (
+                                        <div key={slot.slot_id} className={`group bg-white dark:bg-gray-900 border rounded-2xl transition-all duration-300 overflow-hidden ${isExpanded ? 'border-indigo-500/50 ring-4 ring-indigo-500/10 shadow-2xl scale-[1.01]' : 'border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-700'}`}>
+
+                                            {/* CABECERA SLOT */}
+                                            <div className="p-6 flex items-center justify-between cursor-pointer" onClick={() => handleExpandSlot(slot.slot_id)}>
+                                                <div className="flex items-center gap-6">
+                                                    <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg ${isConnected ? 'bg-gradient-to-br from-emerald-400 to-teal-500' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600'}`}>
+                                                        <Smartphone size={24} />
+                                                        {isConnected && <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white dark:bg-gray-900 rounded-full flex items-center justify-center"><CheckCircle2 size={14} className="text-emerald-500 fill-current" /></div>}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-3 mb-1">
+                                                            <h3 className="font-bold text-gray-900 dark:text-white text-xl tracking-tight">{slot.slot_name || `Dispositivo ${slot.slot_id}`}</h3>
+                                                            {slot.is_favorite && <Star size={16} className="text-amber-400 fill-current" />}
+                                                        </div>
+                                                        <div className="flex items-center gap-3 text-sm font-medium">
+                                                            <div className={`px-2.5 py-0.5 rounded-md flex items-center gap-1.5 ${isConnected ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
+                                                                <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                                                                {isConnected ? `+${slot.phone_number}` : 'Desconectado'}
+                                                            </div>
+                                                            <span className="text-gray-300 dark:text-gray-700">|</span>
+                                                            <span className="text-gray-500 dark:text-gray-400">Prioridad: {currentPrio}</span>
                                                         </div>
                                                     </div>
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1 flex items-center gap-2">
-                                                        {isConnected ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{slot.phone_number}</span> : t('slots.card.disconnected')}
-                                                        <span className="text-gray-300 dark:text-gray-600">•</span>
-                                                        <span>{t('slots.card.priority')}: {currentPrio}</span>
-                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex bg-gray-50 dark:bg-gray-800 p-1 rounded-xl mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
+                                                            className={`p-2 rounded-lg transition ${slot.is_favorite ? 'text-amber-400' : 'text-gray-400 hover:text-amber-400 hover:bg-white dark:hover:bg-gray-700 shadow-sm'}`}
+                                                            title="Favorito"
+                                                        >
+                                                            <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); editSlotName(slot.slot_id, slot.slot_name); }}
+                                                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-white dark:hover:bg-gray-700 shadow-sm rounded-lg transition"
+                                                            title="Editar Nombre"
+                                                        >
+                                                            <Edit2 size={18} />
+                                                        </button>
+                                                    </div>
+
+                                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.slot_id); }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition" disabled={deletingSlotId === slot.slot_id}>
+                                                        {deletingSlotId === slot.slot_id ? <Loader2 className="animate-spin" size={20} /> : <Trash2 size={20} />}
+                                                    </button>
+
+                                                    <div className={`p-2 rounded-full transition-transform duration-300 ${isExpanded ? 'rotate-180 bg-gray-100 dark:bg-gray-800' : ''}`}>
+                                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><path d="m6 9 6 6 6-6"/></svg>
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-3">
-                                                <span className={`text-xs font-bold px-3 py-1.5 rounded-lg uppercase tracking-wide transition-colors ${isExpanded ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
-                                                    {isExpanded ? t('slots.card.managing') : t('slots.card.manage')}
-                                                </span>
-                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.slot_id); }} className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition" disabled={deletingSlotId === slot.slot_id}>
-                                                    {deletingSlotId === slot.slot_id ? <Loader2 className="animate-spin" size={20} /> : <Trash2 size={20} />}
-                                                </button>
-                                            </div>
-                                        </div>
+                                            {/* CONTENIDO EXPANDIBLE */}
+                                            {isExpanded && (
+                                                <div className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-[#0B0D11]/50 animate-in slide-in-from-top-2">
+                                                    {/* TABS */}
+                                                    <div className="flex px-6 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 sticky top-0 z-10 overflow-x-auto">
+                                                        <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={18} />} label={t('slots.tab.general')} />
+                                                        <TabButton active={activeSlotTab === 'ghl'} onClick={() => setActiveSlotTab('ghl')} icon={<Link2 size={18} />} label={t('slots.tab.integration')} />
+                                                        <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={18} />} label={t('slots.tab.keywords')} />
+                                                        <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={18} />} label={t('slots.tab.groups')} disabled={!isConnected} />
+                                                        <TabButton active={activeSlotTab === 'qr'} onClick={() => setActiveSlotTab('qr')} icon={<QrCode size={18} />} label={t('slots.tab.connection') || "Conexión"} />
+                                                    </div>
 
-                                        {/* CONTENIDO EXPANDIBLE */}
-                                        {isExpanded && (
-                                            <div className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-black/20 animate-in slide-in-from-top-2">
+                                                    <div className="p-8">
+                                                        {/* CONFIG PANELS */}
+                                                        {activeSlotTab === 'general' && (
+                                                            <div className="max-w-3xl space-y-8 animate-in fade-in slide-in-from-right-4">
+                                                                <div>
+                                                                    <h4 className="text-xs font-extrabold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Hash size={14} /> {t('slots.settings.order')}</h4>
+                                                                    <div className="flex items-center justify-between bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                        <div>
+                                                                            <label className="text-base font-bold text-gray-900 dark:text-white block">{t('slots.settings.priority_level')}</label>
+                                                                            <p className="text-sm text-gray-500 mt-1">Define el orden de uso de este número.</p>
+                                                                        </div>
+                                                                        <select className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-xl focus:ring-2 focus:ring-indigo-500 block p-3 min-w-[120px] outline-none font-bold" value={currentPrio} onChange={(e) => changePriority(slot.slot_id, e.target.value)}>
+                                                                            {Array.from({ length: slots.length }, (_, k) => k + 1).map(p => <option key={p} value={p}>{p} {p === 1 ? '(Alta)' : ''}</option>)}
+                                                                            {currentPrio > slots.length && <option value={currentPrio}>{currentPrio}</option>}
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
 
-                                                {/* TABS */}
-                                                <div className="flex border-b border-gray-200 dark:border-gray-800 px-6 bg-white dark:bg-gray-900/50">
-                                                    <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />
-                                                    <TabButton active={activeSlotTab === 'ghl'} onClick={() => setActiveSlotTab('ghl')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
-                                                    <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
-                                                    <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
-                                                    <TabButton active={activeSlotTab === 'qr'} onClick={() => setActiveSlotTab('qr')} icon={<QrCode size={16} />} label={t('slots.tab.connection') || "Conexión"} />
-                                                </div>
-
-                                                <div className="p-8">
-                                                    {/* CONFIG PANELS */}
-                                                    {activeSlotTab === 'general' && (
-                                                        <div className="max-w-2xl">
-                                                            <div className="mb-8">
-                                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{t('slots.settings.order')}</h4>
-                                                                <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.settings.priority_level')}:</label>
-                                                                    <select className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none" value={currentPrio} onChange={(e) => changePriority(slot.slot_id, e.target.value)}>
-                                                                        {Array.from({ length: slots.length }, (_, k) => k + 1).map(p => <option key={p} value={p}>{p} {p === 1 ? '(Alta)' : ''}</option>)}
-                                                                        {currentPrio > slots.length && <option value={currentPrio}>{currentPrio}</option>}
-                                                                    </select>
+                                                                <div>
+                                                                    <h4 className="text-xs font-extrabold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Zap size={14} /> {t('slots.settings.behavior')}</h4>
+                                                                    <div className="grid grid-cols-1 gap-3">
+                                                                        <SettingRow label={t('slots.settings.source_label')} desc={t('slots.settings.source_desc')} checked={settings.show_source_label ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'show_source_label', settings)} />
+                                                                        <SettingRow label={t('slots.settings.transcribe')} desc={t('slots.settings.transcribe_desc')} checked={settings.transcribe_audio ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'transcribe_audio', settings)} />
+                                                                        <SettingRow label={t('slots.settings.create_contacts')} desc={t('slots.settings.create_contacts_desc')} checked={settings.create_unknown_contacts ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'create_unknown_contacts', settings)} />
+                                                                        <SettingRow label={t('slots.settings.alert_disconnect')} desc={t('slots.settings.alert_disconnect_desc')} checked={settings.send_disconnect_message ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'send_disconnect_message', settings)} />
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{t('slots.settings.behavior')}</h4>
-                                                            <div className="space-y-3 bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700">
-                                                                <SettingRow label={t('slots.settings.source_label')} desc={t('slots.settings.source_desc')} checked={settings.show_source_label ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'show_source_label', settings)} />
-                                                                <SettingRow label={t('slots.settings.transcribe')} desc={t('slots.settings.transcribe_desc')} checked={settings.transcribe_audio ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'transcribe_audio', settings)} />
-                                                                <SettingRow label={t('slots.settings.create_contacts')} desc={t('slots.settings.create_contacts_desc')} checked={settings.create_unknown_contacts ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'create_unknown_contacts', settings)} />
-                                                                <SettingRow label={t('slots.settings.alert_disconnect')} desc={t('slots.settings.alert_disconnect_desc')} checked={settings.send_disconnect_message ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'send_disconnect_message', settings)} />
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                                        )}
 
-                                                    {/* OTHER PANELS (GHL, Keywords, Groups) same as before... */}
+                                                    {/* OTHER PANELS (GHL, Keywords, Groups) */}
                                                     {activeSlotTab === 'ghl' && (
                                                         <div className="max-w-2xl space-y-6">
                                                             
@@ -511,7 +679,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 if(confirm("¿Borrar API Key de este número?")) {
                                                                                     authFetch(`/agency/update-slot-config`, {
                                                                                         method: 'POST',
-                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: "" }) // Send empty string to clear
+                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: "" })
                                                                                     }).then(() => { toast.success("API Key eliminada"); loadData(); });
                                                                                 }
                                                                             }}
@@ -608,149 +776,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 </div>
             </div>
         </div>
-    );
-}
-
-const TabButton = ({ active, onClick, icon, label, disabled }) => (
-    <button onClick={onClick} disabled={disabled} className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-colors ${active ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
-        {icon} {label}
-    </button>
-);
-
-const SettingRow = ({ label, desc, checked, onChange }) => (
-    <div className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer" onClick={onChange}>
-        <div>
-            <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{label}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
-        </div>
-        <div className={`w-10 h-6 flex items-center rounded-full p-1 transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
-            <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`}></div>
-        </div>
     </div>
-);
-
-// ✅ COMPONENTE DE GESTIÓN DE CONEXIÓN
-function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
-    const [status, setStatus] = useState({ connected: false, myNumber: null });
-    const [qr, setQr] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const pollInterval = useRef(null);
-
-    const authFetch = async (endpoint, options = {}) => {
-        return fetch(`${API_URL}${endpoint}`, {
-            ...options,
-            headers: { ...options.headers, 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-        });
-    };
-
-    const checkStatus = async () => {
-        try {
-            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/status`);
-            if (res.ok) {
-                const data = await res.json();
-                setStatus({ connected: data.connected, myNumber: data.myNumber });
-                if (data.connected) {
-                    setQr(null);
-                    setLoading(false);
-                    stopPolling();
-                    onUpdate();
-                }
-            }
-        } catch (e) { }
-    };
-
-    const stopPolling = () => {
-        if (pollInterval.current) {
-            clearInterval(pollInterval.current);
-            pollInterval.current = null;
-        }
-    };
-
-    useEffect(() => {
-        checkStatus();
-        return () => stopPolling();
-    }, []);
-
-    const handleConnect = async () => {
-        setLoading(true);
-        setQr(null);
-        try {
-            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, { method: 'POST' });
-            if (!res.ok) throw new Error("Fallo al iniciar");
-
-            // Polling QR
-            stopPolling();
-            pollInterval.current = setInterval(async () => {
-                try {
-                    const qrRes = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr`);
-                    if (qrRes.ok) {
-                        const data = await qrRes.json();
-                        if (data.qr) setQr(data.qr);
-                        if (data.connected) { checkStatus(); }
-                    }
-                } catch (e) { }
-            }, 2000);
-
-        } catch (e) {
-            toast.error("Error iniciando conexión");
-            setLoading(false);
-        }
-    };
-
-    const handleDisconnect = async () => {
-        if (!confirm("¿Desconectar este dispositivo?")) return;
-        setLoading(true);
-        try {
-            await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/disconnect`, { method: 'DELETE' });
-            setStatus({ connected: false, myNumber: null });
-            setQr(null);
-            stopPolling();
-            onUpdate();
-            toast.success("Desconectado");
-        } catch (e) { toast.error("Error desconectando"); }
-        setLoading(false);
-    };
-
-    return (
-        <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
-            
-            <div className="flex items-center gap-4 mb-6">
-                 <div className={`p-4 rounded-full ${status.connected ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'}`}>
-                    {status.connected ? <Smartphone size={32} /> : <QrCode size={32} />}
-                 </div>
-                 <div className="text-center md:text-left">
-                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                         {status.connected ? "Dispositivo Conectado" : "Vincular WhatsApp"}
-                     </h3>
-                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                         {status.connected ? `Número: +${status.myNumber}` : "Escanea el código QR para conectar."}
-                     </p>
-                 </div>
-            </div>
-
-            {!status.connected ? (
-                <div className="w-full flex flex-col items-center">
-                    {!qr && !loading && (
-                         <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
-                             <QrCode size={20} /> Generar Código QR
-                         </button>
-                    )}
-
-                    {(qr || loading) && (
-                        <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
-                             <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
-                                 {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
-                             </div>
-                             <p className="text-sm text-gray-500 mb-4">{qr ? "Escanea con tu teléfono" : "Iniciando sesión..."}</p>
-                             <button onClick={() => { setQr(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-gray-600 underline text-sm">Cancelar</button>
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <button onClick={handleDisconnect} disabled={loading} className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2">
-                    <Power size={20} /> Desconectar
-                </button>
-            )}
-        </div>
     );
 }
