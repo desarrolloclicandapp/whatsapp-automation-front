@@ -457,66 +457,183 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     return (
-        <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
+        <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0B0D11] font-sans overflow-hidden text-gray-900 dark:text-gray-100">
             {isAccountSuspended && <SubscriptionBlocker token={token} onLogout={onLogout} />}
             {showUpgradeModal && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
 
-            <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex flex-col z-30`}>
-                <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden" style={{ backgroundColor: branding.primaryColor }}><img src={branding.logoUrl} alt="Logo" className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} /></div>
-                    {sidebarOpen && <span className="ml-3 font-bold text-gray-900 dark:text-white tracking-tight truncate">{branding.name}</span>}
+            <aside className={`${sidebarOpen ? 'w-72' : 'w-20'} bg-white dark:bg-[#11131A] border-r border-gray-100 dark:border-gray-800 transition-all duration-300 flex flex-col z-30 shadow-sm`}>
+                <div className="h-18 flex items-center px-6 py-5 border-b border-gray-50 dark:border-gray-800/50">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold shrink-0 overflow-hidden shadow-sm" style={{ backgroundColor: branding.primaryColor }}>
+                        <img src={branding.logoUrl} alt="Logo" className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                    </div>
+                    {sidebarOpen && <span className="ml-3 font-bold text-gray-900 dark:text-white tracking-tight truncate text-lg">{branding.name}</span>}
                 </div>
-                <div className="flex-1 p-4 overflow-y-auto">
-                    <p className={`text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>{t('dash.nav.management')}</p>
+
+                <div className="flex-1 p-4 overflow-y-auto space-y-1">
+                    <div className={`px-2 mb-2 ${!sidebarOpen && 'hidden'}`}>
+                         <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">{t('dash.nav.management')}</p>
+                    </div>
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="overview" icon={LayoutGrid} label={t('dash.nav.overview')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="billing" icon={CreditCard} label={t('dash.nav.billing')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="settings" icon={Settings} label={t('dash.nav.settings')} branding={branding} sidebarOpen={sidebarOpen} />
-                    <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
-                    <a href={`https://wa.me/${SUPPORT_PHONE}`} target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}><LifeBuoy size={20} />{sidebarOpen && <span>{t('dash.nav.support')}</span>}</a>
+
+                    <div className="my-4 border-t border-dashed border-gray-200 dark:border-gray-800 mx-2"></div>
+
+                    <a href={`https://wa.me/${SUPPORT_PHONE}`} target="_blank" rel="noreferrer" className={`group w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-indigo-900/20 dark:hover:text-indigo-400`}>
+                        <LifeBuoy size={20} className="group-hover:scale-110 transition-transform" />
+                        {sidebarOpen && <span>{t('dash.nav.support')}</span>}
+                    </a>
                 </div>
-                <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-                    <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all font-medium text-sm"><LogOut size={20} />{sidebarOpen && <span>{t('dash.nav.logout')}</span>}</button>
+
+                <div className="p-4 border-t border-gray-100 dark:border-gray-800">
+                    <button onClick={onLogout} className="group w-full flex items-center gap-3 px-3.5 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all font-medium text-sm">
+                        <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
+                        {sidebarOpen && <span>{t('dash.nav.logout')}</span>}
+                    </button>
                 </div>
             </aside>
 
-            <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F8FAFC] dark:bg-[#0f1117]">
-                <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 z-20">
-                    <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : t('dash.header.settings')}</h2></div>
-                    <div className="flex items-center gap-4"><LanguageSelector /><ThemeToggle /><div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div></div>
+            <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+                <header className="h-18 bg-white/70 dark:bg-[#11131A]/70 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 py-4 z-20 sticky top-0">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl text-gray-500 transition-colors">
+                            <Menu size={20} />
+                        </button>
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+                                {activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : t('dash.header.settings')}
+                            </h2>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <LanguageSelector />
+                        <div className="h-8 w-[1px] bg-gray-200 dark:bg-gray-700 mx-1"></div>
+                        <ThemeToggle />
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs border-2 border-white dark:border-gray-700 shadow-sm ring-2 ring-gray-100 dark:ring-gray-800" style={{ backgroundColor: branding.primaryColor }}>
+                            AG
+                        </div>
+                    </div>
                 </header>
 
                 <main className="flex-1 overflow-y-auto p-6 md:p-8">
                     {activeTab === 'overview' && (
                         !accountInfo ? (<div className="flex justify-center items-center h-full text-gray-400"><RefreshCw className="animate-spin mr-2" /> Cargando panel...</div>) : (
                             <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                                    <StatCard title={t('dash.stats.subaccounts')} value={`${accountInfo.limits?.used_subagencies || 0} / ${accountInfo.limits?.max_subagencies || 0}`} icon={Building2} color="bg-indigo-500" />
-                                    <StatCard title={t('dash.stats.connections')} value={`${accountInfo.limits?.used_slots || 0} / ${accountInfo.limits?.max_slots || 0}`} icon={Smartphone} color="bg-emerald-500" />
-                                    <StatCard title={t('dash.stats.plan')} value={accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')} subtext={accountInfo.trial_ends ? `Fin: ${new Date(accountInfo.trial_ends).toLocaleDateString()}` : null} icon={ShieldCheck} color={accountInfo.plan === 'active' ? "bg-blue-500" : "bg-amber-500"} />
-                                    <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:shadow-indigo-500/25 transition-shadow" onClick={() => setActiveTab('billing')}><div><p className="text-indigo-200 text-xs font-bold uppercase tracking-wide mb-1">{t('dash.upgrade.prompt')}</p><h3 className="text-xl font-bold">{t('dash.upgrade.title')}</h3></div><div className="self-end bg-white/20 p-2 rounded-lg mt-1"><TrendingUp size={20} /></div></div>
-                                </div>
-                                <div className="border-t border-gray-200 dark:border-gray-800"></div>
-                                {accountInfo.plan === 'trial' && (<div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in zoom-in-95 duration-500"><div className="flex items-center gap-5"><div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner"><Zap size={28} fill="currentColor" /></div><div><h4 className="text-lg font-bold text-gray-900 dark:text-white">Periodo de Prueba Activo (Trial) ⚡</h4><p className="text-sm text-amber-800 dark:text-amber-400 mt-1 max-w-2xl">Tu acceso gratuito vence el <span className="font-bold underlineDecoration decoration-amber-500/30">{new Date(accountInfo.trial_ends).toLocaleDateString()}</span>. Contrata un plan ahora.</p></div></div><button onClick={() => setActiveTab('billing')} className="w-full md:w-auto px-8 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-extrabold text-sm shadow-xl shadow-amber-600/20 transition-all flex items-center justify-center gap-3 hover:-translate-y-0.5 active:scale-95">Elegir un Plan <ArrowRight size={18} /></button></div>)}
-                                <div className="space-y-6">
-                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Users className="text-gray-400" /> {t('dash.subs.title')}</h3>
-                                        <div className="flex w-full md:w-auto gap-3">
-                                            <div className="relative flex-1 md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" autoComplete="off" placeholder={t('dash.subs.search')} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
-                                            <button onClick={refreshData} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 hover:text-indigo-600 transition"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
-                                            <button onClick={handleInstallApp} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{ backgroundColor: branding.primaryColor }}><Plus size={18} /> {t('dash.subs.new')}</button>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <StatCard title={t('dash.stats.subaccounts')} value={`${accountInfo.limits?.used_subagencies || 0} / ${accountInfo.limits?.max_subagencies || 0}`} icon={Building2} color="indigo" />
+                                    <StatCard title={t('dash.stats.connections')} value={`${accountInfo.limits?.used_slots || 0} / ${accountInfo.limits?.max_slots || 0}`} icon={Smartphone} color="emerald" />
+                                    <StatCard title={t('dash.stats.plan')} value={accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')} subtext={accountInfo.trial_ends ? `Fin: ${new Date(accountInfo.trial_ends).toLocaleDateString()}` : null} icon={ShieldCheck} color={accountInfo.plan === 'active' ? "blue" : "amber"} />
+
+                                    <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-6 rounded-2xl text-white shadow-xl shadow-indigo-200 dark:shadow-none flex flex-col justify-between cursor-pointer group hover:scale-[1.02] transition-all duration-300 relative overflow-hidden ring-1 ring-white/10" onClick={() => setActiveTab('billing')}>
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+                                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full blur-xl -ml-6 -mb-6"></div>
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm border border-white/10">Premium</span>
+                                            </div>
+                                            <h3 className="text-xl font-bold leading-tight">{t('dash.upgrade.title')}</h3>
+                                            <p className="text-indigo-100 text-xs mt-2 opacity-90 line-clamp-2">{t('dash.upgrade.prompt')}</p>
+                                        </div>
+                                        <div className="self-end bg-white/20 p-2 rounded-xl mt-4 backdrop-blur-sm group-hover:bg-white group-hover:text-indigo-600 transition-colors shadow-inner">
+                                            <TrendingUp size={20} />
                                         </div>
                                     </div>
+                                </div>
+
+                                {accountInfo.plan === 'trial' && (
+                                    <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-1 rounded-3xl animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="bg-white/50 dark:bg-transparent p-6 rounded-[20px] flex flex-col md:flex-row items-center justify-between gap-6 backdrop-blur-sm">
+                                            <div className="flex items-center gap-5">
+                                                <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-amber-200 dark:shadow-none">
+                                                    <Zap size={28} fill="currentColor" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">Periodo de Prueba Activo (Trial)</h4>
+                                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 max-w-2xl">
+                                                        Tu acceso gratuito vence el <span className="font-bold text-amber-600 dark:text-amber-400">{new Date(accountInfo.trial_ends).toLocaleDateString()}</span>. Contrata un plan para evitar interrupciones.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => setActiveTab('billing')} className="w-full md:w-auto px-8 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5 active:scale-95">
+                                                Elegir un Plan <ArrowRight size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-6">
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 dark:border-gray-800 pb-6">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <Users size={24} className="text-gray-400" /> {t('dash.subs.title')}
+                                            </h3>
+                                            <p className="text-sm text-gray-500 mt-1">Gestiona tus subcuentas conectadas.</p>
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row w-full md:w-auto gap-3">
+                                            <div className="relative flex-1 sm:w-64">
+                                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                                <input
+                                                    type="text"
+                                                    autoComplete="off"
+                                                    placeholder={t('dash.subs.search')}
+                                                    className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all shadow-sm"
+                                                    style={{ '--tw-ring-color': branding.primaryColor }}
+                                                    value={searchTerm}
+                                                    onChange={e => setSearchTerm(e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={refreshData} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-200 transition shadow-sm">
+                                                    <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+                                                </button>
+                                                <button onClick={handleInstallApp} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90 hover:-translate-y-0.5" style={{ backgroundColor: branding.primaryColor }}>
+                                                    <Plus size={18} /> {t('dash.subs.new')}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     {loading && locations.length === 0 ? <div className="py-20 text-center text-gray-400">Cargando datos...</div> : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                             {filteredLocations.map(loc => (
-                                                <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer relative overflow-hidden hover:border-indigo-500">
-                                                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 dark:bg-indigo-900/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                                                    <div className="relative z-10"><div className="flex justify-between items-start mb-4"><div className="w-12 h-12 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors shadow-sm"><Building2 size={24} /></div><button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button></div><h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate pr-2">{loc.name || "Sin Nombre"}</h4><p className="text-xs font-mono text-gray-400 mb-6 bg-gray-50 dark:bg-gray-800/50 inline-block px-1.5 py-0.5 rounded">{loc.location_id}</p><div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800"><p className="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2"><Smartphone size={16} className="text-indigo-500" /> {loc.total_slots || 0} <span className="text-gray-400 font-normal text-xs">Conexiones</span></p><div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all"><ChevronRight size={16} /></div></div></div>
+                                                <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-[#11131A] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-all duration-300 cursor-pointer relative overflow-hidden flex flex-col h-full">
+                                                    <div className="p-6 flex-1">
+                                                        <div className="flex justify-between items-start mb-5">
+                                                            <div className="w-12 h-12 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 group-hover:bg-white group-hover:border-indigo-100 transition-all shadow-sm">
+                                                                <Building2 size={22} strokeWidth={1.5} />
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)}
+                                                                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-600 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                                                title="Eliminar"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                        <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate group-hover:text-indigo-600 transition-colors">{loc.name || "Sin Nombre"}</h4>
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                             <p className="text-xs font-mono text-gray-400 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded-md border border-gray-100 dark:border-gray-700 truncate max-w-full">{loc.location_id}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="px-6 py-4 bg-gray-50/80 dark:bg-gray-800/30 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between mt-auto">
+                                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                                            <span className={`w-2 h-2 rounded-full ${loc.total_slots > 0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-gray-300 dark:bg-gray-600'}`}></span>
+                                                            {loc.total_slots || 0} conexiones
+                                                        </p>
+                                                        <div className="w-6 h-6 rounded-full bg-white dark:bg-gray-700 flex items-center justify-center text-gray-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all shadow-sm">
+                                                            <ChevronRight size={14} />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             ))}
+
                                             {!searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
-                                                <div key={`empty-${idx}`} onClick={handleInstallApp} className="group relative bg-gray-50/50 dark:bg-gray-900/20 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 transition-all duration-300 min-h-[220px]">
-                                                    <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-all"><Plus size={32} className="text-gray-300 group-hover:text-indigo-600" /></div><h4 className="font-bold text-gray-900 dark:text-white mb-1">Espacio Disponible</h4><p className="text-xs text-gray-500 px-6">Tienes licencia para conectar una nueva subagencia.</p>
+                                                <div key={`empty-${idx}`} onClick={handleInstallApp} className="group relative bg-gray-50/30 dark:bg-gray-900/10 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600 hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-all duration-300 min-h-[240px]">
+                                                    <div className="w-14 h-14 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 group-hover:shadow-md transition-all">
+                                                        <Plus size={24} className="text-gray-400 group-hover:text-indigo-600" />
+                                                    </div>
+                                                    <h4 className="font-bold text-gray-900 dark:text-white mb-1 text-sm">Disponible</h4>
+                                                    <p className="text-xs text-gray-500 px-4 leading-relaxed">Conectar nueva subagencia</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -527,50 +644,72 @@ export default function AgencyDashboard({ token, onLogout }) {
                     )}
 
                     {activeTab === 'settings' && (
-                        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4">
-                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2"><User size={20} /> Información de la Cuenta</h3>
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div><label className="block text-sm font-medium text-gray-500 mb-1.5">ID de Agencia</label><div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 font-mono font-medium dark:text-gray-200">{AGENCY_ID}</div></div>
-                                        <div><label className="block text-sm font-medium text-gray-500 mb-1.5">Email Registrado</label><div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 font-medium dark:text-gray-200">{userEmail || 'Cargando...'}</div></div>
+                        <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4 pb-10">
+                            {/* Account Info Card */}
+                            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+                                <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                        <User size={20} className="text-gray-400" /> Información de la Cuenta
+                                    </h3>
+                                </div>
+                                <div className="p-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-2">
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide">ID de Agencia</label>
+                                            <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 font-mono font-medium dark:text-gray-200">
+                                                <Key size={16} className="text-gray-400" />
+                                                <span className="flex-1 truncate">{AGENCY_ID}</span>
+                                                <button onClick={() => {navigator.clipboard.writeText(AGENCY_ID); toast.success("ID copiado")}} className="text-gray-400 hover:text-indigo-600 transition"><Copy size={16} /></button>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide">Email Registrado</label>
+                                            <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 font-medium dark:text-gray-200">
+                                                <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                                {userEmail || 'Cargando...'}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* ✅ NUEVO: CONFIGURACIÓN DE DOMINIO CRM */}
-                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                            {/* CRM Domain Config */}
+                            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+                                <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex flex-col md:flex-row justify-between md:items-center gap-4">
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                             <Globe size={20} className="text-blue-500" /> Configuración de Dominio CRM
                                         </h3>
-                                        <p className="text-sm text-gray-500 mt-1">
+                                        <p className="text-sm text-gray-500 mt-1 max-w-2xl">
                                             Define el dominio donde instalarás las subcuentas (ej: <b>app.gohighlevel.com</b> o tu marca blanca).
                                         </p>
                                     </div>
                                     <button 
                                         onClick={handleSaveCrmDomain}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2"
+                                        className="bg-gray-900 hover:bg-black dark:bg-white dark:hover:bg-gray-200 text-white dark:text-gray-900 px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg transition-transform active:scale-95 flex items-center gap-2 whitespace-nowrap"
                                     >
                                         <Save size={16} /> Guardar Dominio
                                     </button>
                                 </div>
-                                <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Dominio de Instalación</label>
-                                    <div className="flex gap-2">
-                                        <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-l-xl text-gray-500 select-none">https://</div>
-                                        <input 
-                                            type="text" 
-                                            className="flex-1 p-3 border-y border-r border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-r-xl outline-none focus:ring-2 focus:ring-indigo-500" 
-                                            value={crmDomain}
-                                            onChange={(e) => setCrmDomain(e.target.value)}
-                                            placeholder="app.gohighlevel.com"
-                                        />
+                                <div className="p-8">
+                                    <div className="bg-blue-50/50 dark:bg-blue-900/10 p-6 rounded-2xl border border-blue-100 dark:border-blue-900/30">
+                                        <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-3">Dominio de Instalación</label>
+                                        <div className="flex shadow-sm rounded-xl overflow-hidden transition-shadow focus-within:shadow-md ring-1 ring-gray-200 dark:ring-gray-700 focus-within:ring-2 focus-within:ring-blue-500">
+                                            <div className="px-4 py-3.5 bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 text-gray-500 font-medium select-none flex items-center">https://</div>
+                                            <input
+                                                type="text"
+                                                className="flex-1 p-3.5 bg-white dark:bg-gray-900 dark:text-white outline-none font-medium placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                                                value={crmDomain}
+                                                onChange={(e) => setCrmDomain(e.target.value)}
+                                                placeholder="app.gohighlevel.com"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-3 text-xs text-blue-600 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-900/20 px-3 py-2 rounded-lg w-fit">
+                                            <Link size={12} />
+                                            <span>Link de instalación actual:</span>
+                                            <span className="font-mono font-bold">https://{crmDomain}/integration/{APP_ID}</span>
+                                        </div>
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-2">
-                                        Link de instalación actual: <span className="font-mono text-indigo-500">https://{crmDomain}/integration/{APP_ID}</span>
-                                    </p>
                                 </div>
                             </div>
 
@@ -721,29 +860,54 @@ export default function AgencyDashboard({ token, onLogout }) {
     );
 }
 
-const SidebarItem = ({ id, icon: Icon, label, activeTab, setActiveTab, branding, sidebarOpen }) => (
-    <button
-        onClick={() => setActiveTab(id)}
-        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm mb-1
-            ${activeTab === id ? 'font-bold' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}
-        `}
-        style={activeTab === id ? { color: branding?.primaryColor || '#4F46E5', backgroundColor: (branding?.primaryColor || '#4F46E5') + '15' } : {}}
-    >
-        <Icon size={20} />
-        {sidebarOpen && <span>{label}</span>}
-    </button>
-);
+const SidebarItem = ({ id, icon: Icon, label, activeTab, setActiveTab, branding, sidebarOpen }) => {
+    const isActive = activeTab === id;
+    const activeColor = branding?.primaryColor || '#4F46E5';
 
-const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
-    <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-start justify-between">
-        <div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">{title}</p>
-            <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">{value}</h3>
-            {subtext && <p className="text-[10px] text-gray-400 mt-1">{subtext}</p>}
+    return (
+        <button
+            onClick={() => setActiveTab(id)}
+            className={`
+                group w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-200 ease-in-out font-medium text-sm mb-1.5
+                ${isActive ? 'shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200'}
+            `}
+            style={isActive ? {
+                color: activeColor,
+                backgroundColor: `${activeColor}15`, // 15% opacity
+                boxShadow: `inset 3px 0 0 0 ${activeColor}` // Left border indicator effect
+            } : {}}
+        >
+            <Icon size={20} className={`transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
+            {sidebarOpen && <span className="truncate">{label}</span>}
+        </button>
+    );
+};
+
+const StatCard = ({ title, value, subtext, icon: Icon, color }) => {
+    // Mapping for new clean style based on the passed color class
+    const getColorStyles = (colorClass) => {
+        if (colorClass.includes('indigo')) return { bg: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-600 dark:text-indigo-400' };
+        if (colorClass.includes('emerald')) return { bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-600 dark:text-emerald-400' };
+        if (colorClass.includes('blue')) return { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400' };
+        if (colorClass.includes('amber')) return { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-600 dark:text-amber-400' };
+        return { bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400' };
+    };
+
+    const styles = getColorStyles(color || '');
+
+    return (
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow duration-300 flex items-start justify-between group">
+            <div className="space-y-2">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{title}</p>
+                <h3 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{value}</h3>
+                {subtext && <p className="text-xs font-medium text-gray-500 flex items-center gap-1">{subtext}</p>}
+            </div>
+            <div className={`p-3 rounded-xl ${styles.bg} ${styles.text} shadow-sm group-hover:scale-105 transition-transform duration-300`}>
+                <Icon size={24} strokeWidth={2} />
+            </div>
         </div>
-        <div className={`p-2.5 rounded-xl ${color}`}><Icon size={22} className="text-white" /></div>
-    </div>
-);
+    );
+};
 
 //const SecurityCard = ({ token }) => {
 //    const [passData, setPassData] = useState({ current: '', new: '', confirm: '' });
