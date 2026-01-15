@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
@@ -470,21 +470,41 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 <div className="flex gap-2">
                                                                      <input 
                                                                         type="password" 
+                                                                        name={`openai_key_${slot.slot_id}`}
+                                                                        autoComplete="new-password"
                                                                         placeholder={slot.openai_api_key ? "•••••••••••••••• (Oculto)" : "sk-..."}
                                                                         className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
-                                                                        onBlur={(e) => {
-                                                                            const val = e.target.value.trim();
-                                                                            if (val) {
-                                                                                authFetch(`/agency/update-slot-config`, {
-                                                                                    method: 'POST',
-                                                                                    body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
-                                                                                }).then(() => { toast.success("API Key guardada"); e.target.value = ""; loadData(); });
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === 'Enter') {
+                                                                                const val = e.target.value.trim();
+                                                                                if (val) {
+                                                                                    authFetch(`/agency/update-slot-config`, {
+                                                                                        method: 'POST',
+                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                    }).then(() => { toast.success("API Key guardada"); e.target.value = ""; loadData(); });
+                                                                                }
                                                                             }
                                                                         }}
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') e.target.blur();
-                                                                        }}
                                                                      />
+                                                                     <button 
+                                                                        onClick={(e) => {
+                                                                             // Buscamos el input hermano anterior
+                                                                             const input = e.currentTarget.previousElementSibling;
+                                                                             const val = input.value.trim();
+                                                                             if (val) {
+                                                                                 authFetch(`/agency/update-slot-config`, {
+                                                                                     method: 'POST',
+                                                                                     body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                 }).then(() => { toast.success("API Key guardada"); input.value = ""; loadData(); });
+                                                                             } else {
+                                                                                 toast.error("Ingresa una Key válida");
+                                                                             }
+                                                                        }}
+                                                                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
+                                                                     >
+                                                                         <Save size={18} /> Guardar
+                                                                     </button>
+                                                                     
                                                                      {slot.openai_api_key && (
                                                                          <button 
                                                                             onClick={() => {
