@@ -445,6 +445,65 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     {/* OTHER PANELS (GHL, Keywords, Groups) same as before... */}
                                                     {activeSlotTab === 'ghl' && (
                                                         <div className="max-w-2xl space-y-6">
+                                                            
+                                                            {/* 🔥 NUEVO: OpenAI Key para este Slot */}
+                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                <div className="flex justify-between items-start mb-4">
+                                                                    <div>
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                            <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
+                                                                                <Zap size={14} />
+                                                                            </div>
+                                                                            OpenAI API Key (Transcripción)
+                                                                        </label>
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                            Configura una key única para este número. Dejar vacío para desactivar.
+                                                                        </p>
+                                                                    </div>
+                                                                    {slot.openai_api_key && (
+                                                                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                                                            Conectado
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                
+                                                                <div className="flex gap-2">
+                                                                     <input 
+                                                                        type="password" 
+                                                                        placeholder={slot.openai_api_key ? "•••••••••••••••• (Oculto)" : "sk-..."}
+                                                                        className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
+                                                                        onBlur={(e) => {
+                                                                            const val = e.target.value.trim();
+                                                                            if (val) {
+                                                                                authFetch(`/agency/update-slot-config`, {
+                                                                                    method: 'POST',
+                                                                                    body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                }).then(() => { toast.success("API Key guardada"); e.target.value = ""; loadData(); });
+                                                                            }
+                                                                        }}
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === 'Enter') e.target.blur();
+                                                                        }}
+                                                                     />
+                                                                     {slot.openai_api_key && (
+                                                                         <button 
+                                                                            onClick={() => {
+                                                                                if(confirm("¿Borrar API Key de este número?")) {
+                                                                                    authFetch(`/agency/update-slot-config`, {
+                                                                                        method: 'POST',
+                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: "" }) // Send empty string to clear
+                                                                                    }).then(() => { toast.success("API Key eliminada"); loadData(); });
+                                                                                }
+                                                                            }}
+                                                                            className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                            title="Borrar Key"
+                                                                         >
+                                                                             <Trash2 size={18} />
+                                                                         </button>
+                                                                     )}
+                                                                </div>
+                                                            </div>
+
                                                             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.ghl.tag_auto')}</label>
                                                                 <input type="text" placeholder={t('slots.ghl.tag_auto_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.ghl_contact_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_contact_tag', e.target.value, settings)} />
