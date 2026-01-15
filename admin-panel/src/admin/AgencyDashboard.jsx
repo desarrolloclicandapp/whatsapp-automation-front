@@ -585,6 +585,66 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 />
                             )}
 
+                            {/* ✅ NUEVO: CONFIGURACIÓN OPENAI */}
+                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
+                                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <div className="w-8 h-8 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded-lg flex items-center justify-center">
+                                                <Zap size={20} />
+                                            </div>
+                                            Configuración de Transcripción (OpenAI)
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                            Conecta tu propia API Key para habilitar la transcripción de audios.
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-teal-50 text-teal-600 border-teal-100 dark:bg-teal-900/30 dark:border-teal-800">
+                                            {accountInfo?.openai_key_configured ? "Conectado" : "No Configurado"}
+                                        </span>
+                                    </div>
+                                </div>
+                                <form onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    const key = e.target.openaiKey.value.trim();
+                                    if (!key && !confirm("¿Estás seguro de que quieres borrar la KEY? Se desactivará la transcripción.")) return;
+                                    
+                                    const tId = toast.loading("Guardando...");
+                                    try {
+                                        const res = await authFetch('/agency/settings', {
+                                            method: 'POST',
+                                            body: JSON.stringify({ openai_api_key: key || null })
+                                        });
+                                        if (res.ok) {
+                                            toast.success("Configuración actualizada", { id: tId });
+                                            e.target.openaiKey.value = "";
+                                            refreshData(); // Recargar para actualizar status
+                                        } else {
+                                            toast.error("Error al guardar", { id: tId });
+                                        }
+                                    } catch (err) { toast.error("Error de conexión", { id: tId }); }
+                                }} className="flex gap-4 items-end">
+                                    <div className="flex-1">
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">OpenAI API Key</label>
+                                        <div className="relative">
+                                            <input 
+                                                name="openaiKey"
+                                                type="password" 
+                                                placeholder={accountInfo?.openai_key_configured ? "•••••••••••••••• (Oculto por seguridad)" : "sk-..."}
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-teal-500 transition-all font-mono text-sm"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-gray-400 mt-2">
+                                            La llave nunca se muestra después de guardada. Deja vacío y guarda para eliminarla.
+                                        </p>
+                                    </div>
+                                    <button type="submit" className="px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold transition shadow-lg shadow-teal-600/20 flex items-center gap-2">
+                                        <CheckCircle2 size={18} /> Guardar
+                                    </button>
+                                </form>
+                            </div>
+
                             <WhiteLabelSettings />
                             {/* <SecurityCard token={token} /> */}
 
