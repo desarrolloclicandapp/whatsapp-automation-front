@@ -145,33 +145,31 @@ export default function SupportManager({
     };
 
     return (
-        <div className="bg-white dark:bg-gray-900 border border-indigo-100 dark:border-gray-800 rounded-xl p-6 shadow-sm mb-8 transition-colors">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-full ${status.connected ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'}`}>
-                        {status.connected ? <ShieldCheck size={28} /> : <ShieldAlert size={28} />}
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm mb-6 transition-colors">
+            <div className="flex items-center justify-between gap-4">
+                {/* Info */}
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className={`p-2 rounded-lg shrink-0 ${status.connected ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'}`}>
+                        {status.connected ? <ShieldCheck size={20} /> : <ShieldAlert size={20} />}
                     </div>
-                    <div>
-                        <h3 className="text-lg font-bold text-gray-800 dark:text-white">{title}</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {status.connected
-                                ? `Conectado: +${status.myNumber}`
-                                : showDisconnectWarning 
-                                    ? "Desconectado. No se enviarán alertas de desconexión."
-                                    : "Conecta tu propio número para enviar alertas."}
+                    <div className="min-w-0">
+                        <h3 className="text-sm font-bold text-gray-800 dark:text-white truncate">{title}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {status.connected ? `+${status.myNumber}` : showDisconnectWarning ? "No conectado" : "Sin vincular"}
                         </p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                {/* Actions */}
+                <div className="flex items-center gap-2 shrink-0">
                     {!status.connected && !qr && (
                         <button
                             onClick={handleConnect}
                             disabled={loading}
-                            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 shadow-md shadow-indigo-200 dark:shadow-none"
+                            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50"
                         >
-                            {loading ? <RefreshCw className="animate-spin" size={18} /> : <QrCode size={18} />}
-                            {loading ? "Iniciando..." : "Vincular Bot"}
+                            {loading ? <RefreshCw className="animate-spin" size={16} /> : <QrCode size={16} />}
+                            <span className="hidden sm:inline">{loading ? "Iniciando..." : "Vincular"}</span>
                         </button>
                     )}
 
@@ -179,42 +177,39 @@ export default function SupportManager({
                         <button
                             onClick={handleDisconnect}
                             disabled={loading}
-                            className="group relative p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-500 dark:text-red-400 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/40 hover:border-red-300 dark:hover:border-red-700 transition-all disabled:opacity-50 shadow-sm"
-                            title="Desconectar número"
+                            className="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-500 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition disabled:opacity-50"
+                            title="Desconectar"
                         >
-                            <Power size={20} />
-                            <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                Desconectar
-                            </span>
+                            <Power size={18} />
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* Panel de QR Desplegable */}
+            {/* QR Panel - Inline */}
             {!status.connected && (qr || loading) && (
-                <div className="mt-6 border-t border-gray-100 dark:border-gray-800 pt-6 flex flex-col items-center animate-in fade-in slide-in-from-top-4">
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 font-medium">
-                        {loading && !qr ? "Solicitando código QR al servidor..." : "Escanea este código con el WhatsApp que enviará las alertas:"}
-                    </p>
-
-                    <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center gap-4">
+                    <div className="bg-white p-2 rounded-lg shadow border border-gray-100 dark:border-gray-700 shrink-0">
                         {qr ? (
-                            <QRCode value={qr} size={200} />
+                            <QRCode value={qr} size={120} />
                         ) : (
-                            <div className="w-[200px] h-[200px] flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg text-gray-400">
-                                <RefreshCw className="animate-spin mb-2 text-indigo-500" />
-                                <span className="text-xs">Generando QR...</span>
+                            <div className="w-[120px] h-[120px] flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800 rounded text-gray-400">
+                                <RefreshCw className="animate-spin mb-1 text-indigo-500" size={20} />
+                                <span className="text-[10px]">Generando...</span>
                             </div>
                         )}
                     </div>
-
-                    <button
-                        onClick={() => { setQr(null); setLoading(false); stopPolling(); }}
-                        className="mt-4 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 underline"
-                    >
-                        Cancelar
-                    </button>
+                    <div className="text-center sm:text-left">
+                        <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
+                            {loading && !qr ? "Solicitando QR..." : "Escanea con WhatsApp"}
+                        </p>
+                        <button
+                            onClick={() => { setQr(null); setLoading(false); stopPolling(); }}
+                            className="mt-2 text-xs text-gray-400 hover:text-red-500 transition"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
