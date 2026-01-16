@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
-const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "595984756159";
+const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
 
 // 🔥 LÓGICA DE EXTRACCIÓN DE APP ID (Compatible con tu .env actual)
 // Toma la URL completa y se queda solo con el ID final (ej: 691623d58a49cdcb2c56ce9c)
