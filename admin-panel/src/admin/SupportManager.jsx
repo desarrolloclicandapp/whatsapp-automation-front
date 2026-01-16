@@ -191,9 +191,9 @@ export default function SupportManager({
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center gap-4">
                     <div className="bg-white p-2 rounded-lg shadow border border-gray-100 dark:border-gray-700 shrink-0">
                         {qr ? (
-                            <QRCode value={qr} size={120} />
+                            <QRCode value={qr} size={200} />
                         ) : (
-                            <div className="w-[120px] h-[120px] flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800 rounded text-gray-400">
+                            <div className="w-[200px] h-[200px] flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800 rounded text-gray-400">
                                 <RefreshCw className="animate-spin mb-1 text-indigo-500" size={20} />
                                 <span className="text-[10px]">Generando...</span>
                             </div>
