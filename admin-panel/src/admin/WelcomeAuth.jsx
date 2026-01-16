@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Smartphone, ArrowRight, CheckCircle2, User, Mail, Lock, Loader2, ShieldCheck, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Smartphone, ArrowRight, CheckCircle2, User, Mail, Lock, Loader2, ShieldCheck, ArrowLeft, ExternalLink, LifeBuoy } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBranding } from '../context/BrandingContext';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || "595984756159";
 
 export default function WelcomeAuth({ onLoginSuccess }) {
     // ✅ Usamos systemBranding: La configuración global definida por el Super Admin
@@ -389,6 +390,25 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                 </div>
                             )}
                         </>
+                    )}
+                    {/* 🟢 ENLACE DE SOPORTE */}
+                    {authMode === 'USER' && (
+                        <div className="mt-10 pt-6 border-t border-gray-100 dark:border-gray-800 text-center animate-in fade-in">
+                            <p className="text-sm text-gray-400 dark:text-gray-500 mb-2">
+                                ¿Tienes problemas para registrarte?
+                            </p>
+                            <a
+                                href={`https://wa.me/${SUPPORT_PHONE}?text=Hola,%20tengo%20problemas%20para%20registrarme%20en%20la%20plataforma`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 text-sm font-medium transition-all hover:gap-3"
+                                style={{ color: branding.primaryColor }}
+                            >
+                                <LifeBuoy size={16} />
+                                Contactar con Soporte
+                                <ArrowRight size={14} />
+                            </a>
+                        </div>
                     )}
                 </div>
             </div>
