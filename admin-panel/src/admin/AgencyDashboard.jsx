@@ -131,16 +131,43 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const autoSyncAgency = async (locationId, code) => {
         setIsAutoSyncing(true);
-        const toastId = toast.loading('Finalizando instalación...');
+        const toastId = toast.loading('Esperando instalación de GHL...');
 
         try {
-            let data;
+            // 🔥 STEP 1: Wait for GHL webhook to complete installation
+            let installed = false;
             let attempts = 0;
-            const maxAttempts = 10;
+            const maxWaitAttempts = 30; // 60 seconds max wait (30 * 2s)
 
-            while (attempts < maxAttempts) {
+            while (!installed && attempts < maxWaitAttempts) {
                 try {
-                    await new Promise(r => setTimeout(r, 2000));
+                    const checkRes = await authFetch(`/agency/check-install/${locationId}`);
+                    if (checkRes.ok) {
+                        const checkData = await checkRes.json();
+                        if (checkData.installed) {
+                            installed = true;
+                            toast.loading('Instalación detectada, sincronizando...', { id: toastId });
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    console.log("Waiting for install...", e.message);
+                }
+                
+                attempts++;
+                if (attempts % 5 === 0) {
+                    toast.loading(`Esperando webhook de GHL... (${attempts * 2}s)`, { id: toastId });
+                }
+                await new Promise(r => setTimeout(r, 2000));
+            }
+
+            // 🔥 STEP 2: Now call sync-ghl to link the user
+            let data;
+            let syncAttempts = 0;
+            const maxSyncAttempts = 5;
+
+            while (syncAttempts < maxSyncAttempts) {
+                try {
                     const res = await authFetch(`/agency/sync-ghl`, {
                         method: "POST",
                         body: JSON.stringify({ locationIdToVerify: locationId, code: code })
@@ -150,12 +177,20 @@ export default function AgencyDashboard({ token, onLogout }) {
                         data = await res.json();
                         break;
                     }
-                    if (res.status === 404) attempts++;
-                    else throw new Error("Error de servidor");
-                } catch (e) { attempts++; }
+                    if (res.status === 404 && !installed) {
+                        // Still not installed, wait more
+                        syncAttempts++;
+                        await new Promise(r => setTimeout(r, 2000));
+                    } else {
+                        throw new Error("Error de servidor");
+                    }
+                } catch (e) { 
+                    syncAttempts++; 
+                    await new Promise(r => setTimeout(r, 2000));
+                }
             }
 
-            if (!data || !data.success) throw new Error("Tiempo de espera agotado.");
+            if (!data || !data.success) throw new Error("No se pudo completar la sincronización.");
 
             localStorage.setItem("agencyId", data.newAgencyId);
             setStoredAgencyId(data.newAgencyId);
@@ -165,11 +200,12 @@ export default function AgencyDashboard({ token, onLogout }) {
             window.history.replaceState({}, document.title, window.location.pathname);
 
         } catch (error) {
-            toast.error(error.message, { id: toastId });
+            toast.error(error.message || "Error en instalación", { id: toastId });
         } finally {
             setIsAutoSyncing(false);
         }
     };
+
 
     useEffect(() => {
         console.log("📍 URL Search Params:", window.location.search);
@@ -502,8 +538,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Users className="text-gray-400" /> {t('dash.subs.title')}</h3>
                                         <div className="flex w-full md:w-auto gap-3">
                                             <div className="relative flex-1 md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" autoComplete="off" placeholder={t('dash.subs.search')} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
-                                            <button onClick={refreshData} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 hover:text-indigo-600 transition"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
-                                            <button onClick={handleInstallApp} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{ backgroundColor: branding.primaryColor }}><Plus size={18} /> {t('dash.subs.new')}</button>
+                                            <button onClick={refreshData} disabled={isAutoSyncing} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 hover:text-indigo-600 transition disabled:opacity-50 disabled:cursor-not-allowed"><RefreshCw size={18} className={loading || isAutoSyncing ? "animate-spin" : ""} /></button>
+                                            <button onClick={handleInstallApp} disabled={isAutoSyncing} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed" style={{ backgroundColor: branding.primaryColor }}><Plus size={18} /> {isAutoSyncing ? 'Instalando...' : t('dash.subs.new')}</button>
                                         </div>
                                     </div>
                                     {loading && locations.length === 0 ? <div className="py-20 text-center text-gray-400">Cargando datos...</div> : (
