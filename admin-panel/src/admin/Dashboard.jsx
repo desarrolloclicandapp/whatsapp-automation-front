@@ -215,6 +215,31 @@ export default function AdminDashboard({ token, onLogout }) {
         );
     };
 
+    // ✅ NUEVO: Eliminar Subcuenta (Tenant)
+    const executeDeleteTenant = async (locationId) => {
+        const tId = toast.loading("Eliminando subcuenta y desconectando...");
+        try {
+            const res = await authFetch(`/agency/tenants/${locationId}`, { method: 'DELETE' });
+            if (res.ok) {
+                toast.success("Subcuenta eliminada correctamente", { id: tId });
+                if (selectedAgency) fetchSubaccounts(selectedAgency.agency_id);
+            } else {
+                const data = await res.json();
+                toast.error(data.error || "Error al eliminar", { id: tId });
+            }
+        } catch (error) { toast.error("Error de conexión", { id: tId }); }
+        setConfirmModal({ ...confirmModal, show: false });
+    };
+
+    const handleDeleteTenant = (locationId, name) => {
+        openConfirm(
+            "Eliminar Subcuenta",
+            `🚨 ¿Eliminar la subcuenta "${name || locationId}"?\n\nEsto desconectará TODOS los números de WhatsApp asociados y eliminará la configuración permanentemente.`,
+            () => executeDeleteTenant(locationId),
+            true
+        );
+    };
+
     // --- EFECTOS ---
 
     useEffect(() => {
@@ -544,7 +569,12 @@ export default function AdminDashboard({ token, onLogout }) {
                                                             <td className="px-6 py-4"><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${sub.status === 'active' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : sub.status === 'trial' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-red-100 text-red-800 border-red-200'}`}>{sub.status === 'active' && <CheckCircle2 size={12} className="mr-1" />}{sub.status?.toUpperCase()}</span></td>
                                                             <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 capitalize font-medium">{sub.plan_name || 'Trial'}</td>
                                                             <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 tabular-nums">{new Date(sub.created_at).toLocaleDateString()}</td>
-                                                            <td className="px-6 py-4 text-right"><button onClick={() => setSelectedLocation(sub)} className="inline-flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:text-indigo-600 hover:border-indigo-600 px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm"><Settings size={16} /> Gestionar</button></td>
+                                                            <td className="px-6 py-4 text-right">
+                                                                <div className="flex justify-end items-center gap-2">
+                                                                    <button onClick={() => setSelectedLocation(sub)} className="inline-flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:text-indigo-600 hover:border-indigo-600 px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm"><Settings size={16} /> Gestionar</button>
+                                                                    <button onClick={() => handleDeleteTenant(sub.location_id, sub.name)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition" title="Eliminar Subcuenta"><Trash2 size={18} /></button>
+                                                                </div>
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>

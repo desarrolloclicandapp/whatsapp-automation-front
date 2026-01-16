@@ -497,6 +497,35 @@ export default function AgencyDashboard({ token, onLogout }) {
             {isAccountSuspended && <SubscriptionBlocker token={token} onLogout={onLogout} />}
             {showUpgradeModal && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
 
+            {/* 🔥 OVERLAY DE BLOQUEO DURANTE INSTALACIÓN */}
+            {isAutoSyncing && (
+                <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-gray-900 rounded-3xl p-10 shadow-2xl border border-gray-200 dark:border-gray-800 max-w-md w-full mx-4 text-center">
+                        <div className="w-20 h-20 mx-auto mb-6 relative">
+                            <div className="absolute inset-0 rounded-full border-4 border-indigo-100 dark:border-indigo-900/50"></div>
+                            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-indigo-600 animate-spin"></div>
+                            <div className="absolute inset-3 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
+                                <RefreshCw size={28} className="text-indigo-600 animate-pulse" />
+                            </div>
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                            Instalando Subcuenta...
+                        </h3>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
+                            Esperando confirmación del webhook de GoHighLevel.
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">
+                            Por favor, no cierres esta ventana ni navegues a otra página.
+                        </p>
+                        <div className="mt-6 flex justify-center gap-1">
+                            <span className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                            <span className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                            <span className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex flex-col z-30`}>
                 <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden" style={{ backgroundColor: branding.primaryColor }}><img src={branding.logoUrl} alt="Logo" className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} /></div>
