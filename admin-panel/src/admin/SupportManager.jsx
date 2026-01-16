@@ -179,10 +179,13 @@ export default function SupportManager({
                         <button
                             onClick={handleDisconnect}
                             disabled={loading}
-                            className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 px-5 py-2.5 rounded-lg font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-50"
+                            className="group relative p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-500 dark:text-red-400 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/40 hover:border-red-300 dark:hover:border-red-700 transition-all disabled:opacity-50 shadow-sm"
+                            title="Desconectar número"
                         >
-                            <Power size={18} />
-                            Desconectar
+                            <Power size={20} />
+                            <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                Desconectar
+                            </span>
                         </button>
                     )}
                 </div>
