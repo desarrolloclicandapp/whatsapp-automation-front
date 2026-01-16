@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { useBranding } from '../context/BrandingContext';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
-const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || "595984756159";
+const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || "34611770270";
 
 export default function WelcomeAuth({ onLoginSuccess }) {
     // ✅ Usamos systemBranding: La configuración global definida por el Super Admin
