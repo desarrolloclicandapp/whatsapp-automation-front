@@ -13,6 +13,7 @@ import {
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 import { useLanguage } from '../context/LanguageContext'; // ✅ Import
+import PaymentMethodForm from './PaymentMethodForm'; // ✅ NUEVO: Formulario de métodos de pago
 
 // --- CONFIGURACIÓN DE PLANES BASE ---
 // Ordenados por precio para calcular upgrades/downgrades
@@ -602,13 +603,43 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                 </div >
             )}
 
-            {/* TAB PAGOS/FACTURAS (Solo Portal) */}
+            {/* TAB PAGOS - Formulario Embebido con Stripe Elements */}
             {
-                (activeTab === 'payments' || activeTab === 'invoices') && (
+                activeTab === 'payments' && (
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-8">
+                        <div className="max-w-2xl mx-auto">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600">
+                                    <CreditCard size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('sub.portal.title')}</h3>
+                                    <p className="text-sm text-gray-500">{t('sub.portal.desc')}</p>
+                                </div>
+                            </div>
+                            
+                            {/* Formulario de Stripe Elements */}
+                            <PaymentMethodForm token={token} />
+                            
+                            {/* Enlace al portal de Stripe para más opciones */}
+                            <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
+                                <p className="text-sm text-gray-500 mb-3">¿Necesitas más opciones?</p>
+                                <button onClick={handlePortal} className="text-indigo-600 hover:text-indigo-700 font-bold text-sm flex items-center gap-2 mx-auto">
+                                    Abrir Portal Completo <ExternalLink size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* TAB FACTURAS (Solo Portal) */}
+            {
+                activeTab === 'invoices' && (
                     <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center">
                         <div className="w-20 h-20 bg-gray-50 dark:bg-gray-800 rounded-full mx-auto mb-6 flex items-center justify-center text-gray-400"><CreditCard size={40} /></div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('sub.portal.title')}</h3>
-                        <p className="text-gray-500 mb-8">{t('sub.portal.desc')}</p>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Historial de Facturas</h3>
+                        <p className="text-gray-500 mb-8">Consulta y descarga tus facturas desde el portal seguro.</p>
                         <button onClick={handlePortal} className="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold mx-auto flex items-center gap-2">{t('sub.portal.button')} <ExternalLink size={18} /></button>
                     </div>
                 )
