@@ -170,6 +170,11 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
     const [editingSubId, setEditingSubId] = useState(null);
     const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'annual'
 
+    // ✅ NUEVO: Estados para pago directo con tarjeta guardada
+    const [paymentMethods, setPaymentMethods] = useState([]);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [selectedPlan, setSelectedPlan] = useState(null); // { priceId, name, price }
+
     // 1. Calcular Volumen
     const totalSubs = accountInfo?.limits?.max_subagencies || 0;
 
@@ -191,7 +196,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
 
     if (hasLifetime) {
         // Usuario Lifetime -> Planes con Descuento pero LIMITADOS en Slots
-        availablePlans = PLANS_DISC_LIMITED; // ERROR: This variable is undefined in original file too? No, it was likely defined or I am missing it. Wait.
+        // ERROR: This variable is undefined in original file too? No, it was likely defined or I am missing it. Wait.
         // Checking previous file... Step 404 uses PLANS_DISC_LIMITED. But where is it defined?
         // Ah, in Step 396 I might not have seen it.
         // Wait, looking at Step 396 result... I saw PLANS_STANDARD, PLANS_FOUNDER, PLANS_VOLUME. 
@@ -214,7 +219,10 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
     const slotDisplayPrice = hasVolumeDiscount ? "3$" : "5$"; // Mantener logic de slots sueltos igual
     const slotPriceId = hasVolumeDiscount ? ADDONS.SLOT_UNIT_VIP : ADDONS.SLOT_UNIT_STD;
 
-    useEffect(() => { fetchSubscriptions(); }, []);
+    useEffect(() => { 
+        fetchSubscriptions(); 
+        fetchPaymentMethods(); // ✅ NUEVO: Cargar métodos de pago
+    }, []);
 
     const fetchSubscriptions = async () => {
         setFetching(true);
@@ -228,7 +236,27 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
         } catch (e) { } finally { setFetching(false); }
     };
 
-    const handlePurchase = async (priceId) => {
+    // ✅ NUEVO: Cargar métodos de pago guardados
+    const fetchPaymentMethods = async () => {
+        try {
+            const res = await fetch(`${API_URL}/payments/payment-methods`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (res.ok) {
+                const data = await res.json();
+                setPaymentMethods(data);
+            }
+        } catch (e) { console.error("Error cargando métodos de pago:", e); }
+    };
+
+    // ✅ MODIFICADO: Detectar si hay tarjeta y mostrar modal
+    const handlePurchase = async (priceId, planName = 'Plan', planPrice = '') => {
+        // Si hay métodos de pago guardados, mostrar modal de confirmación
+        if (paymentMethods.length > 0) {
+            setSelectedPlan({ priceId, name: planName, price: planPrice });
+            setShowConfirmModal(true);
+            return;
+        }
+
+        // Si no hay tarjeta, redirigir a Checkout (flujo original)
         setLoading(true);
         try {
             const res = await fetch(`${API_URL}/payments/subscribe`, {
@@ -236,8 +264,54 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
             });
             const data = await res.json();
             if (data.url) window.location.href = data.url;
-            else alert("Error: " + (data.error || "Desconocido"));
-        } catch (e) { alert("Error conexión"); } finally { setLoading(false); }
+            else toast.error("Error: " + (data.error || "Desconocido"));
+        } catch (e) { toast.error("Error conexión"); } finally { setLoading(false); }
+    };
+
+    // ✅ NUEVO: Confirmar pago directo con tarjeta guardada
+    const handleConfirmDirectPayment = async () => {
+        if (!selectedPlan || paymentMethods.length === 0) return;
+        
+        setLoading(true);
+        const toastId = toast.loading("Procesando pago...");
+        
+        try {
+            const res = await fetch(`${API_URL}/payments/subscribe-direct`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ 
+                    priceId: selectedPlan.priceId, 
+                    paymentMethodId: paymentMethods[0].id // Usar primera tarjeta
+                })
+            });
+            
+            const data = await res.json();
+            
+            if (data.success) {
+                toast.success("¡Suscripción activada exitosamente!", { id: toastId });
+                setShowConfirmModal(false);
+                setSelectedPlan(null);
+                fetchSubscriptions();
+                if (onDataChange) onDataChange();
+            } else if (data.requiresAction) {
+                // Si requiere 3DS, manejarlo (por ahora redirigir a checkout)
+                toast.info("Se requiere verificación adicional. Redirigiendo...", { id: toastId });
+                // Fallback a checkout normal
+                const checkoutRes = await fetch(`${API_URL}/payments/subscribe`, {
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                    body: JSON.stringify({ priceId: selectedPlan.priceId })
+                });
+                const checkoutData = await checkoutRes.json();
+                if (checkoutData.url) window.location.href = checkoutData.url;
+            } else {
+                toast.error(data.error || "Error procesando pago", { id: toastId });
+            }
+        } catch (e) {
+            toast.error("Error de conexión", { id: toastId });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleUpdatePlan = async (subscriptionId, newPriceId) => {
@@ -331,6 +405,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
     };
 
     return (
+        <>
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header y Tabs */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-800 pb-4">
@@ -392,7 +467,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                                 {savings && <p className="text-xs font-bold text-green-600 mt-1">{t('sub.billing.save_text')}</p>}
                                             </div>
                                             <ul className="space-y-3 mb-8 flex-1">{plan.features.map((feat, i) => <li key={i} className="flex gap-2 text-sm text-gray-600 dark:text-gray-300"><Check size={16} className="text-emerald-500 shrink-0" /> {feat}</li>)}</ul>
-                                            <button onClick={() => handlePurchase(effectiveId)} className={`w-full py-3 rounded-xl font-bold text-white transition shadow-lg ${plan.color} hover:opacity-90`}>{loading ? t('sub.plan.processing') : t('sub.plan.contract')}</button>
+                                            <button onClick={() => handlePurchase(effectiveId, plan.name, effectivePrice)} className={`w-full py-3 rounded-xl font-bold text-white transition shadow-lg ${plan.color} hover:opacity-90`}>{loading ? t('sub.plan.processing') : t('sub.plan.contract')}</button>
                                         </div>
                                     );
                                 })}
@@ -644,6 +719,67 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                     </div>
                 )
             }
-        </div >
+        </div>
+
+        {/* ✅ MODAL DE CONFIRMACIÓN DE PAGO DIRECTO */}
+        {showConfirmModal && selectedPlan && paymentMethods.length > 0 && (
+            <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95">
+                    <div className="text-center mb-6">
+                        <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600">
+                            <CreditCard size={32} />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('sub.confirm.title') || 'Confirmar Compra'}</h3>
+                    </div>
+                    
+                    {/* Resumen del plan */}
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 mb-6">
+                        <div className="flex justify-between items-center mb-3">
+                            <span className="text-gray-500 text-sm">Plan</span>
+                            <span className="font-bold text-gray-900 dark:text-white">{selectedPlan.name}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-t border-gray-200 dark:border-gray-700 pt-3">
+                            <span className="text-gray-500 text-sm">Total</span>
+                            <span className="text-2xl font-extrabold text-indigo-600">{selectedPlan.price}</span>
+                        </div>
+                    </div>
+
+                    {/* Tarjeta a usar */}
+                    <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-800 rounded-xl p-3 mb-6">
+                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600">
+                            <CreditCard size={20} />
+                        </div>
+                        <div className="flex-1">
+                            <span className="font-bold text-gray-900 dark:text-white capitalize">{paymentMethods[0].brand}</span>
+                            <span className="text-gray-500 ml-2">•••• {paymentMethods[0].last4}</span>
+                        </div>
+                        <Check size={20} className="text-emerald-500" />
+                    </div>
+
+                    {/* Botones */}
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => { setShowConfirmModal(false); setSelectedPlan(null); }}
+                            disabled={loading}
+                            className="flex-1 py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                        >
+                            {t('common.cancel') || 'Cancelar'}
+                        </button>
+                        <button 
+                            onClick={handleConfirmDirectPayment}
+                            disabled={loading}
+                            className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg transition flex items-center justify-center gap-2"
+                        >
+                            {loading ? (
+                                <><RefreshCw size={18} className="animate-spin" /> Procesando...</>
+                            ) : (
+                                <>{t('sub.confirm.pay') || 'Confirmar Pago'}</>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 }
