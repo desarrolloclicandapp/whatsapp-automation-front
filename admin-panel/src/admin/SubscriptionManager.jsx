@@ -266,8 +266,17 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
         try {
             const res = await fetch(`${API_URL}/payments/portal`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } });
             const data = await res.json();
-            if (data.url) window.location.href = data.url;
-        } catch (e) { alert("Error"); } finally { setLoading(false); }
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                // 🔥 FIX: Mostrar error con Sonner
+                toast.error(data.error || "Error al abrir portal de facturación");
+            }
+        } catch (e) { 
+            toast.error("Error de conexión"); 
+        } finally { 
+            setLoading(false); 
+        }
     };
 
     const handleCancelClick = async (subId) => {

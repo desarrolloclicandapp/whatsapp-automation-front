@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import {
     X, Check, Zap, Building2, Smartphone,
     CreditCard, FileText, Layers, PlusCircle, ExternalLink, Crown, AlertCircle, ChevronDown, ChevronUp
@@ -72,9 +73,17 @@ export default function SubscriptionModal({ onClose, token, accountInfo, blockin
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-            if (data.url) window.location.href = data.url;
-            else alert("Error al abrir portal");
-        } catch (e) { alert("Error de conexión"); } finally { setLoading(false); }
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                // 🔥 FIX: Mostrar error con Sonner
+                toast.error(data.error || "Error al abrir portal de facturación");
+            }
+        } catch (e) { 
+            toast.error("Error de conexión"); 
+        } finally { 
+            setLoading(false); 
+        }
     };
 
     const handlePurchase = async (priceId) => {
