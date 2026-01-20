@@ -288,14 +288,14 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
             const data = await res.json();
             
             if (data.success) {
-                toast.success("¡Suscripción activada exitosamente!", { id: toastId });
+                toast.success("¡Pago exitoso! Tu plan ha sido activado.", { id: toastId, duration: 5000 });
                 setShowConfirmModal(false);
                 setSelectedPlan(null);
                 fetchSubscriptions();
                 if (onDataChange) onDataChange();
             } else if (data.requiresAction) {
                 // Si requiere 3DS, manejarlo (por ahora redirigir a checkout)
-                toast.info("Se requiere verificación adicional. Redirigiendo...", { id: toastId });
+                toast.info("Se requiere verificación adicional de tu banco. Redirigiendo...", { id: toastId });
                 // Fallback a checkout normal
                 const checkoutRes = await fetch(`${API_URL}/payments/subscribe`, {
                     method: 'POST', 
@@ -305,10 +305,31 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                 const checkoutData = await checkoutRes.json();
                 if (checkoutData.url) window.location.href = checkoutData.url;
             } else {
-                toast.error(data.error || "Error procesando pago", { id: toastId });
+                // ⚠️ Mejorado: Mensajes de error más específicos
+                const errorMessage = data.error || "Error desconocido";
+                let userFriendlyMessage = "Error procesando el pago";
+                
+                if (errorMessage.includes("card_declined") || errorMessage.includes("declined")) {
+                    userFriendlyMessage = "Tu tarjeta fue rechazada. Por favor, verifica los fondos o intenta con otra tarjeta.";
+                } else if (errorMessage.includes("insufficient_funds")) {
+                    userFriendlyMessage = "Fondos insuficientes en tu tarjeta.";
+                } else if (errorMessage.includes("expired")) {
+                    userFriendlyMessage = "Tu tarjeta ha expirado. Por favor, actualiza tu método de pago.";
+                } else if (errorMessage.includes("authentication")) {
+                    userFriendlyMessage = "Se requiere autenticación adicional. Por favor, intenta nuevamente.";
+                } else if (errorMessage.includes("processing")) {
+                    userFriendlyMessage = "Error procesando con el banco. Intenta en unos minutos.";
+                } else {
+                    userFriendlyMessage = `Error: ${errorMessage}`;
+                }
+                
+                toast.error(userFriendlyMessage, { id: toastId, duration: 8000 });
+                setShowConfirmModal(false);
+                setSelectedPlan(null);
             }
         } catch (e) {
-            toast.error("Error de conexión", { id: toastId });
+            toast.error("Error de conexión. Por favor, verifica tu internet e intenta de nuevo.", { id: toastId, duration: 6000 });
+            setShowConfirmModal(false);
         } finally {
             setLoading(false);
         }
@@ -726,34 +747,39 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
             <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                 <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95">
                     <div className="text-center mb-6">
-                        <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600">
+                        <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600">
                             <CreditCard size={32} />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('sub.confirm.title') || 'Confirmar Compra'}</h3>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">¿Confirmar compra?</h3>
+                        <p className="text-sm text-gray-500 mt-2">
+                            Se realizará un cargo a tu tarjeta
+                        </p>
                     </div>
                     
                     {/* Resumen del plan */}
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 mb-6">
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 mb-4">
                         <div className="flex justify-between items-center mb-3">
-                            <span className="text-gray-500 text-sm">Plan</span>
+                            <span className="text-gray-500 text-sm">Plan seleccionado</span>
                             <span className="font-bold text-gray-900 dark:text-white">{selectedPlan.name}</span>
                         </div>
                         <div className="flex justify-between items-center border-t border-gray-200 dark:border-gray-700 pt-3">
-                            <span className="text-gray-500 text-sm">Total</span>
+                            <span className="text-gray-500 text-sm">Total a cobrar</span>
                             <span className="text-2xl font-extrabold text-indigo-600">{selectedPlan.price}</span>
                         </div>
                     </div>
 
-                    {/* Tarjeta a usar */}
-                    <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-800 rounded-xl p-3 mb-6">
-                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600">
-                            <CreditCard size={20} />
+                    {/* ⚠️ Advertencia con tarjeta */}
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-lg text-amber-600">
+                                <CreditCard size={20} />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                                    Se debitará de tu tarjeta <span className="uppercase">{paymentMethods[0].brand}</span> terminada en <span className="font-mono">{paymentMethods[0].last4}</span>
+                                </p>
+                            </div>
                         </div>
-                        <div className="flex-1">
-                            <span className="font-bold text-gray-900 dark:text-white capitalize">{paymentMethods[0].brand}</span>
-                            <span className="text-gray-500 ml-2">•••• {paymentMethods[0].last4}</span>
-                        </div>
-                        <Check size={20} className="text-emerald-500" />
                     </div>
 
                     {/* Botones */}
@@ -763,7 +789,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                             disabled={loading}
                             className="flex-1 py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition"
                         >
-                            {t('common.cancel') || 'Cancelar'}
+                            Cancelar
                         </button>
                         <button 
                             onClick={handleConfirmDirectPayment}
@@ -773,7 +799,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                             {loading ? (
                                 <><RefreshCw size={18} className="animate-spin" /> Procesando...</>
                             ) : (
-                                <>{t('sub.confirm.pay') || 'Confirmar Pago'}</>
+                                <>Sí, confirmar pago</>
                             )}
                         </button>
                     </div>
