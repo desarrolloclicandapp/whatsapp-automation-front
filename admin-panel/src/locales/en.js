@@ -30,7 +30,7 @@ export const en = {
     "sub.plan.contract": "Subscribe",
     "sub.plan.processing": "Processing...",
 
-    "sub.lifetime.title": "Lifetime Access",
+    "sub.lifetime.title": "Founder's Pass",
     "sub.lifetime.badge": "ONE-TIME PAYMENT",
     "sub.lifetime.desc": "Get lifetime access to 10 subaccounts and 50 numbers with a single payment. No monthly fees.",
     "sub.lifetime.button": "Get Access",
