@@ -67,6 +67,26 @@ export const en = {
     "sub.portal.more_options": "Need more options?",
     "sub.portal.full_portal": "Open Full Portal",
 
+    // Payment Methods
+    "sub.payment.loading": "Loading payment methods...",
+    "sub.payment.no_methods": "You have no saved payment methods",
+    "sub.payment.add_method": "Add Payment Method",
+    "sub.payment.add_new_card": "Add New Card",
+    "sub.payment.preparing": "Preparing form...",
+    "sub.payment.saving": "Saving...",
+    "sub.payment.save_card": "Save Card",
+    "sub.payment.card_saved": "Card saved successfully",
+    "sub.payment.save_error": "Error saving card",
+    "sub.payment.form_error": "Error preparing form",
+    "sub.payment.deleting": "Deleting...",
+    "sub.payment.confirm_delete": "Delete this payment method?",
+    "sub.payment.deleted": "Method deleted",
+    "sub.payment.delete_error": "Error deleting",
+    "sub.payment.expires": "Expires",
+    "sub.payment.delete_btn": "Delete",
+    "sub.payment.cancel": "Cancel",
+    "sub.payment.saving_card": "Saving card...",
+
     "sub.invoices.title": "Invoice History",
     "sub.invoices.desc": "View and download your invoices from the secure portal.",
 

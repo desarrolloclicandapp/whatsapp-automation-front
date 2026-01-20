@@ -67,6 +67,26 @@ export const es = {
     "sub.portal.more_options": "¿Necesitas más opciones?",
     "sub.portal.full_portal": "Abrir Portal Completo",
 
+    // Payment Methods
+    "sub.payment.loading": "Cargando métodos de pago...",
+    "sub.payment.no_methods": "No tienes métodos de pago guardados",
+    "sub.payment.add_method": "Agregar Método de Pago",
+    "sub.payment.add_new_card": "Agregar Nueva Tarjeta",
+    "sub.payment.preparing": "Preparando formulario...",
+    "sub.payment.saving": "Guardando...",
+    "sub.payment.save_card": "Guardar Tarjeta",
+    "sub.payment.card_saved": "Tarjeta guardada exitosamente",
+    "sub.payment.save_error": "Error al guardar tarjeta",
+    "sub.payment.form_error": "Error al preparar formulario",
+    "sub.payment.deleting": "Eliminando...",
+    "sub.payment.confirm_delete": "¿Eliminar este método de pago?",
+    "sub.payment.deleted": "Método eliminado",
+    "sub.payment.delete_error": "Error al eliminar",
+    "sub.payment.expires": "Expira",
+    "sub.payment.delete_btn": "Eliminar",
+    "sub.payment.cancel": "Cancelar",
+    "sub.payment.saving_card": "Guardando tarjeta...",
+
     "sub.invoices.title": "Historial de Facturas",
     "sub.invoices.desc": "Consulta y descarga tus facturas desde el portal seguro.",
 
