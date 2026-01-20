@@ -220,6 +220,18 @@ export default function AgencyDashboard({ token, onLogout }) {
         if(token && loadAgencyBranding) {
             loadAgencyBranding(token);
         }
+
+        // ✅ NUEVO: Manejar retorno de Stripe
+        const paymentStatus = queryParams.get("payment");
+        if (paymentStatus === "success") {
+            toast.success("¡Pago exitoso! Tu plan ha sido activado.", { duration: 6000 });
+            // Limpiar URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (paymentStatus === "cancelled") {
+            toast.error("El pago fue cancelado o hubo un error con tu tarjeta. Por favor, intenta nuevamente.", { duration: 8000 });
+            // Limpiar URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
     }, []);
 
     useEffect(() => {
