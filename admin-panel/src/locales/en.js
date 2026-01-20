@@ -268,4 +268,100 @@ export const en = {
     "slots.groups.participants": "participants",
     "slots.groups.sync": "Sync Members",
     "slots.groups.connect_first": "Connect WhatsApp first.",
+
+    // Agency Dashboard - General
+    "agency.session_expired": "Session expired",
+    "agency.loading_panel": "Loading panel...",
+    "agency.loading_data": "Loading data...",
+    "agency.server_error": "Server error",
+    "agency.connection_error": "Connection error",
+
+    // Agency Dashboard - Installation
+    "agency.install.waiting": "Waiting for GHL installation...",
+    "agency.install.detected": "Installation detected, syncing...",
+    "agency.install.waiting_webhook": "Waiting for GHL webhook...",
+    "agency.install.sync_failed": "Could not complete synchronization.",
+    "agency.install.completed": "Installation completed!",
+    "agency.install.error": "Installation error",
+    "agency.install.title": "Installing Subaccount...",
+    "agency.install.warning": "Please do not close this window or navigate away.",
+    "agency.install.verifying": "Verifying plan...",
+    "agency.install.limit_reached": "Limit reached",
+    "agency.install.limit_error": "Error verifying limits",
+
+    // Agency Dashboard - Payment
+    "agency.payment.success": "Payment successful! Your plan has been activated.",
+    "agency.payment.cancelled": "Payment was cancelled or there was an error with your card. Please try again.",
+
+    // Agency Dashboard - Webhooks & API Keys
+    "agency.webhook.name_url_required": "Name and URL required",
+    "agency.webhook.creating": "Creating...",
+    "agency.webhook.created": "Webhook created",
+    "agency.webhook.create_error": "Error creating",
+    "agency.webhook.confirm_delete": "Delete Webhook?",
+    "agency.webhook.deleting": "Deleting...",
+    "agency.webhook.deleted": "Deleted",
+    "agency.webhook.delete_error": "Error deleting",
+
+    "agency.apikey.name_required": "Name required",
+    "agency.apikey.generating": "Generating...",
+    "agency.apikey.generated": "Key generated",
+    "agency.apikey.confirm_delete": "Delete API key?",
+    "agency.apikey.deleted": "Key deleted",
+
+    // Agency Dashboard - Tenant
+    "agency.tenant.confirm_delete": "Delete subaccount",
+    "agency.tenant.deleting": "Deleting...",
+    "agency.tenant.deleted": "Deleted",
+    "agency.tenant.delete_error": "Error",
+
+    // Agency Dashboard - CRM Settings
+    "agency.crm.domain_saved": "CRM domain saved",
+    "agency.crm.domain_saved_desc": "Installations will use:",
+    "agency.crm.title": "CRM Domain Settings",
+    "agency.crm.desc": "Set the domain where you'll install subaccounts (e.g., app.gohighlevel.com or your white-label).",
+    "agency.crm.save_btn": "Save Domain",
+    "agency.crm.install_domain": "Installation Domain",
+    "agency.crm.install_link": "Current install link:",
+
+    // Agency Dashboard - White Label
+    "agency.wl.title": "White Label",
+    "agency.wl.desc": "Customize the panel with your brand.",
+    "agency.wl.locked": "Locked",
+    "agency.wl.pro_feature": "Pro Feature",
+    "agency.wl.identity": "Identity",
+    "agency.wl.agency_name": "Agency Name",
+    "agency.wl.graphics": "Graphics",
+    "agency.wl.logo_url": "Logo URL (Square)",
+    "agency.wl.favicon_url": "Favicon URL",
+    "agency.wl.save_changes": "Save Changes",
+    "agency.wl.reset": "Reset",
+    "agency.wl.saved": "Brand updated 🎨",
+    "agency.wl.confirm_reset": "Restore default values?",
+    "agency.wl.reset_success": "Brand restored",
+
+    // Agency Dashboard - Account Settings
+    "agency.account.title": "Account Information",
+    "agency.account.agency_id": "Agency ID",
+    "agency.account.email": "Registered Email",
+    "agency.account.loading": "Loading...",
+
+    // Agency Dashboard - Trial Banner
+    "agency.trial.title": "Trial Period Active ⚡",
+    "agency.trial.desc_prefix": "Your free access expires on",
+    "agency.trial.desc_suffix": ". Subscribe to a plan now.",
+    "agency.trial.choose_plan": "Choose a Plan",
+
+    // Agency Dashboard - Location Cards
+    "agency.location.no_name": "No Name",
+    "agency.location.connections": "Connections",
+    "agency.location.empty_title": "Available Slot",
+    "agency.location.empty_desc": "You have a license to connect a new subaccount.",
+
+    // Agency Dashboard - Theme
+    "agency.theme.dark_mode": "Dark Mode",
+    "agency.theme.toggle": "Toggle theme.",
+
+    // Agency Dashboard - Support
+    "agency.support.title": "Your Support Number (White Label)",
 };

@@ -30,7 +30,7 @@ export const es = {
     "sub.plan.contract": "Contratar Plan",
     "sub.plan.processing": "Procesando...",
 
-    "sub.lifetime.title": "Lifetime Access",
+    "sub.lifetime.title": "Founder's Plan",
     "sub.lifetime.badge": "PAGO ÚNICO",
     "sub.lifetime.desc": "Obtén acceso de por vida a 10 subcuentas y 50 números con un solo pago. Sin mensualidades.",
     "sub.lifetime.button": "Obtener Acceso",
@@ -268,4 +268,100 @@ export const es = {
     "slots.groups.participants": "participantes",
     "slots.groups.sync": "Sincronizar Miembros",
     "slots.groups.connect_first": "Conecta WhatsApp primero.",
+
+    // Agency Dashboard - General
+    "agency.session_expired": "Sesión expirada",
+    "agency.loading_panel": "Cargando panel...",
+    "agency.loading_data": "Cargando datos...",
+    "agency.server_error": "Error de servidor",
+    "agency.connection_error": "Error de conexión",
+
+    // Agency Dashboard - Installation
+    "agency.install.waiting": "Esperando instalación de GHL...",
+    "agency.install.detected": "Instalación detectada, sincronizando...",
+    "agency.install.waiting_webhook": "Esperando webhook de GHL...",
+    "agency.install.sync_failed": "No se pudo completar la sincronización.",
+    "agency.install.completed": "¡Instalación completada!",
+    "agency.install.error": "Error en instalación",
+    "agency.install.title": "Instalando Subcuenta...",
+    "agency.install.warning": "Por favor, no cierres esta ventana ni navegues a otra página.",
+    "agency.install.verifying": "Verificando plan...",
+    "agency.install.limit_reached": "Límite alcanzado",
+    "agency.install.limit_error": "Error verificando límites",
+
+    // Agency Dashboard - Payment
+    "agency.payment.success": "¡Pago exitoso! Tu plan ha sido activado.",
+    "agency.payment.cancelled": "El pago fue cancelado o hubo un error con tu tarjeta. Por favor, intenta nuevamente.",
+
+    // Agency Dashboard - Webhooks & API Keys
+    "agency.webhook.name_url_required": "Nombre y URL requeridos",
+    "agency.webhook.creating": "Creando...",
+    "agency.webhook.created": "Webhook creado",
+    "agency.webhook.create_error": "Error al crear",
+    "agency.webhook.confirm_delete": "¿Eliminar Webhook?",
+    "agency.webhook.deleting": "Eliminando...",
+    "agency.webhook.deleted": "Eliminado",
+    "agency.webhook.delete_error": "Error al eliminar",
+
+    "agency.apikey.name_required": "Nombre requerido",
+    "agency.apikey.generating": "Generando...",
+    "agency.apikey.generated": "Clave generada",
+    "agency.apikey.confirm_delete": "¿Eliminar clave API?",
+    "agency.apikey.deleted": "Clave eliminada",
+
+    // Agency Dashboard - Tenant
+    "agency.tenant.confirm_delete": "¿Eliminar subcuenta",
+    "agency.tenant.deleting": "Eliminando...",
+    "agency.tenant.deleted": "Eliminado",
+    "agency.tenant.delete_error": "Error",
+
+    // Agency Dashboard - CRM Settings
+    "agency.crm.domain_saved": "Dominio CRM guardado",
+    "agency.crm.domain_saved_desc": "Instalaciones usarán:",
+    "agency.crm.title": "Configuración de Dominio CRM",
+    "agency.crm.desc": "Define el dominio donde instalarás las subcuentas (ej: app.gohighlevel.com o tu marca blanca).",
+    "agency.crm.save_btn": "Guardar Dominio",
+    "agency.crm.install_domain": "Dominio de Instalación",
+    "agency.crm.install_link": "Link de instalación actual:",
+
+    // Agency Dashboard - White Label
+    "agency.wl.title": "Marca Blanca",
+    "agency.wl.desc": "Personaliza el panel con tu identidad.",
+    "agency.wl.locked": "Bloqueado",
+    "agency.wl.pro_feature": "Pro Feature",
+    "agency.wl.identity": "Identidad",
+    "agency.wl.agency_name": "Nombre de Agencia",
+    "agency.wl.graphics": "Gráficos",
+    "agency.wl.logo_url": "Logo URL (Cuadrado)",
+    "agency.wl.favicon_url": "Favicon URL",
+    "agency.wl.save_changes": "Guardar Cambios",
+    "agency.wl.reset": "Restaurar",
+    "agency.wl.saved": "Marca actualizada 🎨",
+    "agency.wl.confirm_reset": "¿Restaurar valores por defecto?",
+    "agency.wl.reset_success": "Marca restaurada",
+
+    // Agency Dashboard - Account Settings
+    "agency.account.title": "Información de la Cuenta",
+    "agency.account.agency_id": "ID de Agencia",
+    "agency.account.email": "Email Registrado",
+    "agency.account.loading": "Cargando...",
+
+    // Agency Dashboard - Trial Banner
+    "agency.trial.title": "Periodo de Prueba Activo (Trial) ⚡",
+    "agency.trial.desc_prefix": "Tu acceso gratuito vence el",
+    "agency.trial.desc_suffix": ". Contrata un plan ahora.",
+    "agency.trial.choose_plan": "Elegir un Plan",
+
+    // Agency Dashboard - Location Cards
+    "agency.location.no_name": "Sin Nombre",
+    "agency.location.connections": "Conexiones",
+    "agency.location.empty_title": "Espacio Disponible",
+    "agency.location.empty_desc": "Tienes licencia para conectar una nueva subagencia.",
+
+    // Agency Dashboard - Theme
+    "agency.theme.dark_mode": "Modo Oscuro",
+    "agency.theme.toggle": "Alternar tema.",
+
+    // Agency Dashboard - Support
+    "agency.support.title": "Tu Número de Soporte (Marca Blanca)",
 };

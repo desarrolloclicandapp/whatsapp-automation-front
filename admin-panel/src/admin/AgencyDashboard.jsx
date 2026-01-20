@@ -79,7 +79,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
         if (res.status === 401 || res.status === 403) {
             onLogout();
-            throw new Error("Sesión expirada");
+            throw new Error(t('agency.session_expired'));
         }
         return res;
     };
@@ -131,7 +131,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const autoSyncAgency = async (locationId, code) => {
         setIsAutoSyncing(true);
-        const toastId = toast.loading('Esperando instalación de GHL...');
+        const toastId = toast.loading(t('agency.install.waiting'));
 
         try {
             // 🔥 STEP 1: Wait for GHL webhook to complete installation
@@ -146,7 +146,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         const checkData = await checkRes.json();
                         if (checkData.installed) {
                             installed = true;
-                            toast.loading('Instalación detectada, sincronizando...', { id: toastId });
+                            toast.loading(t('agency.install.detected'), { id: toastId });
                             break;
                         }
                     }
@@ -156,7 +156,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 
                 attempts++;
                 if (attempts % 5 === 0) {
-                    toast.loading(`Esperando webhook de GHL... (${attempts * 2}s)`, { id: toastId });
+                    toast.loading(`${t('agency.install.waiting_webhook')} (${attempts * 2}s)`, { id: toastId });
                 }
                 await new Promise(r => setTimeout(r, 2000));
             }
@@ -182,7 +182,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         syncAttempts++;
                         await new Promise(r => setTimeout(r, 2000));
                     } else {
-                        throw new Error("Error de servidor");
+                        throw new Error(t('agency.server_error'));
                     }
                 } catch (e) { 
                     syncAttempts++; 
@@ -190,17 +190,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                 }
             }
 
-            if (!data || !data.success) throw new Error("No se pudo completar la sincronización.");
+            if (!data || !data.success) throw new Error(t('agency.install.sync_failed'));
 
             localStorage.setItem("agencyId", data.newAgencyId);
             setStoredAgencyId(data.newAgencyId);
 
             refreshData();
-            toast.success('¡Instalación completada!', { id: toastId });
+            toast.success(t('agency.install.completed'), { id: toastId });
             window.history.replaceState({}, document.title, window.location.pathname);
 
         } catch (error) {
-            toast.error(error.message || "Error en instalación", { id: toastId });
+            toast.error(error.message || t('agency.install.error'), { id: toastId });
         } finally {
             setIsAutoSyncing(false);
         }
@@ -224,11 +224,11 @@ export default function AgencyDashboard({ token, onLogout }) {
         // ✅ NUEVO: Manejar retorno de Stripe
         const paymentStatus = queryParams.get("payment");
         if (paymentStatus === "success") {
-            toast.success("¡Pago exitoso! Tu plan ha sido activado.", { duration: 6000 });
+            toast.success(t('agency.payment.success'), { duration: 6000 });
             // Limpiar URL
             window.history.replaceState({}, document.title, window.location.pathname);
         } else if (paymentStatus === "cancelled") {
-            toast.error("El pago fue cancelado o hubo un error con tu tarjeta. Por favor, intenta nuevamente.", { duration: 8000 });
+            toast.error(t('agency.payment.cancelled'), { duration: 8000 });
             // Limpiar URL
             window.history.replaceState({}, document.title, window.location.pathname);
         }
@@ -262,37 +262,37 @@ export default function AgencyDashboard({ token, onLogout }) {
             .filter(el => el.name === "events" && el.checked)
             .map(el => el.value);
 
-        if (!name || !url) return toast.error("Nombre y URL requeridos");
+        if (!name || !url) return toast.error(t('agency.webhook.name_url_required'));
 
-        const tId = toast.loading("Creando...");
+        const tId = toast.loading(t('agency.webhook.creating'));
         try {
             const res = await authFetch('/agency/webhooks', {
                 method: 'POST',
                 body: JSON.stringify({ name, targetUrl: url, events })
             });
             if (res.ok) {
-                toast.success("Webhook creado", { id: tId });
+                toast.success(t('agency.webhook.created'), { id: tId });
                 fetchWebhooks();
                 setShowNewWebhookModal(false);
                 e.target.reset();
             } else {
-                toast.error("Error al crear", { id: tId });
+                toast.error(t('agency.webhook.create_error'), { id: tId });
             }
-        } catch (err) { toast.error("Error conexión", { id: tId }); }
+        } catch (err) { toast.error(t('agency.connection_error'), { id: tId }); }
     };
 
     const handleDeleteWebhook = async (id) => {
-        if (!confirm("¿Eliminar Webhook?")) return;
-        const tId = toast.loading("Eliminando...");
+        if (!confirm(t('agency.webhook.confirm_delete'))) return;
+        const tId = toast.loading(t('agency.webhook.deleting'));
         try {
             const res = await authFetch(`/agency/webhooks/${id}`, { method: 'DELETE' });
             if (res.ok) {
-                toast.success("Eliminado", { id: tId });
+                toast.success(t('agency.webhook.deleted'), { id: tId });
                 fetchWebhooks();
             } else {
-                toast.error("Error al eliminar", { id: tId });
+                toast.error(t('agency.webhook.delete_error'), { id: tId });
             }
-        } catch (err) { toast.error("Error conexión", { id: tId }); }
+        } catch (err) { toast.error(t('agency.connection_error'), { id: tId }); }
     };
 
     const fetchApiKeys = async () => {
@@ -309,9 +309,9 @@ export default function AgencyDashboard({ token, onLogout }) {
     const handleGenerateKey = async (e) => {
         e.preventDefault();
         const name = e.target.keyName.value;
-        if (!name) return toast.error("Nombre requerido");
+        if (!name) return toast.error(t('agency.apikey.name_required'));
 
-        const tId = toast.loading("Generando...");
+        const tId = toast.loading(t('agency.apikey.generating'));
         try {
             const res = await authFetch('/agency/api-keys', {
                 method: 'POST',
@@ -319,45 +319,45 @@ export default function AgencyDashboard({ token, onLogout }) {
             });
             const data = await res.json();
             if (res.ok) {
-                toast.success("Clave generada", { id: tId });
+                toast.success(t('agency.apikey.generated'), { id: tId });
                 setGeneratedKey(data.apiKey);
                 setShowNewKeyModal(true);
                 fetchApiKeys();
                 e.target.reset();
             } else {
-                toast.error(data.error || "Error", { id: tId });
+                toast.error(data.error || t('agency.tenant.delete_error'), { id: tId });
             }
-        } catch (err) { toast.error("Error conexión", { id: tId }); }
+        } catch (err) { toast.error(t('agency.connection_error'), { id: tId }); }
     };
 
     const handleRevokeKey = async (id) => {
-        if (!confirm("¿Eliminar clave API?")) return;
-        const tId = toast.loading("Eliminando...");
+        if (!confirm(t('agency.apikey.confirm_delete'))) return;
+        const tId = toast.loading(t('agency.webhook.deleting'));
         try {
             const res = await authFetch(`/agency/api-keys/${id}`, { method: 'DELETE' });
             if (res.ok) {
-                toast.success("Clave eliminada", { id: tId });
+                toast.success(t('agency.apikey.deleted'), { id: tId });
                 fetchApiKeys();
             } else {
-                toast.error("Error", { id: tId });
+                toast.error(t('agency.tenant.delete_error'), { id: tId });
             }
-        } catch (err) { toast.error("Error conexión", { id: tId }); }
+        } catch (err) { toast.error(t('agency.connection_error'), { id: tId }); }
     };
 
     const handleDeleteTenant = async (e, locationId, name) => {
         e.stopPropagation();
-        if (!confirm(`⚠️ ¿Eliminar subcuenta "${name || locationId}"?`)) return;
-        const tId = toast.loading("Eliminando...");
+        if (!confirm(`⚠️ ${t('agency.tenant.confirm_delete')} "${name || locationId}"?`)) return;
+        const tId = toast.loading(t('agency.tenant.deleting'));
         try {
             const res = await authFetch(`/agency/tenants/${locationId}`, { method: 'DELETE' });
-            if (res.ok) { toast.success("Eliminado", { id: tId }); refreshData(); }
-            else throw new Error("Error");
-        } catch (err) { toast.error("Error", { id: tId }); }
+            if (res.ok) { toast.success(t('agency.tenant.deleted'), { id: tId }); refreshData(); }
+            else throw new Error(t('agency.tenant.delete_error'));
+        } catch (err) { toast.error(t('agency.tenant.delete_error'), { id: tId }); }
     };
 
     // ✅ LÓGICA DE INSTALACIÓN DINÁMICA
     const handleInstallApp = async () => {
-        const tId = toast.loading("Verificando plan...");
+        const tId = toast.loading(t('agency.install.verifying'));
         try {
             const res = await authFetch('/agency/validate-limits?type=tenant');
             const data = await res.json();
@@ -372,12 +372,12 @@ export default function AgencyDashboard({ token, onLogout }) {
                 console.log("Redirigiendo a:", installUrl);
                 window.location.href = installUrl;
             } else {
-                toast.error("Límite alcanzado", { description: data.reason });
+                toast.error(t('agency.install.limit_reached'), { description: data.reason });
                 setShowUpgradeModal(true);
             }
         } catch (e) {
             toast.dismiss(tId);
-            toast.error("Error verificando límites");
+            toast.error(t('agency.install.limit_error'));
         }
     };
 
@@ -389,7 +389,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         
         setCrmDomain(cleaned);
         localStorage.setItem("crmDomain", cleaned);
-        toast.success("Dominio CRM guardado", { description: `Instalaciones usarán: ${cleaned}` });
+        toast.success(t('agency.crm.domain_saved'), { description: `${t('agency.crm.domain_saved_desc')} ${cleaned}` });
     };
 
     const filteredLocations = locations.filter(loc =>
@@ -423,16 +423,16 @@ export default function AgencyDashboard({ token, onLogout }) {
             if (updateBranding) {
                 // ✅ Pasamos token para persistencia en servidor
                 updateBranding(form, token); 
-                toast.success("Marca actualizada 🎨");
+                toast.success(t('agency.wl.saved'));
             }
         };
 
         const handleReset = () => {
-            if (confirm("¿Restaurar valores por defecto?")) {
+            if (confirm(t('agency.wl.confirm_reset'))) {
                 if (resetBranding) {
                     resetBranding(token);
                     setForm(DEFAULT_BRANDING);
-                    toast.success("Marca restaurada");
+                    toast.success(t('agency.wl.reset_success'));
                 }
             }
         };
@@ -443,11 +443,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                      <div className="flex justify-between items-start mb-8">
                         <div>
                             <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <Palette size={24} className="text-gray-400" /> Marca Blanca
+                                <Palette size={24} className="text-gray-400" /> {t('agency.wl.title')}
                             </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Personaliza el panel con tu identidad.</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.wl.desc')}</p>
                         </div>
-                        <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/30 dark:border-amber-800 flex items-center gap-1"><Lock size={12} /> Bloqueado</span>
+                        <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/30 dark:border-amber-800 flex items-center gap-1"><Lock size={12} /> {t('agency.wl.locked')}</span>
                     </div>
                     <LockedFeature />
                 </div>
@@ -459,35 +459,35 @@ export default function AgencyDashboard({ token, onLogout }) {
                 <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
                     <div>
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Palette size={24} className="text-indigo-500" /> Marca Blanca
+                            <Palette size={24} className="text-indigo-500" /> {t('agency.wl.title')}
                         </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Personaliza el panel con tu identidad.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.wl.desc')}</p>
                     </div>
                     <div className="flex gap-2">
-                        <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800">Pro Feature</span>
+                        <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800">{t('agency.wl.pro_feature')}</span>
                     </div>
                 </div>
 
                 <form onSubmit={handleSave} className="space-y-8">
                     <div className="space-y-4">
-                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Identidad</h4>
+                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">{t('agency.wl.identity')}</h4>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre de Agencia</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.agency_name')}</label>
                             <input type="text" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
                         </div>
                     </div>
 
                     <div className="space-y-4">
-                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">Gráficos</h4>
+                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">{t('agency.wl.graphics')}</h4>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Logo URL (Cuadrado)</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.logo_url')}</label>
                             <div className="flex gap-4 items-center">
                                 <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm"><img src={form.logoUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display = 'none'} /></div>
                                 <div className="flex-1 relative"><Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.logoUrl === systemBranding?.logoUrl ? '' : (form.logoUrl || '')} onChange={e => setForm({ ...form, logoUrl: e.target.value || systemBranding.logoUrl })} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm" placeholder="URL Logo" /></div>
                             </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Favicon URL</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.favicon_url')}</label>
                             <div className="flex gap-4 items-center">
                                 <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm"><img src={form.faviconUrl} alt="Preview" className="w-8 h-8 object-contain" onError={(e) => e.target.style.display = 'none'} /></div>
                                 <div className="flex-1 relative"><MousePointer2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.faviconUrl === systemBranding?.faviconUrl ? '' : (form.faviconUrl || '')} onChange={e => setForm({ ...form, faviconUrl: e.target.value || systemBranding.faviconUrl })} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm" placeholder="URL Favicon" /></div>
@@ -496,8 +496,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                     </div>
 
                     <div className="pt-6 flex flex-col md:flex-row items-center gap-4 border-t border-gray-100 dark:border-gray-800">
-                        <button type="submit" className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg flex items-center gap-2"><CheckCircle2 size={18} /> Guardar Cambios</button>
-                        <button type="button" onClick={handleReset} className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 font-medium text-sm transition flex items-center gap-2 px-4"><RotateCcw size={16} /> Restaurar</button>
+                        <button type="submit" className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg flex items-center gap-2"><CheckCircle2 size={18} /> {t('agency.wl.save_changes')}</button>
+                        <button type="button" onClick={handleReset} className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 font-medium text-sm transition flex items-center gap-2 px-4"><RotateCcw size={16} /> {t('agency.wl.reset')}</button>
                     </div>
                 </form>
             </div>
@@ -521,10 +521,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </div>
                         </div>
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                            Instalando Subcuenta...
+                            {t('agency.install.title')}
                         </h3>
                         <p className="text-xs text-gray-400 dark:text-gray-500">
-                            Por favor, no cierres esta ventana ni navegues a otra página.
+                            {t('agency.install.warning')}
                         </p>
                         <div className="mt-6 flex justify-center gap-1">
                             <span className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
@@ -561,7 +561,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                 <main className="flex-1 overflow-y-auto p-6 md:p-8">
                     {activeTab === 'overview' && (
-                        !accountInfo ? (<div className="flex justify-center items-center h-full text-gray-400"><RefreshCw className="animate-spin mr-2" /> Cargando panel...</div>) : (
+                        !accountInfo ? (<div className="flex justify-center items-center h-full text-gray-400"><RefreshCw className="animate-spin mr-2" /> {t('agency.loading_panel')}</div>) : (
                             <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                                     <StatCard title={t('dash.stats.subaccounts')} value={`${accountInfo.limits?.used_subagencies || 0} / ${accountInfo.limits?.max_subagencies || 0}`} icon={Building2} color="bg-indigo-500" />
@@ -570,7 +570,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:shadow-indigo-500/25 transition-shadow" onClick={() => setActiveTab('billing')}><div><p className="text-indigo-200 text-xs font-bold uppercase tracking-wide mb-1">{t('dash.upgrade.prompt')}</p><h3 className="text-xl font-bold">{t('dash.upgrade.title')}</h3></div><div className="self-end bg-white/20 p-2 rounded-lg mt-1"><TrendingUp size={20} /></div></div>
                                 </div>
                                 <div className="border-t border-gray-200 dark:border-gray-800"></div>
-                                {accountInfo.plan === 'trial' && (<div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in zoom-in-95 duration-500"><div className="flex items-center gap-5"><div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner"><Zap size={28} fill="currentColor" /></div><div><h4 className="text-lg font-bold text-gray-900 dark:text-white">Periodo de Prueba Activo (Trial) ⚡</h4><p className="text-sm text-amber-800 dark:text-amber-400 mt-1 max-w-2xl">Tu acceso gratuito vence el <span className="font-bold underlineDecoration decoration-amber-500/30">{new Date(accountInfo.trial_ends).toLocaleDateString()}</span>. Contrata un plan ahora.</p></div></div><button onClick={() => setActiveTab('billing')} className="w-full md:w-auto px-8 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-extrabold text-sm shadow-xl shadow-amber-600/20 transition-all flex items-center justify-center gap-3 hover:-translate-y-0.5 active:scale-95">Elegir un Plan <ArrowRight size={18} /></button></div>)}
+                                {accountInfo.plan === 'trial' && (<div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in zoom-in-95 duration-500"><div className="flex items-center gap-5"><div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner"><Zap size={28} fill="currentColor" /></div><div><h4 className="text-lg font-bold text-gray-900 dark:text-white">{t('agency.trial.title')}</h4><p className="text-sm text-amber-800 dark:text-amber-400 mt-1 max-w-2xl">{t('agency.trial.desc_prefix')} <span className="font-bold underlineDecoration decoration-amber-500/30">{new Date(accountInfo.trial_ends).toLocaleDateString()}</span>{t('agency.trial.desc_suffix')}</p></div></div><button onClick={() => setActiveTab('billing')} className="w-full md:w-auto px-8 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-extrabold text-sm shadow-xl shadow-amber-600/20 transition-all flex items-center justify-center gap-3 hover:-translate-y-0.5 active:scale-95">{t('agency.trial.choose_plan')} <ArrowRight size={18} /></button></div>)}
                                 <div className="space-y-6">
                                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Users className="text-gray-400" /> {t('dash.subs.title')}</h3>
@@ -580,17 +580,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <button onClick={() => setActiveTab('billing')} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{ backgroundColor: branding.primaryColor }}><Plus size={18} /> {t('dash.subs.new')}</button>
                                         </div>
                                     </div>
-                                    {loading && locations.length === 0 ? <div className="py-20 text-center text-gray-400">Cargando datos...</div> : (
+                                    {loading && locations.length === 0 ? <div className="py-20 text-center text-gray-400">{t('agency.loading_data')}</div> : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             {filteredLocations.map(loc => (
                                                 <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer relative overflow-hidden hover:border-indigo-500">
                                                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 dark:bg-indigo-900/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                                                    <div className="relative z-10"><div className="flex justify-between items-start mb-4"><div className="w-12 h-12 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors shadow-sm"><Building2 size={24} /></div><button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button></div><h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate pr-2">{loc.name || "Sin Nombre"}</h4><p className="text-xs font-mono text-gray-400 mb-6 bg-gray-50 dark:bg-gray-800/50 inline-block px-1.5 py-0.5 rounded">{loc.location_id}</p><div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800"><p className="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2"><Smartphone size={16} className="text-indigo-500" /> {loc.total_slots || 0} <span className="text-gray-400 font-normal text-xs">Conexiones</span></p><div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all"><ChevronRight size={16} /></div></div></div>
+                                                    <div className="relative z-10"><div className="flex justify-between items-start mb-4"><div className="w-12 h-12 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors shadow-sm"><Building2 size={24} /></div><button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button></div><h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate pr-2">{loc.name || t('agency.location.no_name')}</h4><p className="text-xs font-mono text-gray-400 mb-6 bg-gray-50 dark:bg-gray-800/50 inline-block px-1.5 py-0.5 rounded">{loc.location_id}</p><div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800"><p className="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2"><Smartphone size={16} className="text-indigo-500" /> {loc.total_slots || 0} <span className="text-gray-400 font-normal text-xs">{t('agency.location.connections')}</span></p><div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all"><ChevronRight size={16} /></div></div></div>
                                                 </div>
                                             ))}
                                             {!searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
-                                                <div key={`empty-${idx}`} onClick={handleInstallApp} className="group relative bg-gray-50/50 dark:bg-gray-900/20 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 transition-all duration-300 min-h-[220px]">
-                                                    <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-all"><Plus size={32} className="text-gray-300 group-hover:text-indigo-600" /></div><h4 className="font-bold text-gray-900 dark:text-white mb-1">Espacio Disponible</h4><p className="text-xs text-gray-500 px-6">Tienes licencia para conectar una nueva subagencia.</p>
+                                                    <div key={`empty-${idx}`} onClick={handleInstallApp} className="group relative bg-gray-50/50 dark:bg-gray-900/20 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 transition-all duration-300 min-h-[220px]">
+                                                    <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-all"><Plus size={32} className="text-gray-300 group-hover:text-indigo-600" /></div><h4 className="font-bold text-gray-900 dark:text-white mb-1">{t('agency.location.empty_title')}</h4><p className="text-xs text-gray-500 px-6">{t('agency.location.empty_desc')}</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -603,11 +603,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                     {activeTab === 'settings' && (
                         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4">
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2"><User size={20} /> Información de la Cuenta</h3>
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2"><User size={20} /> {t('agency.account.title')}</h3>
                                 <div className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div><label className="block text-sm font-medium text-gray-500 mb-1.5">ID de Agencia</label><div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 font-mono font-medium dark:text-gray-200">{AGENCY_ID}</div></div>
-                                        <div><label className="block text-sm font-medium text-gray-500 mb-1.5">Email Registrado</label><div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 font-medium dark:text-gray-200">{userEmail || 'Cargando...'}</div></div>
+                                        <div><label className="block text-sm font-medium text-gray-500 mb-1.5">{t('agency.account.agency_id')}</label><div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 font-mono font-medium dark:text-gray-200">{AGENCY_ID}</div></div>
+                                        <div><label className="block text-sm font-medium text-gray-500 mb-1.5">{t('agency.account.email')}</label><div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 font-medium dark:text-gray-200">{userEmail || t('agency.account.loading')}</div></div>
                                     </div>
                                 </div>
                             </div>
@@ -617,21 +617,21 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                            <Globe size={20} className="text-blue-500" /> Configuración de Dominio CRM
+                                            <Globe size={20} className="text-blue-500" /> {t('agency.crm.title')}
                                         </h3>
                                         <p className="text-sm text-gray-500 mt-1">
-                                            Define el dominio donde instalarás las subcuentas (ej: <b>app.gohighlevel.com</b> o tu marca blanca).
+                                            {t('agency.crm.desc')}
                                         </p>
                                     </div>
                                     <button 
                                         onClick={handleSaveCrmDomain}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2"
                                     >
-                                        <Save size={16} /> Guardar Dominio
+                                        <Save size={16} /> {t('agency.crm.save_btn')}
                                     </button>
                                 </div>
                                 <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Dominio de Instalación</label>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.crm.install_domain')}</label>
                                     <div className="flex gap-2">
                                         <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-l-xl text-gray-500 select-none">https://</div>
                                         <input 
@@ -643,7 +643,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         />
                                     </div>
                                     <p className="text-xs text-gray-400 mt-2">
-                                        Link de instalación actual: <span className="font-mono text-indigo-500">https://{crmDomain}/integration/{APP_ID}</span>
+                                        {t('agency.crm.install_link')} <span className="font-mono text-indigo-500">https://{crmDomain}/integration/{APP_ID}</span>
                                     </p>
                                 </div>
                             </div>
@@ -654,7 +654,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     token={token} 
                                     apiPrefix="/agency/support" 
                                     socketRoom={`__AGENCY_SUPPORT_${AGENCY_ID}__`}
-                                    title="Tu Número de Soporte (Marca Blanca)"
+                                    title={t('agency.support.title')}
                                     showDisconnectWarning={false}
                                 />
                             )}
@@ -771,7 +771,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                             {showNewWebhookModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('dash.settings.new_webhook') || "Nuevo Webhook"}</h3><button onClick={() => setShowNewWebhookModal(false)} className="text-gray-400 hover:text-gray-600"><Settings size={20} className="rotate-45" /></button></div><form onSubmit={handleCreateWebhook} className="space-y-6"><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('common.name') || "Nombre"}</label><input name="hookName" placeholder="Ej: n8n Producción" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL</label><input name="hookUrl" type="url" placeholder="https://..." required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">{t('common.events') || "Eventos"}</label><div className="grid grid-cols-1 gap-3"><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp inbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Inbound Message</div></div></label><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp outbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Outbound Message</div></div></label></div></div><div className="flex gap-3"><button type="button" onClick={() => setShowNewWebhookModal(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl font-bold">{t('common.cancel') || "Cancelar"}</button><button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">{t('common.create') || "Crear"}</button></div></form></div></div>)}
 
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-center justify-between">
-                                <div><h4 className="text-sm font-bold text-gray-900 dark:text-white">Modo Oscuro</h4><p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Alternar tema.</p></div>
+                                <div><h4 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.theme.dark_mode')}</h4><p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('agency.theme.toggle')}</p></div>
                                 <button onClick={toggleTheme} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition text-gray-600 dark:text-yellow-400">{theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}</button>
                             </div>
                         </div>
