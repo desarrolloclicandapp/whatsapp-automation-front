@@ -24,40 +24,40 @@ import PaymentMethodForm from './PaymentMethodForm'; // ✅ NUEVO: Formulario de
 const PLANS_STANDARD = [
     {
         id: 'price_1SmumgHSoN0LpQiB9BrDVtoV',
-        name: 'Plan Starter',
+        nameKey: 'sub.plan.starter',
         priceValue: 29,
         price: '29$',
         annualId: 'price_1SmuvRHSoN0LpQiB3MXFsBqV',
         annualPrice: '290$',
         limits: { subs: 1 },
-        features: ['1 Subcuenta', '99 Números vinculables', 'Ahorra 2 meses con Anual'],
+        featureKeys: ['sub.feat.1_sub', 'sub.feat.99_numbers', 'sub.feat.save_annual'],
         color: 'bg-blue-600',
-        badge: 'Start'
+        badgeKey: 'sub.badge.start'
     },
     {
         id: 'price_1Smuo8HSoN0LpQiB5z8FHJwp',
-        name: 'Plan Growth',
+        nameKey: 'sub.plan.growth',
         priceValue: 49,
         price: '49$',
         annualId: 'price_1Smv4cHSoN0LpQiBe5sq49mt',
         annualPrice: '490$',
         limits: { subs: 3 },
-        features: ['3 Subcuentas', '99 Números vinculables', 'Ahorra 2 meses con Anual'],
+        featureKeys: ['sub.feat.3_subs', 'sub.feat.99_numbers', 'sub.feat.save_annual'],
         color: 'bg-indigo-600',
         recommended: true,
-        badge: 'Popular'
+        badgeKey: 'sub.badge.popular'
     },
     {
         id: 'price_1Smup2HSoN0LpQiBOCHw8R0Y',
-        name: 'Plan Agency',
+        nameKey: 'sub.plan.agency',
         priceValue: 149,
         price: '149$',
         annualId: 'price_1SmusiHSoN0LpQiBBaC65w6e',
         annualPrice: '1490$',
         limits: { subs: 10 },
-        features: ['10 Subcuentas', '99 Números vinculables', 'Ahorra 2 meses con Anual'],
+        featureKeys: ['sub.feat.10_subs', 'sub.feat.99_numbers', 'sub.feat.save_annual'],
         color: 'bg-purple-600',
-        badge: 'Agency'
+        badgeKey: 'sub.badge.agency'
     }
 ];
 
@@ -66,36 +66,36 @@ const PLANS_STANDARD = [
 const PLANS_FOUNDER = [
     {
         id: 'price_1SmxK5HSoN0LpQiB4051Ko2I', // Precio Reducido
-        name: 'Starter Addon',
+        nameKey: 'sub.plan.starter_addon',
         priceValue: 15,
         price: '15$',
         annualId: null, // No provisto aún, solo mensual
         annualPrice: '150$',
         limits: { subs: 1 },
-        features: ['1 Subcuenta Extra', '+5 Números', 'Precio Reducido (150$/y)'],
+        featureKeys: ['sub.feat.1_extra_sub', 'sub.feat.5_numbers', 'sub.feat.reduced_price'],
         color: 'bg-emerald-600',
-        badge: 'Founder Benefit'
+        badgeKey: 'sub.badge.founder_benefit'
     },
     {
         id: 'price_1Smxb3HSoN0LpQiBBaaGKcOo', // Precio NO Reducido (Standard)
-        name: 'Growth Addon',
+        nameKey: 'sub.plan.growth_addon',
         priceValue: 49,
         price: '49$',
         annualId: 'price_1Smv4cHSoN0LpQiBe5sq49mt',
         annualPrice: '490$',
         limits: { subs: 3 },
-        features: ['3 Subcuentas Extra', '+15 Números', 'Ahorra 2 meses con Anual'],
+        featureKeys: ['sub.feat.3_extra_subs', 'sub.feat.15_numbers', 'sub.feat.save_annual'],
         color: 'bg-indigo-600',
     },
     {
         id: 'price_1SmxcGHSoN0LpQiB2boUJAkF', // Precio NO Reducido (Standard)
-        name: 'Agency Addon',
+        nameKey: 'sub.plan.agency_addon',
         priceValue: 149,
         price: '149$',
         annualId: 'price_1SmusiHSoN0LpQiBBaC65w6e',
         annualPrice: '1490$',
         limits: { subs: 10 },
-        features: ['10 Subcuentas Extra', '+50 Números', 'Ahorra 2 meses con Anual'],
+        featureKeys: ['sub.feat.10_extra_subs', 'sub.feat.50_numbers', 'sub.feat.save_annual'],
         color: 'bg-purple-600',
     }
 ];
@@ -105,15 +105,15 @@ const PLANS_FOUNDER = [
 const PLANS_VOLUME = [
     {
         id: 'price_1Smv3OHSoN0LpQiBZnKxPhQ3',
-        name: 'Starter Volumen',
+        nameKey: 'sub.plan.starter_volume',
         priceValue: 15,
         price: '15$',
         annualId: null, // No provisto aún
         annualPrice: '150$',
         limits: { subs: 1 },
-        features: ['1 Subcuenta Extra', 'Números Infinitos (99)', 'Precio Volumen (150$/y)'],
+        featureKeys: ['sub.feat.1_extra_sub', 'sub.feat.infinite_numbers', 'sub.feat.volume_price'],
         color: 'bg-orange-600',
-        badge: 'Volumen'
+        badgeKey: 'sub.badge.volume'
     }
     // Podríamos añadir los otros a precio full si el cliente quiere crecer rápido
 ];
@@ -121,14 +121,14 @@ const PLANS_VOLUME = [
 // PLAN FOUNDER LIFETIME
 const PLAN_LIFETIME = {
     id: 'price_1SmuqPHSoN0LpQiBoPVJaaRY',
-    name: 'Founder\'s Pass',
+    nameKey: 'sub.plan.founders_pass',
     priceValue: 997,
     price: '997$',
     limits: { subs: 10, slots: 50 },
-    features: ['PAGO ÚNICO (Lifetime)', '10 Subcuentas', '50 Números INICIALES', 'Acceso a Addons Especiales'],
+    featureKeys: ['sub.feat.one_time', 'sub.feat.10_subs', 'sub.feat.50_initial', 'sub.feat.special_addons'],
     color: 'bg-black border-2 border-yellow-400',
     isOneTime: true,
-    badge: 'LIMITED'
+    badgeKey: 'sub.badge.limited'
 };
 
 // --- ADD-ONS ---
@@ -264,8 +264,8 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
             });
             const data = await res.json();
             if (data.url) window.location.href = data.url;
-            else toast.error("Error: " + (data.error || "Desconocido"));
-        } catch (e) { toast.error("Error conexión"); } finally { setLoading(false); }
+            else toast.error("Error: " + (data.error || t('sub.toast.error_unknown')));
+        } catch (e) { toast.error(t('sub.toast.error_connection')); } finally { setLoading(false); }
     };
 
     // ✅ NUEVO: Confirmar pago directo con tarjeta guardada
@@ -273,7 +273,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
         if (!selectedPlan || paymentMethods.length === 0) return;
         
         setLoading(true);
-        const toastId = toast.loading("Procesando pago...");
+        const toastId = toast.loading(t('sub.toast.processing_payment'));
         
         try {
             const res = await fetch(`${API_URL}/payments/subscribe-direct`, {
@@ -288,14 +288,14 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
             const data = await res.json();
             
             if (data.success) {
-                toast.success("¡Pago exitoso! Tu plan ha sido activado.", { id: toastId, duration: 5000 });
+                toast.success(t('sub.toast.payment_success'), { id: toastId, duration: 5000 });
                 setShowConfirmModal(false);
                 setSelectedPlan(null);
                 fetchSubscriptions();
                 if (onDataChange) onDataChange();
             } else if (data.requiresAction) {
                 // Si requiere 3DS, manejarlo (por ahora redirigir a checkout)
-                toast.info("Se requiere verificación adicional de tu banco. Redirigiendo...", { id: toastId });
+                toast.info(t('sub.toast.bank_verification'), { id: toastId });
                 // Fallback a checkout normal
                 const checkoutRes = await fetch(`${API_URL}/payments/subscribe`, {
                     method: 'POST', 
@@ -306,19 +306,19 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                 if (checkoutData.url) window.location.href = checkoutData.url;
             } else {
                 // ⚠️ Mejorado: Mensajes de error más específicos
-                const errorMessage = data.error || "Error desconocido";
-                let userFriendlyMessage = "Error procesando el pago";
+                const errorMessage = data.error || t('sub.toast.error_unknown');
+                let userFriendlyMessage = t('sub.toast.error_processing');
                 
                 if (errorMessage.includes("card_declined") || errorMessage.includes("declined")) {
-                    userFriendlyMessage = "Tu tarjeta fue rechazada. Por favor, verifica los fondos o intenta con otra tarjeta.";
+                    userFriendlyMessage = t('sub.toast.card_declined');
                 } else if (errorMessage.includes("insufficient_funds")) {
-                    userFriendlyMessage = "Fondos insuficientes en tu tarjeta.";
+                    userFriendlyMessage = t('sub.toast.insufficient_funds');
                 } else if (errorMessage.includes("expired")) {
-                    userFriendlyMessage = "Tu tarjeta ha expirado. Por favor, actualiza tu método de pago.";
+                    userFriendlyMessage = t('sub.toast.card_expired');
                 } else if (errorMessage.includes("authentication")) {
-                    userFriendlyMessage = "Se requiere autenticación adicional. Por favor, intenta nuevamente.";
+                    userFriendlyMessage = t('sub.toast.auth_required');
                 } else if (errorMessage.includes("processing")) {
-                    userFriendlyMessage = "Error procesando con el banco. Intenta en unos minutos.";
+                    userFriendlyMessage = t('sub.toast.bank_error');
                 } else {
                     userFriendlyMessage = `Error: ${errorMessage}`;
                 }
@@ -328,7 +328,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                 setSelectedPlan(null);
             }
         } catch (e) {
-            toast.error("Error de conexión. Por favor, verifica tu internet e intenta de nuevo.", { id: toastId, duration: 6000 });
+            toast.error(t('sub.toast.connection_verify'), { id: toastId, duration: 6000 });
             setShowConfirmModal(false);
         } finally {
             setLoading(false);
@@ -336,9 +336,9 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
     };
 
     const handleUpdatePlan = async (subscriptionId, newPriceId) => {
-        if (!confirm("¿Confirmar cambio de plan? Se ajustará el cobro inmediatamente.")) return;
+        if (!confirm(t('sub.toast.confirm_plan_change'))) return;
         setLoading(true);
-        const tId = toast.loading("Actualizando...");
+        const tId = toast.loading(t('sub.toast.updating'));
         try {
             const res = await fetch(`${API_URL}/payments/update-plan`, {
                 method: 'POST',
@@ -347,14 +347,14 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
             });
             const data = await res.json();
             if (res.ok) {
-                toast.success("Plan actualizado", { id: tId });
+                toast.success(t('sub.toast.plan_updated'), { id: tId });
                 setEditingSubId(null);
                 fetchSubscriptions(); // Recarga la lista local
                 if (onDataChange) onDataChange(); // Recarga los límites del dashboard
             } else {
                 toast.error("Error: " + data.error, { id: tId });
             }
-        } catch (e) { toast.error("Error conexión", { id: tId }); } finally { setLoading(false); }
+        } catch (e) { toast.error(t('sub.toast.error_connection'), { id: tId }); } finally { setLoading(false); }
     };
 
     const handlePortal = async () => {
@@ -366,17 +366,17 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                 window.location.href = data.url;
             } else {
                 // 🔥 FIX: Mostrar error con Sonner
-                toast.error(data.error || "Error al abrir portal de facturación");
+                toast.error(data.error || t('sub.toast.error_portal'));
             }
         } catch (e) { 
-            toast.error("Error de conexión"); 
+            toast.error(t('sub.toast.error_connection')); 
         } finally { 
             setLoading(false); 
         }
     };
 
     const handleCancelClick = async (subId) => {
-        const tId = toast.loading("Verificando vinculaciones...");
+        const tId = toast.loading(t('sub.toast.verifying_links'));
         try {
             // 1. Verificar qué se va a borrar
             const res = await fetch(`${API_URL}/payments/preview-cancel?subscriptionId=${subId}`, {
@@ -385,27 +385,27 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
             const data = await res.json();
             toast.dismiss(tId);
 
-            let confirmMsg = "¿Estás seguro de cancelar este plan?";
+            let confirmMsg = t('sub.toast.confirm_cancel');
 
             if (data.affected && data.affected.length > 0) {
-                confirmMsg += "\n\n⚠️ ALERTA: Al cancelar, se desconectarán las siguientes subcuentas y sus números:\n";
+                confirmMsg += "\n\n⚠️ " + t('sub.toast.cancel_warning') + "\n";
                 data.affected.forEach(aff => {
                     confirmMsg += `\n• ${aff.name}`;
                     if (aff.numbers.length > 0) {
                         confirmMsg += ` (Nums: ${aff.numbers.join(", ")})`;
                     } else {
-                        confirmMsg += ` (Sin números activos)`;
+                        confirmMsg += ` ${t('sub.toast.no_active_numbers')}`;
                     }
                 });
             } else {
-                confirmMsg += "\n\n(No hay subcuentas vinculadas directamente a este plan específico)";
+                confirmMsg += "\n\n" + t('sub.toast.no_linked_subs');
             }
 
             // 2. Pedir confirmación
             if (!confirm(confirmMsg)) return;
 
             // 3. Ejecutar Cancelación
-            const cancelId = toast.loading("Procesando baja...");
+            const cancelId = toast.loading(t('sub.toast.processing_cancel'));
             const cancelRes = await fetch(`${API_URL}/payments/cancel`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -413,11 +413,11 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
             });
 
             if (cancelRes.ok) {
-                toast.success("Suscripción cancelada correctamente", { id: cancelId });
+                toast.success(t('sub.toast.cancel_success'), { id: cancelId });
                 fetchSubscriptions();
                 if (onDataChange) onDataChange();
             } else {
-                throw new Error("Error al cancelar");
+                throw new Error(t('sub.toast.cancel_error'));
             }
 
         } catch (e) {
@@ -475,20 +475,21 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                     // Si no hay plan anual (ej: addons discount), forzamos mensual visualmente o deshabilitamos
                                     const effectivePrice = isAnnual ? (plan.annualPrice || plan.price) : plan.price;
                                     const effectiveId = isAnnual ? (plan.annualId || plan.id) : plan.id;
-                                    const savings = isAnnual && plan.annualId ? "Ahorras ~20%" : null;
+                                    const savings = isAnnual && plan.annualId ? t('sub.billing.save_text') : null;
+                                    const planName = t(plan.nameKey);
 
                                     return (
                                         <div key={plan.id} className={`bg-white dark:bg-gray-900 border rounded-2xl p-6 flex flex-col transition-all hover:shadow-xl ${plan.recommended ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200 dark:border-gray-800'}`}>
                                             <div className="mb-4">
-                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">{plan.name}</h4>
+                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">{planName}</h4>
                                                 <div className="flex items-baseline gap-1 mt-2">
                                                     <span className="text-3xl font-extrabold text-gray-900 dark:text-white">{effectivePrice}</span>
                                                     <span className="text-sm text-gray-500">{isAnnual ? t('sub.plan.year') : t('sub.plan.month')}</span>
                                                 </div>
-                                                {savings && <p className="text-xs font-bold text-green-600 mt-1">{t('sub.billing.save_text')}</p>}
+                                                {savings && <p className="text-xs font-bold text-green-600 mt-1">{savings}</p>}
                                             </div>
-                                            <ul className="space-y-3 mb-8 flex-1">{plan.features.map((feat, i) => <li key={i} className="flex gap-2 text-sm text-gray-600 dark:text-gray-300"><Check size={16} className="text-emerald-500 shrink-0" /> {feat}</li>)}</ul>
-                                            <button onClick={() => handlePurchase(effectiveId, plan.name, effectivePrice)} className={`w-full py-3 rounded-xl font-bold text-white transition shadow-lg ${plan.color} hover:opacity-90`}>{loading ? t('sub.plan.processing') : t('sub.plan.contract')}</button>
+                                            <ul className="space-y-3 mb-8 flex-1">{plan.featureKeys.map((featKey, i) => <li key={i} className="flex gap-2 text-sm text-gray-600 dark:text-gray-300"><Check size={16} className="text-emerald-500 shrink-0" /> {t(featKey)}</li>)}</ul>
+                                            <button onClick={() => handlePurchase(effectiveId, planName, effectivePrice)} className={`w-full py-3 rounded-xl font-bold text-white transition shadow-lg ${plan.color} hover:opacity-90`}>{loading ? t('sub.plan.processing') : t('sub.plan.contract')}</button>
                                         </div>
                                     );
                                 })}
@@ -503,9 +504,9 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                             <h4 className="text-2xl font-bold text-white flex items-center gap-2 mb-2">{t('sub.lifetime.title')} <Crown size={24} className="text-yellow-400" /></h4>
                                             <p className="text-gray-300 mb-4 max-w-xl">{t('sub.lifetime.desc')}</p>
                                             <div className="flex flex-wrap gap-3">
-                                                {PLAN_LIFETIME.features.map((feat, i) => (
+                                                {PLAN_LIFETIME.featureKeys.map((featKey, i) => (
                                                     <span key={i} className="flex items-center gap-2 text-sm text-gray-300 bg-white/10 px-3 py-1 rounded-full">
-                                                        <Check size={14} className="text-yellow-400 shrink-0" /> {feat}
+                                                        <Check size={14} className="text-yellow-400 shrink-0" /> {t(featKey)}
                                                     </span>
                                                 ))}
                                             </div>
@@ -535,7 +536,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                             )}
                         </div>
 
-                        {fetching ? <div className="p-10 text-center text-gray-400 animate-pulse">Cargando...</div> : subscriptions.length === 0 ? (
+                        {fetching ? <div className="p-10 text-center text-gray-400 animate-pulse">{t('sub.services.loading')}</div> : subscriptions.length === 0 ? (
                             <div className="p-12 text-center flex flex-col items-center">
                                 <AlertCircle size={32} className="text-gray-400 mb-4" />
                                 <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('sub.services.empty')}</h4>
@@ -602,9 +603,6 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                                         <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
                                                             <TrendingUp size={16} className="text-indigo-600" /> {t('sub.edit.title')}
                                                         </p>
-                                                        <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
-                                                            <TrendingUp size={16} className="text-indigo-600" /> Cambiar nivel de suscripción:
-                                                        </p>
                                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                             {availablePlans.map(plan => {
                                                                 const isCurrent = plan.id === sub.stripe_price_id;
@@ -627,11 +625,11 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                                                             }`}
                                                                     >
                                                                         <div className="flex justify-between items-start mb-2">
-                                                                            <span className={`font-bold text-sm ${isDowngrade ? 'text-gray-500' : 'text-gray-900 dark:text-white'}`}>{plan.name}</span>
+                                                                            <span className={`font-bold text-sm ${isDowngrade ? 'text-gray-500' : 'text-gray-900 dark:text-white'}`}>{t(plan.nameKey)}</span>
                                                                             {isCurrent && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">{t('sub.status.current')}</span>}
                                                                         </div>
                                                                         <div className={`text-2xl font-extrabold mb-1 ${isDowngrade ? 'text-gray-400' : 'text-gray-900 dark:text-white'}`}>{plan.price}</div>
-                                                                        <div className="text-xs text-gray-500 dark:text-gray-400">{plan.limits.subs} Agencias / {plan.limits.slots} Slots</div>
+                                                                        <div className="text-xs text-gray-500 dark:text-gray-400">{plan.limits.subs} {t('sub.services.agencies')} / {plan.limits.slots} {t('sub.services.slots')}</div>
 
                                                                         {!isCurrent && (
                                                                             <div className={`mt-3 text-xs font-bold transition-opacity flex items-center gap-1
@@ -719,9 +717,9 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                             
                             {/* Enlace al portal de Stripe para más opciones */}
                             <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
-                                <p className="text-sm text-gray-500 mb-3">¿Necesitas más opciones?</p>
+                                <p className="text-sm text-gray-500 mb-3">{t('sub.portal.more_options')}</p>
                                 <button onClick={handlePortal} className="text-indigo-600 hover:text-indigo-700 font-bold text-sm flex items-center gap-2 mx-auto">
-                                    Abrir Portal Completo <ExternalLink size={14} />
+                                    {t('sub.portal.full_portal')} <ExternalLink size={14} />
                                 </button>
                             </div>
                         </div>
@@ -734,8 +732,8 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                 activeTab === 'invoices' && (
                     <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center">
                         <div className="w-20 h-20 bg-gray-50 dark:bg-gray-800 rounded-full mx-auto mb-6 flex items-center justify-center text-gray-400"><CreditCard size={40} /></div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Historial de Facturas</h3>
-                        <p className="text-gray-500 mb-8">Consulta y descarga tus facturas desde el portal seguro.</p>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('sub.invoices.title')}</h3>
+                        <p className="text-gray-500 mb-8">{t('sub.invoices.desc')}</p>
                         <button onClick={handlePortal} className="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold mx-auto flex items-center gap-2">{t('sub.portal.button')} <ExternalLink size={18} /></button>
                     </div>
                 )
@@ -750,20 +748,20 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                         <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600">
                             <CreditCard size={32} />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">¿Confirmar compra?</h3>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('sub.confirm.title')}</h3>
                         <p className="text-sm text-gray-500 mt-2">
-                            Se realizará un cargo a tu tarjeta
+                            {t('sub.confirm.charge_info')}
                         </p>
                     </div>
                     
                     {/* Resumen del plan */}
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 mb-4">
                         <div className="flex justify-between items-center mb-3">
-                            <span className="text-gray-500 text-sm">Plan seleccionado</span>
+                            <span className="text-gray-500 text-sm">{t('sub.confirm.selected_plan')}</span>
                             <span className="font-bold text-gray-900 dark:text-white">{selectedPlan.name}</span>
                         </div>
                         <div className="flex justify-between items-center border-t border-gray-200 dark:border-gray-700 pt-3">
-                            <span className="text-gray-500 text-sm">Total a cobrar</span>
+                            <span className="text-gray-500 text-sm">{t('sub.confirm.total')}</span>
                             <span className="text-2xl font-extrabold text-indigo-600">{selectedPlan.price}</span>
                         </div>
                     </div>
@@ -776,7 +774,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                             </div>
                             <div className="flex-1">
                                 <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
-                                    Se debitará de tu tarjeta <span className="uppercase">{paymentMethods[0].brand}</span> terminada en <span className="font-mono">{paymentMethods[0].last4}</span>
+                                    {t('sub.confirm.card_debit')} <span className="uppercase">{paymentMethods[0].brand}</span> {t('sub.confirm.card_ending')} <span className="font-mono">{paymentMethods[0].last4}</span>
                                 </p>
                             </div>
                         </div>
@@ -789,7 +787,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                             disabled={loading}
                             className="flex-1 py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition"
                         >
-                            Cancelar
+                            {t('sub.confirm.cancel_btn')}
                         </button>
                         <button 
                             onClick={handleConfirmDirectPayment}
@@ -797,9 +795,9 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                             className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg transition flex items-center justify-center gap-2"
                         >
                             {loading ? (
-                                <><RefreshCw size={18} className="animate-spin" /> Procesando...</>
+                                <><RefreshCw size={18} className="animate-spin" /> {t('sub.confirm.processing')}</>
                             ) : (
-                                <>Sí, confirmar pago</>
+                                <>{t('sub.confirm.confirm_btn')}</>
                             )}
                         </button>
                     </div>

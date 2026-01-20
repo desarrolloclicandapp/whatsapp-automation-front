@@ -39,6 +39,9 @@ export const en = {
     "sub.services.empty": "No services found",
     "sub.services.empty_desc": "Subscribe to a plan to get started.",
     "sub.services.view_plans": "View Plans",
+    "sub.services.loading": "Loading...",
+    "sub.services.agencies": "Agencies",
+    "sub.services.slots": "Slots",
 
     "sub.status.current": "CURRENT",
 
@@ -61,6 +64,89 @@ export const en = {
     "sub.portal.title": "Billing Management",
     "sub.portal.desc": "Manage cards and invoices securely.",
     "sub.portal.button": "Go to Secure Portal",
+    "sub.portal.more_options": "Need more options?",
+    "sub.portal.full_portal": "Open Full Portal",
+
+    "sub.invoices.title": "Invoice History",
+    "sub.invoices.desc": "View and download your invoices from the secure portal.",
+
+    "sub.confirm.title": "Confirm purchase?",
+    "sub.confirm.charge_info": "Your card will be charged",
+    "sub.confirm.selected_plan": "Selected plan",
+    "sub.confirm.total": "Total to charge",
+    "sub.confirm.card_debit": "Your",
+    "sub.confirm.card_ending": "card ending in",
+    "sub.confirm.will_be_charged": "will be charged",
+    "sub.confirm.cancel_btn": "Cancel",
+    "sub.confirm.confirm_btn": "Yes, confirm payment",
+    "sub.confirm.processing": "Processing...",
+
+    // Toast messages
+    "sub.toast.error_unknown": "Unknown",
+    "sub.toast.error_connection": "Connection error",
+    "sub.toast.processing_payment": "Processing payment...",
+    "sub.toast.payment_success": "Payment successful! Your plan has been activated.",
+    "sub.toast.bank_verification": "Additional bank verification required. Redirecting...",
+    "sub.toast.error_processing": "Error processing payment",
+    "sub.toast.card_declined": "Your card was declined. Please verify funds or try another card.",
+    "sub.toast.insufficient_funds": "Insufficient funds on your card.",
+    "sub.toast.card_expired": "Your card has expired. Please update your payment method.",
+    "sub.toast.auth_required": "Additional authentication required. Please try again.",
+    "sub.toast.bank_error": "Bank processing error. Try again in a few minutes.",
+    "sub.toast.connection_verify": "Connection error. Please verify your internet and try again.",
+    "sub.toast.confirm_plan_change": "Confirm plan change? Billing will be adjusted immediately.",
+    "sub.toast.updating": "Updating...",
+    "sub.toast.plan_updated": "Plan updated",
+    "sub.toast.error_portal": "Error opening billing portal",
+    "sub.toast.verifying_links": "Verifying links...",
+    "sub.toast.confirm_cancel": "Are you sure you want to cancel this plan?",
+    "sub.toast.cancel_warning": "WARNING: The following subaccounts and numbers will be disconnected:",
+    "sub.toast.no_linked_subs": "(No subaccounts directly linked to this specific plan)",
+    "sub.toast.no_active_numbers": "(No active numbers)",
+    "sub.toast.processing_cancel": "Processing cancellation...",
+    "sub.toast.cancel_success": "Subscription cancelled successfully",
+    "sub.toast.cancel_error": "Error cancelling",
+
+    // Plan names
+    "sub.plan.starter": "Starter Plan",
+    "sub.plan.growth": "Growth Plan",
+    "sub.plan.agency": "Agency Plan",
+    "sub.plan.starter_addon": "Starter Addon",
+    "sub.plan.growth_addon": "Growth Addon",
+    "sub.plan.agency_addon": "Agency Addon",
+    "sub.plan.starter_volume": "Starter Volume",
+    "sub.plan.founders_pass": "Founder's Pass",
+
+    // Plan badges
+    "sub.badge.start": "Start",
+    "sub.badge.popular": "Popular",
+    "sub.badge.agency": "Agency",
+    "sub.badge.founder_benefit": "Founder Benefit",
+    "sub.badge.volume": "Volume",
+    "sub.badge.limited": "LIMITED",
+
+    // Plan features - Standard
+    "sub.feat.1_sub": "1 Subaccount",
+    "sub.feat.3_subs": "3 Subaccounts",
+    "sub.feat.10_subs": "10 Subaccounts",
+    "sub.feat.99_numbers": "99 Linkable Numbers",
+    "sub.feat.save_annual": "Save 2 months with Annual",
+    
+    // Plan features - Founder/Volume
+    "sub.feat.1_extra_sub": "1 Extra Subaccount",
+    "sub.feat.3_extra_subs": "3 Extra Subaccounts",
+    "sub.feat.10_extra_subs": "10 Extra Subaccounts",
+    "sub.feat.5_numbers": "+5 Numbers",
+    "sub.feat.15_numbers": "+15 Numbers",
+    "sub.feat.50_numbers": "+50 Numbers",
+    "sub.feat.reduced_price": "Reduced Price ($150/yr)",
+    "sub.feat.infinite_numbers": "Infinite Numbers (99)",
+    "sub.feat.volume_price": "Volume Price ($150/yr)",
+
+    // Plan features - Lifetime
+    "sub.feat.one_time": "ONE-TIME PAYMENT (Lifetime)",
+    "sub.feat.50_initial": "50 INITIAL Numbers",
+    "sub.feat.special_addons": "Access to Special Addons",
 
     // DASHBOARD
     "dash.nav.management": "Management",
