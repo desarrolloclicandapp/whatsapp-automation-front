@@ -44,8 +44,10 @@ export const en = {
     "sub.services.slots": "Slots",
 
     "sub.status.current": "CURRENT",
+    "sub.status.cancelled": "CANCELLED (Expires on {date})",
 
     "sub.action.modify": "Modify",
+    "sub.action.resume": "Resume Subscription",
     "sub.action.cancel": "Cancel",
     "sub.action.close": "Close",
 
@@ -126,6 +128,8 @@ export const en = {
     "sub.toast.processing_cancel": "Processing cancellation...",
     "sub.toast.cancel_success": "Subscription cancelled successfully",
     "sub.toast.cancel_error": "Error cancelling",
+    "sub.toast.resuming": "Resuming subscription...",
+    "sub.toast.resume_success": "Subscription resumed successfully",
 
     // Plan names
     "sub.plan.starter": "Starter Plan",
@@ -151,7 +155,7 @@ export const en = {
     "sub.feat.10_subs": "10 Subaccounts",
     "sub.feat.99_numbers": "99 Linkable Numbers",
     "sub.feat.save_annual": "Save 2 months with Annual",
-    
+
     // Plan features - Founder/Volume
     "sub.feat.1_extra_sub": "1 Extra Subaccount",
     "sub.feat.3_extra_subs": "3 Extra Subaccounts",
@@ -205,7 +209,7 @@ export const en = {
     "dash.settings.key_generated": "Generated Key",
     "dash.settings.key_copy_warning": "Copy it now, you won't see it again.",
     "dash.settings.new_webhook": "New Webhook",
-    
+
     "dash.locked.title": "Premium Feature Locked",
     "dash.locked.desc": "This feature is exclusively available for Growth plans and higher.",
 
