@@ -10,7 +10,8 @@ export default function SupportManager({
     apiPrefix = "/admin/support", 
     socketRoom = "__SYSTEM_SUPPORT__",
     title = "Bot de Alertas y Soporte",
-    showDisconnectWarning = true
+    showDisconnectWarning = true,
+    demoMode = false // ✅ Modo Demo para vista restringida
 }) {
     const [status, setStatus] = useState({ connected: false, myNumber: null });
     const [qr, setQr] = useState(null);
@@ -59,6 +60,8 @@ export default function SupportManager({
 
     // ✅ EFECTO: Sockets + Polling de Seguridad
     useEffect(() => {
+        if (demoMode) return; // 🚫 No hacer nada en modo demo
+        
         checkStatus();
 
         if (socket) {

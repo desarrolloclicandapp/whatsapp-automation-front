@@ -57,11 +57,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [isAccountSuspended, setIsAccountSuspended] = useState(false);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
     
-    // ✅ Leer features desde localStorage (o default)
-    const [agencyFeatures, setAgencyFeatures] = useState(() => {
-        const saved = localStorage.getItem("agencyFeatures");
-        return saved ? JSON.parse(saved) : { whitelabel: false };
-    });
+
 
     // ✅ NUEVO: Estado para Dominio CRM (Persistente en LocalStorage)
     const [crmDomain, setCrmDomain] = useState(localStorage.getItem("crmDomain") || "app.gohighlevel.com");
@@ -404,21 +400,38 @@ export default function AgencyDashboard({ token, onLogout }) {
         loc.location_id?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // ✅ Componente de Bloqueo Profesional
-    const LockedFeature = ({ title, description }) => (
-        <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 flex flex-col items-center justify-center text-center space-y-4 min-h-[300px]">
-            <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center text-amber-600 mb-2">
-                <Lock size={32} />
+    // ✅ Componente de Bloqueo "Glass" (Visible pero no interactivo)
+    const RestrictedFeatureWrapper = ({ isRestricted, children, title }) => {
+        if (!isRestricted) return children;
+
+        return (
+            <div className="relative group overflow-hidden rounded-2xl">
+                {/* Overlay de Bloqueo */}
+                <div className="absolute inset-0 z-50 bg-white/60 dark:bg-gray-900/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center transition-all duration-300">
+                    <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center text-amber-600 mb-4 shadow-sm animate-in zoom-in duration-300">
+                        <Lock size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                        {title || t('dash.locked.title') || "Función Premium"}
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 max-w-sm mb-6">
+                        {t('dash.locked.desc') || "Actualiza tu plan para desbloquear esta característica y potenciar tu agencia."}
+                    </p>
+                    <button 
+                        onClick={() => setActiveTab('billing')} 
+                        className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-lg shadow-amber-600/20 transition-transform active:scale-95 flex items-center gap-2 hover:-translate-y-0.5"
+                    >
+                        <Zap size={18} fill="currentColor" /> {t('dash.upgrade.cta') || "Desbloquear Ahora"}
+                    </button>
+                </div>
+
+                {/* Contenido Difuminado */}
+                <div className="filter blur-[1px] opacity-50 pointer-events-none select-none grayscale-[0.3]">
+                    {children}
+                </div>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{title || t('dash.locked.title') || "Función Premium Bloqueada"}</h3>
-            <p className="text-gray-500 dark:text-gray-400 max-w-md">
-                {description || t('dash.locked.desc') || "Esta característica está disponible exclusivamente para planes Growth y superiores."}
-            </p>
-            <button onClick={() => setActiveTab('billing')} className="mt-4 px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-lg shadow-amber-600/20 transition-transform active:scale-95 flex items-center gap-2">
-                <Zap size={18} fill="currentColor" /> {t('dash.upgrade.cta') || "Desbloquear Ahora"}
-            </button>
-        </div>
-    );
+        );
+    };
 
     const WhiteLabelSettings = () => {
         const [form, setForm] = useState(branding || DEFAULT_BRANDING);
@@ -444,106 +457,55 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
         };
 
-        if (isRestricted || !agencyFeatures.whitelabel) { 
-             // ✅ RESTRICTED VIEW (Pro Feature Mode)
-             return (
-                 <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4 relative overflow-hidden">
-                     {/* Overlay sutil para evitar clicks */}
-                     <div className="absolute inset-0 z-10 bg-white/50 dark:bg-black/50 cursor-not-allowed"></div>
- 
-                     <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4 relative z-0 opacity-50">
-                         <div>
-                             <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                 <Palette size={24} className="text-indigo-500" /> {t('agency.wl.title')}
-                             </h3>
-                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.wl.desc')}</p>
-                         </div>
-                     </div>
- 
-                     {/* Badge Flotante "Pro Feature" */}
-                     <div className="absolute top-6 right-6 z-20">
-                         <span className="px-4 py-1.5 text-xs font-bold uppercase rounded-full border bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900 dark:text-amber-300 dark:border-amber-700 flex items-center gap-2 shadow-sm">
-                             <Lock size={14} /> {t('agency.wl.pro_feature') || "Pro Feature"}
-                         </span>
-                     </div>
- 
-                     {/* Formulario Disabled */}
-                     <div className="space-y-8 relative z-0 opacity-50 filter blur-[1px]">
-                         <div className="space-y-4">
-                             <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">{t('agency.wl.identity')}</h4>
-                             <div>
-                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.agency_name')}</label>
-                                 <input type="text" disabled value={form.name || ''} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
-                             </div>
-                         </div>
-                          <div className="space-y-4">
-                             <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">{t('agency.wl.graphics')}</h4>
-                             <div>
-                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.logo_url')}</label>
-                                 <div className="flex gap-4 items-center">
-                                     <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800"><img src={form.logoUrl} className="w-full h-full object-contain" /></div>
-                                     <div className="flex-1"><input type="url" disabled value={form.logoUrl || ''} className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800" /></div>
-                                 </div>
-                             </div>
-                         </div>
-                     </div>
-                     
-                     <div className="absolute bottom-8 right-8 z-20">
-                         <button onClick={() => setActiveTab('billing')} className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-lg shadow-amber-600/20 active:scale-95 flex items-center gap-2 transition-transform hover:-translate-y-0.5">
-                             <Zap size={18} fill="currentColor" /> {t('dash.upgrade.cta') || "Desbloquear"}
-                         </button>
-                     </div>
-                 </div>
-             );
-         }
-
         return (
-            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
-                <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
-                    <div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Palette size={24} className="text-indigo-500" /> {t('agency.wl.title')}
-                        </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.wl.desc')}</p>
+            <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.wl.title')}>
+                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
+                    <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <Palette size={24} className="text-indigo-500" /> {t('agency.wl.title')}
+                            </h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.wl.desc')}</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800">{t('agency.wl.pro_feature')}</span>
+                        </div>
                     </div>
-                    <div className="flex gap-2">
-                        <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800">{t('agency.wl.pro_feature')}</span>
-                    </div>
+
+                    <form onSubmit={handleSave} className="space-y-8">
+                        <div className="space-y-4">
+                            <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">{t('agency.wl.identity')}</h4>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.agency_name')}</label>
+                                <input type="text" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">{t('agency.wl.graphics')}</h4>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.logo_url')}</label>
+                                <div className="flex gap-4 items-center">
+                                    <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm"><img src={form.logoUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display = 'none'} /></div>
+                                    <div className="flex-1 relative"><Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.logoUrl === systemBranding?.logoUrl ? '' : (form.logoUrl || '')} onChange={e => setForm({ ...form, logoUrl: e.target.value || systemBranding.logoUrl })} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm" placeholder="URL Logo" /></div>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.favicon_url')}</label>
+                                <div className="flex gap-4 items-center">
+                                    <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm"><img src={form.faviconUrl} alt="Preview" className="w-8 h-8 object-contain" onError={(e) => e.target.style.display = 'none'} /></div>
+                                    <div className="flex-1 relative"><MousePointer2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.faviconUrl === systemBranding?.faviconUrl ? '' : (form.faviconUrl || '')} onChange={e => setForm({ ...form, faviconUrl: e.target.value || systemBranding.faviconUrl })} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm" placeholder="URL Favicon" /></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="pt-6 flex flex-col md:flex-row items-center gap-4 border-t border-gray-100 dark:border-gray-800">
+                            <button type="submit" className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg flex items-center gap-2"><CheckCircle2 size={18} /> {t('agency.wl.save_changes')}</button>
+                            <button type="button" onClick={handleReset} className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 font-medium text-sm transition flex items-center gap-2 px-4"><RotateCcw size={16} /> {t('agency.wl.reset')}</button>
+                        </div>
+                    </form>
                 </div>
-
-                <form onSubmit={handleSave} className="space-y-8">
-                    <div className="space-y-4">
-                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">{t('agency.wl.identity')}</h4>
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.agency_name')}</label>
-                            <input type="text" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">{t('agency.wl.graphics')}</h4>
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.logo_url')}</label>
-                            <div className="flex gap-4 items-center">
-                                <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm"><img src={form.logoUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display = 'none'} /></div>
-                                <div className="flex-1 relative"><Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.logoUrl === systemBranding?.logoUrl ? '' : (form.logoUrl || '')} onChange={e => setForm({ ...form, logoUrl: e.target.value || systemBranding.logoUrl })} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm" placeholder="URL Logo" /></div>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.favicon_url')}</label>
-                            <div className="flex gap-4 items-center">
-                                <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800 overflow-hidden shrink-0 shadow-sm"><img src={form.faviconUrl} alt="Preview" className="w-8 h-8 object-contain" onError={(e) => e.target.style.display = 'none'} /></div>
-                                <div className="flex-1 relative"><MousePointer2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.faviconUrl === systemBranding?.faviconUrl ? '' : (form.faviconUrl || '')} onChange={e => setForm({ ...form, faviconUrl: e.target.value || systemBranding.faviconUrl })} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 transition-all text-sm" placeholder="URL Favicon" /></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="pt-6 flex flex-col md:flex-row items-center gap-4 border-t border-gray-100 dark:border-gray-800">
-                        <button type="submit" className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg flex items-center gap-2"><CheckCircle2 size={18} /> {t('agency.wl.save_changes')}</button>
-                        <button type="button" onClick={handleReset} className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 font-medium text-sm transition flex items-center gap-2 px-4"><RotateCcw size={16} /> {t('agency.wl.reset')}</button>
-                    </div>
-                </form>
-            </div>
+            </RestrictedFeatureWrapper>
         );
     };
 
@@ -692,36 +654,24 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
-                            {/* ✅ NUEVO: AGENCIA SOPORTE */}
-                            {!isRestricted && (
+                            {/* ✅ NUEVO: AGENCIA SOPORTE (Ahora protegido por Wrapper) */}
+                            <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.support.title')}>
                                 <SupportManager 
                                     token={token} 
                                     apiPrefix="/agency/support" 
                                     socketRoom={`__AGENCY_SUPPORT_${AGENCY_ID}__`}
                                     title={t('agency.support.title')}
                                     showDisconnectWarning={false}
+                                    demoMode={isRestricted} // 🔥 Si es restringido, va en modo demo para que no falle
                                 />
-                            )}
+                            </RestrictedFeatureWrapper>
 
 
 
                             <WhiteLabelSettings />
                             {/* <SecurityCard token={token} /> */}
 
-                            {isRestricted ? (
-                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
-                                     <div className="flex justify-between items-start mb-8">
-                                        <div>
-                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                <Terminal size={24} className="text-gray-400" /> {t('dash.settings.dev_title') || "Desarrolladores"}
-                                            </h3>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('dash.settings.dev_desc') || "Gestiona claves API y Webhooks para integraciones."}</p>
-                                        </div>
-                                        <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/30 dark:border-amber-800 flex items-center gap-1"><Lock size={12} /> Bloqueado</span>
-                                    </div>
-                                    <LockedFeature />
-                                </div>
-                            ) : (
+                            <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('dash.settings.dev_title')}>
                                 <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4`}>
                                     <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
                                         <div>
@@ -806,7 +756,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         </div>
                                     </div>
                                 </div>
-                            )}
+                            </RestrictedFeatureWrapper>
 
                             {/* MODAL API KEY */}
                             {showNewKeyModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="mb-6 text-center"><div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600"><ShieldCheck size={32} /></div><h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('dash.settings.key_generated') || "Clave Generada"}</h3><p className="text-sm text-gray-500 mt-2">{t('dash.settings.key_copy_warning') || "Cópiala ahora, no podrás verla después."}</p></div><div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 mb-6 relative group"><div className="font-mono text-sm break-all pr-10 text-indigo-600 dark:text-indigo-400 font-bold">{generatedKey}</div><button onClick={() => { navigator.clipboard.writeText(generatedKey); toast.success(t('common.copied') || "Copiado"); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-indigo-600 transition"><Copy size={18} /></button></div><button onClick={() => { setShowNewKeyModal(false); setGeneratedKey(null); }} className="w-full py-3 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl font-bold hover:opacity-90 transition">{t('common.understood') || "Entendido"}</button></div></div>)}
