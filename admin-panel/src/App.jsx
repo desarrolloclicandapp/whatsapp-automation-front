@@ -22,6 +22,10 @@ function App() {
         localStorage.setItem("userRole", data.role);
         if (data.agencyId) localStorage.setItem("agencyId", data.agencyId);
         else localStorage.removeItem("agencyId");
+
+        // ✅ Persistir nuevos datos de suscripción y features
+        if (data.subscriptionStatus) localStorage.setItem("subscriptionStatus", JSON.stringify(data.subscriptionStatus));
+        if (data.features) localStorage.setItem("agencyFeatures", JSON.stringify(data.features));
         
         setToken(data.token);
         setRole(data.role);
@@ -31,6 +35,8 @@ function App() {
         localStorage.removeItem("authToken");
         localStorage.removeItem("userRole");
         localStorage.removeItem("agencyId");
+        localStorage.removeItem("subscriptionStatus");
+        localStorage.removeItem("agencyFeatures");
         setToken(null);
         setRole(null);
         window.history.pushState({}, document.title, "/");

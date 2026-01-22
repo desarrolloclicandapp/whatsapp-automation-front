@@ -5,6 +5,7 @@ import SubscriptionManager from './SubscriptionManager';
 import SupportManager from './SupportManager';
 import SubscriptionModal from './SubscriptionModal'; 
 import SubscriptionBlocker from './SubscriptionBlocker';
+import ExpiryPopup from './ExpiryPopup'; // ✅ Importar Popup
 import ThemeToggle from '../components/ThemeToggle';
 import LanguageSelector from '../components/LanguageSelector'; 
 import { useLanguage } from '../context/LanguageContext'; 
@@ -55,6 +56,12 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const [isAccountSuspended, setIsAccountSuspended] = useState(false);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+    
+    // ✅ Leer features desde localStorage (o default)
+    const [agencyFeatures, setAgencyFeatures] = useState(() => {
+        const saved = localStorage.getItem("agencyFeatures");
+        return saved ? JSON.parse(saved) : { whitelabel: false };
+    });
 
     // ✅ NUEVO: Estado para Dominio CRM (Persistente en LocalStorage)
     const [crmDomain, setCrmDomain] = useState(localStorage.getItem("crmDomain") || "app.gohighlevel.com");
@@ -437,7 +444,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
         };
 
-        if (isRestricted) {
+        if (isRestricted || !agencyFeatures.whitelabel) { // ✅ Usar flag del backend
             return (
                 <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
                      <div className="flex justify-between items-start mb-8">
@@ -449,7 +456,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                         <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/30 dark:border-amber-800 flex items-center gap-1"><Lock size={12} /> {t('agency.wl.locked')}</span>
                     </div>
-                    <LockedFeature />
+                    <LockedFeature 
+                        title="Marca Blanca"
+                        description="Personaliza el logo, colores y nombre de la plataforma para tus clientes. Disponible en planes Pro e Agency."
+                    />
                 </div>
             );
         }
@@ -506,6 +516,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     return (
         <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
+            <ExpiryPopup token={token} /> {/* ✅ Popup Global */}
             {isAccountSuspended && <SubscriptionBlocker token={token} onLogout={onLogout} />}
             {showUpgradeModal && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
 
