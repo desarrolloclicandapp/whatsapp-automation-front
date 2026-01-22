@@ -306,7 +306,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                                 background: `linear-gradient(to right, ${branding.primaryColor}, ${branding.accentColor})`,
                                                 textShadow: '0 1px 2px rgba(0,0,0,0.1)'
                                             }}>
-                                            {loading ? <Loader2 className="animate-spin" /> : <>Enviar Código OTP <ArrowRight size={20} /></>}
+                                            {loading ? <Loader2 className="animate-spin" /> : <>Enviar Código <ArrowRight size={20} /></>}
                                         </button>
                                         <button type="button" onClick={() => setStep('EMAIL')} className="w-full text-sm text-gray-400 hover:text-gray-600 flex items-center justify-center gap-2">
                                             <ArrowLeft size={14} /> Usar otro email
