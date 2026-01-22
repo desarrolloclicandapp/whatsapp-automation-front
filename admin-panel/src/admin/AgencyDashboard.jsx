@@ -444,25 +444,58 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
         };
 
-        if (isRestricted || !agencyFeatures.whitelabel) { // ✅ Usar flag del backend
-            return (
-                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
-                     <div className="flex justify-between items-start mb-8">
-                        <div>
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <Palette size={24} className="text-gray-400" /> {t('agency.wl.title')}
-                            </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.wl.desc')}</p>
-                        </div>
-                        <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/30 dark:border-amber-800 flex items-center gap-1"><Lock size={12} /> {t('agency.wl.locked')}</span>
-                    </div>
-                    <LockedFeature 
-                        title="Marca Blanca"
-                        description="Personaliza el logo, colores y nombre de la plataforma para tus clientes. Disponible en planes Pro e Agency."
-                    />
-                </div>
-            );
-        }
+        if (isRestricted || !agencyFeatures.whitelabel) { 
+             // ✅ RESTRICTED VIEW (Pro Feature Mode)
+             return (
+                 <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4 relative overflow-hidden">
+                     {/* Overlay sutil para evitar clicks */}
+                     <div className="absolute inset-0 z-10 bg-white/50 dark:bg-black/50 cursor-not-allowed"></div>
+ 
+                     <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4 relative z-0 opacity-50">
+                         <div>
+                             <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                 <Palette size={24} className="text-indigo-500" /> {t('agency.wl.title')}
+                             </h3>
+                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.wl.desc')}</p>
+                         </div>
+                     </div>
+ 
+                     {/* Badge Flotante "Pro Feature" */}
+                     <div className="absolute top-6 right-6 z-20">
+                         <span className="px-4 py-1.5 text-xs font-bold uppercase rounded-full border bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900 dark:text-amber-300 dark:border-amber-700 flex items-center gap-2 shadow-sm">
+                             <Lock size={14} /> {t('agency.wl.pro_feature') || "Pro Feature"}
+                         </span>
+                     </div>
+ 
+                     {/* Formulario Disabled */}
+                     <div className="space-y-8 relative z-0 opacity-50 filter blur-[1px]">
+                         <div className="space-y-4">
+                             <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">{t('agency.wl.identity')}</h4>
+                             <div>
+                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.agency_name')}</label>
+                                 <input type="text" disabled value={form.name || ''} className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+                             </div>
+                         </div>
+                          <div className="space-y-4">
+                             <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2">{t('agency.wl.graphics')}</h4>
+                             <div>
+                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.wl.logo_url')}</label>
+                                 <div className="flex gap-4 items-center">
+                                     <div className="w-16 h-16 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center bg-gray-50 dark:bg-gray-800"><img src={form.logoUrl} className="w-full h-full object-contain" /></div>
+                                     <div className="flex-1"><input type="url" disabled value={form.logoUrl || ''} className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800" /></div>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                     
+                     <div className="absolute bottom-8 right-8 z-20">
+                         <button onClick={() => setActiveTab('billing')} className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-lg shadow-amber-600/20 active:scale-95 flex items-center gap-2 transition-transform hover:-translate-y-0.5">
+                             <Zap size={18} fill="currentColor" /> {t('dash.upgrade.cta') || "Desbloquear"}
+                         </button>
+                     </div>
+                 </div>
+             );
+         }
 
         return (
             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
