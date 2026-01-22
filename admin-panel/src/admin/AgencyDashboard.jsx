@@ -6,6 +6,7 @@ import SupportManager from './SupportManager';
 import SubscriptionModal from './SubscriptionModal'; 
 import SubscriptionBlocker from './SubscriptionBlocker';
 import ExpiryPopup from './ExpiryPopup'; // ✅ Importar Popup
+import InactiveUserModal from './InactiveUserModal'; // ✅ Importar Modal Inactivo
 import ThemeToggle from '../components/ThemeToggle';
 import LanguageSelector from '../components/LanguageSelector'; 
 import { useLanguage } from '../context/LanguageContext'; 
@@ -785,6 +786,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                     onDataChange={refreshData}
                 />
             )}
+            {/* ✅ MODAL DE INACTIVIDAD (BLOQUEO TOTAL) */}
+            <InactiveUserModal 
+                show={accountInfo && accountInfo.is_active === false} 
+                onLogout={onLogout} 
+            />
+
+            {/* ✅ POPUP DE EXPIRACIÓN (SOLO VISUAL) */}
+            <ExpiryPopup accountInfo={accountInfo} />
+
         </div>
     );
 }

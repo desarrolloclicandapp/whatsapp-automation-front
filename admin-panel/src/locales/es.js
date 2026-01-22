@@ -8,6 +8,11 @@ export const es = {
     "common.confirm": "Confirmar",
     "common.save": "Guardar",
     "common.close": "Cerrar",
+    "common.copied": "Copiado",
+    "common.understood": "Entendido",
+    "common.delete": "Eliminar",
+    "common.reactivate": "Reactivar",
+    "common.permanently_delete": "Eliminar Permanentemente",
 
     // Subscription Manager
     "sub.title": "Suscripción",
@@ -368,4 +373,26 @@ export const es = {
 
     // Agency Dashboard - Support
     "agency.support.title": "Tu Número de Soporte (Marca Blanca)",
+
+    // Inactive User Modal
+    "modal.inactive.title": "Cuenta Desactivada",
+    "modal.inactive.desc": "Tu cuenta se encuentra inactiva. Esto puede deberse a una cancelación previa o falta de pago. Para restaurar el acceso inmediato y reactivar tus bots, por favor selecciona un plan.",
+    "modal.inactive.cta_reactivate": "Reactivar con un Plan",
+    "modal.inactive.cta_logout": "Cerrar Sesión",
+    "modal.inactive.support": "Si crees que esto es un error, contacta a soporte por WhatsApp.",
+
+    // Dashboard Hard Delete / Soft Delete Alerts
+    "dash.users.reactivate_title": "Reactivar Usuario",
+    "dash.users.reactivate_msg": "¿Deseas reactivar a \"{name}\"?\n\nEl usuario recuperará acceso inmediato.",
+    "dash.users.soft_delete_title": "Desactivar Usuario",
+    "dash.users.soft_delete_msg": "¿Estás seguro de desactivar a \"{name}\"?\n\nEl usuario perderá acceso y sus sesiones de WhatsApp se cerrarán. Sus datos no se borrarán.",
+    "dash.users.hard_delete_title": "ELIMINACIÓN PERMANENTE",
+    "dash.users.hard_delete_msg": "💀 ¿Estás seguro de destruir a \"{name}\"?\n\nSe borrará de la base de datos, se eliminarán sus subcuentas y se desconectará todo.\n\nNO HAY VUELTA ATRÁS.\n\n(Solo permitido si no tiene plan vigente)",
+    "dash.users.hard_delete_success": "Usuario y datos eliminados.",
+    "dash.users.soft_delete_success": "Usuario desactivado correctamente.",
+    "dash.users.reactivate_success": "Usuario reactivado correctamente.",
+    "dash.users.protected_plan": "PROTEGIDO: El usuario tiene un plan vigente.",
+    "dash.users.hard_delete_tooltip": "Destruir Usuario (Hard Delete)",
+    "dash.users.soft_delete_tooltip": "Desactivar Usuario",
+    "dash.users.reactivate_tooltip": "Reactivar Usuario"
 };

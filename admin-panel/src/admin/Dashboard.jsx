@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import SupportManager from './SupportManager';
 import LocationDetailsModal from './LocationDetailsModal';
 import ThemeToggle from '../components/ThemeToggle';
-import { useBranding } from '../context/BrandingContext'; 
+import { useBranding } from '../context/BrandingContext';
+import { useLanguage } from '../context/LanguageContext'; // ✅ Added import
 import { toast } from 'sonner'; 
 import {
     Settings, Search, Palette, Upload,
@@ -14,6 +15,7 @@ import {
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 export default function AdminDashboard({ token, onLogout }) {
+    const { t } = useLanguage(); // ✅ Initialize hook
     const { systemBranding, updateSystemBranding, DEFAULT_BRANDING } = useBranding();
     const [view, setView] = useState('agencies'); 
     const [selectedAgency, setSelectedAgency] = useState(null);
@@ -105,23 +107,77 @@ export default function AdminDashboard({ token, onLogout }) {
         try {
             const res = await authFetch(`/admin/users/${userId}`, { method: 'DELETE' });
             if (res.ok) {
-                toast.success("Usuario eliminado correctamente");
+                toast.success(t('dash.users.soft_delete_success'));
                 fetchUsers();
             } else {
                 const data = await res.json();
-                toast.error(data.error || "Error al eliminar usuario");
+                // ⚠️ Protección de Planes
+                if (data.error && data.error.includes("plan activo")) {
+                    toast.error(t('dash.users.protected_plan'));
+                } else {
+                    toast.error(data.error || t('common.error'));
+                }
             }
-        } catch (error) { toast.error("Error de conexión"); }
+        } catch (error) { toast.error(t('sub.toast.error_connection')); }
         setConfirmModal({ ...confirmModal, show: false });
     };
 
-    const handleDeleteUser = (userId, userName) => {
-        openConfirm(
-            "Eliminar Usuario",
-            `¿Estás seguro de eliminar a "${userName || 'Usuario'}"? Esta acción borrará sus datos, subcuentas y conexiones permanentemente.`,
-            () => executeDeleteUser(userId),
-            true
-        );
+    const executeHardDeleteUser = async (userId) => {
+        const tId = toast.loading(t('agency.tenant.deleting'));
+        try {
+            const res = await authFetch(`/admin/users/${userId}/hard`, { method: 'DELETE' });
+            if (res.ok) {
+                toast.success(t('dash.users.hard_delete_success'), { id: tId });
+                fetchUsers();
+            } else {
+                const data = await res.json();
+                if (data.error && data.error.includes("plan activo")) {
+                    toast.error(t('dash.users.protected_plan'), { id: tId });
+                } else {
+                    toast.error(data.error || t('sub.toast.error_unknown'), { id: tId });
+                }
+            }
+        } catch (error) { toast.error(t('sub.toast.error_connection'), { id: tId }); }
+        setConfirmModal({ ...confirmModal, show: false });
+    };
+
+    const executeReactivateUser = async (userId) => {
+        try {
+            const res = await authFetch(`/admin/users/${userId}/reactivate`, { method: 'PUT' });
+            if (res.ok) {
+                toast.success(t('dash.users.reactivate_success'));
+                fetchUsers();
+            } else {
+                const data = await res.json();
+                toast.error(data.error || t('common.error'));
+            }
+        } catch (error) { toast.error(t('sub.toast.error_connection')); }
+        setConfirmModal({ ...confirmModal, show: false });
+    };
+
+    const handleDeleteUser = (user, type = 'soft') => {
+        if (type === 'hard') {
+             openConfirm(
+                t('dash.users.hard_delete_title'),
+                t('dash.users.hard_delete_msg').replace('{name}', user.name || user.email),
+                () => executeHardDeleteUser(user.id),
+                true
+            );
+        } else if (user.is_active === false) {
+             openConfirm(
+                t('dash.users.reactivate_title'),
+                t('dash.users.reactivate_msg').replace('{name}', user.name || user.email),
+                () => executeReactivateUser(user.id),
+                false
+            );
+        } else {
+            openConfirm(
+                t('dash.users.soft_delete_title'),
+                t('dash.users.soft_delete_msg').replace('{name}', user.name || 'Usuario'),
+                () => executeDeleteUser(user.id),
+                true
+            );
+        }
     };
 
     const executeDeleteAgency = async (agencyId) => {
@@ -445,7 +501,10 @@ export default function AdminDashboard({ token, onLogout }) {
                                                 return (
                                                     <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
                                                         <td className="px-6 py-4">
-                                                            <div className="font-bold text-gray-900 dark:text-white text-sm">{user.name || 'Sin nombre'}</div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="font-bold text-gray-900 dark:text-white text-sm">{user.name || 'Sin nombre'}</div>
+                                                                {user.is_active === false && <span className="px-2 py-0.5 text-[10px] uppercase font-bold bg-red-100 text-red-600 rounded border border-red-200">Inactivo</span>}
+                                                            </div>
                                                             <div className="text-xs text-gray-500">{user.email}</div>
                                                             {user.agency_id && <div className="mt-1 text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded w-fit">{user.agency_id}</div>}
                                                         </td>
@@ -493,8 +552,13 @@ export default function AdminDashboard({ token, onLogout }) {
                                                                     </div>
                                                                 </button>
 
-                                                                <button onClick={() => handleDeleteUser(user.id, user.name || user.email)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition" title="Eliminar Usuario">
-                                                                    <Trash2 size={18} />
+                                                                <button onClick={() => handleDeleteUser(user)} className={`p-2 rounded-lg transition ${user.is_active === false ? 'text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'}`} title={user.is_active === false ? t('dash.users.reactivate_tooltip') : t('dash.users.soft_delete_tooltip')}>
+                                                                    {user.is_active === false ? <RefreshCw size={18} /> : <Trash2 size={18} />}
+                                                                </button>
+                                                                
+                                                                {/* 💀 BOTÓN HARD DELETE */}
+                                                                <button onClick={() => handleDeleteUser(user, 'hard')} className="p-2 text-gray-300 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition" title={t('dash.users.hard_delete_tooltip')}>
+                                                                     <AlertTriangle size={18} />
                                                                 </button>
                                                             </div>
                                                         </td>
