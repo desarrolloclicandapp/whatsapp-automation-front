@@ -30,6 +30,10 @@ export default function AdminDashboard({ token, onLogout }) {
     const [trialModal, setTrialModal] = useState({ show: false, userId: null, userName: '', currentEnd: null });
     const [trialDaysInput, setTrialDaysInput] = useState(0);
 
+    // ✅ ESTADO PARA MODAL DE BONUS SUBCUENTAS
+    const [bonusModal, setBonusModal] = useState({ show: false, userId: null, userName: '', currentBonus: 0, maxSubs: 0 });
+    const [bonusInput, setBonusInput] = useState(0);
+
     // ✅ NUEVO: ESTADO PARA MODAL DE CONFIRMACIÓN (Reemplaza window.confirm)
     const [confirmModal, setConfirmModal] = useState({ 
         show: false, 
@@ -241,6 +245,34 @@ export default function AdminDashboard({ token, onLogout }) {
         const preview = new Date(baseDate);
         preview.setDate(preview.getDate() + parseInt(trialDaysInput || 0));
         return preview.toLocaleDateString();
+    };
+
+    // ✅ Guardar cambios del Bonus Subcuentas
+    const handleSaveBonus = async () => {
+        const { userId } = bonusModal;
+        const bonus = parseInt(bonusInput);
+
+        if (!userId || isNaN(bonus) || bonus < 0) {
+            return toast.warning("Ingresa un número válido (>= 0).");
+        }
+
+        try {
+            const res = await authFetch(`/admin/users/${userId}/bonus`, {
+                method: 'PUT',
+                body: JSON.stringify({ bonus })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                toast.success(`Bonus actualizado a ${bonus} subcuentas extra 🎁`);
+                setBonusModal({ show: false, userId: null, userName: '', currentBonus: 0, maxSubs: 0 });
+                fetchUsers(); 
+            } else {
+                toast.error(data.error || "Error actualizando bonus");
+            }
+        } catch (e) {
+            toast.error("Error de conexión");
+        }
     };
 
     // ✅ NUEVO: Lógica para Dar Plan Admin
@@ -491,6 +523,7 @@ export default function AdminDashboard({ token, onLogout }) {
                                             <tr>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Usuario / Email</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Plan & Estado</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Subcuentas</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vencimiento Trial</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
                                             </tr>
@@ -522,6 +555,32 @@ export default function AdminDashboard({ token, onLogout }) {
                                                                     {user.plan_status ? user.plan_status.toUpperCase() : 'TRIAL'}
                                                                 </span>
                                                             )}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-bold text-gray-900 dark:text-white">{user.max_subagencies || 1}</span>
+                                                                {user.bonus_subagencies > 0 && (
+                                                                    <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full font-bold border border-purple-200">
+                                                                        +{user.bonus_subagencies} bonus
+                                                                    </span>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setBonusModal({ 
+                                                                            show: true, 
+                                                                            userId: user.id, 
+                                                                            userName: user.name || user.email, 
+                                                                            currentBonus: user.bonus_subagencies || 0,
+                                                                            maxSubs: user.max_subagencies || 1
+                                                                        });
+                                                                        setBonusInput(user.bonus_subagencies || 0);
+                                                                    }}
+                                                                    className="p-1 text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition"
+                                                                    title="Editar Bonus Subcuentas"
+                                                                >
+                                                                    <Plus size={14} />
+                                                                </button>
+                                                            </div>
                                                         </td>
                                                         <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 tabular-nums">
                                                             {user.trial_ends_at ? new Date(user.trial_ends_at).toLocaleDateString() : '-'}
@@ -684,6 +743,45 @@ export default function AdminDashboard({ token, onLogout }) {
                             <div className="flex gap-3">
                                 <button onClick={() => setTrialModal({ show: false, userId: null, userName: '', currentEnd: null })} className="flex-1 py-3 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium text-sm transition">Cancelar</button>
                                 <button onClick={handleSaveTrial} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition"><Save size={18} /> Guardar</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ✅ MODAL DE GESTIÓN DE BONUS SUBCUENTAS */}
+                {bonusModal.show && (
+                    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6">
+                            <div className="text-center mb-6">
+                                <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <Plus size={24} />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Bonus Subcuentas</h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Usuario: <span className="font-bold text-gray-800 dark:text-white">{bonusModal.userName || 'Usuario'}</span></p>
+                                <p className="text-xs text-gray-400 mt-1">Subcuentas actuales: <span className="font-bold">{bonusModal.maxSubs}</span> (Bonus actual: {bonusModal.currentBonus})</p>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Subcuentas Bonus a otorgar</label>
+                                <input 
+                                    type="number" 
+                                    min="0"
+                                    className="w-full p-4 text-center text-lg font-bold bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-gray-900 dark:text-white"
+                                    value={bonusInput}
+                                    onChange={e => setBonusInput(e.target.value)}
+                                    placeholder="0"
+                                />
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">Estas subcuentas son adicionales al plan pagado del usuario.</p>
+                            </div>
+
+                            <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800 mb-6 flex justify-between items-center">
+                                <span className="text-sm font-bold text-purple-800 dark:text-purple-300">Nuevas Subcuentas:</span>
+                                <span className="text-lg font-bold text-purple-600 dark:text-purple-400">{(bonusModal.maxSubs - bonusModal.currentBonus) + parseInt(bonusInput || 0)}</span>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button onClick={() => setBonusModal({ show: false, userId: null, userName: '', currentBonus: 0, maxSubs: 0 })} className="flex-1 py-3 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium text-sm transition">Cancelar</button>
+                                <button onClick={handleSaveBonus} className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition"><Save size={18} /> Guardar</button>
                             </div>
                         </div>
                     </div>
