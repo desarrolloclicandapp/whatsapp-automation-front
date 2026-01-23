@@ -28,6 +28,23 @@ export default function WelcomeAuth({ onLoginSuccess }) {
     const [loading, setLoading] = useState(false);
     const [ghlExists, setGhlExists] = useState(false);
 
+    // ✅ COOLDOWN TIMERS (RESEND OTP)
+    const [phoneCooldown, setPhoneCooldown] = useState(0);
+    const [emailCooldown, setEmailCooldown] = useState(0);
+
+    // 🕒 Efecto para cuenta regresiva
+    useEffect(() => {
+        let interval;
+        if (phoneCooldown > 0) interval = setInterval(() => setPhoneCooldown(c => c - 1), 1000);
+        return () => clearInterval(interval);
+    }, [phoneCooldown]);
+
+    useEffect(() => {
+        let interval;
+        if (emailCooldown > 0) interval = setInterval(() => setEmailCooldown(c => c - 1), 1000);
+        return () => clearInterval(interval);
+    }, [emailCooldown]);
+
     useEffect(() => {
         // 🔥 SECRET ADMIN ACCESS
         const params = new URLSearchParams(window.location.search);
@@ -58,8 +75,9 @@ export default function WelcomeAuth({ onLoginSuccess }) {
     // --- LÓGICA DE AUTH ---
 
     const requestPhoneOtp = async (e) => {
-        e.preventDefault();
+        if(e) e.preventDefault();
         if (phone.length < 8) return toast.error("Número muy corto");
+        if (phoneCooldown > 0) return toast.warning(`Espera ${phoneCooldown}s para reenviar.`);
 
         setLoading(true);
         try {
@@ -72,6 +90,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
             toast.success("Código enviado a WhatsApp 📱");
             setStep('PHONE_CODE');
+            setPhoneCooldown(60); // 🕒 Iniciar cooldown 60s
         } catch (err) { toast.error(err.message); }
         setLoading(false);
     };
@@ -97,8 +116,9 @@ export default function WelcomeAuth({ onLoginSuccess }) {
     };
 
     const requestEmailOtp = async (e) => {
-        e.preventDefault();
+        if(e) e.preventDefault();
         if (!email.includes('@') || !email.includes('.')) return toast.error("Email inválido");
+        if (emailCooldown > 0) return toast.warning(`Espera ${emailCooldown}s para reenviar.`);
 
         setLoading(true);
         try {
@@ -111,6 +131,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
             toast.success(`Código enviado a ${email} 📧`);
             setStep('EMAIL_CODE');
+            setEmailCooldown(60); // 🕒 Iniciar cooldown 60s
         } catch (err) { toast.error(err.message); }
         setLoading(false);
     };
@@ -329,6 +350,21 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                         <button type="button" onClick={() => setStep('PHONE')} className="w-full text-sm text-gray-400 hover:text-opacity-80 transition" style={{ color: branding.primaryColor }}>
                                             ¿Número incorrecto? Cambiar
                                         </button>
+                                        
+                                        {/* ✅ RESEND OTP BUTTON */}
+                                        <div className="text-center pt-2">
+                                            {phoneCooldown > 0 ? (
+                                                <p className="text-sm text-gray-400">Podrás reenviar en <span className="font-bold">{phoneCooldown}s</span></p>
+                                            ) : (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => requestPhoneOtp(null)}
+                                                    className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white transition hover:underline"
+                                                >
+                                                    ¿No recibiste el mensaje? <span className="font-bold">Reenviar aquí</span>
+                                                </button>
+                                            )}
+                                        </div>
                                     </form>
                                 </div>
                             )}
@@ -386,6 +422,21 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                         <button type="button" onClick={() => setStep('EMAIL')} className="w-full text-sm text-gray-400 hover:text-opacity-80 transition" style={{ color: branding.primaryColor }}>
                                             ¿Email incorrecto? Corregir
                                         </button>
+
+                                        {/* ✅ RESEND EMAIL OTP BUTTON */}
+                                        <div className="text-center pt-2">
+                                            {emailCooldown > 0 ? (
+                                                <p className="text-sm text-gray-400">Podrás reenviar en <span className="font-bold">{emailCooldown}s</span></p>
+                                            ) : (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => requestEmailOtp(null)}
+                                                    className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white transition hover:underline"
+                                                >
+                                                    ¿No recibiste el mensaje? <span className="font-bold">Reenviar aquí</span>
+                                                </button>
+                                            )}
+                                        </div>
                                     </form>
                                 </div>
                             )}
