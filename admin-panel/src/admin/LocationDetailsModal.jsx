@@ -535,11 +535,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     {ghlUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                                 </select>
                                                             </div>
+                                                            {/* 
                                                             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.ghl.routing')}</label>
                                                                 <input type="text" placeholder={t('slots.ghl.routing_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.routing_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, settings)} />
                                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usará este número.</p>
-                                                            </div>
+                                                            </div> 
+                                                            */}
                                                         </div>
                                                     )}
 
