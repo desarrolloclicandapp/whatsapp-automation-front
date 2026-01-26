@@ -184,6 +184,7 @@ export const en = {
     "dash.nav.settings": "Settings",
     "dash.nav.support": "Support",
     "dash.nav.logout": "Logout",
+    "dash.nav.docs": "Documentation",
 
     "dash.header.overview": "Dashboard",
     "dash.header.billing": "Subscription Management",

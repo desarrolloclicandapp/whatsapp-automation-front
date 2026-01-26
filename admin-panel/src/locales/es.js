@@ -184,6 +184,7 @@ export const es = {
     "dash.nav.settings": "Configuración",
     "dash.nav.support": "Soporte Técnico",
     "dash.nav.logout": "Cerrar Sesión",
+    "dash.nav.docs": "Documentación",
 
     "dash.header.overview": "Panel Principal",
     "dash.header.billing": "Gestión de Suscripción",
