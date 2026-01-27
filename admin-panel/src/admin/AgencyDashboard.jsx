@@ -160,7 +160,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 
                 attempts++;
                 if (attempts % 5 === 0) {
-                    toast.loading(`${t('agency.install.waiting_webhook')} (${attempts * 2}s)`, { id: toastId });
+                    console.log(`${t('agency.install.waiting_webhook')} (${attempts * 2}s)`);
                 }
                 await new Promise(r => setTimeout(r, 2000));
             }
