@@ -16,7 +16,14 @@ function App() {
         if (locId) {
             sessionStorage.setItem("ghl_location_id", locId);
         }
-    }, []);
+
+        // 🔥 FIX: Ensure admins don't have sticky branding
+        if (role === 'admin' && localStorage.getItem("agencyBranding")) {
+             console.log("🧹 [App] Cleaning sticky branding for Admin...");
+             localStorage.removeItem("agencyBranding");
+             window.location.reload();
+        }
+    }, [role]);
 
     const handleLoginSuccess = (data) => {
         localStorage.removeItem("token");
