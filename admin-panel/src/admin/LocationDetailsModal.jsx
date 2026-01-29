@@ -17,15 +17,16 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [ghlUsers, setGhlUsers] = useState([]);
     const [locationName, setLocationName] = useState(location.name || "");
     const [whiteLabelEnabled, setWhiteLabelEnabled] = useState(true);
+    const [maxSubagencies, setMaxSubagencies] = useState(null);
     const [loading, setLoading] = useState(true);
     const rawFeatures = localStorage.getItem("agencyFeatures");
     const storedRole = localStorage.getItem("userRole");
     let canWhiteLabel = false;
     try {
         const features = rawFeatures ? JSON.parse(rawFeatures) : {};
-        canWhiteLabel = (features?.whitelabel ?? features?.white_label) === true || storedRole === 'admin';
+        canWhiteLabel = (features?.whitelabel ?? features?.white_label) === true || storedRole === 'admin' || maxSubagencies === 50;
     } catch (e) {
-        canWhiteLabel = storedRole === 'admin';
+        canWhiteLabel = storedRole === 'admin' || maxSubagencies === 50;
     }
 
     // Control de UI
@@ -90,6 +91,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             }
         };
     }, [location, socket]);
+
+    useEffect(() => {
+        const loadAccountLimits = async () => {
+            try {
+                const res = await authFetch('/agency/info');
+                if (res && res.ok) {
+                    const data = await res.json();
+                    setMaxSubagencies(data?.limits?.max_subagencies ?? null);
+                }
+            } catch (e) { }
+        };
+        loadAccountLimits();
+    }, []);
 
     const loadData = async () => {
         if (slots.length === 0) setLoading(true);
