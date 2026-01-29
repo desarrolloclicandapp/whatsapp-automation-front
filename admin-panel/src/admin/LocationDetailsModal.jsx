@@ -16,7 +16,16 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [keywords, setKeywords] = useState([]);
     const [ghlUsers, setGhlUsers] = useState([]);
     const [locationName, setLocationName] = useState(location.name || "");
+    const [whiteLabelEnabled, setWhiteLabelEnabled] = useState(true);
     const [loading, setLoading] = useState(true);
+    const rawFeatures = localStorage.getItem("agencyFeatures");
+    let canWhiteLabel = false;
+    try {
+        const features = rawFeatures ? JSON.parse(rawFeatures) : {};
+        canWhiteLabel = (features?.whitelabel ?? features?.white_label) === true;
+    } catch (e) {
+        canWhiteLabel = false;
+    }
 
     // Control de UI
     const [expandedSlotId, setExpandedSlotId] = useState(null);
@@ -95,6 +104,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 setKeywords(data.keywords || []);
 
                 if (data.name) setLocationName(data.name);
+                setWhiteLabelEnabled(data.settings?.white_label ?? true);
             }
 
             if (usersRes && usersRes.ok) {
@@ -153,6 +163,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             toast.dismiss(loadingId);
             toast.error("Error de conexión");
             console.error(e);
+        }
+    };
+
+    const toggleWhiteLabel = async () => {
+        const nextValue = !whiteLabelEnabled;
+        setWhiteLabelEnabled(nextValue);
+        try {
+            const res = await authFetch(`/agency/settings/${location.location_id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ settings: { white_label: nextValue } })
+            });
+            if (!res || !res.ok) throw new Error("Error");
+            toast.success(nextValue ? "White Label activado" : "White Label desactivado");
+        } catch (e) {
+            toast.error("Error guardando White Label");
+            setWhiteLabelEnabled(!nextValue);
         }
     };
 
@@ -340,10 +366,27 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
                 {/* BODY */}
                 <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50 dark:bg-black/20">
-                    <div className="flex justify-end mb-8">
-                        <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
-                            <Plus size={18} /> {t('slots.new')}
-                        </button>
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+                        {canWhiteLabel && (
+                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-4 shadow-sm">
+                                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
+                                    <Settings size={18} />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">White Label</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">Usar branding de la agencia</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer ml-2">
+                                    <input type="checkbox" className="sr-only peer" checked={whiteLabelEnabled} onChange={toggleWhiteLabel} />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                                </label>
+                            </div>
+                        )}
+                        <div className="flex justify-end">
+                            <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
+                                <Plus size={18} /> {t('slots.new')}
+                            </button>
+                        </div>
                     </div>
 
                     {loading ? (
