@@ -8,6 +8,7 @@ import './index.css';
 function App() {
     const [token, setToken] = useState(localStorage.getItem("authToken"));
     const [role, setRole] = useState(localStorage.getItem("userRole"));
+    const [restoreToken, setRestoreToken] = useState(localStorage.getItem("admin_restore_token"));
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -37,8 +38,34 @@ function App() {
         localStorage.removeItem("agencyId");
         localStorage.removeItem("subscriptionStatus");
         localStorage.removeItem("agencyFeatures");
+        localStorage.removeItem("admin_restore_token");
+        localStorage.removeItem("admin_restore_role");
+        localStorage.removeItem("admin_restore_agencyId");
         setToken(null);
         setRole(null);
+        setRestoreToken(null);
+        window.history.pushState({}, document.title, "/");
+    };
+
+    const restoreAdminSession = () => {
+        const adminToken = localStorage.getItem("admin_restore_token");
+        const adminRole = localStorage.getItem("admin_restore_role") || "admin";
+        const adminAgencyId = localStorage.getItem("admin_restore_agencyId");
+
+        if (!adminToken) return;
+
+        localStorage.setItem("authToken", adminToken);
+        localStorage.setItem("userRole", adminRole);
+        if (adminAgencyId) localStorage.setItem("agencyId", adminAgencyId);
+        else localStorage.removeItem("agencyId");
+
+        localStorage.removeItem("admin_restore_token");
+        localStorage.removeItem("admin_restore_role");
+        localStorage.removeItem("admin_restore_agencyId");
+
+        setToken(adminToken);
+        setRole(adminRole);
+        setRestoreToken(null);
         window.history.pushState({}, document.title, "/");
     };
 
@@ -64,6 +91,20 @@ function App() {
                     }
                 }}
             />
+
+            {restoreToken && (
+                <div className="sticky top-0 z-50 bg-amber-50 border-b border-amber-200 text-amber-900">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-4">
+                        <div className="text-sm font-semibold">👻 Estás navegando como Admin (impersonación activa).</div>
+                        <button
+                            onClick={restoreAdminSession}
+                            className="px-3 py-1.5 text-xs font-bold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition"
+                        >
+                            Volver a Admin
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {!token ? (
                 <WelcomeAuth onLoginSuccess={handleLoginSuccess} />

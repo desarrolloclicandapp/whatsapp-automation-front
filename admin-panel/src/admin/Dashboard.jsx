@@ -159,6 +159,62 @@ export default function AdminDashboard({ token, onLogout }) {
         setConfirmModal({ ...confirmModal, show: false });
     };
 
+    const handleImpersonateUser = async (user) => {
+        if (!user?.id) return;
+        if (user.role === 'admin') {
+            toast.error("No puedes impersonar a otro admin.");
+            return;
+        }
+
+        const tId = toast.loading("Ingresando como usuario...");
+        try {
+            const res = await authFetch(`/auth/impersonate`, {
+                method: 'POST',
+                body: JSON.stringify({ userId: user.id })
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                toast.error(data.error || "Error al impersonar usuario", { id: tId });
+                return;
+            }
+
+            const previousRole = localStorage.getItem("userRole") || 'admin';
+            const previousAgencyId = localStorage.getItem("agencyId");
+
+            localStorage.setItem("admin_restore_token", token);
+            localStorage.setItem("admin_restore_role", previousRole);
+            if (previousAgencyId) localStorage.setItem("admin_restore_agencyId", previousAgencyId);
+
+            localStorage.setItem("authToken", data.token);
+            localStorage.setItem("userRole", data.user?.role || data.role || "agency");
+
+            if (data.user?.agencyId) localStorage.setItem("agencyId", data.user.agencyId);
+            else localStorage.removeItem("agencyId");
+
+            if (data.user?.subscriptionStatus) {
+                localStorage.setItem("subscriptionStatus", JSON.stringify(data.user.subscriptionStatus));
+            } else if (data.subscriptionStatus) {
+                localStorage.setItem("subscriptionStatus", JSON.stringify(data.subscriptionStatus));
+            } else {
+                localStorage.removeItem("subscriptionStatus");
+            }
+
+            if (data.user?.features) {
+                localStorage.setItem("agencyFeatures", JSON.stringify(data.user.features));
+            } else if (data.features) {
+                localStorage.setItem("agencyFeatures", JSON.stringify(data.features));
+            } else {
+                localStorage.removeItem("agencyFeatures");
+            }
+
+            toast.success(`Ahora viendo como ${data.user?.email || user.email}`, { id: tId });
+            window.location.href = "/";
+        } catch (error) {
+            toast.error("Error de conexión", { id: tId });
+        }
+    };
+
     const handleDeleteUser = (user, type = 'soft') => {
         if (type === 'hard') {
              openConfirm(
@@ -600,6 +656,15 @@ export default function AdminDashboard({ token, onLogout }) {
                                                                     </button>
                                                                 )}
                                                                 
+                                                                {user.role !== 'admin' && (
+                                                                    <button
+                                                                        onClick={() => handleImpersonateUser(user)}
+                                                                        className="p-2 text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition"
+                                                                        title="Impersonar usuario"
+                                                                    >
+                                                                        <span className="text-[11px] font-bold">IMP</span>
+                                                                    </button>
+                                                                )}
                                                                 {/* ✅ Botón Crown: Dar Plan Admin */}
                                                                 <button
                                                                     onClick={() => handleGrantAdmin(user.id, user.name || user.email)}
@@ -838,3 +903,4 @@ export default function AdminDashboard({ token, onLogout }) {
         </div>
     );
 }
+
