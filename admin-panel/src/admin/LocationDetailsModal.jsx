@@ -19,12 +19,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [whiteLabelEnabled, setWhiteLabelEnabled] = useState(true);
     const [loading, setLoading] = useState(true);
     const rawFeatures = localStorage.getItem("agencyFeatures");
+    const storedRole = localStorage.getItem("userRole");
     let canWhiteLabel = false;
     try {
         const features = rawFeatures ? JSON.parse(rawFeatures) : {};
-        canWhiteLabel = (features?.whitelabel ?? features?.white_label) === true;
+        canWhiteLabel = (features?.whitelabel ?? features?.white_label) === true || storedRole === 'admin';
     } catch (e) {
-        canWhiteLabel = false;
+        canWhiteLabel = storedRole === 'admin';
     }
 
     // Control de UI
