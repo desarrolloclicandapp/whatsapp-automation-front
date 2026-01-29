@@ -25,6 +25,10 @@ export default function AdminDashboard({ token, onLogout }) {
     const [users, setUsers] = useState([]); 
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    const [masterOtp, setMasterOtp] = useState(null);
+    const [masterOtpExpiresAt, setMasterOtpExpiresAt] = useState(null);
+    const [masterOtpTick, setMasterOtpTick] = useState(Date.now());
+    const [manualUserModal, setManualUserModal] = useState({ show: false, name: "", email: "", phone: "" });
 
     // ✅ ESTADO PARA MODAL DE TRIAL
     const [trialModal, setTrialModal] = useState({ show: false, userId: null, userName: '', currentEnd: null });
@@ -52,6 +56,11 @@ export default function AdminDashboard({ token, onLogout }) {
         document.getElementsByTagName('head')[0].appendChild(link);
         document.title = "Panel Maestro | Admin"; 
     }, [systemBranding]);
+
+    useEffect(() => {
+        const id = setInterval(() => setMasterOtpTick(Date.now()), 60000);
+        return () => clearInterval(id);
+    }, []);
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -99,6 +108,21 @@ export default function AdminDashboard({ token, onLogout }) {
             setUsers(Array.isArray(data) ? data : []);
         } catch (error) { console.error("Error usuarios:", error); } finally { setLoading(false); }
     };
+
+    const fetchMasterOtp = async () => {
+        try {
+            const res = await authFetch(`/admin/master-otp`);
+            if (res.ok) {
+                const data = await res.json();
+                setMasterOtp(data.otp || null);
+                setMasterOtpExpiresAt(data.expiresAt || null);
+            }
+        } catch (error) { console.error("Error master OTP:", error); }
+    };
+
+    useEffect(() => {
+        fetchMasterOtp();
+    }, []);
 
     // --- ACCIONES ADMINISTRATIVAS (Ahora usan el Modal Custom) ---
 
@@ -215,7 +239,44 @@ export default function AdminDashboard({ token, onLogout }) {
         }
     };
 
-    const handleDeleteUser = (user, type = 'soft') => {
+    const handleOpenManualUserModal = () => {
+        setManualUserModal({ show: true, name: "", email: "", phone: "" });
+    };
+
+    const handleCreateManualUser = async () => {
+        const email = manualUserModal.email?.trim();
+        const name = manualUserModal.name?.trim();
+        const phone = manualUserModal.phone?.trim();
+
+        if (!email) {
+            toast.warning("Email requerido");
+            return;
+        }
+
+        const tId = toast.loading("Creando usuario...");
+        try {
+            const res = await authFetch(`/admin/users/manual`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    email,
+                    name: name || null,
+                    phone: phone || null
+                })
+            });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                toast.success("Usuario creado", { id: tId });
+                setManualUserModal({ show: false, name: "", email: "", phone: "" });
+                fetchUsers();
+            } else {
+                toast.error(data.error || "Error al crear usuario", { id: tId });
+            }
+        } catch (error) {
+            toast.error("Error de conexi�n", { id: tId });
+        }
+    };
+const handleDeleteUser = (user, type = 'soft') => {
         if (type === 'hard') {
              openConfirm(
                 t('dash.users.hard_delete_title'),
@@ -422,6 +483,16 @@ export default function AdminDashboard({ token, onLogout }) {
         (u.agency_id || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const getMasterOtpLabel = () => {
+        if (!masterOtpExpiresAt) return "";
+        const remainingMs = new Date(masterOtpExpiresAt).getTime() - masterOtpTick;
+        if (remainingMs <= 0) return "Expirado";
+        const hours = Math.floor(remainingMs / 3600000);
+        const minutes = Math.floor((remainingMs % 3600000) / 60000);
+        if (hours <= 0) return `Expira en ${Math.max(minutes, 1)}m`;
+        return `Expira en ${hours}h ${minutes}m`;
+    };
+
     // --- SUBCOMPONENTE: MARCA GLOBAL (Código Completo) ---
     const GlobalBrandingSettings = () => {
         const [form, setForm] = useState(systemBranding || DEFAULT_BRANDING);
@@ -544,6 +615,15 @@ export default function AdminDashboard({ token, onLogout }) {
                         )}
                         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-indigo-500/20">CA</div>
                         <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'users' ? 'Gestión de Usuarios' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} subcuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}</div>
+                        {masterOtp && (
+                            <div className="hidden lg:flex items-center gap-2 bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1.5 rounded-lg text-xs font-bold">
+                                <span>Master OTP:</span>
+                                <span className="font-mono text-sm">{masterOtp}</span>
+                                {masterOtpExpiresAt && (
+                                    <span className="text-[10px] text-amber-700">({getMasterOtpLabel()})</span>
+                                )}
+                            </div>
+                        )}
                         <div className="hidden md:flex items-center gap-1 ml-6 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700">
                             <button onClick={() => { setView('agencies'); setSubaccounts([]); setSelectedAgency(null); }} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'agencies' || view === 'subaccounts' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Building2 size={16} /> Agencias</button>
                             <button onClick={() => setView('users')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'users' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Users size={16} /> Usuarios</button>
@@ -562,9 +642,17 @@ export default function AdminDashboard({ token, onLogout }) {
                 {/* VISTA: USUARIOS */}
                 {view === 'users' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                        <div className="relative w-full max-w-md">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                            <input type="text" placeholder="Buscar por email, nombre o agencia..." className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                            <div className="relative w-full max-w-md">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                <input type="text" placeholder="Buscar por email, nombre o agencia..." className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                            </div>
+                            <button
+                                onClick={handleOpenManualUserModal}
+                                className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-sm transition"
+                            >
+                                Crear Usuario
+                            </button>
                         </div>
 
                         {loading ? (
@@ -775,8 +863,61 @@ export default function AdminDashboard({ token, onLogout }) {
                     </>
                 )}
 
-                {/* MODAL DE GESTIÓN DE TRIAL CON INPUT */}
-                {trialModal.show && (
+                {/* MODAL CREAR USUARIO MANUAL */}
+                {manualUserModal.show && (
+                    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6">
+                            <div className="text-center mb-6">
+                                <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <Plus size={24} />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Crear Usuario Manual</h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Se creará un usuario en trial.</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre</label>
+                                    <input
+                                        type="text"
+                                        className="w-full p-3 rounded-xl border dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+                                        value={manualUserModal.name}
+                                        onChange={e => setManualUserModal({ ...manualUserModal, name: e.target.value })}
+                                        placeholder="Nombre de la agencia"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Email*</label>
+                                    <input
+                                        type="email"
+                                        className="w-full p-3 rounded-xl border dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+                                        value={manualUserModal.email}
+                                        onChange={e => setManualUserModal({ ...manualUserModal, email: e.target.value })}
+                                        placeholder="correo@dominio.com"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Teléfono</label>
+                                    <input
+                                        type="tel"
+                                        className="w-full p-3 rounded-xl border dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+                                        value={manualUserModal.phone}
+                                        onChange={e => setManualUserModal({ ...manualUserModal, phone: e.target.value.replace(/\D/g, '') })}
+                                        placeholder="595981..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button onClick={() => setManualUserModal({ show: false, name: "", email: "", phone: "" })} className="flex-1 py-3 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium text-sm transition">Cancelar</button>
+                                <button onClick={handleCreateManualUser} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition">Crear</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+{/* MODAL DE GESTIÓN DE TRIAL CON INPUT */}
+{trialModal.show && (
                     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6">
                             <div className="text-center mb-6">
@@ -903,4 +1044,19 @@ export default function AdminDashboard({ token, onLogout }) {
         </div>
     );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
