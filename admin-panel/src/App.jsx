@@ -51,10 +51,14 @@ function App() {
         localStorage.removeItem("admin_restore_token");
         localStorage.removeItem("admin_restore_role");
         localStorage.removeItem("admin_restore_agencyId");
+        // 🔥 FIX: Limpiar branding pegajoso
+        localStorage.removeItem("agencyBranding");
+        
         setToken(null);
         setRole(null);
         setRestoreToken(null);
         window.history.pushState({}, document.title, "/");
+        window.location.reload(); // Force reload to reset favicon/title state
     };
 
     const restoreAdminSession = () => {
@@ -72,11 +76,14 @@ function App() {
         localStorage.removeItem("admin_restore_token");
         localStorage.removeItem("admin_restore_role");
         localStorage.removeItem("admin_restore_agencyId");
+        // 🔥 FIX: Limpiar branding del cliente impersonado
+        localStorage.removeItem("agencyBranding");
 
         setToken(adminToken);
         setRole(adminRole);
         setRestoreToken(null);
         window.history.pushState({}, document.title, "/");
+        window.location.reload(); // Force reload to reset favicon/title state
     };
 
     return (
