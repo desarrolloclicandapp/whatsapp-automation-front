@@ -19,6 +19,16 @@ function App() {
     }, []);
 
     const handleLoginSuccess = (data) => {
+        localStorage.removeItem("token");
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("agencyId");
+        localStorage.removeItem("subscriptionStatus");
+        localStorage.removeItem("agencyFeatures");
+        localStorage.removeItem("admin_restore_token");
+        localStorage.removeItem("admin_restore_role");
+        localStorage.removeItem("admin_restore_agencyId");
+
         localStorage.setItem("authToken", data.token);
         localStorage.setItem("userRole", data.role);
         if (data.agencyId) localStorage.setItem("agencyId", data.agencyId);
