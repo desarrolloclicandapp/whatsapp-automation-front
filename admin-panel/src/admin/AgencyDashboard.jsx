@@ -51,7 +51,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [isAutoSyncing, setIsAutoSyncing] = useState(false);
 
     const [accountInfo, setAccountInfo] = useState(null);
-    const isRestricted = accountInfo?.plan === 'starter'; 
+    const isRestricted = (accountInfo?.plan || '').toLowerCase().includes('starter');
     const [searchTerm, setSearchTerm] = useState("");
     const [userEmail, setUserEmail] = useState("");
 
