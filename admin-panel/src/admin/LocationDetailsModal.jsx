@@ -496,6 +496,21 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 <SettingRow label={t('slots.settings.transcribe')} desc={t('slots.settings.transcribe_desc')} checked={settings.transcribe_audio ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'transcribe_audio', settings)} />
                                                                 <SettingRow label={t('slots.settings.create_contacts')} desc={t('slots.settings.create_contacts_desc')} checked={settings.create_unknown_contacts ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'create_unknown_contacts', settings)} />
                                                                 <SettingRow label={t('slots.settings.alert_disconnect')} desc={t('slots.settings.alert_disconnect_desc')} checked={settings.send_disconnect_message ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'send_disconnect_message', settings)} />
+                                                                <div className="p-3">
+                                                                    <label className="text-sm font-bold text-gray-800 dark:text-gray-200 block">
+                                                                        Número de Alerta / Alert Number
+                                                                    </label>
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                                                        Dejar vacío para enviar al número desconectado.
+                                                                    </p>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={settings.alert_phone_number || ""}
+                                                                        onChange={(e) => changeSlotSetting(slot.slot_id, 'alert_phone_number', e.target.value, settings)}
+                                                                        placeholder="+1 555 000 0000"
+                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                    />
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     )}
