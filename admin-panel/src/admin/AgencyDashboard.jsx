@@ -135,7 +135,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const autoSyncAgency = async (locationId, code) => {
         setIsAutoSyncing(true);
-        const toastId = toast.loading(t('agency.install.waiting'));
+        // const toastId = toast.loading(t('agency.install.waiting')); // Removido por overlay visual
 
         try {
             // 🔥 STEP 1: Wait for GHL webhook to complete installation
@@ -150,7 +150,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         const checkData = await checkRes.json();
                         if (checkData.installed) {
                             installed = true;
-                            toast.loading(t('agency.install.detected'), { id: toastId });
+                            // toast.loading(t('agency.install.detected'), { id: toastId });
                             break;
                         }
                     }
@@ -200,11 +200,11 @@ export default function AgencyDashboard({ token, onLogout }) {
             setStoredAgencyId(data.newAgencyId);
 
             refreshData();
-            toast.success(t('agency.install.completed'), { id: toastId });
+            toast.success(t('agency.install.completed'));
             window.history.replaceState({}, document.title, window.location.pathname);
 
         } catch (error) {
-            toast.error(error.message || t('agency.install.error'), { id: toastId });
+            toast.error(error.message || t('agency.install.error'));
         } finally {
             setIsAutoSyncing(false);
         }
