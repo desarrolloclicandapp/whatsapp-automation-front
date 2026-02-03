@@ -19,7 +19,7 @@ import {
     ExternalLink, Menu, CheckCircle2, ChevronRight, ArrowRight, Zap,
     TrendingUp, ShieldCheck, Settings, Trash2,
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
-    Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen // ✅ Iconos
+    Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Mic // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -70,6 +70,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [generatedKey, setGeneratedKey] = useState(null);
     const [webhooks, setWebhooks] = useState([]);
     const [showNewWebhookModal, setShowNewWebhookModal] = useState(false);
+    const [voiceApiKey, setVoiceApiKey] = useState("");
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -248,6 +249,10 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     }, [AGENCY_ID]);
 
+    useEffect(() => {
+        if (generatedKey) setVoiceApiKey(generatedKey);
+    }, [generatedKey]);
+
     const fetchWebhooks = async () => {
         try {
             const res = await authFetch('/agency/webhooks');
@@ -346,6 +351,12 @@ export default function AgencyDashboard({ token, onLogout }) {
                 toast.error(t('agency.tenant.delete_error'), { id: tId });
             }
         } catch (err) { toast.error(t('agency.connection_error'), { id: tId }); }
+    };
+
+    const buildVoiceScript = () => {
+        const apiUrl = API_URL;
+        const key = voiceApiKey || "wf_live_your_api_key_here";
+        return `window.WAFLOW_VOICE_CONFIG = {\n  apiUrl: \"${apiUrl}\",\n  apiKey: \"${key}\"\n};\n(function(){\n  var s = document.createElement(\"script\");\n  s.src = \"${apiUrl}/ghl_voice_script.js\";\n  s.async = true;\n  document.head.appendChild(s);\n})();`;
     };
 
     const handleDeleteTenant = async (e, locationId, name) => {
@@ -672,6 +683,58 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                             <WhiteLabelSettings />
                             {/* <SecurityCard token={token} /> */}
+
+                            <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.voice.title')}>
+                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
+                                    <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <Mic size={24} className="text-emerald-500" /> {t('agency.voice.title')}
+                                            </h3>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.voice.desc')}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                {t('agency.voice.api_key_label')}
+                                            </label>
+                                            <input
+                                                value={voiceApiKey}
+                                                onChange={(e) => setVoiceApiKey(e.target.value)}
+                                                placeholder={t('agency.voice.api_key_placeholder')}
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                                            />
+                                            <p className="text-xs text-gray-400 mt-2">{t('agency.voice.api_key_hint')}</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                {t('agency.voice.script_label')}
+                                            </label>
+                                            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 relative">
+                                                <pre className="text-xs whitespace-pre-wrap text-gray-600 dark:text-gray-300">{buildVoiceScript()}</pre>
+                                                <button
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(buildVoiceScript());
+                                                        toast.success(t('common.copied') || "Copiado");
+                                                    }}
+                                                    className="absolute right-3 top-3 p-2 text-gray-400 hover:text-emerald-600 transition"
+                                                >
+                                                    <Copy size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="text-sm text-gray-600 dark:text-gray-300 space-y-2">
+                                            <p><strong>{t('agency.voice.step1_title')}</strong> {t('agency.voice.step1')}</p>
+                                            <p><strong>{t('agency.voice.step2_title')}</strong> {t('agency.voice.step2')}</p>
+                                            <p><strong>{t('agency.voice.step3_title')}</strong> {t('agency.voice.step3')}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </RestrictedFeatureWrapper>
 
                             <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('dash.settings.dev_title')}>
                                 <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4`}>

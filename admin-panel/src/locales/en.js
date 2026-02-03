@@ -334,6 +334,20 @@ export const en = {
     "agency.crm.install_domain": "Installation Domain",
     "agency.crm.install_link": "Current install link:",
 
+    // Agency Dashboard - Voice Notes
+    "agency.voice.title": "Voice Notes in GHL",
+    "agency.voice.desc": "Send WhatsApp voice notes directly from GHL.",
+    "agency.voice.api_key_label": "API Key for the script",
+    "agency.voice.api_key_placeholder": "Paste your wf_live_ API key...",
+    "agency.voice.api_key_hint": "Use an active API key. We recommend creating a dedicated one.",
+    "agency.voice.script_label": "Script to paste in GHL",
+    "agency.voice.step1_title": "Step 1:",
+    "agency.voice.step1": "Copy the script and paste it in Company > Settings > Custom JS.",
+    "agency.voice.step2_title": "Step 2:",
+    "agency.voice.step2": "Save changes and reload GHL.",
+    "agency.voice.step3_title": "Step 3:",
+    "agency.voice.step3": "Open a conversation and use the microphone button.",
+
     // Agency Dashboard - White Label
     "agency.wl.title": "White Label",
     "agency.wl.desc": "Customize the panel with your brand.",
