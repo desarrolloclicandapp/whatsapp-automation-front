@@ -70,7 +70,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [generatedKey, setGeneratedKey] = useState(null);
     const [webhooks, setWebhooks] = useState([]);
     const [showNewWebhookModal, setShowNewWebhookModal] = useState(false);
-    const [voiceApiKey, setVoiceApiKey] = useState("");
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -249,10 +248,6 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     }, [AGENCY_ID]);
 
-    useEffect(() => {
-        if (generatedKey) setVoiceApiKey(generatedKey);
-    }, [generatedKey]);
-
     const fetchWebhooks = async () => {
         try {
             const res = await authFetch('/agency/webhooks');
@@ -355,8 +350,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const buildVoiceScript = () => {
         const apiUrl = API_URL;
-        const key = voiceApiKey || "wf_live_your_api_key_here";
-        return `window.WAFLOW_VOICE_CONFIG = {\n  apiUrl: \"${apiUrl}\",\n  apiKey: \"${key}\"\n};\n(function(){\n  var s = document.createElement(\"script\");\n  s.src = \"${apiUrl}/ghl_voice_script.js\";\n  s.async = true;\n  document.head.appendChild(s);\n})();`;
+        return `<script src=\"${apiUrl}/loader.js\"></script>`;
     };
 
     const handleDeleteTenant = async (e, locationId, name) => {
@@ -696,19 +690,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </div>
 
                                     <div className="space-y-6">
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                {t('agency.voice.api_key_label')}
-                                            </label>
-                                            <input
-                                                value={voiceApiKey}
-                                                onChange={(e) => setVoiceApiKey(e.target.value)}
-                                                placeholder={t('agency.voice.api_key_placeholder')}
-                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
-                                            />
-                                            <p className="text-xs text-gray-400 mt-2">{t('agency.voice.api_key_hint')}</p>
-                                        </div>
-
                                         <div>
                                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                                 {t('agency.voice.script_label')}
