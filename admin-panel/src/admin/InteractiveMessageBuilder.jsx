@@ -40,15 +40,18 @@ export default function InteractiveMessageBuilder() {
     const isEditing = editingId !== null;
 
     const commandString = useMemo(() => {
-        const bodyWithFooter = [body, footer].filter(Boolean).join('\n\n');
         const segments = [
             '#btn',
             sanitizePart(title),
-            sanitizePart(bodyWithFooter)
+            sanitizePart(body)
         ];
 
         if (imageUrl) {
             segments.push(`image*${sanitizePart(imageUrl)}`);
+        }
+
+        if (footer) {
+            segments.push(`footer*${sanitizePart(footer)}`);
         }
 
         buttons.forEach((btn) => {
@@ -180,7 +183,7 @@ export default function InteractiveMessageBuilder() {
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                    Pie de pagina (se agrega al cuerpo)
+                                    Pie de pagina (footer real)
                                 </label>
                                 <input
                                     type="text"
@@ -383,7 +386,7 @@ export default function InteractiveMessageBuilder() {
                             {commandString}
                         </div>
                         <p className="text-xs text-gray-400 mt-3">
-                            Formato: <span className="font-mono">#btn|Titulo|Cuerpo|image*URL|quick_reply*Texto*ID</span>
+                            Formato: <span className="font-mono">#btn|Titulo|Cuerpo|image*URL|footer*Texto|quick_reply*Texto*ID</span>
                         </p>
                     </div>
                 </div>

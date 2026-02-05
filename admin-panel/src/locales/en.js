@@ -182,7 +182,7 @@ export const en = {
     "dash.nav.overview": "Dashboard",
     "dash.nav.billing": "Subscription",
     "dash.nav.settings": "Settings",
-    "dash.nav.builder": "Builder of interactive messages",
+    "dash.nav.builder": "Builder buttons",
     "dash.nav.support": "Support",
     "dash.nav.logout": "Logout",
     "dash.nav.docs": "Documentation",
@@ -190,7 +190,7 @@ export const en = {
     "dash.header.overview": "Dashboard",
     "dash.header.billing": "Subscription Management",
     "dash.header.settings": "Settings",
-    "dash.header.builder": "Builder of interactive messages",
+    "dash.header.builder": "Builder buttons",
 
     "dash.stats.subaccounts": "Subaccounts",
     "dash.stats.connections": "WA Connections",
