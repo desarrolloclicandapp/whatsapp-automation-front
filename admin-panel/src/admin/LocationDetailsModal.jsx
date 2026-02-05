@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
@@ -35,6 +35,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [groups, setGroups] = useState([]);
     const [loadingGroups, setLoadingGroups] = useState(false);
     const [deletingSlotId, setDeletingSlotId] = useState(null);
+    const [elevenVoicesBySlot, setElevenVoicesBySlot] = useState({});
+    const [loadingElevenVoices, setLoadingElevenVoices] = useState({});
+    const previewAudioRef = useRef(null);
+    const [previewTextBySlot, setPreviewTextBySlot] = useState({});
 
     // ✅ Obtener instancia del socket
     const socket = useSocket();
@@ -105,6 +109,23 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         loadAccountLimits();
     }, []);
 
+    useEffect(() => {
+        if (activeSlotTab !== 'ghl' || !expandedSlotId) return;
+        const slot = slots.find(s => s.slot_id === expandedSlotId);
+        if (!slot?.elevenlabs_api_key) return;
+        if (elevenVoicesBySlot[slot.slot_id]) return;
+        loadElevenVoices(slot.slot_id);
+    }, [activeSlotTab, expandedSlotId, slots, elevenVoicesBySlot]);
+
+    useEffect(() => {
+        return () => {
+            if (previewAudioRef.current) {
+                previewAudioRef.current.pause();
+                previewAudioRef.current = null;
+            }
+        };
+    }, []);
+
     const loadData = async () => {
         if (slots.length === 0) setLoading(true);
         try {
@@ -131,6 +152,110 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (slots.length === 0) toast.error("Error cargando datos", { description: "Verifica tu conexión." });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadElevenVoices = async (slotId, forceRefresh = false) => {
+        if (!slotId) return;
+        setLoadingElevenVoices(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const refreshParam = forceRefresh ? "&refresh=1" : "";
+            const res = await authFetch(`/agency/elevenlabs/voices?locationId=${location.location_id}&slotId=${slotId}${refreshParam}`);
+            if (res && res.ok) {
+                const data = await res.json();
+                setElevenVoicesBySlot(prev => ({ ...prev, [slotId]: data.voices || [] }));
+            } else if (res) {
+                const errText = await res.text();
+                toast.error("Error cargando voces", { description: errText || "Respuesta inválida" });
+            }
+        } catch (e) {
+            toast.error("Error cargando voces");
+        } finally {
+            setLoadingElevenVoices(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const saveElevenApiKey = async (slotId, rawKey) => {
+        const apiKey = (rawKey || "").trim();
+        if (!apiKey) {
+            toast.error("Ingresa una Key válida");
+            return false;
+        }
+
+        const loadingId = toast.loading("Validando API Key...");
+        try {
+            const validateRes = await authFetch(`/agency/elevenlabs/validate`, {
+                method: 'POST',
+                body: JSON.stringify({ apiKey })
+            });
+
+            if (!validateRes) return false;
+
+            if (!validateRes.ok) {
+                const err = await validateRes.json().catch(() => ({}));
+                toast.error("API Key inválida", { description: err.error || "No se pudo validar" });
+                return false;
+            }
+
+            const validateData = await validateRes.json();
+            await authFetch(`/agency/update-slot-config`, {
+                method: 'POST',
+                body: JSON.stringify({ locationId: location.location_id, slotId, elevenlabs_api_key: apiKey })
+            });
+
+            toast.success("API Key guardada");
+            setElevenVoicesBySlot(prev => ({ ...prev, [slotId]: validateData.voices || [] }));
+            loadData();
+            return true;
+        } catch (e) {
+            toast.error("Error validando API Key");
+            return false;
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const playVoicePreview = async (slotId, voiceId) => {
+        try {
+            if (!voiceId) {
+                toast.error("Selecciona una voz para el preview");
+                return;
+            }
+            const previewText = (previewTextBySlot[slotId] || "").trim();
+            const res = await authFetch(`/agency/elevenlabs/preview`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    voiceId,
+                    text: previewText || undefined
+                })
+            });
+
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                toast.error("Preview falló", { description: err.error || "No se pudo generar" });
+                return;
+            }
+
+            const data = await res.json();
+            if (!data.url) {
+                toast.error("Preview inválido");
+                return;
+            }
+
+            if (previewAudioRef.current) {
+                previewAudioRef.current.pause();
+                previewAudioRef.current = null;
+            }
+
+            const audio = new Audio(data.url);
+            previewAudioRef.current = audio;
+            await audio.play();
+        } catch (e) {
+            toast.error("Error reproduciendo preview");
         }
     };
 
@@ -594,6 +719,144 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                              <Trash2 size={18} />
                                                                          </button>
                                                                      )}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* 🔥 NUEVO: ElevenLabs Key + Voz por defecto */}
+                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                <div className="flex justify-between items-start mb-4">
+                                                                    <div>
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                            <div className="w-6 h-6 bg-sky-100 dark:bg-sky-900/30 text-sky-600 rounded flex items-center justify-center">
+                                                                                <Mic size={14} />
+                                                                            </div>
+                                                                            ElevenLabs API Key (Voces)
+                                                                        </label>
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                            Configura una key única para este número. Dejar vacío para desactivar.
+                                                                        </p>
+                                                                    </div>
+                                                                    {slot.elevenlabs_api_key && (
+                                                                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                                                            Conectado
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="password"
+                                                                        name={`elevenlabs_key_${slot.slot_id}`}
+                                                                        autoComplete="new-password"
+                                                                        placeholder={slot.elevenlabs_api_key ? "•••••••••••••••• (Oculto)" : "sk_..."}
+                                                                        className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition font-mono text-sm"
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === 'Enter') {
+                                                                                const val = e.target.value;
+                                                                                saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                    if (ok) e.target.value = "";
+                                                                                });
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            const input = e.currentTarget.previousElementSibling;
+                                                                            const val = input.value;
+                                                                            saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                if (ok) input.value = "";
+                                                                            });
+                                                                        }}
+                                                                        className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
+                                                                    >
+                                                                        <Save size={18} /> Guardar
+                                                                    </button>
+
+                                                                    {slot.elevenlabs_api_key && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (confirm("¿Borrar API Key de este número?")) {
+                                                                                    authFetch(`/agency/update-slot-config`, {
+                                                                                        method: 'POST',
+                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_api_key: "", elevenlabs_voice_id: "" })
+                                                                                    }).then(() => {
+                                                                                        toast.success("API Key eliminada");
+                                                                                        loadData();
+                                                                                        setElevenVoicesBySlot(prev => ({ ...prev, [slot.slot_id]: [] }));
+                                                                                    });
+                                                                                }
+                                                                            }}
+                                                                            className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                            title="Borrar Key"
+                                                                        >
+                                                                            <Trash2 size={18} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="mt-4">
+                                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                                        Voz por defecto
+                                                                    </label>
+                                                                    <div className="mb-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={previewTextBySlot[slot.slot_id] || ""}
+                                                                            onChange={(e) => setPreviewTextBySlot(prev => ({ ...prev, [slot.slot_id]: e.target.value }))}
+                                                                            placeholder="Texto para preview (opcional)"
+                                                                            className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition text-sm"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="flex gap-2 items-center">
+                                                                        <select
+                                                                            className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none"
+                                                                            value={slot.elevenlabs_voice_id || ""}
+                                                                            disabled={!slot.elevenlabs_api_key}
+                                                                            onChange={(e) => {
+                                                                                const val = e.target.value;
+                                                                                authFetch(`/agency/update-slot-config`, {
+                                                                                    method: 'POST',
+                                                                                    body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_voice_id: val })
+                                                                                }).then(() => {
+                                                                                    toast.success("Voz por defecto guardada");
+                                                                                    loadData();
+                                                                                });
+                                                                            }}
+                                                                        >
+                                                                            <option value="">{slot.elevenlabs_api_key ? "Sin voz por defecto" : "Configura la API Key primero"}</option>
+                                                                            {slot.elevenlabs_voice_id && !(elevenVoicesBySlot[slot.slot_id] || []).some(v => v.id === slot.elevenlabs_voice_id) && (
+                                                                                <option value={slot.elevenlabs_voice_id}>Voz actual ({slot.elevenlabs_voice_id})</option>
+                                                                            )}
+                                                                            {(elevenVoicesBySlot[slot.slot_id] || []).map(v => (
+                                                                                <option key={v.id} value={v.id}>{v.name}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                        <button
+                                                                            onClick={() => loadElevenVoices(slot.slot_id, true)}
+                                                                            disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                            className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                            title="Actualizar voces"
+                                                                        >
+                                                                            <RefreshCw size={18} className={loadingElevenVoices[slot.slot_id] ? "animate-spin" : ""} />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                const fallbackVoice = (elevenVoicesBySlot[slot.slot_id] || [])[0]?.id || "";
+                                                                                const previewVoice = slot.elevenlabs_voice_id || fallbackVoice;
+                                                                                playVoicePreview(slot.slot_id, previewVoice);
+                                                                            }}
+                                                                            disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                            className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                            title="Preview"
+                                                                        >
+                                                                            <Play size={18} />
+                                                                        </button>
+                                                                    </div>
+                                                                    {slot.elevenlabs_api_key && (elevenVoicesBySlot[slot.slot_id] || []).length === 0 && !loadingElevenVoices[slot.slot_id] && (
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                                            No hay voces cargadas o no se pudieron obtener.
+                                                                        </p>
+                                                                    )}
                                                                 </div>
                                                             </div>
 
