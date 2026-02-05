@@ -131,7 +131,7 @@ export default function InteractiveMessageBuilder() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                        Constructor Visual de Mensajes
+                        Constructor Visual de Mensajes Interactivos
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         Crea mensajes interactivos sin codigo y genera el comando listo para usar.
