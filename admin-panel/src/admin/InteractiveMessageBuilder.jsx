@@ -10,16 +10,22 @@ const BUTTON_TYPES = [
 ];
 
 const PLACEHOLDER_BY_TYPE = {
-    reply: 'Texto de respuesta (opcional)',
+    reply: 'ID opcional',
     url: 'https://tu-enlace.com',
     call: '+34 600 000 000',
     copy: 'Texto a copiar'
 };
 
+const TYPE_MAP = {
+    reply: 'quick_reply',
+    url: 'cta_url',
+    call: 'cta_call',
+    copy: 'cta_copy'
+};
+
 const sanitizePart = (value) =>
     (value || '')
-        .replace(/\|/g, '\\|')
-        .replace(/;/g, '\\;')
+        .replace(/[|*]/g, ' ')
         .trim();
 
 export default function InteractiveMessageBuilder() {
@@ -34,17 +40,25 @@ export default function InteractiveMessageBuilder() {
     const isEditing = editingId !== null;
 
     const commandString = useMemo(() => {
-        const buttonPart = buttons
-            .map((btn) => `${btn.type},${sanitizePart(btn.label)},${sanitizePart(btn.value)}`)
-            .join(';');
-        return [
+        const bodyWithFooter = [body, footer].filter(Boolean).join('\n\n');
+        const segments = [
             '#btn',
             sanitizePart(title),
-            sanitizePart(body),
-            sanitizePart(footer),
-            sanitizePart(imageUrl),
-            buttonPart
-        ].join('|');
+            sanitizePart(bodyWithFooter)
+        ];
+
+        if (imageUrl) {
+            segments.push(`image*${sanitizePart(imageUrl)}`);
+        }
+
+        buttons.forEach((btn) => {
+            const mappedType = TYPE_MAP[btn.type] || btn.type;
+            segments.push(
+                `${mappedType}*${sanitizePart(btn.label)}*${sanitizePart(btn.value)}`
+            );
+        });
+
+        return segments.join('|');
     }, [title, body, footer, imageUrl, buttons]);
 
     const previewImage = useMemo(() => {
@@ -166,7 +180,7 @@ export default function InteractiveMessageBuilder() {
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                    Pie de pagina
+                                    Pie de pagina (se agrega al cuerpo)
                                 </label>
                                 <input
                                     type="text"
@@ -369,7 +383,7 @@ export default function InteractiveMessageBuilder() {
                             {commandString}
                         </div>
                         <p className="text-xs text-gray-400 mt-3">
-                            Formato: <span className="font-mono">#btn|Title|Body|Footer|ImageUrl|type,label,value;</span>
+                            Formato: <span className="font-mono">#btn|Titulo|Cuerpo|image*URL|quick_reply*Texto*ID</span>
                         </p>
                     </div>
                 </div>

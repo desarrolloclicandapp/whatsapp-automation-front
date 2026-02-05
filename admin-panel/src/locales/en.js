@@ -182,6 +182,7 @@ export const en = {
     "dash.nav.overview": "Dashboard",
     "dash.nav.billing": "Subscription",
     "dash.nav.settings": "Settings",
+    "dash.nav.builder": "Builder",
     "dash.nav.support": "Support",
     "dash.nav.logout": "Logout",
     "dash.nav.docs": "Documentation",
@@ -189,6 +190,7 @@ export const en = {
     "dash.header.overview": "Dashboard",
     "dash.header.billing": "Subscription Management",
     "dash.header.settings": "Settings",
+    "dash.header.builder": "Builder",
 
     "dash.stats.subaccounts": "Subaccounts",
     "dash.stats.connections": "WA Connections",
@@ -411,3 +413,4 @@ export const en = {
     "dash.users.soft_delete_tooltip": "Deactivate User",
     "dash.users.reactivate_tooltip": "Reactivate User"
 };
+
