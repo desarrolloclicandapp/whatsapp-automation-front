@@ -7,6 +7,7 @@ import SubscriptionModal from './SubscriptionModal';
 import SubscriptionBlocker from './SubscriptionBlocker';
 import ExpiryPopup from './ExpiryPopup'; // ✅ Importar Popup
 import InactiveUserModal from './InactiveUserModal'; // ✅ Importar Modal Inactivo
+import InteractiveMessageBuilder from './InteractiveMessageBuilder';
 import ThemeToggle from '../components/ThemeToggle';
 import LanguageSelector from '../components/LanguageSelector'; 
 import { useLanguage } from '../context/LanguageContext'; 
@@ -19,7 +20,7 @@ import {
     ExternalLink, Menu, CheckCircle2, ChevronRight, ArrowRight, Zap,
     TrendingUp, ShieldCheck, Settings, Trash2,
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
-    Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Mic // ✅ Iconos
+    Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Mic, Hammer // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -557,6 +558,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="overview" icon={LayoutGrid} label={t('dash.nav.overview')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="billing" icon={CreditCard} label={t('dash.nav.billing')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="settings" icon={Settings} label={t('dash.nav.settings')} branding={branding} sidebarOpen={sidebarOpen} />
+                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="builder" icon={Hammer} label={t('dash.nav.builder') || "Constructor"} branding={branding} sidebarOpen={sidebarOpen} />
                     <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
                     <a href="https://docs.waflow.ai/docs/" target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}><BookOpen size={20} />{sidebarOpen && <span>{t('dash.nav.docs')}</span>}</a>
                     <a href={`https://wa.me/${SUPPORT_PHONE}`} target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}><LifeBuoy size={20} />{sidebarOpen && <span>{t('dash.nav.support')}</span>}</a>
@@ -568,7 +570,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F8FAFC] dark:bg-[#0f1117]">
                 <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 z-20">
-                    <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : t('dash.header.settings')}</h2></div>
+                    <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : activeTab === 'builder' ? (t('dash.header.builder') || "Constructor") : t('dash.header.settings')}</h2></div>
                     <div className="flex items-center gap-4"><LanguageSelector /><ThemeToggle /><div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div></div>
                 </header>
 
@@ -817,6 +819,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     )}
 
+                    {activeTab === 'builder' && <InteractiveMessageBuilder />}
+
                     {activeTab === 'billing' && <SubscriptionManager token={token} accountInfo={accountInfo} onDataChange={refreshData} />}
                 </main>
             </div>
@@ -904,3 +908,4 @@ const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
 //        </div>
 //    );
 //};
+
