@@ -4,19 +4,9 @@ import {
     X, Check, Zap, Building2, Smartphone,
     CreditCard, FileText, Layers, PlusCircle, ExternalLink, Crown, AlertCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
+import { ADDONS } from './constants/plans';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
-
-// --- CONFIGURACIÓN DE ADD-ONS (IDs REALES) ---
-const ADDONS = {
-    // Subagencia (+5 Slots)
-    SUB_UNIT_STD: 'price_1SfK2d7Mhd9qo6A8AI3ZkOQT', // 20€ (Normal)
-    SUB_UNIT_VIP: 'price_1SfK547Mhd9qo6A8SfvT8GF4', // 10€ (VIP)
-
-    // Slot Individual
-    SLOT_UNIT_STD: 'price_1SfK787Mhd9qo6A8WmPRs9Zy', // 5€ (Normal)
-    SLOT_UNIT_VIP: 'price_1SfK827Mhd9qo6A89iZ68SRi'  // 3€ (VIP)
-};
 
 export default function SubscriptionModal({ onClose, token, accountInfo, blocking = false }) {
     const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'payment_methods' | 'invoices'

@@ -624,7 +624,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                 </div>
 
                                 {/* Formulario de Stripe Elements */}
-                                <PaymentMethodForm token={token} />
+                                <PaymentMethodForm token={token} onMethodAdded={fetchPaymentMethods} />
 
                                 {/* Enlace al portal de Stripe para más opciones */}
                                 <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
