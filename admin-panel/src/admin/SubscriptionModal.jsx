@@ -22,9 +22,10 @@ export default function SubscriptionModal({ onClose, token, accountInfo, blockin
     // 1. Estado Actual del Cliente (Límites Totales para calcular descuentos)
     const totalSubs = accountInfo?.limits?.max_subagencies || 0;
 
-    // --- LÓGICA DE DESCUENTO DINÁMICO ---
-    // Si tiene 10 o más agencias es VIP.
-    const hasVolumeDiscount = totalSubs >= 10;
+    // Access rule for add-ons/extras: only users with >= 10 subaccounts.
+    const hasAddonAccess = totalSubs >= 10;
+    // Existing naming retained for current price/label rendering.
+    const hasVolumeDiscount = hasAddonAccess;
 
     // Seleccionamos ID y Precio a mostrar según el descuento
     const subPriceId = hasVolumeDiscount ? ADDONS.SUB_UNIT_VIP : ADDONS.SUB_UNIT_STD;
@@ -47,8 +48,8 @@ export default function SubscriptionModal({ onClose, token, accountInfo, blockin
             if (res.ok) {
                 const data = await res.json();
                 setRealSubscriptions(data);
-                // Si no tiene servicios, abrimos el menú automáticamente para invitar a comprar
-                if (data.length === 0) setShowServiceMenu(true);
+                // If user is eligible and has no services, open add-ons menu by default.
+                if (data.length === 0 && hasAddonAccess) setShowServiceMenu(true);
             }
         } catch (e) { console.error("Error cargando suscripciones:", e); }
         finally { setFetching(false); }
@@ -216,50 +217,56 @@ export default function SubscriptionModal({ onClose, token, accountInfo, blockin
 
                             {/* SECCIÓN B: BOTÓN AGREGAR SERVICIO */}
                             <div className="pt-2">
-                                {!showServiceMenu ? (
-                                    <button
-                                        onClick={() => setShowServiceMenu(true)}
-                                        className="w-full py-4 border-2 border-dashed border-indigo-200 dark:border-indigo-900 hover:border-indigo-500 dark:hover:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/10 text-indigo-600 dark:text-indigo-400 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:bg-indigo-50 hover:shadow-sm"
-                                    >
-                                        <PlusCircle size={20} />
-                                        Agregar Nuevo Servicio
-                                    </button>
-                                ) : (
-                                    <div className="bg-gray-100 dark:bg-gray-800/50 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 animate-in fade-in slide-in-from-top-4">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                <Zap size={18} className="text-yellow-500 fill-current" /> Selecciona un Servicio
-                                            </h3>
-                                            <button
-                                                onClick={() => setShowServiceMenu(false)}
-                                                className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-                                            >
-                                                Ocultar <ChevronUp size={16} />
-                                            </button>
-                                        </div>
+                                {hasAddonAccess ? (
+                                    !showServiceMenu ? (
+                                        <button
+                                            onClick={() => setShowServiceMenu(true)}
+                                            className="w-full py-4 border-2 border-dashed border-indigo-200 dark:border-indigo-900 hover:border-indigo-500 dark:hover:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/10 text-indigo-600 dark:text-indigo-400 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:bg-indigo-50 hover:shadow-sm"
+                                        >
+                                            <PlusCircle size={20} />
+                                            Agregar Nuevo Servicio
+                                        </button>
+                                    ) : (
+                                        <div className="bg-gray-100 dark:bg-gray-800/50 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 animate-in fade-in slide-in-from-top-4">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                    <Zap size={18} className="text-yellow-500 fill-current" /> Selecciona un Servicio
+                                                </h3>
+                                                <button
+                                                    onClick={() => setShowServiceMenu(false)}
+                                                    className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                                                >
+                                                    Ocultar <ChevronUp size={16} />
+                                                </button>
+                                            </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {/* Tarjeta Subagencia */}
-                                            <AddonCard
-                                                title="Subcuenta Adicional"
-                                                desc="Licencia agencia + 5 Slots WhatsApp."
-                                                price={subDisplayPrice}
-                                                icon={Building2}
-                                                color="indigo"
-                                                features={['Acceso CRM', 'Gestión independiente', '5 Números incluidos']}
-                                                onBuy={() => handlePurchase(subPriceId)}
-                                            />
-                                            {/* Tarjeta Slot */}
-                                            <AddonCard
-                                                title="WhatsApp Adicional"
-                                                desc="Añade más números a una subcuenta."
-                                                price={slotDisplayPrice}
-                                                icon={Smartphone}
-                                                color="emerald"
-                                                features={['Línea dedicada', 'Reconexión automática', 'Multi-dispositivo']}
-                                                onBuy={() => handlePurchase(slotPriceId)}
-                                            />
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                {/* Tarjeta Subagencia */}
+                                                <AddonCard
+                                                    title="Subcuenta Adicional"
+                                                    desc="Licencia agencia + 5 Slots WhatsApp."
+                                                    price={subDisplayPrice}
+                                                    icon={Building2}
+                                                    color="indigo"
+                                                    features={['Acceso CRM', 'Gestión independiente', '5 Números incluidos']}
+                                                    onBuy={() => handlePurchase(subPriceId)}
+                                                />
+                                                {/* Tarjeta Slot */}
+                                                <AddonCard
+                                                    title="WhatsApp Adicional"
+                                                    desc="Añade más números a una subcuenta."
+                                                    price={slotDisplayPrice}
+                                                    icon={Smartphone}
+                                                    color="emerald"
+                                                    features={['Línea dedicada', 'Reconexión automática', 'Multi-dispositivo']}
+                                                    onBuy={() => handlePurchase(slotPriceId)}
+                                                />
+                                            </div>
                                         </div>
+                                    )
+                                ) : (
+                                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-300">
+                                        Los extras y add-ons están disponibles solo para cuentas con 10 o más subcuentas instaladas.
                                     </div>
                                 )}
                             </div>

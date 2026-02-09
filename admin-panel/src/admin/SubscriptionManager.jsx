@@ -50,9 +50,10 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
     // los planes limitados en números. Si NO tiene Lifetime pero tiene 10+, muestra ilimitados)
     const isVolumeUser = totalSubs >= 10 && !hasLifetime;
 
-    // Define hasVolumeDiscount for styling and pricing purposes
-    // Applies if Logic Volume User (>=10) OR Lifetime User (Founder)
-    const hasVolumeDiscount = totalSubs >= 10 || hasLifetime;
+    // Access rule for add-ons/extras: only users with >= 10 subaccounts.
+    const hasAddonAccess = totalSubs >= 10;
+    // Keep naming for existing price/badge UI blocks.
+    const hasVolumeDiscount = hasAddonAccess;
 
     // DETERMINAR QUÉ PLANES MOSTRAR EL EN CATÁLOGO
     let availablePlans = [];
@@ -569,7 +570,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
 
                         {/* 3. SECCIÓN EXTRAS (Con descuento VIP) */}
                         {
-                            subscriptions.length > 0 && (
+                            subscriptions.length > 0 && hasAddonAccess && (
                                 <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-800">
                                     <div className="flex items-center gap-3">
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><PlusCircle size={18} className="text-emerald-500" /> {t('sub.extras.title')}</h3>
@@ -601,6 +602,15 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                                 <button onClick={() => handlePurchase(slotPriceId)} className="text-sm font-bold text-emerald-600 hover:underline">{t('sub.extras.add')}</button>
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                            )
+                        }
+                        {
+                            subscriptions.length > 0 && !hasAddonAccess && (
+                                <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+                                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-300">
+                                        Los extras y add-ons estÃ¡n disponibles solo para cuentas con 10 o mÃ¡s subcuentas instaladas.
                                     </div>
                                 </div>
                             )
