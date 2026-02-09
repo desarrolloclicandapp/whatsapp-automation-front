@@ -146,6 +146,12 @@ export const en = {
     "sub.plan.starter_volume": "Starter Volume",
     "sub.plan.founders_pass": "Founder's Pass",
 
+
+    // Plan extras
+    "sub.plan.extra_sub": "Extra Subaccount",
+    "sub.plan.extra_number": "Extra Number",
+    "sub.extras.only_for_10_subs": "Only for 10 Subaccounts, can have extra addons",
+
     // Plan badges
     "sub.badge.start": "Start",
     "sub.badge.popular": "Popular",
@@ -225,8 +231,6 @@ export const en = {
     "common.name": "Name",
     "common.prefix": "Prefix",
     "common.action": "Action",
-    "common.copied": "Copied",
-    "common.understood": "Understood",
     "common.events": "Events",
 
     // LOCATION / SLOTS MODAL

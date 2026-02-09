@@ -34,6 +34,10 @@ export const es = {
     "sub.plan.year": "/año",
     "sub.plan.contract": "Contratar Plan",
     "sub.plan.processing": "Procesando...",
+    "sub.plan.extra_sub": "Extra subaccound",
+    "sub.plan.extra_number": "Numero Extra",
+    "sub.extras.only_for_10_subs": "Solo para 10 Subaccounts, puede tener addons extras",
+
 
     "sub.lifetime.title": "Founder's Plan",
     "sub.lifetime.badge": "PAGO ÚNICO",
@@ -225,8 +229,6 @@ export const es = {
     "common.name": "Nombre",
     "common.prefix": "Prefijo",
     "common.action": "Acción",
-    "common.copied": "Copiado",
-    "common.understood": "Entendido",
     "common.events": "Eventos",
 
     // LOCATION / SLOTS MODAL

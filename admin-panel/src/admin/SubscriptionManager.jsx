@@ -610,7 +610,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                             subscriptions.length > 0 && !hasAddonAccess && (
                                 <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
                                     <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-300">
-                                        Los extras y add-ons estÃ¡n disponibles solo para cuentas con 10 o mÃ¡s subcuentas instaladas.
+                                        {t('sub.extras.only_for_10_subs')}
                                     </div>
                                 </div>
                             )
