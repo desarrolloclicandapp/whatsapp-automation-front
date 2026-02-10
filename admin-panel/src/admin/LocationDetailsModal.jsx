@@ -884,7 +884,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     </div> 
                                                                     */}
                                                                 </>
-                                                            )}
+                                                        )}
+                                                        </div>
+                                                    )}
                                                             {activeSlotTab === 'keywords' && (
                                                                 <div className="max-w-2xl">
                                                                     <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
@@ -1094,6 +1096,8 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
         </div>
     );
 }
+
+
 
 
 
