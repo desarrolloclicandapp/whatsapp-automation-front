@@ -404,6 +404,13 @@ export default function AgencyDashboard({ token, onLogout }) {
         localStorage.setItem("crmDomain", cleaned);
         toast.success(t('agency.crm.domain_saved'), { description: `${t('agency.crm.domain_saved_desc')} ${cleaned}` });
     };
+    const openGhlPortal = () => {
+        const domain = (crmDomain || t('agency.crm.domain_placeholder') || "app.gohighlevel.com")
+            .replace(/^https?:\/\//, '')
+            .replace(/\/$/, '')
+            .trim();
+        window.open(`https://${domain}`, "_blank", "noopener");
+    };
 
     const filteredLocations = locations.filter(loc =>
         loc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -668,6 +675,49 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             )}
 
+                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <Link size={20} className="text-indigo-500" /> {t('agency.integrations.title')}
+                                        </h3>
+                                        <p className="text-sm text-gray-500 mt-1">
+                                            {t('agency.integrations.desc')}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 gap-4">
+                                    <div className="border border-gray-200 dark:border-gray-800 rounded-2xl p-5 bg-gray-50/70 dark:bg-gray-800/40">
+                                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-10 h-10 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+                                                    <Globe size={18} className="text-indigo-600 dark:text-indigo-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-base font-bold text-gray-900 dark:text-white">GoHighLevel</h4>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('agency.integrations.ghl_desc')}</p>
+                                                </div>
+                                            </div>
+                                            <span className={`px-3 py-1 text-xs font-bold uppercase rounded-full border ${
+                                                isGhlAgency
+                                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                                                    : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900/40 dark:text-gray-400 dark:border-gray-800'
+                                            }`}>
+                                                {isGhlAgency ? t('agency.integrations.status_active') : t('agency.integrations.status_available')}
+                                            </span>
+                                        </div>
+                                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                                            <button
+                                                onClick={openGhlPortal}
+                                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-md transition"
+                                            >
+                                                <ExternalLink size={16} /> {t('agency.integrations.open')}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* ✅ NUEVO: AGENCIA SOPORTE (Ahora protegido por Wrapper) */}
                             <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.support.title')}>
                                 <SupportManager 
@@ -913,4 +963,6 @@ const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
 //        </div>
 //    );
 //};
+
+
 

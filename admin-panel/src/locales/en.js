@@ -341,6 +341,14 @@ export const en = {
     "agency.crm.install_domain": "Installation Domain",
     "agency.crm.install_link": "Current install link:",
 
+    // Agency Dashboard - Integrations
+    "agency.integrations.title": "Integrations",
+    "agency.integrations.desc": "Manage the connections available for your agency.",
+    "agency.integrations.ghl_desc": "Open the GoHighLevel portal to manage subaccounts and installations.",
+    "agency.integrations.open": "Open portal",
+    "agency.integrations.status_active": "Active",
+    "agency.integrations.status_available": "Available",
+
     // Agency Dashboard - Voice Notes
     "agency.voice.title": "Voice Notes in CRM",
     "agency.voice.desc": "Send WhatsApp voice notes directly from GHL.",
