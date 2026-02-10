@@ -260,18 +260,18 @@ export const es = {
     "slots.settings.transcribe": "Transcripción IA",
     "slots.settings.transcribe_desc": "Audio a Texto (Whisper).",
     "slots.settings.create_contacts": "Crear Contactos",
-    "slots.settings.create_contacts_desc": "Registrar desconocidos en GHL.",
+    "slots.settings.create_contacts_desc": "Registrar desconocidos en tu CRM.",
     "slots.settings.alert_disconnect": "Alerta Desconexión",
     "slots.settings.alert_disconnect_desc": "Avisar al número si se desconecta.",
 
     // GHL
-    "slots.ghl.tag_auto": "Tag Automático (Entrante)",
-    "slots.ghl.tag_auto_ph": "Ej: whatsapp-ventas",
-    "slots.ghl.user": "Usuario Responsable",
-    "slots.ghl.user_none": "-- Sin asignar --",
-    "slots.ghl.routing": "Tag de Enrutamiento (Prioridad)",
-    "slots.ghl.routing_ph": "Ej: soporte",
-    "slots.ghl.routing_desc": "Si el contacto tiene este tag, se usará este número.",
+    "slots.integration.tag_auto": "Tag Automático (Entrante)",
+    "slots.integration.tag_auto_ph": "Ej: whatsapp-ventas",
+    "slots.integration.user": "Usuario Responsable",
+    "slots.integration.user_none": "-- Sin asignar --",
+    "slots.integration.routing": "Tag de Enrutamiento (Prioridad)",
+    "slots.integration.routing_ph": "Ej: soporte",
+    "slots.integration.routing_desc": "Si el contacto tiene este tag, se usará este número.",
 
     // Keywords
     "slots.kw.input": "Si el cliente dice...",
@@ -291,9 +291,9 @@ export const es = {
     "agency.connection_error": "Error de conexión",
 
     // Agency Dashboard - Installation
-    "agency.install.waiting": "Esperando instalación de GHL...",
+    "agency.install.waiting": "Esperando instalación de CRM...",
     "agency.install.detected": "Instalación detectada, sincronizando...",
-    "agency.install.waiting_webhook": "Esperando webhook de GHL...",
+    "agency.install.waiting_webhook": "Esperando webhook de CRM...",
     "agency.install.sync_failed": "No se pudo completar la sincronización.",
     "agency.install.completed": "¡Instalación completada!",
     "agency.install.error": "Error en instalación",
@@ -335,11 +335,12 @@ export const es = {
     "agency.crm.title": "Configuración de Dominio CRM",
     "agency.crm.desc": "Define el dominio donde instalarás las subcuentas (ej: app.gohighlevel.com o tu marca blanca).",
     "agency.crm.save_btn": "Guardar Dominio",
+    "agency.crm.domain_placeholder": "app.gohighlevel.com",
     "agency.crm.install_domain": "Dominio de Instalación",
     "agency.crm.install_link": "Link de instalación actual:",
 
     // Agency Dashboard - Voice Notes
-    "agency.voice.title": "Notas de Voz en GHL",
+    "agency.voice.title": "Notas de Voz en CRM",
     "agency.voice.desc": "Envía notas de voz de WhatsApp directamente desde GHL.",
     "agency.voice.api_key_label": "API Key para el script",
     "agency.voice.api_key_placeholder": "Pega tu API Key wf_live_...",
@@ -415,4 +416,7 @@ export const es = {
     "dash.users.soft_delete_tooltip": "Desactivar Usuario",
     "dash.users.reactivate_tooltip": "Reactivar Usuario"
 };
+
+
+
 

@@ -54,7 +54,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
         }
 
         const checkExistingGHL = async () => {
-            const locId = sessionStorage.getItem("ghl_location_id");
+            const locId = sessionStorage.getItem("crm_location_id") || sessionStorage.getItem("ghl_location_id");
             if (!locId) return;
 
             try {

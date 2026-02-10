@@ -53,6 +53,8 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const [accountInfo, setAccountInfo] = useState(null);
     const isRestricted = (accountInfo?.plan || '').toLowerCase().includes('starter');
+    const agencyCrmType = String(accountInfo?.crm_type || localStorage.getItem("crmType") || "ghl").toLowerCase();
+    const isGhlAgency = agencyCrmType === "ghl";
     const [searchTerm, setSearchTerm] = useState("");
     const [userEmail, setUserEmail] = useState("");
 
@@ -62,7 +64,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
 
     // ✅ NUEVO: Estado para Dominio CRM (Persistente en LocalStorage)
-    const [crmDomain, setCrmDomain] = useState(localStorage.getItem("crmDomain") || "app.gohighlevel.com");
+    const [crmDomain, setCrmDomain] = useState(localStorage.getItem("crmDomain") || "");
 
     // Estados API Keys & Webhooks
     const [apiKeys, setApiKeys] = useState([]);
@@ -218,7 +220,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         const oauthCode = queryParams.get("code");
         console.log(`🔎 Parsed Params -> Location: ${targetLocationId}, Code: ${oauthCode ? 'PRESENT' : 'MISSING'}`);
         
-        if (targetLocationId && !isAutoSyncing) autoSyncAgency(targetLocationId, oauthCode);
+        if (isGhlAgency && targetLocationId && !isAutoSyncing) autoSyncAgency(targetLocationId, oauthCode);
         try { const payload = JSON.parse(atob(token.split('.')[1])); setUserEmail(payload.email); } catch (e) { }
 
         // ✅ Cargar Branding del Servidor al montar
@@ -377,7 +379,8 @@ export default function AgencyDashboard({ token, onLogout }) {
             if (data.allowed) {
                 // 🔥 URL Dinámica usando el dominio preferido del usuario
                 // Si el usuario no configuró nada, usa app.gohighlevel.com por defecto
-                const installUrl = `https://${crmDomain}/integration/${APP_ID}`;
+                const cleanedDomain = (crmDomain || "app.gohighlevel.com").replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
+                const installUrl = `https://${cleanedDomain}/integration/${APP_ID}`;
                 
                 console.log("Redirigiendo a:", installUrl);
                 window.location.href = installUrl;
@@ -603,7 +606,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     <div className="relative z-10"><div className="flex justify-between items-start mb-4"><div className="w-12 h-12 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors shadow-sm"><Building2 size={24} /></div><button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button></div><h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate pr-2">{loc.name || t('agency.location.no_name')}</h4><p className="text-xs font-mono text-gray-400 mb-6 bg-gray-50 dark:bg-gray-800/50 inline-block px-1.5 py-0.5 rounded">{loc.location_id}</p><div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800"><p className="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2"><Smartphone size={16} className="text-indigo-500" /> {loc.total_slots || 0} <span className="text-gray-400 font-normal text-xs">{t('agency.location.connections')}</span></p><div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all"><ChevronRight size={16} /></div></div></div>
                                                 </div>
                                             ))}
-                                            {!searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
+                                            {isGhlAgency && !searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
                                                     <div key={`empty-${idx}`} onClick={handleInstallApp} className="group relative bg-gray-50/50 dark:bg-gray-900/20 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 transition-all duration-300 min-h-[220px]">
                                                     <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-all"><Plus size={32} className="text-gray-300 group-hover:text-indigo-600" /></div><h4 className="font-bold text-gray-900 dark:text-white mb-1">{t('agency.location.empty_title')}</h4><p className="text-xs text-gray-500 px-6">{t('agency.location.empty_desc')}</p>
                                                 </div>
@@ -628,40 +631,42 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </div>
 
                             {/* ✅ NUEVO: CONFIGURACIÓN DE DOMINIO CRM */}
-                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
-                                    <div>
-                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                            <Globe size={20} className="text-blue-500" /> {t('agency.crm.title')}
-                                        </h3>
-                                        <p className="text-sm text-gray-500 mt-1">
-                                            {t('agency.crm.desc')}
+                            {isGhlAgency && (
+                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                                    <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <Globe size={20} className="text-blue-500" /> {t('agency.crm.title')}
+                                            </h3>
+                                            <p className="text-sm text-gray-500 mt-1">
+                                                {t('agency.crm.desc')}
+                                            </p>
+                                        </div>
+                                        <button 
+                                            onClick={handleSaveCrmDomain}
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2"
+                                        >
+                                            <Save size={16} /> {t('agency.crm.save_btn')}
+                                        </button>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.crm.install_domain')}</label>
+                                        <div className="flex gap-2">
+                                            <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-l-xl text-gray-500 select-none">https://</div>
+                                            <input 
+                                                type="text" 
+                                                className="flex-1 p-3 border-y border-r border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-r-xl outline-none focus:ring-2 focus:ring-indigo-500" 
+                                                value={crmDomain}
+                                                onChange={(e) => setCrmDomain(e.target.value)}
+                                                placeholder={t('agency.crm.domain_placeholder')}
+                                            />
+                                        </div>
+                                        <p className="text-xs text-gray-400 mt-2">
+                                        {t('agency.crm.install_link')} <span className="font-mono text-indigo-500">https://{(crmDomain || t('agency.crm.domain_placeholder'))}/integration/{APP_ID}</span>
                                         </p>
                                     </div>
-                                    <button 
-                                        onClick={handleSaveCrmDomain}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2"
-                                    >
-                                        <Save size={16} /> {t('agency.crm.save_btn')}
-                                    </button>
                                 </div>
-                                <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.crm.install_domain')}</label>
-                                    <div className="flex gap-2">
-                                        <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-l-xl text-gray-500 select-none">https://</div>
-                                        <input 
-                                            type="text" 
-                                            className="flex-1 p-3 border-y border-r border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-r-xl outline-none focus:ring-2 focus:ring-indigo-500" 
-                                            value={crmDomain}
-                                            onChange={(e) => setCrmDomain(e.target.value)}
-                                            placeholder="app.gohighlevel.com"
-                                        />
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-2">
-                                        {t('agency.crm.install_link')} <span className="font-mono text-indigo-500">https://{crmDomain}/integration/{APP_ID}</span>
-                                    </p>
-                                </div>
-                            </div>
+                            )}
 
                             {/* ✅ NUEVO: AGENCIA SOPORTE (Ahora protegido por Wrapper) */}
                             <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.support.title')}>

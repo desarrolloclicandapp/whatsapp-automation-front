@@ -14,9 +14,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
     const [keywords, setKeywords] = useState([]);
-    const [ghlUsers, setGhlUsers] = useState([]);
+    const [crmUsers, setCrmUsers] = useState([]);
     const [locationName, setLocationName] = useState(location.name || "");
     const [whiteLabelEnabled, setWhiteLabelEnabled] = useState(true);
+    const [tenantSettings, setTenantSettings] = useState(location.settings || {});
     const [maxSubagencies, setMaxSubagencies] = useState(null);
     const [loading, setLoading] = useState(true);
     const rawFeatures = localStorage.getItem("agencyFeatures");
@@ -39,6 +40,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [loadingElevenVoices, setLoadingElevenVoices] = useState({});
     const previewAudioRef = useRef(null);
     const [previewTextBySlot, setPreviewTextBySlot] = useState({});
+    const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
+    const isGhlMode = crmType === "ghl";
 
     // ✅ Obtener instancia del socket
     const socket = useSocket();
@@ -110,7 +113,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     }, []);
 
     useEffect(() => {
-        if (activeSlotTab !== 'ghl' || !expandedSlotId) return;
+        if (activeSlotTab !== 'integration' || !expandedSlotId) return;
         const slot = slots.find(s => s.slot_id === expandedSlotId);
         if (!slot?.elevenlabs_api_key) return;
         if (elevenVoicesBySlot[slot.slot_id]) return;
@@ -131,7 +134,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         try {
             const [detailsRes, usersRes] = await Promise.all([
                 authFetch(`/agency/location-details/${location.location_id}`),
-                authFetch(`/agency/ghl-users/${location.location_id}`)
+                authFetch(`/agency/crm-users/${location.location_id}`)
             ]);
 
             if (detailsRes && detailsRes.ok) {
@@ -141,11 +144,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
                 if (data.name) setLocationName(data.name);
                 setWhiteLabelEnabled(data.settings?.white_label ?? true);
+                setTenantSettings(data.settings || {});
             }
 
             if (usersRes && usersRes.ok) {
                 const users = await usersRes.json();
-                setGhlUsers(users || []);
+                setCrmUsers(users || []);
             }
         } catch (e) {
             console.error("Error cargando datos:", e);
@@ -595,7 +599,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 {/* TABS */}
                                                 <div className="flex border-b border-gray-200 dark:border-gray-800 px-6 bg-white dark:bg-gray-900/50">
                                                     <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />
-                                                    <TabButton active={activeSlotTab === 'ghl'} onClick={() => setActiveSlotTab('ghl')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
+                                                    <TabButton active={activeSlotTab === 'integration'} onClick={() => setActiveSlotTab('integration')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
                                                     <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
                                                     <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
                                                     <TabButton active={activeSlotTab === 'qr'} onClick={() => setActiveSlotTab('qr')} icon={<QrCode size={16} />} label={t('slots.tab.connection') || "Conexión"} />
@@ -641,7 +645,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     )}
 
                                                     {/* OTHER PANELS (GHL, Keywords, Groups) same as before... */}
-                                                    {activeSlotTab === 'ghl' && (
+                                                    {activeSlotTab === 'integration' && (
                                                         <div className="max-w-2xl space-y-6">
                                                             
                                                             {/* 🔥 NUEVO: OpenAI Key para este Slot */}
@@ -859,82 +863,80 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     )}
                                                                 </div>
                                                             </div>
-
-                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.ghl.tag_auto')}</label>
-                                                                <input type="text" placeholder={t('slots.ghl.tag_auto_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.ghl_contact_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_contact_tag', e.target.value, settings)} />
-                                                            </div>
-                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.ghl.user')}</label>
-                                                                <select className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={settings.ghl_assigned_user || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_assigned_user', e.target.value, settings)}>
-                                                                    <option value="">{t('slots.ghl.user_none')}</option>
-                                                                    {ghlUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                                                                </select>
-                                                            </div>
-                                                            {/* 
-                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.ghl.routing')}</label>
-                                                                <input type="text" placeholder={t('slots.ghl.routing_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.routing_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, settings)} />
-                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usará este número.</p>
-                                                            </div> 
-                                                            */}
-                                                        </div>
-                                                    )}
-
-                                                    {activeSlotTab === 'keywords' && (
-                                                        <div className="max-w-2xl">
-                                                            <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
-                                                                <input name="keyword" required placeholder={t('slots.kw.input')} className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                                                <input name="tag" required placeholder={t('slots.kw.tag')} className="w-1/3 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                                                <button type="submit" className="bg-indigo-600 text-white px-5 rounded-xl hover:bg-indigo-700 font-bold"><Plus size={20} /></button>
-                                                            </form>
-                                                            <div className="space-y-2">
-                                                                {keywords.filter(k => k.slot_id === slot.slot_id).map(k => (
-                                                                    <div key={k.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                        <div className="flex gap-2 items-center"><span className="font-bold text-gray-800 dark:text-white">"{k.keyword}"</span> <span className="text-gray-400">→</span> <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-bold">{k.tag}</span></div>
-                                                                        <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
+                                                            {isGhlMode && (
+                                                                <>
+                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.integration.tag_auto')}</label>
+                                                                        <input type="text" placeholder={t('slots.integration.tag_auto_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.ghl_contact_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_contact_tag', e.target.value, settings)} />
                                                                     </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {activeSlotTab === 'groups' && (
-                                                        <div className="max-w-2xl">
-                                                            <div className="flex justify-between items-center mb-6">
-                                                                <h4 className="font-bold text-gray-700 dark:text-gray-300">{t('slots.groups.detected')}</h4>
-                                                                <button onClick={() => loadGroups(slot.slot_id)} className="text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 p-2 rounded-lg transition"><RefreshCw size={18} /></button>
-                                                            </div>
-                                                            {loadingGroups ? <div className="text-center py-10"><RefreshCw className="animate-spin mx-auto text-indigo-500" /></div> :
-                                                                <div className="space-y-3">
-                                                                    {groups.map(g => {
-                                                                        const isActive = settings.groups?.[g.id]?.active;
-                                                                        return (
-                                                                            <div key={g.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                                <div><h5 className="font-bold text-gray-800 dark:text-white">{g.subject}</h5><p className="text-xs text-gray-500 dark:text-gray-400">{g.participants} {t('slots.groups.participants')}</p></div>
-                                                                                <div className="flex items-center gap-4">
-                                                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                                                        <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, settings)} />
-                                                                                        <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                                                                                    </label>
-                                                                                    <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg" title={t('slots.groups.sync')}><Users size={18} /></button>
-                                                                                </div>
+                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.integration.user')}</label>
+                                                                        <select className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={settings.ghl_assigned_user || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_assigned_user', e.target.value, settings)}>
+                                                                            <option value="">{t('slots.integration.user_none')}</option>
+                                                                            {crmUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                                                        </select>
+                                                                    </div>
+                                                                    {/* 
+                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.integration.routing')}</label>
+                                                                        <input type="text" placeholder={t('slots.integration.routing_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.routing_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, settings)} />
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usar� este n�mero.</p>
+                                                                    </div> 
+                                                                    */}
+                                                                </>
+                                                            )}
+                                                            {activeSlotTab === 'keywords' && (
+                                                                <div className="max-w-2xl">
+                                                                    <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
+                                                                        <input name="keyword" required placeholder={t('slots.kw.input')} className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                                        <input name="tag" required placeholder={t('slots.kw.tag')} className="w-1/3 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                                        <button type="submit" className="bg-indigo-600 text-white px-5 rounded-xl hover:bg-indigo-700 font-bold"><Plus size={20} /></button>
+                                                                    </form>
+                                                                    <div className="space-y-2">
+                                                                        {keywords.filter(k => k.slot_id === slot.slot_id).map(k => (
+                                                                            <div key={k.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                                <div className="flex gap-2 items-center"><span className="font-bold text-gray-800 dark:text-white">"{k.keyword}"</span> <span className="text-gray-400">-></span> <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-bold">{k.tag}</span></div>
+                                                                                <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
                                                                             </div>
-                                                                        )
-                                                                    })}
+                                                                        ))}
+                                                                    </div>
                                                                 </div>
-                                                            }
-                                                        </div>
-                                                    )}
-
-                                                    {activeSlotTab === 'qr' && (
-                                                        <SlotConnectionManager 
-                                                            slot={slot} 
-                                                            locationId={location.location_id} 
-                                                            token={token} 
-                                                            onUpdate={loadData} 
-                                                        />
-                                                    )}
+                                                            )}
+                                                            {activeSlotTab === 'groups' && (
+                                                                <div className="max-w-2xl">
+                                                                    <div className="flex justify-between items-center mb-6">
+                                                                        <h4 className="font-bold text-gray-700 dark:text-gray-300">{t('slots.groups.detected')}</h4>
+                                                                        <button onClick={() => loadGroups(slot.slot_id)} className="text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 p-2 rounded-lg transition"><RefreshCw size={18} /></button>
+                                                                    </div>
+                                                                    {loadingGroups ? <div className="text-center py-10"><RefreshCw className="animate-spin mx-auto text-indigo-500" /></div> :
+                                                                        <div className="space-y-3">
+                                                                            {groups.map(g => {
+                                                                                const isActive = settings.groups?.[g.id]?.active;
+                                                                                return (
+                                                                                    <div key={g.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                                        <div><h5 className="font-bold text-gray-800 dark:text-white">{g.subject}</h5><p className="text-xs text-gray-500 dark:text-gray-400">{g.participants} {t('slots.groups.participants')}</p></div>
+                                                                                        <div className="flex items-center gap-4">
+                                                                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                                                                <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, settings)} />
+                                                                                                <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                                                                                            </label>
+                                                                                            <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg" title={t('slots.groups.sync')}><Users size={18} /></button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                )
+                                                                            })}
+                                                                        </div>
+                                                                    }
+                                                                </div>
+                                                            )}
+                                                            {activeSlotTab === 'qr' && (
+                                                                <SlotConnectionManager 
+                                                                    slot={slot} 
+                                                                    locationId={location.location_id} 
+                                                                    token={token} 
+                                                                    onUpdate={loadData} 
+                                                                />
+                                                            )}
                                                 </div>
                                             </div>
                                         )}
@@ -1092,3 +1094,21 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
         </div>
     );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
