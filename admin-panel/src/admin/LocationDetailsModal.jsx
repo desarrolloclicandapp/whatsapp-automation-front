@@ -494,7 +494,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const loadTwilioConfig = async (slotId, forceRefresh = false) => {
-        if (!slotId) return;
+        if (!slotId || !location?.location_id) return;
         if (!forceRefresh && twilioConfigBySlot[slotId]) return;
 
         setLoadingTwilioBySlot(prev => ({ ...prev, [slotId]: true }));
@@ -1090,6 +1090,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 value={twilio.accountSid || ""}
                                                                                 onChange={(e) => updateTwilioField(slot.slot_id, "accountSid", e.target.value)}
                                                                                 placeholder={twilio.accountSidMasked || t('slots.sms.ph_sid')}
+                                                                                autoComplete="off"
                                                                                 className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
                                                                             />
                                                                         </div>
@@ -1101,6 +1102,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 value={twilio.authToken || ""}
                                                                                 onChange={(e) => updateTwilioField(slot.slot_id, "authToken", e.target.value)}
                                                                                 placeholder={twilio.authTokenMasked || t('slots.sms.ph_token')}
+                                                                                autoComplete="new-password"
                                                                                 className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
                                                                             />
                                                                         </div>
@@ -1112,6 +1114,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 value={twilio.phoneNumber || ""}
                                                                                 onChange={(e) => updateTwilioField(slot.slot_id, "phoneNumber", e.target.value)}
                                                                                 placeholder={t('slots.sms.ph_phone')}
+                                                                                autoComplete="off"
                                                                                 className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
                                                                             />
                                                                         </div>
