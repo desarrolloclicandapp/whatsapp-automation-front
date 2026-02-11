@@ -53,8 +53,12 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const [accountInfo, setAccountInfo] = useState(null);
     const isRestricted = (accountInfo?.plan || '').toLowerCase().includes('starter');
-    const agencyCrmType = String(accountInfo?.crm_type || localStorage.getItem("crmType") || "ghl").toLowerCase();
+    const [crmPreference, setCrmPreference] = useState(localStorage.getItem("crmType") || "ghl");
+    const agencyCrmType = String(accountInfo?.crm_type || crmPreference || "ghl").toLowerCase();
     const isGhlAgency = agencyCrmType === "ghl";
+    const isCrmLocked = Boolean(accountInfo?.crm_type);
+    const crmLabelMap = { ghl: "GoHighLevel", odoo: "Odoo" };
+    const activeCrmLabel = crmLabelMap[agencyCrmType] || agencyCrmType.toUpperCase();
     const [searchTerm, setSearchTerm] = useState("");
     const [userEmail, setUserEmail] = useState("");
 
@@ -143,6 +147,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         try {
             // 🔥 STEP 1: Wait for GHL webhook to complete installation
             let installed = false;
+            let lastCheckData = null;
             let attempts = 0;
             const maxWaitAttempts = 30; // 60 seconds max wait (30 * 2s)
 
@@ -151,6 +156,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     const checkRes = await authFetch(`/agency/check-install/${locationId}`);
                     if (checkRes.ok) {
                         const checkData = await checkRes.json();
+                        lastCheckData = checkData;
                         if (checkData.installed) {
                             installed = true;
                             // toast.loading(t('agency.install.detected'), { id: toastId });
@@ -166,6 +172,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                     console.log(`${t('agency.install.waiting_webhook')} (${attempts * 2}s)`);
                 }
                 await new Promise(r => setTimeout(r, 2000));
+            }
+
+            if (!installed && !code) {
+                throw new Error(lastCheckData?.message || t('agency.install.waiting_webhook'));
             }
 
             // 🔥 STEP 2: Now call sync-ghl to link the user
@@ -184,12 +194,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                         data = await res.json();
                         break;
                     }
-                    if (res.status === 404 && !installed) {
+                    if ((res.status === 404 || res.status === 409) && !installed) {
                         // Still not installed, wait more
                         syncAttempts++;
                         await new Promise(r => setTimeout(r, 2000));
                     } else {
-                        throw new Error(t('agency.server_error'));
+                        const errData = await res.json().catch(() => ({}));
+                        throw new Error(errData.error || t('agency.server_error'));
                     }
                 } catch (e) { 
                     syncAttempts++; 
@@ -411,6 +422,150 @@ export default function AgencyDashboard({ token, onLogout }) {
             .trim();
         window.open(`https://${domain}`, "_blank", "noopener");
     };
+    const handleSelectCrm = (crmType) => {
+        if (isCrmLocked) {
+            toast.info(t('agency.integrations.locked'));
+            return;
+        }
+        setCrmPreference(crmType);
+        localStorage.setItem("crmType", crmType);
+        if (crmType !== "ghl") {
+            toast.info(t('agency.integrations.coming_soon'));
+        }
+    };
+
+    useEffect(() => {
+        localStorage.setItem("crmType", crmPreference);
+    }, [crmPreference]);
+
+    const renderIntegrationsPanel = (variant = "settings") => {
+        const isOverview = variant === "overview";
+        const panelPadding = isOverview ? "p-10" : "p-8";
+        const gridClass = isOverview ? "grid grid-cols-1 md:grid-cols-2 gap-6" : "grid grid-cols-1 gap-4";
+        const cardClass = isOverview
+            ? "border border-gray-200 dark:border-gray-800 rounded-3xl p-6 bg-white dark:bg-gray-900 shadow-sm hover:shadow-xl transition-all min-h-[220px]"
+            : "border border-gray-200 dark:border-gray-800 rounded-2xl p-5 bg-gray-50/70 dark:bg-gray-800/40";
+        const descKey = isOverview ? 'agency.integrations.overview_desc' : 'agency.integrations.desc';
+
+        const renderCard = (id, name, desc, Icon, options = {}) => {
+            const isSelected = agencyCrmType === id;
+            const isLocked = isCrmLocked && !isSelected;
+            const isSoon = Boolean(options.soon);
+            const statusLabel = isLocked
+                ? t('agency.integrations.status_locked')
+                : isSoon
+                    ? t('agency.integrations.status_soon')
+                    : isSelected
+                        ? t('agency.integrations.status_active')
+                        : t('agency.integrations.status_available');
+            const statusClass = isLocked
+                ? 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900/40 dark:text-gray-400 dark:border-gray-800'
+                : isSoon
+                    ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800'
+                    : isSelected
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                        : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900/40 dark:text-gray-400 dark:border-gray-800';
+
+            return (
+                <div key={id} className={cardClass}>
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+                                <Icon size={18} className={isSelected ? "text-indigo-600 dark:text-indigo-400" : "text-gray-500 dark:text-gray-300"} />
+                            </div>
+                            <div>
+                                <h4 className="text-base font-bold text-gray-900 dark:text-white">{name}</h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{desc}</p>
+                            </div>
+                        </div>
+                        <span className={`px-3 py-1 text-xs font-bold uppercase rounded-full border ${statusClass}`}>
+                            {statusLabel}
+                        </span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <button
+                            onClick={() => handleSelectCrm(id)}
+                            disabled={isLocked}
+                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${
+                                isSelected
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-indigo-500'
+                            } ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        >
+                            {isSelected ? t('agency.integrations.selected') : t('agency.integrations.select')}
+                        </button>
+                        {options.showOpen && (
+                            <button
+                                onClick={options.onOpen}
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-md transition"
+                            >
+                                <ExternalLink size={16} /> {t('agency.integrations.open')}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        return (
+            <div className={`bg-white dark:bg-gray-900 ${panelPadding} rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm`}>
+                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                    <div>
+                        <h3 className={`font-bold text-gray-900 dark:text-white flex items-center gap-2 ${isOverview ? 'text-xl' : 'text-lg'}`}>
+                            <Link size={20} className="text-indigo-500" /> {t('agency.integrations.title')}
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                            {t(descKey)}
+                        </p>
+                        {!isOverview && (
+                            <p className="text-xs text-gray-400 mt-2">
+                                {t('agency.integrations.helper')}
+                            </p>
+                        )}
+                    </div>
+                </div>
+                <div className={gridClass}>
+                    {renderCard("ghl", "GoHighLevel", t('agency.integrations.ghl_desc'), Globe, { showOpen: true, onOpen: openGhlPortal })}
+                    {renderCard("odoo", "Odoo", t('agency.integrations.odoo_desc'), BookOpen, { soon: true })}
+                </div>
+            </div>
+        );
+    };
+
+    const renderIntegrationPlaceholder = (titleKey, descKey) => (
+        <div className="max-w-5xl mx-auto bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 p-10 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div>
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {t(titleKey).replace('{crm}', activeCrmLabel)}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-2">
+                        {t(descKey).replace('{crm}', activeCrmLabel)}
+                    </p>
+                </div>
+                <button
+                    onClick={() => window.open(`https://wa.me/${SUPPORT_PHONE}`, "_blank", "noopener")}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-md transition"
+                >
+                    <LifeBuoy size={16} /> {t('agency.integrations.contact_support')}
+                </button>
+            </div>
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-gray-50/60 dark:bg-gray-800/40">
+                    <div className="text-xs uppercase tracking-widest text-gray-400">{t('agency.integrations.step_one')}</div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white mt-2">{t('agency.integrations.step_one_desc')}</div>
+                </div>
+                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-gray-50/60 dark:bg-gray-800/40">
+                    <div className="text-xs uppercase tracking-widest text-gray-400">{t('agency.integrations.step_two')}</div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white mt-2">{t('agency.integrations.step_two_desc')}</div>
+                </div>
+                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-gray-50/60 dark:bg-gray-800/40">
+                    <div className="text-xs uppercase tracking-widest text-gray-400">{t('agency.integrations.step_three')}</div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white mt-2">{t('agency.integrations.step_three_desc')}</div>
+                </div>
+            </div>
+        </div>
+    );
 
     const filteredLocations = locations.filter(loc =>
         loc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -530,7 +685,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
             <ExpiryPopup token={token} /> {/* ✅ Popup Global */}
             {isAccountSuspended && <SubscriptionBlocker token={token} onLogout={onLogout} accountInfo={accountInfo} />}
-            {showUpgradeModal && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
+            {showUpgradeModal && isGhlAgency && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
 
             {/* 🔥 OVERLAY DE BLOQUEO DURANTE INSTALACIÓN */}
             {isAutoSyncing && (
@@ -588,39 +743,44 @@ export default function AgencyDashboard({ token, onLogout }) {
                     {activeTab === 'overview' && (
                         !accountInfo ? (<div className="flex justify-center items-center h-full text-gray-400"><RefreshCw className="animate-spin mr-2" /> {t('agency.loading_panel')}</div>) : (
                             <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                                    <StatCard title={t('dash.stats.subaccounts')} value={`${accountInfo.limits?.used_subagencies || 0} / ${accountInfo.limits?.max_subagencies || 0}`} icon={Building2} color="bg-indigo-500" />
-                                    <StatCard title={t('dash.stats.connections')} value={`${accountInfo.limits?.used_slots || 0} / ${accountInfo.limits?.max_slots || 0}`} icon={Smartphone} color="bg-emerald-500" />
-                                    <StatCard title={t('dash.stats.plan')} value={accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')} subtext={accountInfo.trial_ends ? `Fin: ${new Date(accountInfo.trial_ends).toLocaleDateString()}` : null} icon={ShieldCheck} color={accountInfo.plan === 'active' ? "bg-blue-500" : "bg-amber-500"} />
-                                    <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:shadow-indigo-500/25 transition-shadow" onClick={() => setActiveTab('billing')}><div><p className="text-indigo-200 text-xs font-bold uppercase tracking-wide mb-1">{t('dash.upgrade.prompt')}</p><h3 className="text-xl font-bold">{t('dash.upgrade.title')}</h3></div><div className="self-end bg-white/20 p-2 rounded-lg mt-1"><TrendingUp size={20} /></div></div>
-                                </div>
-                                <div className="border-t border-gray-200 dark:border-gray-800"></div>
-                                {accountInfo.plan === 'trial' && (<div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in zoom-in-95 duration-500"><div className="flex items-center gap-5"><div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner"><Zap size={28} fill="currentColor" /></div><div><h4 className="text-lg font-bold text-gray-900 dark:text-white">{t('agency.trial.title')}</h4><p className="text-sm text-amber-800 dark:text-amber-400 mt-1 max-w-2xl">{t('agency.trial.desc_prefix')} <span className="font-bold underlineDecoration decoration-amber-500/30">{new Date(accountInfo.trial_ends).toLocaleDateString()}</span>{t('agency.trial.desc_suffix')}</p></div></div><button onClick={() => setActiveTab('billing')} className="w-full md:w-auto px-8 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-extrabold text-sm shadow-xl shadow-amber-600/20 transition-all flex items-center justify-center gap-3 hover:-translate-y-0.5 active:scale-95">{t('agency.trial.choose_plan')} <ArrowRight size={18} /></button></div>)}
-                                <div className="space-y-6">
-                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Users className="text-gray-400" /> {t('dash.subs.title')}</h3>
-                                        <div className="flex w-full md:w-auto gap-3">
-                                            <div className="relative flex-1 md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" autoComplete="off" placeholder={t('dash.subs.search')} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
-                                            <button onClick={refreshData} disabled={isAutoSyncing} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 hover:text-indigo-600 transition disabled:opacity-50 disabled:cursor-not-allowed"><RefreshCw size={18} className={loading || isAutoSyncing ? "animate-spin" : ""} /></button>
-                                            <button onClick={() => setActiveTab('billing')} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{ backgroundColor: branding.primaryColor }}><Plus size={18} /> {t('dash.subs.new')}</button>
+                                {renderIntegrationsPanel("overview")}
+                                {isGhlAgency && (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                                            <StatCard title={t('dash.stats.subaccounts')} value={`${accountInfo.limits?.used_subagencies || 0} / ${accountInfo.limits?.max_subagencies || 0}`} icon={Building2} color="bg-indigo-500" />
+                                            <StatCard title={t('dash.stats.connections')} value={`${accountInfo.limits?.used_slots || 0} / ${accountInfo.limits?.max_slots || 0}`} icon={Smartphone} color="bg-emerald-500" />
+                                            <StatCard title={t('dash.stats.plan')} value={accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')} subtext={accountInfo.trial_ends ? `Fin: ${new Date(accountInfo.trial_ends).toLocaleDateString()}` : null} icon={ShieldCheck} color={accountInfo.plan === 'active' ? "bg-blue-500" : "bg-amber-500"} />
+                                            <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:shadow-indigo-500/25 transition-shadow" onClick={() => setActiveTab('billing')}><div><p className="text-indigo-200 text-xs font-bold uppercase tracking-wide mb-1">{t('dash.upgrade.prompt')}</p><h3 className="text-xl font-bold">{t('dash.upgrade.title')}</h3></div><div className="self-end bg-white/20 p-2 rounded-lg mt-1"><TrendingUp size={20} /></div></div>
                                         </div>
-                                    </div>
-                                    {loading && locations.length === 0 ? <div className="py-20 text-center text-gray-400">{t('agency.loading_data')}</div> : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            {filteredLocations.map(loc => (
-                                                <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer relative overflow-hidden hover:border-indigo-500">
-                                                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 dark:bg-indigo-900/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                                                    <div className="relative z-10"><div className="flex justify-between items-start mb-4"><div className="w-12 h-12 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors shadow-sm"><Building2 size={24} /></div><button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button></div><h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate pr-2">{loc.name || t('agency.location.no_name')}</h4><p className="text-xs font-mono text-gray-400 mb-6 bg-gray-50 dark:bg-gray-800/50 inline-block px-1.5 py-0.5 rounded">{loc.location_id}</p><div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800"><p className="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2"><Smartphone size={16} className="text-indigo-500" /> {loc.total_slots || 0} <span className="text-gray-400 font-normal text-xs">{t('agency.location.connections')}</span></p><div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all"><ChevronRight size={16} /></div></div></div>
+                                        <div className="border-t border-gray-200 dark:border-gray-800"></div>
+                                        {accountInfo.plan === 'trial' && (<div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in zoom-in-95 duration-500"><div className="flex items-center gap-5"><div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner"><Zap size={28} fill="currentColor" /></div><div><h4 className="text-lg font-bold text-gray-900 dark:text-white">{t('agency.trial.title')}</h4><p className="text-sm text-amber-800 dark:text-amber-400 mt-1 max-w-2xl">{t('agency.trial.desc_prefix')} <span className="font-bold underlineDecoration decoration-amber-500/30">{new Date(accountInfo.trial_ends).toLocaleDateString()}</span>{t('agency.trial.desc_suffix')}</p></div></div><button onClick={() => setActiveTab('billing')} className="w-full md:w-auto px-8 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-extrabold text-sm shadow-xl shadow-amber-600/20 transition-all flex items-center justify-center gap-3 hover:-translate-y-0.5 active:scale-95">{t('agency.trial.choose_plan')} <ArrowRight size={18} /></button></div>)}
+                                        <div className="space-y-6">
+                                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Users className="text-gray-400" /> {t('dash.subs.title')}</h3>
+                                                <div className="flex w-full md:w-auto gap-3">
+                                                    <div className="relative flex-1 md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" autoComplete="off" placeholder={t('dash.subs.search')} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
+                                                    <button onClick={refreshData} disabled={isAutoSyncing} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 hover:text-indigo-600 transition disabled:opacity-50 disabled:cursor-not-allowed"><RefreshCw size={18} className={loading || isAutoSyncing ? "animate-spin" : ""} /></button>
+                                                    <button onClick={() => setActiveTab('billing')} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{ backgroundColor: branding.primaryColor }}><Plus size={18} /> {t('dash.subs.new')}</button>
                                                 </div>
-                                            ))}
-                                            {isGhlAgency && !searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
-                                                    <div key={`empty-${idx}`} onClick={handleInstallApp} className="group relative bg-gray-50/50 dark:bg-gray-900/20 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 transition-all duration-300 min-h-[220px]">
-                                                    <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-all"><Plus size={32} className="text-gray-300 group-hover:text-indigo-600" /></div><h4 className="font-bold text-gray-900 dark:text-white mb-1">{t('agency.location.empty_title')}</h4><p className="text-xs text-gray-500 px-6">{t('agency.location.empty_desc')}</p>
+                                            </div>
+                                            {loading && locations.length === 0 ? <div className="py-20 text-center text-gray-400">{t('agency.loading_data')}</div> : (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                    {filteredLocations.map(loc => (
+                                                        <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer relative overflow-hidden hover:border-indigo-500">
+                                                            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 dark:bg-indigo-900/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                                                            <div className="relative z-10"><div className="flex justify-between items-start mb-4"><div className="w-12 h-12 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors shadow-sm"><Building2 size={24} /></div><button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button></div><h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate pr-2">{loc.name || t('agency.location.no_name')}</h4><p className="text-xs font-mono text-gray-400 mb-6 bg-gray-50 dark:bg-gray-800/50 inline-block px-1.5 py-0.5 rounded">{loc.location_id}</p><div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800"><p className="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2"><Smartphone size={16} className="text-indigo-500" /> {loc.total_slots || 0} <span className="text-gray-400 font-normal text-xs">{t('agency.location.connections')}</span></p><div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all"><ChevronRight size={16} /></div></div></div>
+                                                        </div>
+                                                    ))}
+                                                    {isGhlAgency && !searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
+                                                            <div key={`empty-${idx}`} onClick={handleInstallApp} className="group relative bg-gray-50/50 dark:bg-gray-900/20 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 transition-all duration-300 min-h-[220px]">
+                                                            <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-all"><Plus size={32} className="text-gray-300 group-hover:text-indigo-600" /></div><h4 className="font-bold text-gray-900 dark:text-white mb-1">{t('agency.location.empty_title')}</h4><p className="text-xs text-gray-500 px-6">{t('agency.location.empty_desc')}</p>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
-                                    )}
-                                </div>
+                                    </>
+                                )}
                             </div>
                         )
                     )}
@@ -675,48 +835,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             )}
 
-                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
-                                    <div>
-                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                            <Link size={20} className="text-indigo-500" /> {t('agency.integrations.title')}
-                                        </h3>
-                                        <p className="text-sm text-gray-500 mt-1">
-                                            {t('agency.integrations.desc')}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 gap-4">
-                                    <div className="border border-gray-200 dark:border-gray-800 rounded-2xl p-5 bg-gray-50/70 dark:bg-gray-800/40">
-                                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
-                                                    <Globe size={18} className="text-indigo-600 dark:text-indigo-400" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-base font-bold text-gray-900 dark:text-white">GoHighLevel</h4>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('agency.integrations.ghl_desc')}</p>
-                                                </div>
-                                            </div>
-                                            <span className={`px-3 py-1 text-xs font-bold uppercase rounded-full border ${
-                                                isGhlAgency
-                                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
-                                                    : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900/40 dark:text-gray-400 dark:border-gray-800'
-                                            }`}>
-                                                {isGhlAgency ? t('agency.integrations.status_active') : t('agency.integrations.status_available')}
-                                            </span>
-                                        </div>
-                                        <div className="mt-4 flex flex-wrap items-center gap-3">
-                                            <button
-                                                onClick={openGhlPortal}
-                                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-md transition"
-                                            >
-                                                <ExternalLink size={16} /> {t('agency.integrations.open')}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            {renderIntegrationsPanel("settings")}
 
                             {/* ✅ NUEVO: AGENCIA SOPORTE (Ahora protegido por Wrapper) */}
                             <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.support.title')}>
@@ -735,44 +854,46 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <WhiteLabelSettings />
                             {/* <SecurityCard token={token} /> */}
 
-                            <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.voice.title')}>
-                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
-                                    <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
-                                        <div>
-                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                <Mic size={24} className="text-emerald-500" /> {t('agency.voice.title')}
-                                            </h3>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.voice.desc')}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-6">
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                {t('agency.voice.script_label')}
-                                            </label>
-                                            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 relative">
-                                                <pre className="text-xs whitespace-pre-wrap text-gray-600 dark:text-gray-300">{buildVoiceScript()}</pre>
-                                                <button
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(buildVoiceScript());
-                                                        toast.success(t('common.copied') || "Copiado");
-                                                    }}
-                                                    className="absolute right-3 top-3 p-2 text-gray-400 hover:text-emerald-600 transition"
-                                                >
-                                                    <Copy size={16} />
-                                                </button>
+                            {isGhlAgency && (
+                                <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.voice.title')}>
+                                    <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
+                                        <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
+                                            <div>
+                                                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                    <Mic size={24} className="text-emerald-500" /> {t('agency.voice.title')}
+                                                </h3>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.voice.desc')}</p>
                                             </div>
                                         </div>
 
-                                        <div className="text-sm text-gray-600 dark:text-gray-300 space-y-2">
-                                            <p><strong>{t('agency.voice.step1_title')}</strong> {t('agency.voice.step1')}</p>
-                                            <p><strong>{t('agency.voice.step2_title')}</strong> {t('agency.voice.step2')}</p>
-                                            <p><strong>{t('agency.voice.step3_title')}</strong> {t('agency.voice.step3')}</p>
+                                        <div className="space-y-6">
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('agency.voice.script_label')}
+                                                </label>
+                                                <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 relative">
+                                                    <pre className="text-xs whitespace-pre-wrap text-gray-600 dark:text-gray-300">{buildVoiceScript()}</pre>
+                                                    <button
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(buildVoiceScript());
+                                                            toast.success(t('common.copied') || "Copiado");
+                                                        }}
+                                                        className="absolute right-3 top-3 p-2 text-gray-400 hover:text-emerald-600 transition"
+                                                    >
+                                                        <Copy size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="text-sm text-gray-600 dark:text-gray-300 space-y-2">
+                                                <p><strong>{t('agency.voice.step1_title')}</strong> {t('agency.voice.step1')}</p>
+                                                <p><strong>{t('agency.voice.step2_title')}</strong> {t('agency.voice.step2')}</p>
+                                                <p><strong>{t('agency.voice.step3_title')}</strong> {t('agency.voice.step3')}</p>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </RestrictedFeatureWrapper>
+                                </RestrictedFeatureWrapper>
+                            )}
 
                             <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('dash.settings.dev_title')}>
                                 <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4`}>
@@ -876,7 +997,11 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                     {activeTab === 'builder' && <InteractiveMessageBuilder />}
 
-                    {activeTab === 'billing' && <SubscriptionManager token={token} accountInfo={accountInfo} onDataChange={refreshData} />}
+                    {activeTab === 'billing' && (
+                        isGhlAgency
+                            ? <SubscriptionManager token={token} accountInfo={accountInfo} onDataChange={refreshData} />
+                            : renderIntegrationPlaceholder('agency.integrations.billing_title', 'agency.integrations.billing_desc')
+                    )}
                 </main>
             </div>
 
