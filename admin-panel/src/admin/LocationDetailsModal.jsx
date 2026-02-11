@@ -39,6 +39,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [loadingElevenVoices, setLoadingElevenVoices] = useState({});
     const previewAudioRef = useRef(null);
     const [previewTextBySlot, setPreviewTextBySlot] = useState({});
+    const [twilioConfigBySlot, setTwilioConfigBySlot] = useState({});
+    const [loadingTwilioBySlot, setLoadingTwilioBySlot] = useState({});
+    const [savingTwilioBySlot, setSavingTwilioBySlot] = useState({});
 
     // ✅ Obtener instancia del socket
     const socket = useSocket();
@@ -116,6 +119,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if (elevenVoicesBySlot[slot.slot_id]) return;
         loadElevenVoices(slot.slot_id);
     }, [activeSlotTab, expandedSlotId, slots, elevenVoicesBySlot]);
+
+    useEffect(() => {
+        if (activeSlotTab !== 'sms' || !expandedSlotId) return;
+        if (twilioConfigBySlot[expandedSlotId]) return;
+        loadTwilioConfig(expandedSlotId);
+    }, [activeSlotTab, expandedSlotId, twilioConfigBySlot]);
 
     useEffect(() => {
         return () => {
@@ -484,6 +493,169 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         );
     };
 
+    const loadTwilioConfig = async (slotId, forceRefresh = false) => {
+        if (!slotId) return;
+        if (!forceRefresh && twilioConfigBySlot[slotId]) return;
+
+        setLoadingTwilioBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/twilio/config?locationId=${location.location_id}&slotId=${slotId}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar Twilio");
+            }
+            const data = await res.json();
+            setTwilioConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    accountSid: "",
+                    authToken: "",
+                    phoneNumber: data.phoneNumber || "",
+                    accountSidMasked: data.accountSidMasked || "",
+                    authTokenMasked: data.authTokenMasked || "",
+                    hasAuthToken: !!data.hasAuthToken,
+                    configured: !!data.configured
+                }
+            }));
+        } catch (e) {
+            toast.error("Error cargando Twilio", { description: e.message });
+        } finally {
+            setLoadingTwilioBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateTwilioField = (slotId, key, value) => {
+        setTwilioConfigBySlot(prev => {
+            const current = prev[slotId] || {
+                accountSid: "",
+                authToken: "",
+                phoneNumber: "",
+                accountSidMasked: "",
+                authTokenMasked: "",
+                hasAuthToken: false,
+                configured: false
+            };
+            return {
+                ...prev,
+                [slotId]: {
+                    ...current,
+                    [key]: value
+                }
+            };
+        });
+    };
+
+    const validateTwilioConfigSlot = async (slotId) => {
+        const current = twilioConfigBySlot[slotId] || {};
+        const payload = {
+            locationId: location.location_id,
+            slotId
+        };
+
+        if ((current.accountSid || "").trim()) payload.accountSid = current.accountSid.trim();
+        if ((current.authToken || "").trim()) payload.authToken = current.authToken.trim();
+        if ((current.phoneNumber || "").trim()) payload.fromNumber = current.phoneNumber.trim();
+
+        const loadingId = toast.loading("Validando Twilio...");
+        try {
+            const res = await authFetch(`/agency/twilio/validate`, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return false;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "Credenciales inválidas");
+            }
+            toast.success("Twilio validado correctamente");
+            return true;
+        } catch (e) {
+            toast.error("Validación Twilio falló", { description: e.message });
+            return false;
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const saveTwilioConfig = async (slotId) => {
+        const current = twilioConfigBySlot[slotId] || {};
+        const sidInput = (current.accountSid || "").trim();
+        const tokenInput = (current.authToken || "").trim();
+        const fromNumber = (current.phoneNumber || "").trim();
+
+        const sidReady = sidInput || current.accountSidMasked;
+        const tokenReady = tokenInput || current.authTokenMasked || current.hasAuthToken;
+
+        if (!sidReady || !tokenReady || !fromNumber) {
+            toast.error("Completa SID, Auth Token y número Twilio");
+            return;
+        }
+
+        const payload = {
+            locationId: location.location_id,
+            slotId,
+            fromNumber
+        };
+        if (sidInput) payload.accountSid = sidInput;
+        if (tokenInput) payload.authToken = tokenInput;
+
+        setSavingTwilioBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/twilio/config`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo guardar");
+            }
+            toast.success("Configuración Twilio guardada");
+            await loadTwilioConfig(slotId, true);
+        } catch (e) {
+            toast.error("Error guardando Twilio", { description: e.message });
+        } finally {
+            setSavingTwilioBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const clearTwilioConfig = async (slotId) => {
+        const loadingId = toast.loading("Limpiando Twilio...");
+        try {
+            const res = await authFetch(`/agency/twilio/config`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    clear: true
+                })
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo limpiar");
+            }
+            setTwilioConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    accountSid: "",
+                    authToken: "",
+                    phoneNumber: "",
+                    accountSidMasked: "",
+                    authTokenMasked: "",
+                    hasAuthToken: false,
+                    configured: false
+                }
+            }));
+            toast.success("Twilio limpiado");
+        } catch (e) {
+            toast.error("Error limpiando Twilio", { description: e.message });
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
             <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-200 dark:border-gray-800">
@@ -596,6 +768,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 <div className="flex border-b border-gray-200 dark:border-gray-800 px-6 bg-white dark:bg-gray-900/50">
                                                     <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />
                                                     <TabButton active={activeSlotTab === 'ghl'} onClick={() => setActiveSlotTab('ghl')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
+                                                    <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label="SMS / Twilio" />
                                                     <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
                                                     <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
                                                     <TabButton active={activeSlotTab === 'qr'} onClick={() => setActiveSlotTab('qr')} icon={<QrCode size={16} />} label={t('slots.tab.connection') || "Conexión"} />
@@ -878,6 +1051,107 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usará este número.</p>
                                                             </div> 
                                                             */}
+                                                        </div>
+                                                    )}
+
+                                                    {activeSlotTab === 'sms' && (
+                                                        <div className="max-w-2xl space-y-6">
+                                                            {(() => {
+                                                                const twilio = twilioConfigBySlot[slot.slot_id] || {
+                                                                    accountSid: "",
+                                                                    authToken: "",
+                                                                    phoneNumber: "",
+                                                                    accountSidMasked: "",
+                                                                    authTokenMasked: "",
+                                                                    hasAuthToken: false,
+                                                                    configured: false
+                                                                };
+                                                                const isLoadingTwilio = !!loadingTwilioBySlot[slot.slot_id];
+                                                                const isSavingTwilio = !!savingTwilioBySlot[slot.slot_id];
+
+                                                                return (
+                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
+                                                                        <div className="flex flex-wrap items-start justify-between gap-4">
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">SMS / Twilio</h4>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                                    Usa el prefijo <code>!SMS!</code> para enviar por SMS en vez de WhatsApp.
+                                                                                </p>
+                                                                            </div>
+                                                                            <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${twilio.configured ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}>
+                                                                                {twilio.configured ? "Configurado" : "No configurado"}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Account SID</label>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={twilio.accountSid || ""}
+                                                                                onChange={(e) => updateTwilioField(slot.slot_id, "accountSid", e.target.value)}
+                                                                                placeholder={twilio.accountSidMasked || "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+                                                                                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                            />
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Auth Token</label>
+                                                                            <input
+                                                                                type="password"
+                                                                                value={twilio.authToken || ""}
+                                                                                onChange={(e) => updateTwilioField(slot.slot_id, "authToken", e.target.value)}
+                                                                                placeholder={twilio.authTokenMasked || "********************************"}
+                                                                                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                            />
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Twilio Phone Number</label>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={twilio.phoneNumber || ""}
+                                                                                onChange={(e) => updateTwilioField(slot.slot_id, "phoneNumber", e.target.value)}
+                                                                                placeholder="+1234567890"
+                                                                                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                            />
+                                                                        </div>
+
+                                                                        <div className="flex flex-wrap items-center gap-2">
+                                                                            <button
+                                                                                onClick={() => validateTwilioConfigSlot(slot.slot_id)}
+                                                                                disabled={isLoadingTwilio || isSavingTwilio}
+                                                                                className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                            >
+                                                                                <CheckCircle2 size={16} />
+                                                                                Validar
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => saveTwilioConfig(slot.slot_id)}
+                                                                                disabled={isLoadingTwilio || isSavingTwilio}
+                                                                                className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                            >
+                                                                                {isSavingTwilio ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                                                Guardar
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => clearTwilioConfig(slot.slot_id)}
+                                                                                disabled={isLoadingTwilio || isSavingTwilio}
+                                                                                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
+                                                                            >
+                                                                                Limpiar
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => loadTwilioConfig(slot.slot_id, true)}
+                                                                                disabled={isLoadingTwilio || isSavingTwilio}
+                                                                                className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
+                                                                                title="Recargar configuración"
+                                                                            >
+                                                                                <RefreshCw size={16} className={isLoadingTwilio ? "animate-spin" : ""} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                         </div>
                                                     )}
 
