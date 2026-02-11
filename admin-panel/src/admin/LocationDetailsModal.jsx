@@ -768,7 +768,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 <div className="flex border-b border-gray-200 dark:border-gray-800 px-6 bg-white dark:bg-gray-900/50">
                                                     <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />
                                                     <TabButton active={activeSlotTab === 'ghl'} onClick={() => setActiveSlotTab('ghl')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
-                                                    <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label="SMS / Twilio" />
+                                                    <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label={t('slots.tab.sms')} />
                                                     <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
                                                     <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
                                                     <TabButton active={activeSlotTab === 'qr'} onClick={() => setActiveSlotTab('qr')} icon={<QrCode size={16} />} label={t('slots.tab.connection') || "Conexión"} />
@@ -1073,45 +1073,45 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
                                                                         <div className="flex flex-wrap items-start justify-between gap-4">
                                                                             <div>
-                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">SMS / Twilio</h4>
+                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.sms.title')}</h4>
                                                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                    Usa el prefijo <code>!SMS!</code> para enviar por SMS en vez de WhatsApp.
+                                                                                    {t('slots.sms.desc')}
                                                                                 </p>
                                                                             </div>
                                                                             <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${twilio.configured ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}>
-                                                                                {twilio.configured ? "Configurado" : "No configurado"}
+                                                                                {twilio.configured ? t('slots.sms.configured') : t('slots.sms.not_configured')}
                                                                             </div>
                                                                         </div>
 
                                                                         <div>
-                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Account SID</label>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.sms.account_sid')}</label>
                                                                             <input
                                                                                 type="text"
                                                                                 value={twilio.accountSid || ""}
                                                                                 onChange={(e) => updateTwilioField(slot.slot_id, "accountSid", e.target.value)}
-                                                                                placeholder={twilio.accountSidMasked || "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+                                                                                placeholder={twilio.accountSidMasked || t('slots.sms.ph_sid')}
                                                                                 className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
                                                                             />
                                                                         </div>
 
                                                                         <div>
-                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Auth Token</label>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.sms.auth_token')}</label>
                                                                             <input
                                                                                 type="password"
                                                                                 value={twilio.authToken || ""}
                                                                                 onChange={(e) => updateTwilioField(slot.slot_id, "authToken", e.target.value)}
-                                                                                placeholder={twilio.authTokenMasked || "********************************"}
+                                                                                placeholder={twilio.authTokenMasked || t('slots.sms.ph_token')}
                                                                                 className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
                                                                             />
                                                                         </div>
 
                                                                         <div>
-                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Twilio Phone Number</label>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.sms.phone_number')}</label>
                                                                             <input
                                                                                 type="text"
                                                                                 value={twilio.phoneNumber || ""}
                                                                                 onChange={(e) => updateTwilioField(slot.slot_id, "phoneNumber", e.target.value)}
-                                                                                placeholder="+1234567890"
+                                                                                placeholder={t('slots.sms.ph_phone')}
                                                                                 className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
                                                                             />
                                                                         </div>
@@ -1123,7 +1123,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60 transition flex items-center gap-2"
                                                                             >
                                                                                 <CheckCircle2 size={16} />
-                                                                                Validar
+                                                                                {t('slots.sms.validate')}
                                                                             </button>
                                                                             <button
                                                                                 onClick={() => saveTwilioConfig(slot.slot_id)}
@@ -1131,20 +1131,20 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
                                                                             >
                                                                                 {isSavingTwilio ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                                                                                Guardar
+                                                                                {t('slots.sms.save')}
                                                                             </button>
                                                                             <button
                                                                                 onClick={() => clearTwilioConfig(slot.slot_id)}
                                                                                 disabled={isLoadingTwilio || isSavingTwilio}
                                                                                 className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
                                                                             >
-                                                                                Limpiar
+                                                                                {t('slots.sms.clear')}
                                                                             </button>
                                                                             <button
                                                                                 onClick={() => loadTwilioConfig(slot.slot_id, true)}
                                                                                 disabled={isLoadingTwilio || isSavingTwilio}
                                                                                 className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
-                                                                                title="Recargar configuración"
+                                                                                title={t('slots.sms.reload')}
                                                                             >
                                                                                 <RefreshCw size={16} className={isLoadingTwilio ? "animate-spin" : ""} />
                                                                             </button>
