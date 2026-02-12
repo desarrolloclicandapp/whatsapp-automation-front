@@ -28,7 +28,7 @@ const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
 
 // 🔥 LÓGICA DE EXTRACCIÓN DE APP ID (Compatible con tu .env actual)
 // Toma la URL completa y se queda solo con el ID final (ej: 691623d58a49cdcb2c56ce9c)
-const RAW_INSTALL_URL = import.meta.env.VITE_INSTALL_APP_URL || "https://gestion.clicandapp.com/integration/691623d58a49cdcb2c56ce9c";
+const RAW_INSTALL_URL = import.meta.env.VITE_INSTALL_APP_URL || "https://gestion.clicandapp.com/integration/6968d10f1f0b9e6b537024cd";
 const APP_ID = RAW_INSTALL_URL.includes('/integration/') 
     ? RAW_INSTALL_URL.split('/integration/')[1] 
     : "691623d58a49cdcb2c56ce9c"; // Fallback por seguridad
