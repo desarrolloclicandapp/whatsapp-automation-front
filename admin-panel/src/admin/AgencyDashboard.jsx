@@ -111,7 +111,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 }
 
                 if (effectiveAgencyId) {
-                    const locRes = await authFetch(`/agency/locations?agencyId=${effectiveAgencyId}`);
+                    const locRes = await authFetch(`/agency/locations?agencyId=${ data.agencyId}`);
                     if (locRes && locRes.ok) {
                         const locData = await locRes.json();
                         if (Array.isArray(locData)) setLocations(locData);
