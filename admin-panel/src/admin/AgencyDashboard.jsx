@@ -141,7 +141,8 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
-    const autoSyncAgency = async (locationId, code) => {
+    const autoSyncAgency = async (locationId, code, options = {}) => {
+        const { skipInstallPolling = false } = options;
         setIsAutoSyncing(true);
         // const toastId = toast.loading(t('agency.install.waiting')); // Removido por overlay visual
 
@@ -152,7 +153,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             let attempts = 0;
             const maxWaitAttempts = 30; // 60 seconds max wait (30 * 2s)
 
-            while (!installed && attempts < maxWaitAttempts) {
+            while (!skipInstallPolling && !installed && attempts < maxWaitAttempts) {
                 try {
                     const checkRes = await authFetch(`/agency/check-install/${locationId}`);
                     if (checkRes.ok) {
@@ -175,8 +176,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                 await new Promise(r => setTimeout(r, 2000));
             }
 
-            if (!installed && !code) {
-                throw new Error(lastCheckData?.message || t('agency.install.waiting_webhook'));
+            // No hard-fail here: if we came from legacy new_install (agency id), check-install can be false negative.
+            // Continue to sync-ghl and let backend resolve/link.
+            if (!installed && !code && !skipInstallPolling) {
+                console.warn("[Install] check-install timeout, attempting sync-ghl anyway as fallback.");
             }
 
             // 🔥 STEP 2: Now call sync-ghl to link the user
@@ -228,11 +231,17 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     useEffect(() => {
         console.log("📍 URL Search Params:", window.location.search);
-        const targetLocationId = queryParams.get("location_id") || queryParams.get("new_install");
+        const locationIdParam = queryParams.get("location_id");
+        const legacyInstallParam = queryParams.get("new_install");
+        const targetLocationId = locationIdParam || legacyInstallParam;
         const oauthCode = queryParams.get("code");
         console.log(`🔎 Parsed Params -> Location: ${targetLocationId}, Code: ${oauthCode ? 'PRESENT' : 'MISSING'}`);
         
-        if (isGhlAgency && targetLocationId && !isAutoSyncing) autoSyncAgency(targetLocationId, oauthCode);
+        if (isGhlAgency && targetLocationId && !isAutoSyncing) {
+            // If only legacy new_install is present, skip location polling to avoid false 60s timeout.
+            const skipInstallPolling = Boolean(legacyInstallParam && !locationIdParam);
+            autoSyncAgency(targetLocationId, oauthCode, { skipInstallPolling });
+        }
         try { const payload = JSON.parse(atob(token.split('.')[1])); setUserEmail(payload.email); } catch (e) { }
 
         // ✅ Cargar Branding del Servidor al montar

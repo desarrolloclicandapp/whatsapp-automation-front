@@ -80,7 +80,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             // Doble verificación: aunque el backend filtre, aseguramos que sea para nosotros
             if (payload.locationId === location.location_id) {
                 // 🔥 FIX: No recargar todo el modal por eventos de QR (lo maneja el componente hijo)
-                if (payload.type === 'connection') {
+                if (payload.type === 'connection' && payload.status === 'open') {
                     loadData();
                 }
             }
