@@ -50,7 +50,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isAutoSyncing, setIsAutoSyncing] = useState(false);
-    const [installPendingMessage, setInstallPendingMessage] = useState("");
 
     const [accountInfo, setAccountInfo] = useState(null);
     const isRestricted = (accountInfo?.plan || '').toLowerCase().includes('starter');
@@ -141,107 +140,85 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
-    const autoSyncAgency = async (locationId, code, { source = "location_id" } = {}) => {
-        const normalizedLocationId = locationId ? String(locationId).trim() : "";
-        const hasLocationId = Boolean(normalizedLocationId);
-        const hasCode = Boolean(code);
-
+    const autoSyncAgency = async (locationId, code) => {
         setIsAutoSyncing(true);
-        setInstallPendingMessage("");
+        // const toastId = toast.loading(t('agency.install.waiting')); // Removido por overlay visual
 
         try {
-            // STEP 1: Wait for webhook install completion only when we have a location_id to poll.
+            // 🔥 STEP 1: Wait for GHL webhook to complete installation
             let installed = false;
             let lastCheckData = null;
             let attempts = 0;
-            const maxWaitAttempts = 30;
+            const maxWaitAttempts = 30; // 60 seconds max wait (30 * 2s)
 
-            if (hasLocationId) {
-                while (!installed && attempts < maxWaitAttempts) {
-                    try {
-                        const checkRes = await authFetch(`/agency/check-install/${encodeURIComponent(normalizedLocationId)}`);
-                        if (checkRes.ok) {
-                            const checkData = await checkRes.json();
-                            lastCheckData = checkData;
-                            if (checkData.installed) {
-                                installed = true;
-                                break;
-                            }
+            while (!installed && attempts < maxWaitAttempts) {
+                try {
+                    const checkRes = await authFetch(`/agency/check-install/${locationId}`);
+                    if (checkRes.ok) {
+                        const checkData = await checkRes.json();
+                        lastCheckData = checkData;
+                        if (checkData.installed) {
+                            installed = true;
+                            // toast.loading(t('agency.install.detected'), { id: toastId });
+                            break;
                         }
-                    } catch (e) {
-                        console.log("Waiting for install...", e.message);
                     }
-
-                    attempts++;
-                    if (attempts % 5 === 0) {
-                        console.log(`${t('agency.install.waiting_webhook')} (${attempts * 2}s)`);
-                    }
-                    await new Promise(r => setTimeout(r, 2000));
+                } catch (e) {
+                    console.log("Waiting for install...", e.message);
                 }
-            } else {
-                console.log("[Install Sync] No location_id provided, skipping check-install polling and relying on OAuth code.");
+                
+                attempts++;
+                if (attempts % 5 === 0) {
+                    console.log(`${t('agency.install.waiting_webhook')} (${attempts * 2}s)`);
+                }
+                await new Promise(r => setTimeout(r, 2000));
             }
 
-            if (!installed && !hasCode) {
-                const pendingMessage = source === "legacy_new_install"
-                    ? "Instalacion pendiente: detectamos un parametro legacy (new_install). Abre la app desde la subcuenta/location especifica para completar la vinculacion."
-                    : "Instalacion pendiente: abre la app desde la subcuenta/location especifica de GoHighLevel para completar la vinculacion.";
-
-                setInstallPendingMessage(pendingMessage);
-                toast.info(lastCheckData?.message || pendingMessage, { duration: 7000 });
-                window.history.replaceState({}, document.title, window.location.pathname);
-                return;
+            if (!installed && !code) {
+                throw new Error(lastCheckData?.message || t('agency.install.waiting_webhook'));
             }
 
-            // STEP 2: Link user. Backend can infer location_id from OAuth code when available.
+            // 🔥 STEP 2: Now call sync-ghl to link the user
             let data;
             let syncAttempts = 0;
             const maxSyncAttempts = 5;
 
             while (syncAttempts < maxSyncAttempts) {
-                const res = await authFetch(`/agency/sync-ghl`, {
-                    method: "POST",
-                    body: JSON.stringify({
-                        locationIdToVerify: hasLocationId ? normalizedLocationId : null,
-                        code: hasCode ? code : null
-                    })
-                });
+                try {
+                    const res = await authFetch(`/agency/sync-ghl`, {
+                        method: "POST",
+                        body: JSON.stringify({ locationIdToVerify: locationId, code: code })
+                    });
 
-                if (res.ok) {
-                    data = await res.json();
-                    break;
-                }
-
-                const errData = await res.json().catch(() => ({}));
-                const errMessage = errData.error || t('agency.server_error');
-
-                if ((res.status === 404 || res.status === 409) && syncAttempts < maxSyncAttempts - 1) {
-                    syncAttempts++;
+                    if (res.ok) {
+                        data = await res.json();
+                        break;
+                    }
+                    if ((res.status === 404 || res.status === 409) && !installed) {
+                        // Still not installed, wait more
+                        syncAttempts++;
+                        await new Promise(r => setTimeout(r, 2000));
+                    } else {
+                        const errData = await res.json().catch(() => ({}));
+                        throw new Error(errData.error || t('agency.server_error'));
+                    }
+                } catch (e) { 
+                    syncAttempts++; 
                     await new Promise(r => setTimeout(r, 2000));
-                    continue;
                 }
-
-                throw new Error(errMessage);
             }
 
             if (!data || !data.success) throw new Error(t('agency.install.sync_failed'));
 
             localStorage.setItem("agencyId", data.newAgencyId);
             setStoredAgencyId(data.newAgencyId);
-            setInstallPendingMessage("");
 
             refreshData();
             toast.success(t('agency.install.completed'));
             window.history.replaceState({}, document.title, window.location.pathname);
 
         } catch (error) {
-            const message = error?.message || t('agency.install.error');
-            if (!hasCode && message.toLowerCase().includes("instalacion pendiente")) {
-                setInstallPendingMessage(message);
-                toast.info(message, { duration: 7000 });
-            } else {
-                toast.error(message);
-            }
+            toast.error(error.message || t('agency.install.error'));
         } finally {
             setIsAutoSyncing(false);
         }
@@ -249,26 +226,12 @@ export default function AgencyDashboard({ token, onLogout }) {
 
 
     useEffect(() => {
-        console.log("[Install Sync] URL Search Params:", window.location.search);
-        const locationIdFromQuery = queryParams.get("location_id");
-        const legacyInstallId = queryParams.get("new_install");
+        console.log("📍 URL Search Params:", window.location.search);
+        const targetLocationId = queryParams.get("location_id") || queryParams.get("new_install");
         const oauthCode = queryParams.get("code");
-        const targetLocationId = locationIdFromQuery || legacyInstallId || "";
-
-        if (legacyInstallId && !locationIdFromQuery) {
-            console.warn(`[Install Sync] legacy new_install detected (${legacyInstallId}). It will be treated as untrusted fallback.`);
-        }
-
-        console.log(`[Install Sync] Parsed Params -> location_id: ${locationIdFromQuery || "MISSING"}, legacy_new_install: ${legacyInstallId || "MISSING"}, code: ${oauthCode ? "PRESENT" : "MISSING"}`);
-
-        if (isGhlAgency && (targetLocationId || oauthCode) && !isAutoSyncing) {
-            const source = locationIdFromQuery
-                ? "location_id"
-                : legacyInstallId
-                    ? "legacy_new_install"
-                    : "oauth_code_only";
-            autoSyncAgency(targetLocationId, oauthCode, { source });
-        }
+        console.log(`🔎 Parsed Params -> Location: ${targetLocationId}, Code: ${oauthCode ? 'PRESENT' : 'MISSING'}`);
+        
+        if (isGhlAgency && targetLocationId && !isAutoSyncing) autoSyncAgency(targetLocationId, oauthCode);
         try { const payload = JSON.parse(atob(token.split('.')[1])); setUserEmail(payload.email); } catch (e) { }
 
         // ✅ Cargar Branding del Servidor al montar
@@ -777,11 +740,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </header>
 
                 <main className="flex-1 overflow-y-auto p-6 md:p-8">
-                    {installPendingMessage && (
-                        <div className="max-w-7xl mx-auto mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-300">
-                            {installPendingMessage}
-                        </div>
-                    )}
                     {activeTab === 'overview' && (
                         !accountInfo ? (<div className="flex justify-center items-center h-full text-gray-400"><RefreshCw className="animate-spin mr-2" /> {t('agency.loading_panel')}</div>) : (
                             <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
