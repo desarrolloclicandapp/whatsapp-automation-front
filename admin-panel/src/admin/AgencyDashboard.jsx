@@ -101,6 +101,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             if (accRes && accRes.ok) {
                 const data = await accRes.json();
+                console.log("La informacion de la data", data)
                 setAccountInfo(data);
 
                 let effectiveAgencyId = AGENCY_ID;
