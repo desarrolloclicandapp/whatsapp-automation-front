@@ -756,38 +756,122 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 {renderIntegrationsPanel("overview")}
                                 {isGhlAgency && (
                                     <>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                                            <StatCard title={t('dash.stats.subaccounts')} value={`${accountInfo.limits?.used_subagencies || 0} / ${accountInfo.limits?.max_subagencies || 0}`} icon={Building2} color="bg-indigo-500" />
-                                            <StatCard title={t('dash.stats.connections')} value={`${accountInfo.limits?.used_slots || 0} / ${accountInfo.limits?.max_slots || 0}`} icon={Smartphone} color="bg-emerald-500" />
-                                            <StatCard title={t('dash.stats.plan')} value={accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')} subtext={accountInfo.trial_ends ? `Fin: ${new Date(accountInfo.trial_ends).toLocaleDateString()}` : null} icon={ShieldCheck} color={accountInfo.plan === 'active' ? "bg-blue-500" : "bg-amber-500"} />
-                                            <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:shadow-indigo-500/25 transition-shadow" onClick={() => setActiveTab('billing')}><div><p className="text-indigo-200 text-xs font-bold uppercase tracking-wide mb-1">{t('dash.upgrade.prompt')}</p><h3 className="text-xl font-bold">{t('dash.upgrade.title')}</h3></div><div className="self-end bg-white/20 p-2 rounded-lg mt-1"><TrendingUp size={20} /></div></div>
-                                        </div>
-                                        <div className="border-t border-gray-200 dark:border-gray-800"></div>
-                                        {accountInfo.plan === 'trial' && (<div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in zoom-in-95 duration-500"><div className="flex items-center gap-5"><div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner"><Zap size={28} fill="currentColor" /></div><div><h4 className="text-lg font-bold text-gray-900 dark:text-white">{t('agency.trial.title')}</h4><p className="text-sm text-amber-800 dark:text-amber-400 mt-1 max-w-2xl">{t('agency.trial.desc_prefix')} <span className="font-bold underlineDecoration decoration-amber-500/30">{new Date(accountInfo.trial_ends).toLocaleDateString()}</span>{t('agency.trial.desc_suffix')}</p></div></div><button onClick={() => setActiveTab('billing')} className="w-full md:w-auto px-8 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-extrabold text-sm shadow-xl shadow-amber-600/20 transition-all flex items-center justify-center gap-3 hover:-translate-y-0.5 active:scale-95">{t('agency.trial.choose_plan')} <ArrowRight size={18} /></button></div>)}
-                                        <div className="space-y-6">
-                                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Users className="text-gray-400" /> {t('dash.subs.title')}</h3>
-                                                <div className="flex w-full md:w-auto gap-3">
-                                                    <div className="relative flex-1 md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" autoComplete="off" placeholder={t('dash.subs.search')} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 outline-none text-sm dark:text-white transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
-                                                    <button onClick={refreshData} disabled={isAutoSyncing} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 hover:text-indigo-600 transition disabled:opacity-50 disabled:cursor-not-allowed"><RefreshCw size={18} className={loading || isAutoSyncing ? "animate-spin" : ""} /></button>
-                                                    <button onClick={() => setActiveTab('billing')} className="px-5 py-2.5 text-white rounded-xl font-bold transition flex items-center gap-2 text-sm shadow-lg hover:opacity-90" style={{ backgroundColor: branding.primaryColor }}><Plus size={18} /> {t('dash.subs.new')}</button>
+                                        {/* ESTADÍSTICAS - Diseño Minimalista */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                                                        <Building2 size={20} className="text-indigo-600 dark:text-indigo-400" />
+                                                    </div>
+                                                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t('dash.stats.subaccounts')}</span>
+                                                </div>
+                                                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                                                    {accountInfo.limits?.used_subagencies || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
                                                 </div>
                                             </div>
-                                            {loading && locations.length === 0 ? <div className="py-20 text-center text-gray-400">{t('agency.loading_data')}</div> : (
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            
+                                            <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                                                        <Smartphone size={20} className="text-emerald-600 dark:text-emerald-400" />
+                                                    </div>
+                                                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t('dash.stats.connections')}</span>
+                                                </div>
+                                                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                                                    {accountInfo.limits?.used_slots || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_slots || 0}</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className={`rounded-2xl p-5 border shadow-sm hover:shadow-md transition-shadow ${accountInfo.plan === 'active' ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-transparent' : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800'}`}>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${accountInfo.plan === 'active' ? 'bg-white/20' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                                                        <ShieldCheck size={20} className={accountInfo.plan === 'active' ? 'text-white' : 'text-amber-600 dark:text-amber-400'} />
+                                                    </div>
+                                                    <span className={`text-xs font-medium uppercase tracking-wide ${accountInfo.plan === 'active' ? 'text-blue-200' : 'text-gray-400'}`}>{t('dash.stats.plan')}</span>
+                                                </div>
+                                                <div className={`text-xl font-bold ${accountInfo.plan === 'active' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                                                    {accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')}
+                                                </div>
+                                                {accountInfo.trial_ends && (
+                                                    <div className={`text-xs mt-1 ${accountInfo.plan === 'active' ? 'text-blue-200' : 'text-amber-600 dark:text-amber-400'}`}>
+                                                        Fin: {new Date(accountInfo.trial_ends).toLocaleDateString()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        {accountInfo.plan === 'trial' && (
+                                            <div className="mt-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 p-4 rounded-xl flex items-center justify-between gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/40 rounded-lg flex items-center justify-center">
+                                                        <Zap size={20} className="text-amber-600" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{t('agency.trial.title')}</p>
+                                                        <p className="text-xs text-amber-700 dark:text-amber-400">Expira: {new Date(accountInfo.trial_ends).toLocaleDateString()}</p>
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => setActiveTab('billing')} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-sm transition">
+                                                    {t('agency.trial.choose_plan')}
+                                                </button>
+                                            </div>
+                                        )}
+                                        
+                                        {/* SUBCUENTAS */}
+                                        <div>
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('dash.subs.title')}</h3>
+                                                <div className="flex gap-2">
+                                                    <div className="relative">
+                                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                                        <input type="text" autoComplete="off" placeholder={t('dash.subs.search')} className="pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white w-40 focus:w-52 transition-all" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                                    </div>
+                                                    <button onClick={refreshData} disabled={isAutoSyncing} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 hover:text-indigo-600 transition disabled:opacity-50">
+                                                        <RefreshCw size={16} className={loading || isAutoSyncing ? "animate-spin" : ""} />
+                                                    </button>
+                                                    <button onClick={() => setActiveTab('billing')} className="px-4 py-2 text-white rounded-lg font-medium text-sm flex items-center gap-1.5 transition" style={{ backgroundColor: branding.primaryColor }}>
+                                                        <Plus size={16} /> {t('dash.subs.new')}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            
+                                            {loading && locations.length === 0 ? (
+                                                <div className="py-12 text-center text-gray-400">{t('agency.loading_data')}</div>
+                                            ) : (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                                     {filteredLocations.map(loc => (
-                                                        <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer relative overflow-hidden hover:border-indigo-500">
-                                                            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 dark:bg-indigo-900/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                                                            <div className="relative z-10"><div className="flex justify-between items-start mb-4"><div className="w-12 h-12 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors shadow-sm"><Building2 size={24} /></div><button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button></div><h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate pr-2">{loc.name || t('agency.location.no_name')}</h4><p className="text-xs font-mono text-gray-400 mb-6 bg-gray-50 dark:bg-gray-800/50 inline-block px-1.5 py-0.5 rounded">{loc.location_id}</p><div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800"><p className="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2"><Smartphone size={16} className="text-indigo-500" /> {loc.total_slots || 0} <span className="text-gray-400 font-normal text-xs">{t('agency.location.connections')}</span></p><div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all"><ChevronRight size={16} /></div></div></div>
+                                                        <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer">
+                                                            <div className="flex items-start justify-between mb-3">
+                                                                <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                                                                    <Building2 size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
+                                                                </div>
+                                                                <button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100">
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                            <h4 className="font-semibold text-gray-900 dark:text-white mb-1 truncate text-sm">{loc.name || t('agency.location.no_name')}</h4>
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                                    <Smartphone size={12} /> {loc.total_slots || 0}
+                                                                </span>
+                                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
+                                                            </div>
                                                         </div>
                                                     ))}
+                                                    
                                                     {isGhlAgency && !searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
-                                                            <div key={`empty-${idx}`} onClick={handleInstallApp} className="group relative bg-gray-50/50 dark:bg-gray-900/20 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 transition-all duration-300 min-h-[220px]">
-                                                            <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-all"><Plus size={32} className="text-gray-300 group-hover:text-indigo-600" /></div><h4 className="font-bold text-gray-900 dark:text-white mb-1">{t('agency.location.empty_title')}</h4><p className="text-xs text-gray-500 px-6">{t('agency.location.empty_desc')}</p>
+                                                        <div key={`empty-${idx}`} onClick={handleInstallApp} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
+                                                            <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                                                <Plus size={20} className="text-gray-300 group-hover:text-indigo-600" />
+                                                            </div>
+                                                            <p className="text-xs font-medium text-gray-500">{t('agency.location.empty_title')}</p>
                                                         </div>
                                                     ))}
                                                 </div>
                                             )}
+                                        </div>
+                                    </>
+                                )}
                                         </div>
                                     </>
                                 )}
