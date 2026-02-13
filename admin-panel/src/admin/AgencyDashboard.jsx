@@ -754,61 +754,41 @@ export default function AgencyDashboard({ token, onLogout }) {
                         !accountInfo ? (<div className="flex justify-center items-center h-full text-gray-400"><RefreshCw className="animate-spin mr-2" /> {t('agency.loading_panel')}</div>) : (
                             <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 {/* WAFLOW CRM — Sección independiente */}
-                                <div className="relative overflow-hidden rounded-3xl border border-indigo-200/80 dark:border-indigo-800/40 bg-gradient-to-br from-white via-indigo-50/50 to-violet-50/30 dark:from-gray-900 dark:via-indigo-950/30 dark:to-violet-950/20 p-8 md:p-10 shadow-sm">
-                                    {/* Glow decorativo */}
-                                    <div className="absolute -top-16 -right-16 w-48 h-48 bg-indigo-500/10 dark:bg-indigo-400/5 rounded-full blur-3xl pointer-events-none" />
-                                    <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-violet-500/8 dark:bg-violet-400/5 rounded-full blur-2xl pointer-events-none" />
+                                <div className="relative overflow-hidden rounded-2xl border border-indigo-200/60 dark:border-indigo-800/30 bg-gradient-to-r from-white via-indigo-50/30 to-violet-50/20 dark:from-gray-900 dark:via-indigo-950/20 dark:to-violet-950/10 p-5 shadow-sm">
+                                    <div className="absolute -top-10 -right-10 w-28 h-28 bg-indigo-500/8 dark:bg-indigo-400/5 rounded-full blur-2xl pointer-events-none" />
                                     
-                                    <div className="relative z-10">
-                                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mb-6">
-                                            <div className="flex items-start gap-4">
-                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0">
-                                                    <Sparkles size={22} className="text-white" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                                                        Waflow CRM
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold uppercase rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white tracking-wider shadow-sm">
-                                                            <Zap size={10} fill="currentColor" /> Próximamente
-                                                        </span>
-                                                    </h3>
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1.5 max-w-xl">
-                                                        CRM independiente con IA integrada. Califica leads, agenda citas y cierra ventas — todo desde Waflow, sin depender de terceros.
-                                                    </p>
-                                                </div>
+                                    <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
+                                                <Sparkles size={16} className="text-white" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                    Waflow CRM
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold uppercase rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white tracking-wider">
+                                                        <Zap size={8} fill="currentColor" /> Próximamente
+                                                    </span>
+                                                </h3>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                    CRM independiente con IA integrada — califica leads, agenda citas y cierra ventas.
+                                                </p>
                                             </div>
                                         </div>
                                         
-                                        {/* Feature cards */}
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                            <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/70 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/40 text-center">
-                                                <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
-                                                    <Bot size={18} className="text-indigo-600 dark:text-indigo-400" />
-                                                </div>
-                                                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">Agentes IA</span>
-                                                <span className="text-[10px] text-gray-400 leading-tight">Ventas automatizadas 24/7</span>
-                                            </div>
-                                            <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/70 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/40 text-center">
-                                                <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-                                                    <TrendingUp size={18} className="text-emerald-600 dark:text-emerald-400" />
-                                                </div>
-                                                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">Pipeline</span>
-                                                <span className="text-[10px] text-gray-400 leading-tight">Embudos con avance IA</span>
-                                            </div>
-                                            <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/70 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/40 text-center">
-                                                <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
-                                                    <CalendarCheck size={18} className="text-blue-600 dark:text-blue-400" />
-                                                </div>
-                                                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">Calendario</span>
-                                                <span className="text-[10px] text-gray-400 leading-tight">Google Calendar + citas IA</span>
-                                            </div>
-                                            <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/70 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/40 text-center">
-                                                <div className="w-9 h-9 rounded-xl bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center">
-                                                    <MessageSquareText size={18} className="text-violet-600 dark:text-violet-400" />
-                                                </div>
-                                                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">Inbox Unificado</span>
-                                                <span className="text-[10px] text-gray-400 leading-tight">WhatsApp + SMS en un lugar</span>
-                                            </div>
+                                        {/* Feature pills */}
+                                        <div className="flex flex-wrap gap-1.5 shrink-0">
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-lg bg-white/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/40 text-gray-600 dark:text-gray-300">
+                                                <Bot size={12} className="text-indigo-500" /> Agentes IA
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-lg bg-white/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/40 text-gray-600 dark:text-gray-300">
+                                                <TrendingUp size={12} className="text-emerald-500" /> Pipeline
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-lg bg-white/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/40 text-gray-600 dark:text-gray-300">
+                                                <CalendarCheck size={12} className="text-blue-500" /> Calendario
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-lg bg-white/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/40 text-gray-600 dark:text-gray-300">
+                                                <MessageSquareText size={12} className="text-violet-500" /> Inbox
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
