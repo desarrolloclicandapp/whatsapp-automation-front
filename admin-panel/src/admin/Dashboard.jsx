@@ -191,7 +191,8 @@ export default function AdminDashboard({ token, onLogout }) {
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
-                toast.success('Usuario suspendido');
+                const affected = Number(data.disconnected_slots || 0);
+                toast.success("Usuario suspendido. Slots pausados: " + affected);
                 fetchUsers();
             } else {
                 toast.error(data.error || 'No se pudo suspender');
@@ -207,7 +208,8 @@ export default function AdminDashboard({ token, onLogout }) {
             const res = await authFetch(`/admin/users/${userId}/reactivate`, { method: 'POST' });
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
-                toast.success('Usuario reactivado');
+                const attempts = Number(data.reconnect_attempts || 0);
+                toast.success("Usuario reactivado. Reconexiones iniciadas: " + attempts);
                 fetchUsers();
             } else {
                 toast.error(data.error || 'No se pudo reactivar');

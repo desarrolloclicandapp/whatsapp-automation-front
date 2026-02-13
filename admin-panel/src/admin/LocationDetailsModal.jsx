@@ -985,7 +985,9 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
     const [status, setStatus] = useState({ connected: false, myNumber: null });
     const [qr, setQr] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [suspensionState, setSuspensionState] = useState(null);
+    const [accountSuspensionState, setAccountSuspensionState] = useState(null);
+    const [slotSuspendedBy, setSlotSuspendedBy] = useState(slot?.suspended_by || null);
+    const [slotLockMessage, setSlotLockMessage] = useState(null);
     const pollInterval = useRef(null);
 
     const authFetch = async (endpoint, options = {}) => {
@@ -995,14 +997,36 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
         });
     };
 
-    const readSuspensionError = async (res) => {
+    const readAccessError = async (res) => {
         if (!res || res.status !== 403) return null;
         const data = await res.clone().json().catch(() => null);
-        if (data?.error !== 'account_suspended') return null;
-        return {
-            status: data.suspension_status || 'suspended',
-            message: data.message || 'Tu cuenta esta suspendida. No puedes vincular numeros en este momento.'
-        };
+        if (!data?.error) return null;
+
+        if (data.error === 'account_suspended') {
+            return {
+                kind: 'account',
+                status: data.suspension_status || 'suspended',
+                message: data.message || 'Tu cuenta esta suspendida. No puedes vincular numeros en este momento.'
+            };
+        }
+
+        if (data.error === 'slot_suspended') {
+            return {
+                kind: 'slot',
+                status: data.suspended_by || 'system',
+                message: data.message || 'Este slot esta temporalmente suspendido.'
+            };
+        }
+
+        if (data.error === 'admin_lock') {
+            return {
+                kind: 'admin_lock',
+                status: 'admin',
+                message: data.message || 'Este slot fue suspendido por administracion y no puede reconectarse.'
+            };
+        }
+
+        return null;
     };
 
     const stopPolling = () => {
@@ -1012,23 +1036,37 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
         }
     };
 
+    const applyAccessError = (accessError) => {
+        if (!accessError) return false;
+
+        if (accessError.kind === 'account') {
+            setAccountSuspensionState(accessError);
+        }
+
+        if (accessError.kind === 'slot' || accessError.kind === 'admin_lock') {
+            setSlotSuspendedBy(accessError.status || 'system');
+            setSlotLockMessage(accessError.message || null);
+        }
+
+        setLoading(false);
+        setQr(null);
+        stopPolling();
+        return true;
+    };
+
     const checkStatus = async () => {
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/status`);
-            const suspension = await readSuspensionError(res);
-            if (suspension) {
-                setSuspensionState(suspension);
-                setStatus({ connected: false, myNumber: null });
-                setQr(null);
-                setLoading(false);
-                stopPolling();
-                return;
-            }
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
 
             if (res.ok) {
                 const data = await res.json();
-                setSuspensionState(null);
+                setAccountSuspensionState(null);
                 setStatus({ connected: data.connected, myNumber: data.myNumber });
+                setSlotSuspendedBy(data.suspended_by || null);
+                if (!data.suspended_by) setSlotLockMessage(null);
+
                 if (data.connected) {
                     setQr(null);
                     setLoading(false);
@@ -1045,33 +1083,27 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
     }, []);
 
     const handleConnect = async () => {
+        if (slotSuspendedBy === 'admin') {
+            toast.error('Este slot esta bloqueado por admin');
+            return;
+        }
+
         setLoading(true);
         setQr(null);
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, { method: 'POST' });
-            const suspension = await readSuspensionError(res);
-            if (suspension) {
-                setSuspensionState(suspension);
-                setLoading(false);
-                stopPolling();
-                return;
-            }
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
 
             if (!res.ok) throw new Error('Fallo al iniciar');
 
-            setSuspensionState(null);
+            setAccountSuspensionState(null);
             stopPolling();
             pollInterval.current = setInterval(async () => {
                 try {
                     const qrRes = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr`);
-                    const qrSuspension = await readSuspensionError(qrRes);
-                    if (qrSuspension) {
-                        setSuspensionState(qrSuspension);
-                        setQr(null);
-                        setLoading(false);
-                        stopPolling();
-                        return;
-                    }
+                    const qrError = await readAccessError(qrRes);
+                    if (applyAccessError(qrError)) return;
 
                     if (qrRes.ok) {
                         const data = await qrRes.json();
@@ -1086,22 +1118,74 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
         }
     };
 
+    const handleSoftDisconnect = async () => {
+        if (!confirm('Pausar este dispositivo sin borrar la sesion?')) return;
+        setLoading(true);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/soft-disconnect`, { method: 'POST' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || 'No se pudo pausar');
+            }
+
+            setStatus({ connected: false, myNumber: status.myNumber || slot.phone_number || null });
+            setSlotSuspendedBy('agency');
+            setSlotLockMessage('Pausado por ti. Puedes reconectar sin escanear QR.');
+            setQr(null);
+            stopPolling();
+            onUpdate();
+            toast.success('Slot pausado');
+        } catch (e) {
+            toast.error(e.message || 'Error pausando slot');
+        }
+        setLoading(false);
+    };
+
+    const handleReconnect = async () => {
+        setLoading(true);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/reconnect`, { method: 'POST' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || 'No se pudo reconectar');
+            }
+
+            setSlotSuspendedBy(null);
+            setSlotLockMessage(null);
+            setAccountSuspensionState(null);
+            setQr(null);
+            toast.success('Reconectando...');
+
+            stopPolling();
+            pollInterval.current = setInterval(async () => {
+                await checkStatus();
+            }, 2000);
+            setLoading(false);
+        } catch (e) {
+            toast.error(e.message || 'Error reconectando slot');
+            setLoading(false);
+        }
+    };
+
     const handleDisconnect = async () => {
         if (!confirm('Desconectar este dispositivo?')) return;
         setLoading(true);
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/disconnect`, { method: 'DELETE' });
-            const suspension = await readSuspensionError(res);
-            if (suspension) {
-                setSuspensionState(suspension);
-                setLoading(false);
-                stopPolling();
-                return;
-            }
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
 
             if (!res.ok) throw new Error('Error desconectando');
 
             setStatus({ connected: false, myNumber: null });
+            setSlotSuspendedBy(null);
+            setSlotLockMessage(null);
             setQr(null);
             stopPolling();
             onUpdate();
@@ -1112,6 +1196,22 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
         setLoading(false);
     };
 
+    const headerTitle = slotSuspendedBy === 'admin'
+        ? 'Suspendido por Admin'
+        : slotSuspendedBy === 'agency'
+            ? 'Slot Pausado'
+            : status.connected
+                ? 'Dispositivo Conectado'
+                : 'Vincular WhatsApp';
+
+    const headerDescription = slotSuspendedBy === 'admin'
+        ? 'Este slot esta bloqueado por administracion.'
+        : slotSuspendedBy === 'agency'
+            ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
+            : status.connected
+                ? `Numero: +${status.myNumber}`
+                : 'Escanea el codigo QR para conectar.';
+
     return (
         <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
             <div className="flex items-center gap-4 mb-6">
@@ -1119,40 +1219,72 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
                     {status.connected ? <Smartphone size={32} /> : <QrCode size={32} />}
                 </div>
                 <div className="text-center md:text-left">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                        {status.connected ? 'Dispositivo Conectado' : 'Vincular WhatsApp'}
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {status.connected ? `Numero: +${status.myNumber}` : 'Escanea el codigo QR para conectar.'}
-                    </p>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">{headerTitle}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{headerDescription}</p>
                 </div>
             </div>
 
-            {suspensionState && (
+            {accountSuspensionState && (
                 <div className="w-full mb-5 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-4">
                     <div className="flex items-start gap-2">
                         <AlertTriangle size={18} className="text-amber-600 mt-0.5" />
                         <div>
                             <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-                                Cuenta en suspension ({suspensionState.status})
+                                Cuenta en suspension ({accountSuspensionState.status})
                             </p>
                             <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
-                                {suspensionState.message}
+                                {accountSuspensionState.message}
                             </p>
                         </div>
                     </div>
                 </div>
             )}
 
-            {!status.connected ? (
+            {slotSuspendedBy === 'admin' && (
+                <div className="w-full mb-5 rounded-xl border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-700 p-4">
+                    <p className="text-sm font-semibold text-red-800 dark:text-red-300">Bloqueado por administracion</p>
+                    <p className="text-xs text-red-700 dark:text-red-400 mt-1">{slotLockMessage || 'Contacta soporte para habilitar este slot.'}</p>
+                </div>
+            )}
+
+            {slotSuspendedBy === 'agency' && (
+                <div className="w-full mb-5 rounded-xl border border-blue-300 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700 p-4">
+                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Pausado por ti</p>
+                    <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">{slotLockMessage || 'Puedes reconectar sin QR.'}</p>
+                </div>
+            )}
+
+            {status.connected ? (
+                <div className="w-full flex flex-col sm:flex-row gap-3 justify-center">
+                    <button onClick={handleSoftDisconnect} disabled={loading || !!accountSuspensionState} className="bg-amber-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-700 transition flex items-center justify-center gap-2 disabled:opacity-60">
+                        <Power size={18} /> Pausar
+                    </button>
+                    <button onClick={handleDisconnect} disabled={loading} className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60">
+                        <Power size={18} /> Desconectar
+                    </button>
+                </div>
+            ) : slotSuspendedBy === 'agency' ? (
+                <div className="w-full flex flex-col sm:flex-row gap-3 justify-center">
+                    <button onClick={handleReconnect} disabled={loading || !!accountSuspensionState} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center justify-center gap-2 disabled:opacity-60">
+                        <Play size={18} /> Reconectar
+                    </button>
+                    <button onClick={handleDisconnect} disabled={loading} className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60">
+                        <Power size={18} /> Desconectar
+                    </button>
+                </div>
+            ) : slotSuspendedBy === 'admin' ? (
+                <div className="w-full flex justify-center">
+                    <button disabled className="bg-gray-300 text-gray-600 px-6 py-3 rounded-xl font-bold cursor-not-allowed">Reconectar bloqueado por Admin</button>
+                </div>
+            ) : (
                 <div className="w-full flex flex-col items-center">
-                    {!suspensionState && !qr && !loading && (
+                    {!qr && !loading && !accountSuspensionState && (
                         <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
                             <QrCode size={20} /> Generar Codigo QR
                         </button>
                     )}
 
-                    {!suspensionState && (qr || loading) && (
+                    {!accountSuspensionState && (qr || loading) && (
                         <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
                             <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
                                 {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
@@ -1162,10 +1294,6 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
                         </div>
                     )}
                 </div>
-            ) : (
-                <button onClick={handleDisconnect} disabled={loading} className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2">
-                    <Power size={20} /> Desconectar
-                </button>
             )}
         </div>
     );
