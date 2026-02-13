@@ -1125,6 +1125,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                         token={token}
                         onLogout={onLogout}
                         onClose={() => setSelectedLocation(null)}
+                        isAdminMode={true}
                     />
                 )}
             </main>

@@ -10,7 +10,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
-export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange }) {
+export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange, isAdminMode = false }) {
     const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
     const [keywords, setKeywords] = useState([]);
@@ -945,7 +945,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     slot={slot} 
                                                                     locationId={location.location_id} 
                                                                     token={token} 
-                                                                    onUpdate={loadData} 
+                                                                    onUpdate={loadData}
+                                                                    isAdminMode={isAdminMode}
                                                                 />
                                                             )}
                                                 </div>
@@ -981,7 +982,7 @@ const SettingRow = ({ label, desc, checked, onChange }) => (
 );
 
 // ✅ COMPONENTE DE GESTIÓN DE CONEXIÓN
-function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
+function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode = false }) {
     const [status, setStatus] = useState({ connected: false, myNumber: null });
     const [qr, setQr] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -1083,8 +1084,8 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
     }, []);
 
     const handleConnect = async () => {
-        if (slotSuspendedBy === 'admin') {
-            toast.error('Este slot esta bloqueado por admin');
+        if (!isAdminMode && (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system')) {
+            toast.error('Este slot esta bloqueado temporalmente');
             return;
         }
 
@@ -1131,9 +1132,14 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
                 throw new Error(err.error || 'No se pudo pausar');
             }
 
+            const data = await res.json().catch(() => ({}));
+            const newLock = data.suspended_by || (isAdminMode ? 'admin' : 'agency');
+
             setStatus({ connected: false, myNumber: status.myNumber || slot.phone_number || null });
-            setSlotSuspendedBy('agency');
-            setSlotLockMessage('Pausado por ti. Puedes reconectar sin escanear QR.');
+            setSlotSuspendedBy(newLock);
+            setSlotLockMessage(newLock === 'admin'
+                ? 'Pausado por administracion. Solo admin puede reactivar.'
+                : 'Pausado por ti. Puedes reconectar sin escanear QR.');
             setQr(null);
             stopPolling();
             onUpdate();
@@ -1145,8 +1151,8 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
     };
 
     const handleReconnect = async () => {
-        if (slotSuspendedBy === 'admin') {
-            toast.error('Este slot esta bloqueado por admin');
+        if (!isAdminMode && (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system')) {
+            toast.error('Este slot esta bloqueado temporalmente');
             return;
         }
 
@@ -1208,7 +1214,9 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
 
     const headerTitle = slotSuspendedBy === 'admin'
         ? 'Suspendido por Admin'
-        : slotSuspendedBy === 'agency'
+        : slotSuspendedBy === 'system'
+            ? 'Suspendido por Sistema'
+            : slotSuspendedBy === 'agency'
             ? 'Slot Pausado'
             : status.connected
                 ? 'Dispositivo Conectado'
@@ -1216,7 +1224,9 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
 
     const headerDescription = slotSuspendedBy === 'admin'
         ? 'Este slot esta bloqueado por administracion.'
-        : slotSuspendedBy === 'agency'
+        : slotSuspendedBy === 'system'
+            ? 'Este slot esta bloqueado temporalmente por el sistema.'
+            : slotSuspendedBy === 'agency'
             ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
             : status.connected
                 ? `Numero: +${status.myNumber}`
@@ -1264,6 +1274,13 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
                 </div>
             )}
 
+            {slotSuspendedBy === 'system' && (
+                <div className="w-full mb-5 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-4">
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Bloqueado por sistema</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">{slotLockMessage || 'Debes regularizar el estado de la cuenta para reactivar este slot.'}</p>
+                </div>
+            )}
+
             {accountSuspensionState ? (
                 <div className="w-full flex justify-center">
                     <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1288,9 +1305,17 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
                         <Power size={18} /> Desconectar
                     </button>
                 </div>
-            ) : slotSuspendedBy === 'admin' ? (
+            ) : (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system') ? (
                 <div className="w-full flex justify-center">
-                    <p className="text-sm text-red-600 dark:text-red-400 font-semibold">Reconectar bloqueado por Admin</p>
+                    {isAdminMode ? (
+                        <button onClick={handleReconnect} disabled={loading} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center justify-center gap-2 disabled:opacity-60">
+                            <Play size={18} /> Reactivar como Admin
+                        </button>
+                    ) : (
+                        <p className="text-sm text-red-600 dark:text-red-400 font-semibold">
+                            {slotSuspendedBy === 'admin' ? 'Reconectar bloqueado por Admin' : 'Reconectar bloqueado por Sistema'}
+                        </p>
+                    )}
                 </div>
             ) : (
                 <div className="w-full flex flex-col items-center">
