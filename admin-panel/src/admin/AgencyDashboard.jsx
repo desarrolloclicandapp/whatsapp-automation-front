@@ -872,9 +872,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         </div>
                                     </>
                                 )}
-                                        </div>
-                                    </>
-                                )}
                             </div>
                         )
                     )}
