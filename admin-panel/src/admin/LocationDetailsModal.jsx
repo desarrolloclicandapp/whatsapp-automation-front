@@ -1145,6 +1145,16 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
     };
 
     const handleReconnect = async () => {
+        if (slotSuspendedBy === 'admin') {
+            toast.error('Este slot esta bloqueado por admin');
+            return;
+        }
+
+        if (accountSuspensionState) {
+            toast.error('No puedes reconectar mientras tu cuenta este en gracia o suspendida');
+            return;
+        }
+
         setLoading(true);
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/reconnect`, { method: 'POST' });
@@ -1254,9 +1264,15 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
                 </div>
             )}
 
-            {status.connected ? (
+            {accountSuspensionState ? (
+                <div className="w-full flex justify-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Reconexion bloqueada mientras la cuenta este en gracia o suspendida.
+                    </p>
+                </div>
+            ) : status.connected ? (
                 <div className="w-full flex flex-col sm:flex-row gap-3 justify-center">
-                    <button onClick={handleSoftDisconnect} disabled={loading || !!accountSuspensionState} className="bg-amber-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-700 transition flex items-center justify-center gap-2 disabled:opacity-60">
+                    <button onClick={handleSoftDisconnect} disabled={loading} className="bg-amber-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-700 transition flex items-center justify-center gap-2 disabled:opacity-60">
                         <Power size={18} /> Pausar
                     </button>
                     <button onClick={handleDisconnect} disabled={loading} className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60">
@@ -1265,7 +1281,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
                 </div>
             ) : slotSuspendedBy === 'agency' ? (
                 <div className="w-full flex flex-col sm:flex-row gap-3 justify-center">
-                    <button onClick={handleReconnect} disabled={loading || !!accountSuspensionState} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center justify-center gap-2 disabled:opacity-60">
+                    <button onClick={handleReconnect} disabled={loading} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center justify-center gap-2 disabled:opacity-60">
                         <Play size={18} /> Reconectar
                     </button>
                     <button onClick={handleDisconnect} disabled={loading} className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60">
@@ -1274,7 +1290,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
                 </div>
             ) : slotSuspendedBy === 'admin' ? (
                 <div className="w-full flex justify-center">
-                    <button disabled className="bg-gray-300 text-gray-600 px-6 py-3 rounded-xl font-bold cursor-not-allowed">Reconectar bloqueado por Admin</button>
+                    <p className="text-sm text-red-600 dark:text-red-400 font-semibold">Reconectar bloqueado por Admin</p>
                 </div>
             ) : (
                 <div className="w-full flex flex-col items-center">
@@ -1295,6 +1311,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
                     )}
                 </div>
             )}
+
         </div>
     );
 }
