@@ -20,7 +20,8 @@ import {
     ExternalLink, Menu, CheckCircle2, ChevronRight, ArrowRight, Zap,
     TrendingUp, ShieldCheck, Settings, Trash2,
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
-    Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Mic, Hammer // ✅ Iconos
+    Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Mic, Hammer,
+    Sparkles, Bot, CalendarCheck, MessageSquareText // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -536,7 +537,50 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </div>
                 <div className={gridClass}>
                     {renderCard("ghl", "GoHighLevel", t('agency.integrations.ghl_desc'), Globe, { showOpen: true, onOpen: openGhlPortal })}
-                    {renderCard("odoo", "Odoo", t('agency.integrations.odoo_desc'), BookOpen, { soon: true })}
+                    
+                    {/* Waflow CRM — Card Premium */}
+                    <div className={`${isOverview 
+                        ? 'relative overflow-hidden border border-indigo-200 dark:border-indigo-800/60 rounded-3xl p-6 bg-gradient-to-br from-white via-indigo-50/40 to-violet-50/30 dark:from-gray-900 dark:via-indigo-950/30 dark:to-violet-950/20 shadow-sm hover:shadow-xl transition-all min-h-[220px]' 
+                        : 'relative overflow-hidden border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-5 bg-gradient-to-br from-gray-50/70 via-indigo-50/30 to-violet-50/20 dark:from-gray-800/40 dark:via-indigo-950/20 dark:to-violet-950/10'
+                    }`}>
+                        {/* Glow accent */}
+                        <div className="absolute -top-12 -right-12 w-32 h-32 bg-indigo-500/10 dark:bg-indigo-400/5 rounded-full blur-2xl pointer-events-none" />
+                        
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 relative z-10">
+                            <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                                    <Sparkles size={18} className="text-white" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                        Waflow CRM
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white tracking-wider">
+                                            <Zap size={10} fill="currentColor" /> Próximamente
+                                        </span>
+                                    </h4>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        {t('agency.integrations.waflow_crm_desc') || 'CRM independiente con IA integrada. Califica leads, agenda citas y cierra ventas — todo desde Waflow.'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Feature pills */}
+                        <div className="mt-4 flex flex-wrap gap-2 relative z-10">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/80 dark:bg-gray-800/60 border border-gray-200/60 dark:border-gray-700/50 text-gray-700 dark:text-gray-300">
+                                <Bot size={13} className="text-indigo-500" /> Agentes IA
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/80 dark:bg-gray-800/60 border border-gray-200/60 dark:border-gray-700/50 text-gray-700 dark:text-gray-300">
+                                <TrendingUp size={13} className="text-emerald-500" /> Pipeline
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/80 dark:bg-gray-800/60 border border-gray-200/60 dark:border-gray-700/50 text-gray-700 dark:text-gray-300">
+                                <CalendarCheck size={13} className="text-blue-500" /> Calendario
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/80 dark:bg-gray-800/60 border border-gray-200/60 dark:border-gray-700/50 text-gray-700 dark:text-gray-300">
+                                <MessageSquareText size={13} className="text-violet-500" /> Inbox Unificado
+                            </span>
+                        </div>
+                    </div>
                 </div>
             </div>
         );
