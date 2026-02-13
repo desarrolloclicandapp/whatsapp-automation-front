@@ -183,6 +183,41 @@ export default function AdminDashboard({ token, onLogout }) {
         setConfirmModal({ ...confirmModal, show: false });
     };
 
+    const executeSuspendUser = async (userId, reason = 'Manual admin action') => {
+        try {
+            const res = await authFetch(`/admin/users/${userId}/suspend`, {
+                method: 'POST',
+                body: JSON.stringify({ reason })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                toast.success('Usuario suspendido');
+                fetchUsers();
+            } else {
+                toast.error(data.error || 'No se pudo suspender');
+            }
+        } catch (error) {
+            toast.error(t('sub.toast.error_connection'));
+        }
+        setConfirmModal({ ...confirmModal, show: false });
+    };
+
+    const executeReactivateSuspension = async (userId) => {
+        try {
+            const res = await authFetch(`/admin/users/${userId}/reactivate`, { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                toast.success('Usuario reactivado');
+                fetchUsers();
+            } else {
+                toast.error(data.error || 'No se pudo reactivar');
+            }
+        } catch (error) {
+            toast.error(t('sub.toast.error_connection'));
+        }
+        setConfirmModal({ ...confirmModal, show: false });
+    };
+
     const handleImpersonateUser = async (user) => {
         if (!user?.id) return;
         if (user.role === 'admin') {
@@ -675,6 +710,9 @@ const handleDeleteUser = (user, type = 'soft') => {
                                         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                             {filteredUsers.map(user => {
                                                 const canManageTrial = user.role !== 'admin' && (user.plan_status === 'trial' || user.plan_status === 'suspended');
+                                                const suspensionStatus = user.suspension_status || null;
+                                                const isSuspended = ['grace', 'suspended', 'pending_deletion', 'permanently_deleted'].includes(suspensionStatus);
+                                                const graceDaysLeft = user.grace_ends_at ? Math.max(0, Math.ceil((new Date(user.grace_ends_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000))) : null;
                                                 return (
                                                     <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
                                                         <td className="px-6 py-4">
@@ -698,6 +736,23 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${user.plan_status === 'active' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : user.plan_status === 'trial' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
                                                                     {user.plan_status ? user.plan_status.toUpperCase() : 'TRIAL'}
                                                                 </span>
+                                                                                                                        )}
+                                                            {suspensionStatus && (
+                                                                <div className="mt-2 flex flex-col gap-1 items-start">
+                                                                    {suspensionStatus === 'grace' && (
+                                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border bg-amber-100 text-amber-700 border-amber-200">
+                                                                            GRACE {graceDaysLeft !== null ? `(${graceDaysLeft}d)` : ''}
+                                                                        </span>
+                                                                    )}
+                                                                    {['suspended', 'pending_deletion', 'permanently_deleted'].includes(suspensionStatus) && (
+                                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border bg-red-100 text-red-700 border-red-200">
+                                                                            {suspensionStatus.toUpperCase()}
+                                                                        </span>
+                                                                    )}
+                                                                    {user.suspension_reason && (
+                                                                        <span className="text-[10px] text-gray-500">{user.suspension_reason}</span>
+                                                                    )}
+                                                                </div>
                                                             )}
                                                         </td>
                                                         <td className="px-6 py-4">
@@ -744,6 +799,36 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                     </button>
                                                                 )}
                                                                 
+                                                                {user.role !== 'admin' && !isSuspended && (
+                                                                    <button
+                                                                        onClick={() => openConfirm(
+                                                                            'Suspender usuario',
+                                                                            `Quieres suspender temporalmente a ${user.name || user.email}?`,
+                                                                            () => executeSuspendUser(user.id, 'Manual admin action'),
+                                                                            true
+                                                                        )}
+                                                                        className="p-2 text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition"
+                                                                        title="Suspender temporalmente"
+                                                                    >
+                                                                        <AlertCircle size={18} />
+                                                                    </button>
+                                                                )}
+
+                                                                {user.role !== 'admin' && isSuspended && (
+                                                                    <button
+                                                                        onClick={() => openConfirm(
+                                                                            'Reactivar suspension',
+                                                                            `Quieres reactivar la cuenta de ${user.name || user.email}?`,
+                                                                            () => executeReactivateSuspension(user.id),
+                                                                            false
+                                                                        )}
+                                                                        className="p-2 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition"
+                                                                        title="Reactivar suspension"
+                                                                    >
+                                                                        <CheckCircle2 size={18} />
+                                                                    </button>
+                                                                )}
+
                                                                 {user.role !== 'admin' && (
                                                                     <button
                                                                         onClick={() => handleImpersonateUser(user)}

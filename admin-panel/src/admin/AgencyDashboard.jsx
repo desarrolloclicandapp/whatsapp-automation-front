@@ -64,8 +64,15 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [userEmail, setUserEmail] = useState("");
 
     const [isAccountSuspended, setIsAccountSuspended] = useState(false);
+    const [suspensionStatus, setSuspensionStatus] = useState(null);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-    
+
+    const getDaysLeft = (dateValue) => {
+        if (!dateValue) return null;
+        const diff = new Date(dateValue).getTime() - Date.now();
+        return Math.max(0, Math.ceil(diff / (24 * 60 * 60 * 1000)));
+    };
+
 
 
     // ✅ NUEVO: Estado para Dominio CRM (Persistente en LocalStorage)
@@ -98,12 +105,28 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const refreshData = async () => {
         try {
-            const accRes = await authFetch('/agency/info');
+            const [accRes, suspensionRes] = await Promise.all([
+                authFetch('/agency/info'),
+                authFetch('/agency/my-suspension-status')
+            ]);
 
             if (accRes && accRes.ok) {
                 const data = await accRes.json();
-                console.log("La informacion de la data", data)
                 setAccountInfo(data);
+
+                let liveSuspension = null;
+                if (suspensionRes && suspensionRes.ok) {
+                    liveSuspension = await suspensionRes.json();
+                } else if (data.suspension) {
+                    liveSuspension = {
+                        status: data.suspension.status || null,
+                        reason: data.suspension.reason || null,
+                        suspended_at: data.suspension.suspended_at || null,
+                        grace_ends_at: data.suspension.grace_ends_at || null,
+                        permanent_delete_at: data.suspension.permanent_delete_at || null
+                    };
+                }
+                setSuspensionStatus(liveSuspension);
 
                 let effectiveAgencyId = AGENCY_ID;
                 if (!effectiveAgencyId && data.agencyId) {
@@ -123,8 +146,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                 const planStatus = (data.plan || '').toLowerCase();
                 const now = new Date();
                 const trialEnd = data.trial_ends ? new Date(data.trial_ends) : null;
+                const suspensionCode = (liveSuspension?.status || '').toLowerCase();
+                const isHardSuspended = ['suspended', 'pending_deletion', 'permanently_deleted'].includes(suspensionCode);
 
-                if (planStatus === 'suspended' || planStatus === 'cancelled' || planStatus === 'past_due') {
+                if (isHardSuspended || planStatus === 'suspended' || planStatus === 'cancelled' || planStatus === 'past_due') {
                     setIsAccountSuspended(true);
                 } else if (planStatus === 'trial' && trialEnd && trialEnd < now) {
                     setIsAccountSuspended(true);
@@ -823,6 +848,33 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 )}
                                             </div>
                                         </div>
+
+                                        {suspensionStatus?.status === 'grace' && (
+                                            <div className="mt-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/40 p-4 rounded-xl">
+                                                <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200">
+                                                    Tu cuenta está en periodo de gracia.
+                                                </p>
+                                                <p className="text-xs text-yellow-800 dark:text-yellow-300 mt-1">
+                                                    Será suspendida en {getDaysLeft(suspensionStatus.grace_ends_at) ?? 0} día(s).
+                                                    {suspensionStatus.grace_ends_at && ` Fecha límite: ${new Date(suspensionStatus.grace_ends_at).toLocaleString()}.`}
+                                                </p>
+                                                <button onClick={() => setActiveTab('billing')} className="mt-3 px-3 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-semibold text-xs transition">
+                                                    Actualizar método de pago
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {['suspended', 'pending_deletion', 'permanently_deleted'].includes(suspensionStatus?.status || '') && (
+                                            <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 p-4 rounded-xl">
+                                                <p className="text-sm font-semibold text-red-900 dark:text-red-200">
+                                                    Tu cuenta está suspendida.
+                                                </p>
+                                                <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                                                    Contacta soporte para reactivarla.
+                                                    {suspensionStatus?.reason ? ` Motivo: ${suspensionStatus.reason}` : ''}
+                                                </p>
+                                            </div>
+                                        )}
                                         
                                         {accountInfo.plan === 'trial' && (
                                             <div className="mt-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 p-4 rounded-xl flex items-center justify-between gap-4">

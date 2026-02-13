@@ -56,10 +56,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             }
         });
 
-        if (res.status === 401 || res.status === 403) {
+        if (res.status === 401) {
             onLogout();
             onClose();
             return null;
+        }
+
+        if (res.status === 403) {
+            const body = await res.clone().json().catch(() => null);
+            if (body?.error !== "account_suspended") {
+                onLogout();
+                onClose();
+                return null;
+            }
         }
         return res;
     };
@@ -897,7 +906,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     <div className="space-y-2">
                                                                         {keywords.filter(k => k.slot_id === slot.slot_id).map(k => (
                                                                             <div key={k.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                                <div className="flex gap-2 items-center"><span className="font-bold text-gray-800 dark:text-white">"{k.keyword}"</span> <span className="text-gray-400">-></span> <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-bold">{k.tag}</span></div>
+                                                                                <div className="flex gap-2 items-center"><span className="font-bold text-gray-800 dark:text-white">"{k.keyword}"</span> <span className="text-gray-400">&rarr;</span> <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-bold">{k.tag}</span></div>
                                                                                 <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
                                                                             </div>
                                                                         ))}
@@ -976,6 +985,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
     const [status, setStatus] = useState({ connected: false, myNumber: null });
     const [qr, setQr] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [suspensionState, setSuspensionState] = useState(null);
     const pollInterval = useRef(null);
 
     const authFetch = async (endpoint, options = {}) => {
@@ -985,11 +995,39 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
         });
     };
 
+    const readSuspensionError = async (res) => {
+        if (!res || res.status !== 403) return null;
+        const data = await res.clone().json().catch(() => null);
+        if (data?.error !== 'account_suspended') return null;
+        return {
+            status: data.suspension_status || 'suspended',
+            message: data.message || 'Tu cuenta esta suspendida. No puedes vincular numeros en este momento.'
+        };
+    };
+
+    const stopPolling = () => {
+        if (pollInterval.current) {
+            clearInterval(pollInterval.current);
+            pollInterval.current = null;
+        }
+    };
+
     const checkStatus = async () => {
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/status`);
+            const suspension = await readSuspensionError(res);
+            if (suspension) {
+                setSuspensionState(suspension);
+                setStatus({ connected: false, myNumber: null });
+                setQr(null);
+                setLoading(false);
+                stopPolling();
+                return;
+            }
+
             if (res.ok) {
                 const data = await res.json();
+                setSuspensionState(null);
                 setStatus({ connected: data.connected, myNumber: data.myNumber });
                 if (data.connected) {
                     setQr(null);
@@ -999,13 +1037,6 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
                 }
             }
         } catch (e) { }
-    };
-
-    const stopPolling = () => {
-        if (pollInterval.current) {
-            clearInterval(pollInterval.current);
-            pollInterval.current = null;
-        }
     };
 
     useEffect(() => {
@@ -1018,73 +1049,116 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
         setQr(null);
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, { method: 'POST' });
-            if (!res.ok) throw new Error("Fallo al iniciar");
+            const suspension = await readSuspensionError(res);
+            if (suspension) {
+                setSuspensionState(suspension);
+                setLoading(false);
+                stopPolling();
+                return;
+            }
 
-            // Polling QR
+            if (!res.ok) throw new Error('Fallo al iniciar');
+
+            setSuspensionState(null);
             stopPolling();
             pollInterval.current = setInterval(async () => {
                 try {
                     const qrRes = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr`);
+                    const qrSuspension = await readSuspensionError(qrRes);
+                    if (qrSuspension) {
+                        setSuspensionState(qrSuspension);
+                        setQr(null);
+                        setLoading(false);
+                        stopPolling();
+                        return;
+                    }
+
                     if (qrRes.ok) {
                         const data = await qrRes.json();
                         if (data.qr) setQr(data.qr);
-                        if (data.connected) { checkStatus(); }
+                        if (data.connected) checkStatus();
                     }
                 } catch (e) { }
             }, 2000);
-
         } catch (e) {
-            toast.error("Error iniciando conexión");
+            toast.error('Error iniciando conexion');
             setLoading(false);
         }
     };
 
     const handleDisconnect = async () => {
-        if (!confirm("¿Desconectar este dispositivo?")) return;
+        if (!confirm('Desconectar este dispositivo?')) return;
         setLoading(true);
         try {
-            await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/disconnect`, { method: 'DELETE' });
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/disconnect`, { method: 'DELETE' });
+            const suspension = await readSuspensionError(res);
+            if (suspension) {
+                setSuspensionState(suspension);
+                setLoading(false);
+                stopPolling();
+                return;
+            }
+
+            if (!res.ok) throw new Error('Error desconectando');
+
             setStatus({ connected: false, myNumber: null });
             setQr(null);
             stopPolling();
             onUpdate();
-            toast.success("Desconectado");
-        } catch (e) { toast.error("Error desconectando"); }
+            toast.success('Desconectado');
+        } catch (e) {
+            toast.error('Error desconectando');
+        }
         setLoading(false);
     };
 
     return (
         <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
-            
             <div className="flex items-center gap-4 mb-6">
-                 <div className={`p-4 rounded-full ${status.connected ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'}`}>
+                <div className={`p-4 rounded-full ${status.connected ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'}`}>
                     {status.connected ? <Smartphone size={32} /> : <QrCode size={32} />}
-                 </div>
-                 <div className="text-center md:text-left">
-                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                         {status.connected ? "Dispositivo Conectado" : "Vincular WhatsApp"}
-                     </h3>
-                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                         {status.connected ? `Número: +${status.myNumber}` : "Escanea el código QR para conectar."}
-                     </p>
-                 </div>
+                </div>
+                <div className="text-center md:text-left">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                        {status.connected ? 'Dispositivo Conectado' : 'Vincular WhatsApp'}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {status.connected ? `Numero: +${status.myNumber}` : 'Escanea el codigo QR para conectar.'}
+                    </p>
+                </div>
             </div>
+
+            {suspensionState && (
+                <div className="w-full mb-5 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-4">
+                    <div className="flex items-start gap-2">
+                        <AlertTriangle size={18} className="text-amber-600 mt-0.5" />
+                        <div>
+                            <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                                Cuenta en suspension ({suspensionState.status})
+                            </p>
+                            <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
+                                {suspensionState.message}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {!status.connected ? (
                 <div className="w-full flex flex-col items-center">
-                    {!qr && !loading && (
-                         <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
-                             <QrCode size={20} /> Generar Código QR
-                         </button>
+                    {!suspensionState && !qr && !loading && (
+                        <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
+                            <QrCode size={20} /> Generar Codigo QR
+                        </button>
                     )}
 
-                    {(qr || loading) && (
+                    {!suspensionState && (qr || loading) && (
                         <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
-                             <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
-                                 {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
-                             </div>
-                             <p className="text-sm text-gray-500 mb-4">{qr ? "Escanea con tu teléfono" : "Iniciando sesión..."}</p>
-                             <button onClick={() => { setQr(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-gray-600 underline text-sm">Cancelar</button>
+                            <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
+                                {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
+                            </div>
+                            <p className="text-sm text-gray-500 mb-4">{qr ? 'Escanea con tu telefono' : 'Iniciando sesion...'}</p>
+                            <button onClick={() => { setQr(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-gray-600 underline text-sm">Cancelar</button>
                         </div>
                     )}
                 </div>
@@ -1096,4 +1170,3 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
         </div>
     );
 }
-
