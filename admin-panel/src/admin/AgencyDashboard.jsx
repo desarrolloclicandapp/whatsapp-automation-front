@@ -34,6 +34,7 @@ const APP_ID = RAW_INSTALL_URL.includes('/integration/')
     ? ((RAW_INSTALL_URL.split('/integration/')[1] || "").split(/[?#]/)[0] || FALLBACK_APP_ID)
     : FALLBACK_APP_ID;
 const USE_DIRECT_MARKETPLACE_INSTALL = /oauth\/chooselocation/i.test(RAW_INSTALL_URL);
+const EFFECTIVE_MARKETPLACE_INSTALL_URL = USE_DIRECT_MARKETPLACE_INSTALL ? RAW_INSTALL_URL : DEFAULT_MARKETPLACE_INSTALL_URL;
 
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
@@ -430,13 +431,8 @@ export default function AgencyDashboard({ token, onLogout }) {
             toast.dismiss(tId);
 
             if (data.allowed) {
-                let installUrl = RAW_INSTALL_URL;
-                if (!USE_DIRECT_MARKETPLACE_INSTALL) {
-                    // Modo legacy: construye URL /integration/{APP_ID} sobre dominio elegido.
-                    const cleanedDomain = (crmDomain || "app.gohighlevel.com").replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
-                    installUrl = `https://${cleanedDomain}/integration/${APP_ID}`;
-                }
-                
+                // Siempre preferimos el enlace oficial de marketplace en dev/testing para evitar redirecciones legacy.
+                const installUrl = EFFECTIVE_MARKETPLACE_INSTALL_URL;
                 console.log("Redirigiendo a:", installUrl);
                 window.location.href = installUrl;
             } else {
@@ -1004,7 +1000,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             />
                                         </div>
                                         <p className="text-xs text-gray-400 mt-2">
-                                        {t('agency.crm.install_link')} <span className="font-mono text-indigo-500">{USE_DIRECT_MARKETPLACE_INSTALL ? RAW_INSTALL_URL : `https://${(crmDomain || t('agency.crm.domain_placeholder'))}/integration/${APP_ID}`}</span>
+                                        {t('agency.crm.install_link')} <span className="font-mono text-indigo-500">{EFFECTIVE_MARKETPLACE_INSTALL_URL}</span>
                                         </p>
                                     </div>
                                 </div>
