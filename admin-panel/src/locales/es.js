@@ -250,6 +250,23 @@ export const es = {
     "slots.tab.keywords": "Keywords",
     "slots.tab.groups": "Grupos",
     "slots.tab.connection": "Conexión QR",
+    "slots.tab.sms": "SMS / Twilio",
+
+    // SMS / Twilio
+    "slots.sms.title": "SMS / Twilio",
+    "slots.sms.desc": "Usa el prefijo !SMS! para enviar por SMS en vez de WhatsApp.",
+    "slots.sms.account_sid": "Account SID",
+    "slots.sms.auth_token": "Auth Token",
+    "slots.sms.phone_number": "Número Twilio",
+    "slots.sms.ph_sid": "Ingresa tu Account SID",
+    "slots.sms.ph_token": "Ingresa tu Auth Token",
+    "slots.sms.ph_phone": "+1234567890",
+    "slots.sms.validate": "Validar",
+    "slots.sms.save": "Guardar",
+    "slots.sms.clear": "Limpiar",
+    "slots.sms.reload": "Recargar configuración",
+    "slots.sms.configured": "Configurado",
+    "slots.sms.not_configured": "No configurado",
 
     // Settings
     "slots.settings.order": "Orden de Envío",
