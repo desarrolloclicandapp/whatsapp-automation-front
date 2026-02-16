@@ -26,70 +26,29 @@ import {
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
-const DEFAULT_CRM_DOMAIN = "app.gohighlevel.com";
-const DEFAULT_WL_MARKETPLACE_HOST = "marketplace.leadconnectorhq.com";
-const ALLOWED_MARKETPLACE_OAUTH_HOSTS = new Set([
-    "marketplace.gohighlevel.com",
-    "marketplace.leadconnectorhq.com"
-]);
+const DEFAULT_INSTALL_APP_URL = "https://app.gohighlevel.com/integration/691623d58a49cdcb2c56ce9c";
 
-const DEFAULT_MARKETPLACE_INSTALL_URL = "https://marketplace.leadconnectorhq.com/oauth/chooselocation?response_type=code&redirect_uri=https%3A%2F%2Ftest-development-whatsapp-api-postgress.lrkqbo.easypanel.host%2Foauth%2Fcallback&client_id=6968d10f1f0b9e6b537024cd-mlggwkzo&scope=contacts.readonly+contacts.write+conversations.readonly+conversations.write+conversations%2Fmessage.readonly+conversations%2Fmessage.write+locations.readonly+locations%2FcustomValues.readonly+locations%2FcustomValues.write+locations%2FcustomFields.readonly+locations%2FcustomFields.write+locations%2Ftasks.readonly+locations%2Ftasks.write+locations%2Ftags.readonly+locations%2Ftags.write+locations%2Ftemplates.readonly+custom-menu-link.write+custom-menu-link.readonly+companies.readonly+users.readonly+businesses.readonly&version_id=6968d10f1f0b9e6b537024cd";
-const RAW_INSTALL_URL = String(import.meta.env.VITE_INSTALL_APP_URL || DEFAULT_MARKETPLACE_INSTALL_URL).trim();
+function normalizeInstallLink(rawValue = "") {
+    const raw = String(rawValue || "").trim();
+    if (!raw) return null;
 
-function normalizeInstallDomain(rawValue = "") {
-    const value = String(rawValue || "").trim();
-    if (!value) return "";
-
-    const withoutProtocol = value.replace(/^https?:\/\//i, "");
-    const host = withoutProtocol.split("/")[0].trim().toLowerCase();
-    if (!host) return "";
-
-    // basic hostname validation (letters, digits, dots and dashes)
-    if (!/^[a-z0-9.-]+$/.test(host)) return "";
-    return host;
-}
-
-function ensureSelfWindowMode(rawUrl) {
+    const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    let parsed;
     try {
-        const url = new URL(rawUrl);
-        if (/\/oauth\/chooselocation/i.test(url.pathname) && !url.searchParams.get("loginWindowOpenMode")) {
-            url.searchParams.set("loginWindowOpenMode", "self");
-        }
-        return url.toString();
+        parsed = new URL(withProtocol);
     } catch (_) {
-        return rawUrl;
+        return null;
     }
+
+    if (!/^https?:$/i.test(parsed.protocol)) return null;
+    if (!/\/integration\/[^/?#]+/i.test(parsed.pathname)) return null;
+    parsed.hash = "";
+    return parsed.toString();
 }
 
-function buildInstallUrl(baseInstallUrl, domainCandidate = "") {
-    const fallback = ensureSelfWindowMode(baseInstallUrl || DEFAULT_MARKETPLACE_INSTALL_URL);
-    try {
-        const url = new URL(fallback);
-        const normalizedDomain = normalizeInstallDomain(domainCandidate);
-        const isMarketplaceOAuth = /\/oauth\/chooselocation/i.test(url.pathname);
-
-        // GHL OAuth chooselocation only works on marketplace hosts.
-        if (isMarketplaceOAuth) {
-            if (normalizedDomain && ALLOWED_MARKETPLACE_OAUTH_HOSTS.has(normalizedDomain)) {
-                url.host = normalizedDomain;
-            } else {
-                url.host = ALLOWED_MARKETPLACE_OAUTH_HOSTS.has(url.host)
-                    ? url.host
-                    : DEFAULT_WL_MARKETPLACE_HOST;
-            }
-            url.protocol = "https:";
-            return ensureSelfWindowMode(url.toString());
-        }
-
-        if (!normalizedDomain) return ensureSelfWindowMode(url.toString());
-
-        url.protocol = "https:";
-        url.host = normalizedDomain;
-        return ensureSelfWindowMode(url.toString());
-    } catch (_) {
-        return fallback;
-    }
-}
+const ENV_INSTALL_APP_URL = normalizeInstallLink(
+    String(import.meta.env.VITE_INSTALL_APP_URL || DEFAULT_INSTALL_APP_URL).trim()
+) || DEFAULT_INSTALL_APP_URL;
 
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
@@ -132,10 +91,12 @@ export default function AgencyDashboard({ token, onLogout }) {
 
 
 
-    // ✅ NUEVO: Estado para Dominio CRM (Persistente en LocalStorage)
-    const [crmDomain, setCrmDomain] = useState(localStorage.getItem("crmDomain") || "");
-    const normalizedCrmDomain = normalizeInstallDomain(crmDomain);
-    const installUrlPreview = buildInstallUrl(RAW_INSTALL_URL, normalizedCrmDomain);
+    // ✅ Estado para link de instalación CRM (persistido por usuario en backend)
+    const [crmInstallLink, setCrmInstallLink] = useState("");
+    const installUrlPreview =
+        normalizeInstallLink(crmInstallLink) ||
+        normalizeInstallLink(accountInfo?.ghl_instalation_link || "") ||
+        ENV_INSTALL_APP_URL;
 
     // Estados API Keys & Webhooks
     const [apiKeys, setApiKeys] = useState([]);
@@ -172,6 +133,9 @@ export default function AgencyDashboard({ token, onLogout }) {
             if (accRes && accRes.ok) {
                 const data = await accRes.json();
                 setAccountInfo(data);
+                if (typeof data.ghl_instalation_link === "string" && data.ghl_instalation_link.trim()) {
+                    setCrmInstallLink(data.ghl_instalation_link.trim());
+                }
 
                 let liveSuspension = null;
                 if (suspensionRes && suspensionRes.ok) {
@@ -488,7 +452,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             toast.dismiss(tId);
 
             if (data.allowed) {
-                const installUrl = buildInstallUrl(RAW_INSTALL_URL, normalizedCrmDomain);
+                const installUrl = installUrlPreview;
                 console.log("Redirigiendo a:", installUrl);
                 window.location.href = installUrl;
             } else {
@@ -501,18 +465,41 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
-    // ✅ GUARDAR DOMINIO CRM
-    const handleSaveCrmDomain = () => {
-        let cleaned = normalizeInstallDomain(crmDomain);
-        if (!cleaned) cleaned = DEFAULT_CRM_DOMAIN;
-        
-        setCrmDomain(cleaned);
-        localStorage.setItem("crmDomain", cleaned);
-        toast.success(t('agency.crm.domain_saved'), { description: `${t('agency.crm.domain_saved_desc')} ${cleaned}` });
+    // ✅ GUARDAR LINK DE INSTALACIÓN CRM POR USUARIO
+    const handleSaveCrmDomain = async () => {
+        const normalized = normalizeInstallLink(crmInstallLink || "");
+        if (!normalized) {
+            toast.error(t('agency.crm.invalid_link'));
+            return;
+        }
+
+        const tId = toast.loading(t('common.save'));
+        try {
+            const res = await authFetch('/agency/ghl-installation-link', {
+                method: 'PUT',
+                body: JSON.stringify({ ghl_instalation_link: normalized })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || t('agency.server_error'));
+            }
+
+            const savedLink = data.ghl_instalation_link || normalized;
+            setCrmInstallLink(savedLink);
+            setAccountInfo(prev => prev ? { ...prev, ghl_instalation_link: savedLink } : prev);
+            toast.success(t('agency.crm.domain_saved'), { id: tId, description: `${t('agency.crm.domain_saved_desc')} ${savedLink}` });
+        } catch (e) {
+            toast.error(e.message || t('agency.connection_error'), { id: tId });
+        }
     };
+
     const openGhlPortal = () => {
-        const domain = normalizeInstallDomain(crmDomain) || DEFAULT_CRM_DOMAIN;
-        window.open(`https://${domain}`, "_blank", "noopener");
+        try {
+            const parsed = new URL(installUrlPreview);
+            window.open(`${parsed.protocol}//${parsed.host}`, "_blank", "noopener");
+        } catch (_) {
+            window.open("https://app.gohighlevel.com", "_blank", "noopener");
+        }
     };
     const handleSelectCrm = (crmType) => {
         if (isCrmLocked) {
@@ -1041,16 +1028,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </div>
                                     <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.crm.install_domain')}</label>
-                                        <div className="flex gap-2">
-                                            <div className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-l-xl text-gray-500 select-none">https://</div>
-                                            <input 
-                                                type="text" 
-                                                className="flex-1 p-3 border-y border-r border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-r-xl outline-none focus:ring-2 focus:ring-indigo-500" 
-                                                value={crmDomain}
-                                                onChange={(e) => setCrmDomain(e.target.value)}
-                                                placeholder={t('agency.crm.domain_placeholder')}
-                                            />
-                                        </div>
+                                        <input 
+                                            type="text" 
+                                            className="w-full p-3 border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" 
+                                            value={crmInstallLink}
+                                            onChange={(e) => setCrmInstallLink(e.target.value)}
+                                            placeholder={t('agency.crm.domain_placeholder')}
+                                        />
                                         <p className="text-xs text-gray-400 mt-2">
                                         {t('agency.crm.install_link')} <span className="font-mono text-indigo-500">{installUrlPreview}</span>
                                         </p>

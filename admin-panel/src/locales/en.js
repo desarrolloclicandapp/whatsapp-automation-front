@@ -367,14 +367,15 @@ export const en = {
     "agency.tenant.delete_error": "Error",
 
     // Agency Dashboard - CRM Settings
-    "agency.crm.domain_saved": "CRM domain saved",
-    "agency.crm.domain_saved_desc": "Installations will use:",
-    "agency.crm.title": "CRM Domain Settings",
-    "agency.crm.desc": "Set the domain where you'll install subaccounts (e.g., app.gohighlevel.com or your white-label).",
-    "agency.crm.save_btn": "Save Domain",
-    "agency.crm.domain_placeholder": "app.gohighlevel.com",
-    "agency.crm.install_domain": "Installation Domain",
+    "agency.crm.domain_saved": "Installation link saved",
+    "agency.crm.domain_saved_desc": "Installation will use:",
+    "agency.crm.title": "CRM Install Link Settings",
+    "agency.crm.desc": "Set the GHL installation link for this agency (e.g., https://app.gohighlevel.com/integration/{appId} or your white-label domain).",
+    "agency.crm.save_btn": "Save Link",
+    "agency.crm.domain_placeholder": "https://app.gohighlevel.com/integration/691623d58a49cdcb2c56ce9c",
+    "agency.crm.install_domain": "Installation Link",
     "agency.crm.install_link": "Current install link:",
+    "agency.crm.invalid_link": "Enter a valid GHL installation link with /integration/{appId}.",
 
     // Agency Dashboard - Integrations
     "agency.integrations.title": "Integrations",
