@@ -265,14 +265,18 @@ export default function AgencyDashboard({ token, onLogout }) {
     useEffect(() => {
         console.log("📍 URL Search Params:", window.location.search);
         const locationIdParam = queryParams.get("location_id");
-        const legacyInstallParam = queryParams.get("new_install");
-        const targetLocationId = locationIdParam || legacyInstallParam;
+        const targetLocationId = locationIdParam ? String(locationIdParam).trim() : "";
         const oauthCode = queryParams.get("code");
+        const legacyInstallParam = queryParams.get("new_install");
         console.log(`🔎 Parsed Params -> Location: ${targetLocationId}, Code: ${oauthCode ? 'PRESENT' : 'MISSING'}`);
         
+        if (legacyInstallParam && !targetLocationId && !oauthCode) {
+            console.warn("[Install] Ignoring legacy new_install param because it may contain companyId, not location_id.");
+        }
+
         if (isGhlAgency && (targetLocationId || oauthCode) && !isAutoSyncing) {
             // Con OAuth code directo (marketplace), no bloqueamos esperando webhook.
-            const skipInstallPolling = Boolean(oauthCode) || Boolean(legacyInstallParam && !locationIdParam) || !targetLocationId;
+            const skipInstallPolling = Boolean(oauthCode) || !targetLocationId;
             autoSyncAgency(targetLocationId, oauthCode, { skipInstallPolling });
         }
         try { const payload = JSON.parse(atob(token.split('.')[1])); setUserEmail(payload.email); } catch (e) { }
