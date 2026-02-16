@@ -26,15 +26,50 @@ import {
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
+const DEFAULT_CRM_DOMAIN = "app.gohighlevel.com";
 
 const DEFAULT_MARKETPLACE_INSTALL_URL = "https://marketplace.leadconnectorhq.com/oauth/chooselocation?response_type=code&redirect_uri=https%3A%2F%2Ftest-development-whatsapp-api-postgress.lrkqbo.easypanel.host%2Foauth%2Fcallback&client_id=6968d10f1f0b9e6b537024cd-mlggwkzo&scope=contacts.readonly+contacts.write+conversations.readonly+conversations.write+conversations%2Fmessage.readonly+conversations%2Fmessage.write+locations.readonly+locations%2FcustomValues.readonly+locations%2FcustomValues.write+locations%2FcustomFields.readonly+locations%2FcustomFields.write+locations%2Ftasks.readonly+locations%2Ftasks.write+locations%2Ftags.readonly+locations%2Ftags.write+locations%2Ftemplates.readonly+custom-menu-link.write+custom-menu-link.readonly+companies.readonly+users.readonly+businesses.readonly&version_id=6968d10f1f0b9e6b537024cd";
 const RAW_INSTALL_URL = String(import.meta.env.VITE_INSTALL_APP_URL || DEFAULT_MARKETPLACE_INSTALL_URL).trim();
-const FALLBACK_APP_ID = "691623d58a49cdcb2c56ce9c";
-const APP_ID = RAW_INSTALL_URL.includes('/integration/')
-    ? ((RAW_INSTALL_URL.split('/integration/')[1] || "").split(/[?#]/)[0] || FALLBACK_APP_ID)
-    : FALLBACK_APP_ID;
-const USE_DIRECT_MARKETPLACE_INSTALL = /oauth\/chooselocation/i.test(RAW_INSTALL_URL);
-const EFFECTIVE_MARKETPLACE_INSTALL_URL = USE_DIRECT_MARKETPLACE_INSTALL ? RAW_INSTALL_URL : DEFAULT_MARKETPLACE_INSTALL_URL;
+
+function normalizeInstallDomain(rawValue = "") {
+    const value = String(rawValue || "").trim();
+    if (!value) return "";
+
+    const withoutProtocol = value.replace(/^https?:\/\//i, "");
+    const host = withoutProtocol.split("/")[0].trim().toLowerCase();
+    if (!host) return "";
+
+    // basic hostname validation (letters, digits, dots and dashes)
+    if (!/^[a-z0-9.-]+$/.test(host)) return "";
+    return host;
+}
+
+function ensureSelfWindowMode(rawUrl) {
+    try {
+        const url = new URL(rawUrl);
+        if (/\/oauth\/chooselocation/i.test(url.pathname) && !url.searchParams.get("loginWindowOpenMode")) {
+            url.searchParams.set("loginWindowOpenMode", "self");
+        }
+        return url.toString();
+    } catch (_) {
+        return rawUrl;
+    }
+}
+
+function buildInstallUrl(baseInstallUrl, domainCandidate = "") {
+    const fallback = ensureSelfWindowMode(baseInstallUrl || DEFAULT_MARKETPLACE_INSTALL_URL);
+    const normalizedDomain = normalizeInstallDomain(domainCandidate);
+    if (!normalizedDomain) return fallback;
+
+    try {
+        const url = new URL(fallback);
+        url.protocol = "https:";
+        url.host = normalizedDomain;
+        return ensureSelfWindowMode(url.toString());
+    } catch (_) {
+        return fallback;
+    }
+}
 
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
@@ -79,6 +114,8 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     // ✅ NUEVO: Estado para Dominio CRM (Persistente en LocalStorage)
     const [crmDomain, setCrmDomain] = useState(localStorage.getItem("crmDomain") || "");
+    const normalizedCrmDomain = normalizeInstallDomain(crmDomain);
+    const installUrlPreview = buildInstallUrl(RAW_INSTALL_URL, normalizedCrmDomain);
 
     // Estados API Keys & Webhooks
     const [apiKeys, setApiKeys] = useState([]);
@@ -431,8 +468,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             toast.dismiss(tId);
 
             if (data.allowed) {
-                // Siempre preferimos el enlace oficial de marketplace en dev/testing para evitar redirecciones legacy.
-                const installUrl = EFFECTIVE_MARKETPLACE_INSTALL_URL;
+                const installUrl = buildInstallUrl(RAW_INSTALL_URL, normalizedCrmDomain);
                 console.log("Redirigiendo a:", installUrl);
                 window.location.href = installUrl;
             } else {
@@ -447,19 +483,15 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     // ✅ GUARDAR DOMINIO CRM
     const handleSaveCrmDomain = () => {
-        // Limpieza básica de la URL (quitar https://, barras finales, etc)
-        let cleaned = crmDomain.replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
-        if (!cleaned) cleaned = "app.gohighlevel.com";
+        let cleaned = normalizeInstallDomain(crmDomain);
+        if (!cleaned) cleaned = DEFAULT_CRM_DOMAIN;
         
         setCrmDomain(cleaned);
         localStorage.setItem("crmDomain", cleaned);
         toast.success(t('agency.crm.domain_saved'), { description: `${t('agency.crm.domain_saved_desc')} ${cleaned}` });
     };
     const openGhlPortal = () => {
-        const domain = (crmDomain || t('agency.crm.domain_placeholder') || "app.gohighlevel.com")
-            .replace(/^https?:\/\//, '')
-            .replace(/\/$/, '')
-            .trim();
+        const domain = normalizeInstallDomain(crmDomain) || DEFAULT_CRM_DOMAIN;
         window.open(`https://${domain}`, "_blank", "noopener");
     };
     const handleSelectCrm = (crmType) => {
@@ -1000,7 +1032,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             />
                                         </div>
                                         <p className="text-xs text-gray-400 mt-2">
-                                        {t('agency.crm.install_link')} <span className="font-mono text-indigo-500">{EFFECTIVE_MARKETPLACE_INSTALL_URL}</span>
+                                        {t('agency.crm.install_link')} <span className="font-mono text-indigo-500">{installUrlPreview}</span>
                                         </p>
                                     </div>
                                 </div>
