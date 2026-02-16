@@ -27,12 +27,13 @@ import {
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
 
-// 🔥 LÓGICA DE EXTRACCIÓN DE APP ID (Compatible con tu .env actual)
-// Toma la URL completa y se queda solo con el ID final (ej: 691623d58a49cdcb2c56ce9c)
-const RAW_INSTALL_URL = import.meta.env.VITE_INSTALL_APP_URL || "https://gestion.clicandapp.com/integration/6968d10f1f0b9e6b537024cd";
-const APP_ID = RAW_INSTALL_URL.includes('/integration/') 
-    ? RAW_INSTALL_URL.split('/integration/')[1] 
-    : "691623d58a49cdcb2c56ce9c"; // Fallback por seguridad
+const DEFAULT_MARKETPLACE_INSTALL_URL = "https://marketplace.gohighlevel.com/oauth/chooselocation?response_type=code&redirect_uri=https%3A%2F%2Ftest-development-whatsapp-api-postgress.lrkqbo.easypanel.host%2Foauth%2Fcallback&client_id=6968d10f1f0b9e6b537024cd-mlggwkzo&scope=contacts.readonly+contacts.write+conversations.readonly+conversations.write+conversations%2Fmessage.readonly+conversations%2Fmessage.write+locations.readonly+locations%2FcustomValues.readonly+locations%2FcustomValues.write+locations%2FcustomFields.readonly+locations%2FcustomFields.write+locations%2Ftasks.readonly+locations%2Ftasks.write+locations%2Ftags.readonly+locations%2Ftags.write+locations%2Ftemplates.readonly+custom-menu-link.write+custom-menu-link.readonly+companies.readonly+users.readonly+businesses.readonly&version_id=6968d10f1f0b9e6b537024cd";
+const RAW_INSTALL_URL = String(import.meta.env.VITE_INSTALL_APP_URL || DEFAULT_MARKETPLACE_INSTALL_URL).trim();
+const FALLBACK_APP_ID = "691623d58a49cdcb2c56ce9c";
+const APP_ID = RAW_INSTALL_URL.includes('/integration/')
+    ? ((RAW_INSTALL_URL.split('/integration/')[1] || "").split(/[?#]/)[0] || FALLBACK_APP_ID)
+    : FALLBACK_APP_ID;
+const USE_DIRECT_MARKETPLACE_INSTALL = /oauth\/chooselocation/i.test(RAW_INSTALL_URL);
 
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
@@ -169,19 +170,24 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const autoSyncAgency = async (locationId, code, options = {}) => {
         const { skipInstallPolling = false } = options;
+        const resolvedLocationId = locationId ? String(locationId).trim() : "";
         setIsAutoSyncing(true);
         // const toastId = toast.loading(t('agency.install.waiting')); // Removido por overlay visual
 
         try {
+            if (!resolvedLocationId && !code) {
+                throw new Error("No se recibió location_id ni code OAuth");
+            }
+
             // 🔥 STEP 1: Wait for GHL webhook to complete installation
             let installed = false;
             let lastCheckData = null;
             let attempts = 0;
             const maxWaitAttempts = 30; // 60 seconds max wait (30 * 2s)
 
-            while (!skipInstallPolling && !installed && attempts < maxWaitAttempts) {
+            while (!skipInstallPolling && resolvedLocationId && !installed && attempts < maxWaitAttempts) {
                 try {
-                    const checkRes = await authFetch(`/agency/check-install/${locationId}`);
+                    const checkRes = await authFetch(`/agency/check-install/${resolvedLocationId}`);
                     if (checkRes.ok) {
                         const checkData = await checkRes.json();
                         lastCheckData = checkData;
@@ -217,7 +223,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 try {
                     const res = await authFetch(`/agency/sync-ghl`, {
                         method: "POST",
-                        body: JSON.stringify({ locationIdToVerify: locationId, code: code })
+                        body: JSON.stringify({ locationIdToVerify: resolvedLocationId || null, code: code || null })
                     });
 
                     if (res.ok) {
@@ -263,9 +269,9 @@ export default function AgencyDashboard({ token, onLogout }) {
         const oauthCode = queryParams.get("code");
         console.log(`🔎 Parsed Params -> Location: ${targetLocationId}, Code: ${oauthCode ? 'PRESENT' : 'MISSING'}`);
         
-        if (isGhlAgency && targetLocationId && !isAutoSyncing) {
-            // If only legacy new_install is present, skip location polling to avoid false 60s timeout.
-            const skipInstallPolling = Boolean(legacyInstallParam && !locationIdParam);
+        if (isGhlAgency && (targetLocationId || oauthCode) && !isAutoSyncing) {
+            // Con OAuth code directo (marketplace), no bloqueamos esperando webhook.
+            const skipInstallPolling = Boolean(oauthCode) || Boolean(legacyInstallParam && !locationIdParam) || !targetLocationId;
             autoSyncAgency(targetLocationId, oauthCode, { skipInstallPolling });
         }
         try { const payload = JSON.parse(atob(token.split('.')[1])); setUserEmail(payload.email); } catch (e) { }
@@ -424,10 +430,12 @@ export default function AgencyDashboard({ token, onLogout }) {
             toast.dismiss(tId);
 
             if (data.allowed) {
-                // 🔥 URL Dinámica usando el dominio preferido del usuario
-                // Si el usuario no configuró nada, usa app.gohighlevel.com por defecto
-                const cleanedDomain = (crmDomain || "app.gohighlevel.com").replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
-                const installUrl = `https://${cleanedDomain}/integration/${APP_ID}`;
+                let installUrl = RAW_INSTALL_URL;
+                if (!USE_DIRECT_MARKETPLACE_INSTALL) {
+                    // Modo legacy: construye URL /integration/{APP_ID} sobre dominio elegido.
+                    const cleanedDomain = (crmDomain || "app.gohighlevel.com").replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
+                    installUrl = `https://${cleanedDomain}/integration/${APP_ID}`;
+                }
                 
                 console.log("Redirigiendo a:", installUrl);
                 window.location.href = installUrl;
@@ -996,7 +1004,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             />
                                         </div>
                                         <p className="text-xs text-gray-400 mt-2">
-                                        {t('agency.crm.install_link')} <span className="font-mono text-indigo-500">https://{(crmDomain || t('agency.crm.domain_placeholder'))}/integration/{APP_ID}</span>
+                                        {t('agency.crm.install_link')} <span className="font-mono text-indigo-500">{USE_DIRECT_MARKETPLACE_INSTALL ? RAW_INSTALL_URL : `https://${(crmDomain || t('agency.crm.domain_placeholder'))}/integration/${APP_ID}`}</span>
                                         </p>
                                     </div>
                                 </div>
