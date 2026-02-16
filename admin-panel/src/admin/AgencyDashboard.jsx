@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import LocationDetailsModal from './LocationDetailsModal';
 import SubscriptionManager from './SubscriptionManager';
@@ -27,7 +27,7 @@ import {
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
 
-const DEFAULT_MARKETPLACE_INSTALL_URL = "https://marketplace.gohighlevel.com/oauth/chooselocation?response_type=code&redirect_uri=https%3A%2F%2Ftest-development-whatsapp-api-postgress.lrkqbo.easypanel.host%2Foauth%2Fcallback&client_id=6968d10f1f0b9e6b537024cd-mlggwkzo&scope=contacts.readonly+contacts.write+conversations.readonly+conversations.write+conversations%2Fmessage.readonly+conversations%2Fmessage.write+locations.readonly+locations%2FcustomValues.readonly+locations%2FcustomValues.write+locations%2FcustomFields.readonly+locations%2FcustomFields.write+locations%2Ftasks.readonly+locations%2Ftasks.write+locations%2Ftags.readonly+locations%2Ftags.write+locations%2Ftemplates.readonly+custom-menu-link.write+custom-menu-link.readonly+companies.readonly+users.readonly+businesses.readonly&version_id=6968d10f1f0b9e6b537024cd";
+const DEFAULT_MARKETPLACE_INSTALL_URL = "https://marketplace.leadconnectorhq.com/oauth/chooselocation?response_type=code&redirect_uri=https%3A%2F%2Ftest-development-whatsapp-api-postgress.lrkqbo.easypanel.host%2Foauth%2Fcallback&client_id=6968d10f1f0b9e6b537024cd-mlggwkzo&scope=contacts.readonly+contacts.write+conversations.readonly+conversations.write+conversations%2Fmessage.readonly+conversations%2Fmessage.write+locations.readonly+locations%2FcustomValues.readonly+locations%2FcustomValues.write+locations%2FcustomFields.readonly+locations%2FcustomFields.write+locations%2Ftasks.readonly+locations%2Ftasks.write+locations%2Ftags.readonly+locations%2Ftags.write+locations%2Ftemplates.readonly+custom-menu-link.write+custom-menu-link.readonly+companies.readonly+users.readonly+businesses.readonly&version_id=6968d10f1f0b9e6b537024cd";
 const RAW_INSTALL_URL = String(import.meta.env.VITE_INSTALL_APP_URL || DEFAULT_MARKETPLACE_INSTALL_URL).trim();
 const FALLBACK_APP_ID = "691623d58a49cdcb2c56ce9c";
 const APP_ID = RAW_INSTALL_URL.includes('/integration/')
