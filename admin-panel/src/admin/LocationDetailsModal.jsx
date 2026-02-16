@@ -43,6 +43,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [twilioConfigBySlot, setTwilioConfigBySlot] = useState({});
     const [loadingTwilioBySlot, setLoadingTwilioBySlot] = useState({});
     const [savingTwilioBySlot, setSavingTwilioBySlot] = useState({});
+    const [customProxyBySlot, setCustomProxyBySlot] = useState({});
+    const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
+    const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
 
@@ -137,6 +140,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if (twilioConfigBySlot[expandedSlotId]) return;
         loadTwilioConfig(expandedSlotId);
     }, [activeSlotTab, expandedSlotId, twilioConfigBySlot]);
+
+    useEffect(() => {
+        if (activeSlotTab !== 'integration' || !expandedSlotId) return;
+        if (customProxyBySlot[expandedSlotId]?.loaded) return;
+        loadCustomProxyConfig(expandedSlotId);
+    }, [activeSlotTab, expandedSlotId, customProxyBySlot]);
 
     useEffect(() => {
         return () => {
@@ -507,6 +516,142 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
 
+
+    const createEmptyCustomProxyState = () => ({
+        loaded: false,
+        configured: false,
+        host: "",
+        port: "",
+        username: "",
+        password: "",
+        passwordMasked: "",
+        hasPassword: false,
+        protocol: "http",
+        invalidConfig: false
+    });
+
+    const loadCustomProxyConfig = async (slotId, forceRefresh = false) => {
+        if (!slotId || !location?.location_id) return;
+        if (!forceRefresh && customProxyBySlot[slotId]?.loaded) return;
+
+        setLoadingCustomProxyBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/proxy`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar proxy custom");
+            }
+
+            const data = await res.json();
+            const proxy = data.proxy || null;
+            setCustomProxyBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    loaded: true,
+                    configured: !!data.configured,
+                    host: proxy?.host || "",
+                    port: proxy?.port ? String(proxy.port) : "",
+                    username: proxy?.username || "",
+                    password: "",
+                    passwordMasked: proxy?.passwordMasked || "",
+                    hasPassword: !!proxy?.hasPassword,
+                    protocol: proxy?.protocol || "http",
+                    invalidConfig: !!data.invalidConfig
+                }
+            }));
+        } catch (e) {
+            toast.error("Error cargando proxy", { description: e.message });
+        } finally {
+            setLoadingCustomProxyBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateCustomProxyField = (slotId, key, value) => {
+        setCustomProxyBySlot(prev => {
+            const current = prev[slotId] || createEmptyCustomProxyState();
+            return {
+                ...prev,
+                [slotId]: {
+                    ...current,
+                    loaded: true,
+                    [key]: value
+                }
+            };
+        });
+    };
+
+    const saveCustomProxyConfig = async (slotId) => {
+        const current = customProxyBySlot[slotId] || createEmptyCustomProxyState();
+        const host = (current.host || "").trim();
+        const port = Number(current.port);
+        const username = (current.username || "").trim();
+        const password = (current.password || "").trim();
+        const protocol = String(current.protocol || "http").toLowerCase();
+
+        if (!host || !Number.isFinite(port) || port <= 0) {
+            toast.error("Completa host y puerto validos");
+            return;
+        }
+
+        const payload = {
+            host,
+            port,
+            username: username || null,
+            protocol
+        };
+        if (password) payload.password = password;
+
+        setSavingCustomProxyBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/proxy`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo guardar proxy custom");
+            }
+
+            toast.success("Proxy custom guardado");
+            await loadCustomProxyConfig(slotId, true);
+        } catch (e) {
+            toast.error("Error guardando proxy", { description: e.message });
+        } finally {
+            setSavingCustomProxyBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const clearCustomProxyConfig = async (slotId) => {
+        if (!confirm("¿Quitar proxy personalizado de este numero?")) return;
+
+        const loadingId = toast.loading("Quitando proxy custom...");
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/proxy`, {
+                method: 'DELETE',
+                body: JSON.stringify({})
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo limpiar proxy custom");
+            }
+
+            setCustomProxyBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    ...createEmptyCustomProxyState(),
+                    loaded: true
+                }
+            }));
+            toast.success("Proxy custom eliminado");
+        } catch (e) {
+            toast.error("Error limpiando proxy", { description: e.message });
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
     const loadTwilioConfig = async (slotId, forceRefresh = false) => {
         if (!slotId || !location?.location_id) return;
         if (!forceRefresh && twilioConfigBySlot[slotId]) return;
@@ -1045,6 +1190,115 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     )}
                                                                 </div>
                                                             </div>
+                                                            {(() => {
+                                                                const customProxy = customProxyBySlot[slot.slot_id] || createEmptyCustomProxyState();
+                                                                const isLoadingCustomProxy = !!loadingCustomProxyBySlot[slot.slot_id];
+                                                                const isSavingCustomProxy = !!savingCustomProxyBySlot[slot.slot_id];
+
+                                                                return (
+                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
+                                                                        <div className="flex flex-wrap items-start justify-between gap-4">
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.proxy.title')}</h4>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('slots.proxy.desc')}</p>
+                                                                            </div>
+                                                                            <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${customProxy.configured ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                                                                                {customProxy.configured ? t('slots.proxy.configured') : t('slots.proxy.not_configured')}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.host')}</label>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={customProxy.host || ""}
+                                                                                    onChange={(e) => updateCustomProxyField(slot.slot_id, "host", e.target.value)}
+                                                                                    placeholder={t('slots.proxy.ph_host')}
+                                                                                    autoComplete="off"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                />
+                                                                            </div>
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.port')}</label>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    value={customProxy.port || ""}
+                                                                                    onChange={(e) => updateCustomProxyField(slot.slot_id, "port", e.target.value)}
+                                                                                    placeholder={t('slots.proxy.ph_port')}
+                                                                                    autoComplete="off"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                />
+                                                                            </div>
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.username')}</label>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={customProxy.username || ""}
+                                                                                    onChange={(e) => updateCustomProxyField(slot.slot_id, "username", e.target.value)}
+                                                                                    placeholder={t('slots.proxy.ph_username')}
+                                                                                    autoComplete="off"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                />
+                                                                            </div>
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.password')}</label>
+                                                                                <input
+                                                                                    type="password"
+                                                                                    value={customProxy.password || ""}
+                                                                                    onChange={(e) => updateCustomProxyField(slot.slot_id, "password", e.target.value)}
+                                                                                    placeholder={customProxy.passwordMasked || t('slots.proxy.ph_password')}
+                                                                                    autoComplete="new-password"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.protocol')}</label>
+                                                                            <select
+                                                                                value={customProxy.protocol || "http"}
+                                                                                onChange={(e) => updateCustomProxyField(slot.slot_id, "protocol", e.target.value)}
+                                                                                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                            >
+                                                                                <option value="http">http</option>
+                                                                                <option value="socks5">socks5</option>
+                                                                            </select>
+                                                                        </div>
+
+                                                                        <div className="flex flex-wrap items-center gap-2">
+                                                                            <button
+                                                                                onClick={() => saveCustomProxyConfig(slot.slot_id)}
+                                                                                disabled={isLoadingCustomProxy || isSavingCustomProxy}
+                                                                                className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                            >
+                                                                                {isSavingCustomProxy ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                                                {t('slots.proxy.save')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => clearCustomProxyConfig(slot.slot_id)}
+                                                                                disabled={isLoadingCustomProxy || isSavingCustomProxy || !customProxy.configured}
+                                                                                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
+                                                                            >
+                                                                                {t('slots.proxy.clear')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => loadCustomProxyConfig(slot.slot_id, true)}
+                                                                                disabled={isLoadingCustomProxy || isSavingCustomProxy}
+                                                                                className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
+                                                                                title={t('slots.proxy.reload')}
+                                                                            >
+                                                                                <RefreshCw size={16} className={isLoadingCustomProxy ? "animate-spin" : ""} />
+                                                                            </button>
+                                                                        </div>
+
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('slots.proxy.apply_note')}</p>
+                                                                        {customProxy.invalidConfig && (
+                                                                            <p className="text-xs text-amber-600 dark:text-amber-400">{t('slots.proxy.invalid')}</p>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                             {isGhlMode && (
                                                                 <>
                                                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
