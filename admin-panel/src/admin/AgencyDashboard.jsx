@@ -27,6 +27,11 @@ import {
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
 const DEFAULT_CRM_DOMAIN = "app.gohighlevel.com";
+const DEFAULT_WL_MARKETPLACE_HOST = "marketplace.leadconnectorhq.com";
+const ALLOWED_MARKETPLACE_OAUTH_HOSTS = new Set([
+    "marketplace.gohighlevel.com",
+    "marketplace.leadconnectorhq.com"
+]);
 
 const DEFAULT_MARKETPLACE_INSTALL_URL = "https://marketplace.leadconnectorhq.com/oauth/chooselocation?response_type=code&redirect_uri=https%3A%2F%2Ftest-development-whatsapp-api-postgress.lrkqbo.easypanel.host%2Foauth%2Fcallback&client_id=6968d10f1f0b9e6b537024cd-mlggwkzo&scope=contacts.readonly+contacts.write+conversations.readonly+conversations.write+conversations%2Fmessage.readonly+conversations%2Fmessage.write+locations.readonly+locations%2FcustomValues.readonly+locations%2FcustomValues.write+locations%2FcustomFields.readonly+locations%2FcustomFields.write+locations%2Ftasks.readonly+locations%2Ftasks.write+locations%2Ftags.readonly+locations%2Ftags.write+locations%2Ftemplates.readonly+custom-menu-link.write+custom-menu-link.readonly+companies.readonly+users.readonly+businesses.readonly&version_id=6968d10f1f0b9e6b537024cd";
 const RAW_INSTALL_URL = String(import.meta.env.VITE_INSTALL_APP_URL || DEFAULT_MARKETPLACE_INSTALL_URL).trim();
@@ -58,11 +63,26 @@ function ensureSelfWindowMode(rawUrl) {
 
 function buildInstallUrl(baseInstallUrl, domainCandidate = "") {
     const fallback = ensureSelfWindowMode(baseInstallUrl || DEFAULT_MARKETPLACE_INSTALL_URL);
-    const normalizedDomain = normalizeInstallDomain(domainCandidate);
-    if (!normalizedDomain) return fallback;
-
     try {
         const url = new URL(fallback);
+        const normalizedDomain = normalizeInstallDomain(domainCandidate);
+        const isMarketplaceOAuth = /\/oauth\/chooselocation/i.test(url.pathname);
+
+        // GHL OAuth chooselocation only works on marketplace hosts.
+        if (isMarketplaceOAuth) {
+            if (normalizedDomain && ALLOWED_MARKETPLACE_OAUTH_HOSTS.has(normalizedDomain)) {
+                url.host = normalizedDomain;
+            } else {
+                url.host = ALLOWED_MARKETPLACE_OAUTH_HOSTS.has(url.host)
+                    ? url.host
+                    : DEFAULT_WL_MARKETPLACE_HOST;
+            }
+            url.protocol = "https:";
+            return ensureSelfWindowMode(url.toString());
+        }
+
+        if (!normalizedDomain) return ensureSelfWindowMode(url.toString());
+
         url.protocol = "https:";
         url.host = normalizedDomain;
         return ensureSelfWindowMode(url.toString());
