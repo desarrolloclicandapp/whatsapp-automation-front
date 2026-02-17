@@ -26,7 +26,7 @@ import {
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
-const DEFAULT_INSTALL_APP_URL = "https://app.gohighlevel.com/integration/691623d58a49cdcb2c56ce9c";
+const DEFAULT_INSTALL_APP_URL = import.meta.env.DEFAULT_INSTALL_APP_URL || "https://app.gohighlevel.com/integration/6968d10f1f0b9e6b537024cd";
 
 function normalizeInstallLink(rawValue = "") {
     const raw = String(rawValue || "").trim();
