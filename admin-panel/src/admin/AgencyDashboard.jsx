@@ -569,6 +569,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             const isSelected = agencyCrmType === id;
             const isLocked = isCrmLocked && !isSelected;
             const isSoon = Boolean(options.soon);
+            const canSelect = !isLocked && !isSoon;
             const statusLabel = isLocked
                 ? t('agency.integrations.status_locked')
                 : isSoon
@@ -585,7 +586,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                         : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900/40 dark:text-gray-400 dark:border-gray-800';
 
             return (
-                <div key={id} className={cardClass}>
+                <div
+                    key={id}
+                    onClick={() => {
+                        if (canSelect) handleSelectCrm(id);
+                    }}
+                    className={`${cardClass} ${canSelect ? "cursor-pointer" : ""}`}
+                >
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center shrink-0">
@@ -600,9 +607,28 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${statusClass}`}>
                                 {statusLabel}
                             </span>
+                            {!isSoon && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSelectCrm(id);
+                                    }}
+                                    disabled={isLocked || isSelected}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
+                                        isSelected
+                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
+                                            : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700"
+                                    } disabled:opacity-60 disabled:cursor-not-allowed`}
+                                >
+                                    {isSelected ? t('agency.integrations.selected') : t('agency.integrations.select')}
+                                </button>
+                            )}
                             {options.showOpen && (
                                 <button
-                                    onClick={options.onOpen}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        options.onOpen?.();
+                                    }}
                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition"
                                 >
                                     <ExternalLink size={12} /> {t('agency.integrations.open')}
