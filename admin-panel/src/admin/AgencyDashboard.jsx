@@ -73,7 +73,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [crmPreference, setCrmPreference] = useState(localStorage.getItem("crmType") || "ghl");
     const agencyCrmType = String(accountInfo?.crm_type || crmPreference || "ghl").toLowerCase();
     const isGhlAgency = agencyCrmType === "ghl";
-    const isChatwootAgency = agencyCrmType === "chatwoot";
     const isCrmLocked = Boolean(accountInfo?.crm_type);
     const crmLabelMap = { ghl: "GoHighLevel", chatwoot: "Chatwoot", odoo: "Odoo" };
     const activeCrmLabel = crmLabelMap[agencyCrmType] || agencyCrmType.toUpperCase();
@@ -444,23 +443,15 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     const handleAddLocation = async () => {
-        const isChatwootView = agencyCrmType === "chatwoot";
-        const promptLabel = isChatwootView
-            ? (t('dash.inboxes.name_prompt') || "Nombre del inbox:")
-            : (t('dash.locations.name_prompt') || "Nombre de la location:");
+        const promptLabel = t('dash.locations.name_prompt') || "Nombre de la location:";
         const inputName = window.prompt(promptLabel, "");
         if (inputName === null) return;
 
         const safeName = String(inputName || "").trim();
         if (!safeName) {
-            toast.error(
-                isChatwootView
-                    ? (t('dash.inboxes.create_error') || "Error creando inbox")
-                    : (t('dash.locations.create_error') || "Error creando location"),
-                {
+            toast.error(t('dash.locations.create_error') || "Error creando location", {
                 description: t('common.name') || "Nombre requerido"
-                }
-            );
+            });
             return;
         }
 
@@ -475,31 +466,15 @@ export default function AgencyDashboard({ token, onLogout }) {
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data?.success) {
-                throw new Error(
-                    data?.error || (
-                        isChatwootView
-                            ? (t('dash.inboxes.create_error') || "Error creando inbox")
-                            : (t('dash.locations.create_error') || "Error creando location")
-                    )
-                );
+                throw new Error(data?.error || (t('dash.locations.create_error') || "Error creando location"));
             }
-            toast.success(
-                isChatwootView
-                    ? (t('dash.inboxes.created') || "Inbox creado")
-                    : (t('dash.locations.created') || "Location creada"),
-                { id: loadingId }
-            );
+            toast.success(t('dash.locations.created') || "Location creada", { id: loadingId });
             await refreshData();
         } catch (e) {
-            toast.error(
-                isChatwootView
-                    ? (t('dash.inboxes.create_error') || "Error creando inbox")
-                    : (t('dash.locations.create_error') || "Error creando location"),
-                {
+            toast.error(t('dash.locations.create_error') || "Error creando location", {
                 id: loadingId,
                 description: e.message
-                }
-            );
+            });
         }
     };
 
@@ -594,7 +569,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             const isSelected = agencyCrmType === id;
             const isLocked = isCrmLocked && !isSelected;
             const isSoon = Boolean(options.soon);
-            const canSelect = !isLocked && !isSoon;
             const statusLabel = isLocked
                 ? t('agency.integrations.status_locked')
                 : isSoon
@@ -611,13 +585,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900/40 dark:text-gray-400 dark:border-gray-800';
 
             return (
-                <div
-                    key={id}
-                    onClick={() => {
-                        if (canSelect) handleSelectCrm(id);
-                    }}
-                    className={`${cardClass} ${canSelect ? "cursor-pointer" : ""}`}
-                >
+                <div key={id} className={cardClass}>
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center shrink-0">
@@ -632,28 +600,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${statusClass}`}>
                                 {statusLabel}
                             </span>
-                            {!isSoon && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleSelectCrm(id);
-                                    }}
-                                    disabled={isLocked || isSelected}
-                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
-                                        isSelected
-                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
-                                            : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700"
-                                    } disabled:opacity-60 disabled:cursor-not-allowed`}
-                                >
-                                    {isSelected ? t('agency.integrations.selected') : t('agency.integrations.select')}
-                                </button>
-                            )}
                             {options.showOpen && (
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        options.onOpen?.();
-                                    }}
+                                    onClick={options.onOpen}
                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition"
                                 >
                                     <ExternalLink size={12} /> {t('agency.integrations.open')}
@@ -720,31 +669,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         </div>
     );
 
-    const resolveTenantCrmType = (tenant) => {
-        let settings = tenant?.settings || {};
-        if (typeof settings === "string") {
-            try {
-                settings = JSON.parse(settings);
-            } catch (_) {
-                settings = {};
-            }
-        }
-        const tenantCrm = String(settings?.crm_type || "").trim().toLowerCase();
-        if (tenantCrm === "ghl" || tenantCrm === "chatwoot") {
-            return tenantCrm;
-        }
-
-        const hasChatwootHints = Boolean(
-            settings?.chatwoot_url ||
-            settings?.chatwoot_api_token ||
-            settings?.chatwoot_account_id
-        );
-        return hasChatwootHints ? "chatwoot" : "ghl";
-    };
-
-    const crmScopedLocations = locations.filter((loc) => resolveTenantCrmType(loc) === agencyCrmType);
-
-    const filteredLocations = crmScopedLocations.filter(loc =>
+    const filteredLocations = locations.filter(loc =>
         loc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loc.location_id?.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -1055,10 +980,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <div>
                                         <div className="flex items-center justify-between mb-4">
                                             <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-                                                {isGhlAgency
-                                                    ? t('dash.subs.title')
-                                                    : (isChatwootAgency ? (t('dash.inboxes.title') || "Inboxes") : (t('dash.locations.title') || "Locations"))
-                                                }
+                                                {isGhlAgency ? t('dash.subs.title') : (t('dash.locations.title') || "Locations")}
                                             </h3>
                                             <div className="flex gap-2">
                                                 <div className="relative">
@@ -1066,11 +988,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     <input
                                                         type="text"
                                                         autoComplete="off"
-                                                        placeholder={
-                                                            isGhlAgency
-                                                                ? t('dash.subs.search')
-                                                                : (isChatwootAgency ? (t('dash.inboxes.search') || "Buscar inboxes...") : (t('dash.locations.search') || "Buscar locations..."))
-                                                        }
+                                                        placeholder={isGhlAgency ? t('dash.subs.search') : (t('dash.locations.search') || "Buscar locations...")}
                                                         className="pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white w-40 focus:w-52 transition-all"
                                                         value={searchTerm}
                                                         onChange={e => setSearchTerm(e.target.value)}
@@ -1084,10 +1002,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     className="px-4 py-2 text-white rounded-lg font-medium text-sm flex items-center gap-1.5 transition"
                                                     style={{ backgroundColor: branding.primaryColor }}
                                                 >
-                                                    <Plus size={16} /> {isGhlAgency
-                                                        ? t('dash.subs.new')
-                                                        : (isChatwootAgency ? (t('dash.inboxes.new') || "Nuevo Inbox") : (t('dash.locations.new') || "Nueva Location"))
-                                                    }
+                                                    <Plus size={16} /> {isGhlAgency ? t('dash.subs.new') : (t('dash.locations.new') || "Nueva Location")}
                                                 </button>
                                             </div>
                                         </div>
@@ -1102,10 +1017,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center">
                                                                 {isGhlAgency
                                                                     ? <Building2 size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                                                                    : (isChatwootAgency
-                                                                        ? <MessageSquareText size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                                                                        : <Smartphone size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                                                                    )
+                                                                    : <Smartphone size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
                                                                 }
                                                             </div>
                                                             <button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100">
@@ -1122,7 +1034,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     </div>
                                                 ))}
 
-                                                {isGhlAgency && !searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - crmScopedLocations.length) }).map((_, idx) => (
+                                                {isGhlAgency && !searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
                                                     <div key={`empty-${idx}`} onClick={handleInstallApp} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
                                                         <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                                                             <Plus size={20} className="text-gray-300 group-hover:text-indigo-600" />
