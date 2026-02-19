@@ -442,6 +442,42 @@ export default function AgencyDashboard({ token, onLogout }) {
         } catch (err) { toast.error(t('agency.tenant.delete_error'), { id: tId }); }
     };
 
+    const handleAddLocation = async () => {
+        const promptLabel = t('dash.locations.name_prompt') || "Nombre de la location:";
+        const inputName = window.prompt(promptLabel, "");
+        if (inputName === null) return;
+
+        const safeName = String(inputName || "").trim();
+        if (!safeName) {
+            toast.error(t('dash.locations.create_error') || "Error creando location", {
+                description: t('common.name') || "Nombre requerido"
+            });
+            return;
+        }
+
+        const loadingId = toast.loading(t('common.create') || "Crear");
+        try {
+            const res = await authFetch('/agency/add-location', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: safeName,
+                    crmType: agencyCrmType
+                })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data?.success) {
+                throw new Error(data?.error || (t('dash.locations.create_error') || "Error creando location"));
+            }
+            toast.success(t('dash.locations.created') || "Location creada", { id: loadingId });
+            await refreshData();
+        } catch (e) {
+            toast.error(t('dash.locations.create_error') || "Error creando location", {
+                id: loadingId,
+                description: e.message
+            });
+        }
+    };
+
     // ✅ LÓGICA DE INSTALACIÓN DINÁMICA
     const handleInstallApp = async () => {
         const tId = toast.loading(t('agency.install.verifying'));
@@ -850,10 +886,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
 
                                 {renderIntegrationsPanel("overview")}
-                                {isGhlAgency && (
-                                    <>
-                                        {/* ESTADÍSTICAS - Diseño Minimalista */}
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <>
+                                    {/* ESTADÍSTICAS - Diseño Minimalista */}
+                                    <div className={`grid grid-cols-1 gap-4 ${isGhlAgency ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+                                        {isGhlAgency && (
                                             <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
                                                 <div className="flex items-center justify-between mb-3">
                                                     <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
@@ -865,136 +901,151 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     {accountInfo.limits?.used_subagencies || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
                                                 </div>
                                             </div>
-                                            
-                                            <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                                                        <Smartphone size={20} className="text-emerald-600 dark:text-emerald-400" />
-                                                    </div>
-                                                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t('dash.stats.connections')}</span>
+                                        )}
+
+                                        <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                                                    <Smartphone size={20} className="text-emerald-600 dark:text-emerald-400" />
                                                 </div>
-                                                <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                                                    {accountInfo.limits?.used_slots || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_slots || 0}</span>
-                                                </div>
+                                                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t('dash.stats.connections')}</span>
                                             </div>
-                                            
-                                            <div className={`rounded-2xl p-5 border shadow-sm hover:shadow-md transition-shadow ${accountInfo.plan === 'active' ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-transparent' : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800'}`}>
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${accountInfo.plan === 'active' ? 'bg-white/20' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
-                                                        <ShieldCheck size={20} className={accountInfo.plan === 'active' ? 'text-white' : 'text-amber-600 dark:text-amber-400'} />
-                                                    </div>
-                                                    <span className={`text-xs font-medium uppercase tracking-wide ${accountInfo.plan === 'active' ? 'text-blue-200' : 'text-gray-400'}`}>{t('dash.stats.plan')}</span>
-                                                </div>
-                                                <div className={`text-xl font-bold ${accountInfo.plan === 'active' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
-                                                    {accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')}
-                                                </div>
-                                                {accountInfo.trial_ends && (
-                                                    <div className={`text-xs mt-1 ${accountInfo.plan === 'active' ? 'text-blue-200' : 'text-amber-600 dark:text-amber-400'}`}>
-                                                        Fin: {new Date(accountInfo.trial_ends).toLocaleDateString()}
-                                                    </div>
-                                                )}
+                                            <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                                                {accountInfo.limits?.used_slots || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_slots || 0}</span>
                                             </div>
                                         </div>
 
-                                        {suspensionStatus?.status === 'grace' && (
-                                            <div className="mt-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/40 p-4 rounded-xl">
-                                                <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200">
-                                                    Tu cuenta está en periodo de gracia.
-                                                </p>
-                                                <p className="text-xs text-yellow-800 dark:text-yellow-300 mt-1">
-                                                    Será suspendida en {getDaysLeft(suspensionStatus.grace_ends_at) ?? 0} día(s).
-                                                    {suspensionStatus.grace_ends_at && ` Fecha límite: ${new Date(suspensionStatus.grace_ends_at).toLocaleString()}.`}
-                                                </p>
-                                                <button onClick={() => setActiveTab('billing')} className="mt-3 px-3 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-semibold text-xs transition">
-                                                    Actualizar método de pago
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        {['suspended', 'pending_deletion', 'permanently_deleted'].includes(suspensionStatus?.status || '') && (
-                                            <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 p-4 rounded-xl">
-                                                <p className="text-sm font-semibold text-red-900 dark:text-red-200">
-                                                    Tu cuenta está suspendida.
-                                                </p>
-                                                <p className="text-xs text-red-700 dark:text-red-300 mt-1">
-                                                    Contacta soporte para reactivarla.
-                                                    {suspensionStatus?.reason ? ` Motivo: ${suspensionStatus.reason}` : ''}
-                                                </p>
-                                            </div>
-                                        )}
-                                        
-                                        {accountInfo.plan === 'trial' && (
-                                            <div className="mt-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 p-4 rounded-xl flex items-center justify-between gap-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/40 rounded-lg flex items-center justify-center">
-                                                        <Zap size={20} className="text-amber-600" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{t('agency.trial.title')}</p>
-                                                        <p className="text-xs text-amber-700 dark:text-amber-400">Expira: {new Date(accountInfo.trial_ends).toLocaleDateString()}</p>
-                                                    </div>
+                                        <div className={`rounded-2xl p-5 border shadow-sm hover:shadow-md transition-shadow ${accountInfo.plan === 'active' ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-transparent' : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800'}`}>
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${accountInfo.plan === 'active' ? 'bg-white/20' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                                                    <ShieldCheck size={20} className={accountInfo.plan === 'active' ? 'text-white' : 'text-amber-600 dark:text-amber-400'} />
                                                 </div>
-                                                <button onClick={() => setActiveTab('billing')} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-sm transition">
-                                                    {t('agency.trial.choose_plan')}
-                                                </button>
+                                                <span className={`text-xs font-medium uppercase tracking-wide ${accountInfo.plan === 'active' ? 'text-blue-200' : 'text-gray-400'}`}>{t('dash.stats.plan')}</span>
                                             </div>
-                                        )}
-                                        
-                                        {/* SUBCUENTAS */}
-                                        <div>
-                                            <div className="flex items-center justify-between mb-4">
-                                                <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('dash.subs.title')}</h3>
-                                                <div className="flex gap-2">
-                                                    <div className="relative">
-                                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                                                        <input type="text" autoComplete="off" placeholder={t('dash.subs.search')} className="pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white w-40 focus:w-52 transition-all" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                                                    </div>
-                                                    <button onClick={refreshData} disabled={isAutoSyncing} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 hover:text-indigo-600 transition disabled:opacity-50">
-                                                        <RefreshCw size={16} className={loading || isAutoSyncing ? "animate-spin" : ""} />
-                                                    </button>
-                                                    <button onClick={() => setActiveTab('billing')} className="px-4 py-2 text-white rounded-lg font-medium text-sm flex items-center gap-1.5 transition" style={{ backgroundColor: branding.primaryColor }}>
-                                                        <Plus size={16} /> {t('dash.subs.new')}
-                                                    </button>
-                                                </div>
+                                            <div className={`text-xl font-bold ${accountInfo.plan === 'active' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                                                {accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')}
                                             </div>
-                                            
-                                            {loading && locations.length === 0 ? (
-                                                <div className="py-12 text-center text-gray-400">{t('agency.loading_data')}</div>
-                                            ) : (
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                    {filteredLocations.map(loc => (
-                                                        <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer">
-                                                            <div className="flex items-start justify-between mb-3">
-                                                                <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                                                                    <Building2 size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                                                                </div>
-                                                                <button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100">
-                                                                    <Trash2 size={14} />
-                                                                </button>
-                                                            </div>
-                                                            <h4 className="font-semibold text-gray-900 dark:text-white mb-1 truncate text-sm">{loc.name || t('agency.location.no_name')}</h4>
-                                                            <div className="flex items-center justify-between">
-                                                                <span className="text-xs text-gray-500 flex items-center gap-1">
-                                                                    <Smartphone size={12} /> {loc.total_slots || 0}
-                                                                </span>
-                                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                    
-                                                    {isGhlAgency && !searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
-                                                        <div key={`empty-${idx}`} onClick={handleInstallApp} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
-                                                            <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                                                                <Plus size={20} className="text-gray-300 group-hover:text-indigo-600" />
-                                                            </div>
-                                                            <p className="text-xs font-medium text-gray-500">{t('agency.location.empty_title')}</p>
-                                                        </div>
-                                                    ))}
+                                            {accountInfo.trial_ends && (
+                                                <div className={`text-xs mt-1 ${accountInfo.plan === 'active' ? 'text-blue-200' : 'text-amber-600 dark:text-amber-400'}`}>
+                                                    Fin: {new Date(accountInfo.trial_ends).toLocaleDateString()}
                                                 </div>
                                             )}
                                         </div>
-                                    </>
-                                )}
+                                    </div>
+
+                                    {suspensionStatus?.status === 'grace' && (
+                                        <div className="mt-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/40 p-4 rounded-xl">
+                                            <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200">
+                                                Tu cuenta está en periodo de gracia.
+                                            </p>
+                                            <p className="text-xs text-yellow-800 dark:text-yellow-300 mt-1">
+                                                Será suspendida en {getDaysLeft(suspensionStatus.grace_ends_at) ?? 0} día(s).
+                                                {suspensionStatus.grace_ends_at && ` Fecha límite: ${new Date(suspensionStatus.grace_ends_at).toLocaleString()}.`}
+                                            </p>
+                                            <button onClick={() => setActiveTab('billing')} className="mt-3 px-3 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-semibold text-xs transition">
+                                                Actualizar método de pago
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {['suspended', 'pending_deletion', 'permanently_deleted'].includes(suspensionStatus?.status || '') && (
+                                        <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 p-4 rounded-xl">
+                                            <p className="text-sm font-semibold text-red-900 dark:text-red-200">
+                                                Tu cuenta está suspendida.
+                                            </p>
+                                            <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                                                Contacta soporte para reactivarla.
+                                                {suspensionStatus?.reason ? ` Motivo: ${suspensionStatus.reason}` : ''}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {accountInfo.plan === 'trial' && (
+                                        <div className="mt-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 p-4 rounded-xl flex items-center justify-between gap-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/40 rounded-lg flex items-center justify-center">
+                                                    <Zap size={20} className="text-amber-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-gray-900 dark:text-white text-sm">{t('agency.trial.title')}</p>
+                                                    <p className="text-xs text-amber-700 dark:text-amber-400">Expira: {new Date(accountInfo.trial_ends).toLocaleDateString()}</p>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => setActiveTab('billing')} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-sm transition">
+                                                {t('agency.trial.choose_plan')}
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                                                {isGhlAgency ? t('dash.subs.title') : (t('dash.locations.title') || "Locations")}
+                                            </h3>
+                                            <div className="flex gap-2">
+                                                <div className="relative">
+                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                                    <input
+                                                        type="text"
+                                                        autoComplete="off"
+                                                        placeholder={isGhlAgency ? t('dash.subs.search') : (t('dash.locations.search') || "Buscar locations...")}
+                                                        className="pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white w-40 focus:w-52 transition-all"
+                                                        value={searchTerm}
+                                                        onChange={e => setSearchTerm(e.target.value)}
+                                                    />
+                                                </div>
+                                                <button onClick={refreshData} disabled={isAutoSyncing} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 hover:text-indigo-600 transition disabled:opacity-50">
+                                                    <RefreshCw size={16} className={loading || isAutoSyncing ? "animate-spin" : ""} />
+                                                </button>
+                                                <button
+                                                    onClick={isGhlAgency ? () => setActiveTab('billing') : handleAddLocation}
+                                                    className="px-4 py-2 text-white rounded-lg font-medium text-sm flex items-center gap-1.5 transition"
+                                                    style={{ backgroundColor: branding.primaryColor }}
+                                                >
+                                                    <Plus size={16} /> {isGhlAgency ? t('dash.subs.new') : (t('dash.locations.new') || "Nueva Location")}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {loading && locations.length === 0 ? (
+                                            <div className="py-12 text-center text-gray-400">{t('agency.loading_data')}</div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {filteredLocations.map(loc => (
+                                                    <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer">
+                                                        <div className="flex items-start justify-between mb-3">
+                                                            <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                                                                {isGhlAgency
+                                                                    ? <Building2 size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
+                                                                    : <Smartphone size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
+                                                                }
+                                                            </div>
+                                                            <button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100">
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                        <h4 className="font-semibold text-gray-900 dark:text-white mb-1 truncate text-sm">{loc.name || t('agency.location.no_name')}</h4>
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                                <Smartphone size={12} /> {loc.total_slots || 0}
+                                                            </span>
+                                                            <ChevronRight size={16} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
+                                                        </div>
+                                                    </div>
+                                                ))}
+
+                                                {isGhlAgency && !searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
+                                                    <div key={`empty-${idx}`} onClick={handleInstallApp} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
+                                                        <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                                            <Plus size={20} className="text-gray-300 group-hover:text-indigo-600" />
+                                                        </div>
+                                                        <p className="text-xs font-medium text-gray-500">{t('agency.location.empty_title')}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
                             </div>
                         )
                     )}

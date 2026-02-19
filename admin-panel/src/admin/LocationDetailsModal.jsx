@@ -399,8 +399,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
             toast.success(
                 nextCrmType === "chatwoot"
-                    ? (t('slots.crm.chatwoot_active') || "Chatwoot activado para esta subcuenta")
-                    : (t('slots.crm.ghl_active') || "GoHighLevel activado para esta subcuenta")
+                    ? (t('slots.crm.chatwoot_active') || "Chatwoot activado para esta location")
+                    : (t('slots.crm.ghl_active') || "GoHighLevel activado para esta location")
             );
         } catch (e) {
             setTenantSettings(prev => ({ ...(prev || {}), crm_type: previousCrmType }));
@@ -1170,7 +1170,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </div>
                                 <div>
                                     <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{t('slots.crm.title') || "CRM"}</p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300">{t('slots.crm.desc') || "Selecciona el CRM de esta subcuenta"}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                                        {isGhlMode
+                                            ? (t('slots.crm.desc') || "Selecciona el CRM de esta subcuenta")
+                                            : (t('slots.crm.desc_generic') || "Selecciona el CRM de esta location")
+                                        }
+                                    </p>
                                 </div>
                                 <div className="flex items-center gap-2 ml-2">
                                     <select
