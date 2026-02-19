@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
@@ -43,21 +43,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [twilioConfigBySlot, setTwilioConfigBySlot] = useState({});
     const [loadingTwilioBySlot, setLoadingTwilioBySlot] = useState({});
     const [savingTwilioBySlot, setSavingTwilioBySlot] = useState({});
-    const [chatwootConfigBySlot, setChatwootConfigBySlot] = useState({});
-    const [loadingChatwootBySlot, setLoadingChatwootBySlot] = useState({});
-    const [savingChatwootBySlot, setSavingChatwootBySlot] = useState({});
-    const [chatwootInboxes, setChatwootInboxes] = useState([]);
-    const [loadingChatwootInboxes, setLoadingChatwootInboxes] = useState(false);
-    const [chatwootInboxesLoaded, setChatwootInboxesLoaded] = useState(false);
     const [customProxyBySlot, setCustomProxyBySlot] = useState({});
     const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
     const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
-    const isChatwootMode = crmType === "chatwoot";
-    const isExpandedChatwootLoaded = Boolean(
-        expandedSlotId && chatwootConfigBySlot[expandedSlotId]?.loaded
-    );
 
     // ✅ Obtener instancia del socket
     const socket = useSocket();
@@ -152,16 +142,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     }, [activeSlotTab, expandedSlotId, twilioConfigBySlot]);
 
     useEffect(() => {
-        if (activeSlotTab !== 'integration' || !expandedSlotId || !isGhlMode) return;
+        if (activeSlotTab !== 'integration' || !expandedSlotId) return;
         if (customProxyBySlot[expandedSlotId]?.loaded) return;
         loadCustomProxyConfig(expandedSlotId);
-    }, [activeSlotTab, expandedSlotId, customProxyBySlot, isGhlMode]);
-
-    useEffect(() => {
-        if (activeSlotTab !== 'integration' || !expandedSlotId || !isChatwootMode) return;
-        if (isExpandedChatwootLoaded) return;
-        loadChatwootConfig(expandedSlotId);
-    }, [activeSlotTab, expandedSlotId, isChatwootMode, isExpandedChatwootLoaded]);
+    }, [activeSlotTab, expandedSlotId, customProxyBySlot]);
 
     useEffect(() => {
         return () => {
@@ -640,7 +624,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const clearCustomProxyConfig = async (slotId) => {
-        if (!confirm("¿Quitar proxy personalizado de este numero?")) return;
+        if (!confirm("�Quitar proxy personalizado de este numero?")) return;
 
         const loadingId = toast.loading("Quitando proxy custom...");
         try {
@@ -668,273 +652,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             toast.dismiss(loadingId);
         }
     };
-
-    const chatwootWebhookBaseUrl = `${API_URL}/chatwoot/webhook`;
-
-    const buildChatwootWebhookUrl = (secretValue = "") => {
-        const safeSecret = String(secretValue || "").trim();
-        if (!safeSecret) return chatwootWebhookBaseUrl;
-        return `${chatwootWebhookBaseUrl}?secret=${encodeURIComponent(safeSecret)}`;
-    };
-
-    const generateRandomSecret = (length = 32) => {
-        const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        let result = "";
-        if (window?.crypto?.getRandomValues) {
-            const bytes = new Uint8Array(length);
-            window.crypto.getRandomValues(bytes);
-            for (let i = 0; i < length; i++) {
-                result += alphabet[bytes[i] % alphabet.length];
-            }
-            return result;
-        }
-        for (let i = 0; i < length; i++) {
-            result += alphabet[Math.floor(Math.random() * alphabet.length)];
-        }
-        return result;
-    };
-
-    const copyToClipboard = async (value, successMessage) => {
-        const safeValue = String(value || "");
-        if (!safeValue.trim()) return;
-        try {
-            await navigator.clipboard.writeText(safeValue);
-            toast.success(successMessage || t('common.copied') || "Copiado");
-        } catch (_) {
-            toast.error(t('slots.chatwoot.copy_error') || "No se pudo copiar");
-        }
-    };
-
-    const generateChatwootSecret = (slotId) => {
-        const secret = generateRandomSecret(32);
-        updateChatwootField(slotId, "webhookSecret", secret);
-        toast.success(t('slots.chatwoot.secret_generated') || "Webhook secret generado");
-    };
-
-    const loadChatwootInboxes = async (forceRefresh = false) => {
-        if (!location?.location_id) return;
-        if (!forceRefresh && chatwootInboxesLoaded) return;
-
-        setLoadingChatwootInboxes(true);
-        try {
-            const res = await authFetch(`/agency/chatwoot/inboxes?locationId=${location.location_id}`);
-            if (!res) return;
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "No se pudieron cargar inboxes");
-            }
-            const data = await res.json();
-            const inboxes = Array.isArray(data?.inboxes) ? data.inboxes : [];
-            setChatwootInboxes(inboxes);
-            setChatwootInboxesLoaded(true);
-        } catch (e) {
-            setChatwootInboxes([]);
-            setChatwootInboxesLoaded(false);
-            toast.error(t('slots.chatwoot.inboxes_error') || "Error cargando inboxes", {
-                description: e.message
-            });
-        } finally {
-            setLoadingChatwootInboxes(false);
-        }
-    };
-
-    const createEmptyChatwootState = () => ({
-        loaded: false,
-        configured: false,
-        hasGlobalConfig: false,
-        chatwootUrl: "",
-        apiToken: "",
-        accountId: "",
-        inboxId: "",
-        webhookSecret: "",
-        chatwootUrlMasked: "",
-        apiTokenMasked: "",
-        hasApiToken: false,
-        hasWebhookSecret: false
-    });
-
-    const loadChatwootConfig = async (slotId, forceRefresh = false) => {
-        if (!slotId || !location?.location_id) return;
-        if (!forceRefresh && chatwootConfigBySlot[slotId]?.loaded) return;
-
-        setLoadingChatwootBySlot(prev => ({ ...prev, [slotId]: true }));
-        try {
-            const res = await authFetch(`/agency/chatwoot/config?locationId=${location.location_id}&slotId=${slotId}`);
-            if (!res) return;
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "No se pudo cargar Chatwoot");
-            }
-            const data = await res.json();
-            setChatwootConfigBySlot(prev => ({
-                ...prev,
-                [slotId]: {
-                    loaded: true,
-                    configured: !!data.configured,
-                    hasGlobalConfig: !!data.hasGlobalConfig,
-                    chatwootUrl: "",
-                    apiToken: "",
-                    accountId: data.accountId ? String(data.accountId) : "",
-                    inboxId: data.inboxId ? String(data.inboxId) : "",
-                    webhookSecret: "",
-                    chatwootUrlMasked: data.chatwootUrlMasked || "",
-                    apiTokenMasked: data.apiTokenMasked || "",
-                    hasApiToken: !!data.hasApiToken,
-                    hasWebhookSecret: !!data.hasWebhookSecret
-                }
-            }));
-            if (data.hasGlobalConfig) {
-                await loadChatwootInboxes(forceRefresh);
-            }
-        } catch (e) {
-            toast.error(t('slots.chatwoot.load_error') || "Error cargando Chatwoot", { description: e.message });
-        } finally {
-            setLoadingChatwootBySlot(prev => ({ ...prev, [slotId]: false }));
-        }
-    };
-
-    const updateChatwootField = (slotId, key, value) => {
-        setChatwootConfigBySlot(prev => {
-            const current = prev[slotId] || createEmptyChatwootState();
-            return {
-                ...prev,
-                [slotId]: {
-                    ...current,
-                    loaded: true,
-                    [key]: value
-                }
-            };
-        });
-    };
-
-    const validateChatwootConfigSlot = async (slotId) => {
-        const current = chatwootConfigBySlot[slotId] || createEmptyChatwootState();
-        const payload = { locationId: location.location_id };
-
-        const chatwootUrl = (current.chatwootUrl || "").trim();
-        const apiToken = (current.apiToken || "").trim();
-        const accountIdRaw = String(current.accountId || "").trim();
-
-        if (chatwootUrl) payload.chatwootUrl = chatwootUrl;
-        if (apiToken) payload.apiToken = apiToken;
-        if (accountIdRaw) {
-            const parsedAccount = Number.parseInt(accountIdRaw, 10);
-            if (!Number.isFinite(parsedAccount) || parsedAccount <= 0) {
-                toast.error(t('slots.chatwoot.invalid_account') || "Account ID inválido");
-                return false;
-            }
-            payload.accountId = parsedAccount;
-        }
-
-        const loadingId = toast.loading(t('slots.chatwoot.validating') || "Validando Chatwoot...");
-        try {
-            const res = await authFetch(`/agency/chatwoot/test`, {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-            if (!res) return false;
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "No se pudo validar Chatwoot");
-            }
-            const data = await res.json().catch(() => ({}));
-            const description = Number.isFinite(data?.agentsCount)
-                ? `${t('slots.chatwoot.agents') || "Agentes encontrados"}: ${data.agentsCount}`
-                : undefined;
-            toast.success(t('slots.chatwoot.valid') || "Chatwoot validado", { description });
-            return true;
-        } catch (e) {
-            toast.error(t('slots.chatwoot.invalid') || "Validación Chatwoot falló", { description: e.message });
-            return false;
-        } finally {
-            toast.dismiss(loadingId);
-        }
-    };
-
-    const saveChatwootConfig = async (slotId) => {
-        const current = chatwootConfigBySlot[slotId] || createEmptyChatwootState();
-        const chatwootUrl = (current.chatwootUrl || "").trim();
-        const apiToken = (current.apiToken || "").trim();
-        const webhookSecret = (current.webhookSecret || "").trim();
-        const accountIdRaw = String(current.accountId || "").trim();
-        const inboxIdRaw = String(current.inboxId || "").trim();
-
-        const hasUrl = chatwootUrl || current.chatwootUrlMasked;
-        const hasToken = apiToken || current.apiTokenMasked || current.hasApiToken;
-        if (!hasUrl || !hasToken || !accountIdRaw || !inboxIdRaw) {
-            toast.error(t('slots.chatwoot.required') || "Completa URL, API Token, Account ID e Inbox ID");
-            return;
-        }
-
-        const parsedAccount = Number.parseInt(accountIdRaw, 10);
-        if (!Number.isFinite(parsedAccount) || parsedAccount <= 0) {
-            toast.error(t('slots.chatwoot.invalid_account') || "Account ID inválido");
-            return;
-        }
-
-        const parsedInbox = Number.parseInt(inboxIdRaw, 10);
-        if (!Number.isFinite(parsedInbox) || parsedInbox <= 0) {
-            toast.error(t('slots.chatwoot.invalid_inbox') || "Inbox ID inválido");
-            return;
-        }
-
-        const payload = {
-            locationId: location.location_id,
-            slotId,
-            accountId: parsedAccount,
-            inboxId: parsedInbox
-        };
-        if (chatwootUrl) payload.chatwootUrl = chatwootUrl;
-        if (apiToken) payload.apiToken = apiToken;
-        if (webhookSecret) payload.webhookSecret = webhookSecret;
-
-        setSavingChatwootBySlot(prev => ({ ...prev, [slotId]: true }));
-        try {
-            const res = await authFetch(`/agency/chatwoot/config`, {
-                method: 'PUT',
-                body: JSON.stringify(payload)
-            });
-            if (!res) return;
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "No se pudo guardar Chatwoot");
-            }
-            toast.success(t('slots.chatwoot.saved') || "Configuración Chatwoot guardada");
-            await loadChatwootConfig(slotId, true);
-        } catch (e) {
-            toast.error(t('slots.chatwoot.save_error') || "Error guardando Chatwoot", { description: e.message });
-        } finally {
-            setSavingChatwootBySlot(prev => ({ ...prev, [slotId]: false }));
-        }
-    };
-
-    const clearChatwootSlotConfig = async (slotId) => {
-        if (!confirm(t('slots.chatwoot.confirm_clear_slot') || "¿Quitar el Inbox ID de este número?")) return;
-
-        const loadingId = toast.loading(t('slots.chatwoot.clearing') || "Limpiando Chatwoot...");
-        try {
-            const res = await authFetch(`/agency/chatwoot/config`, {
-                method: 'PUT',
-                body: JSON.stringify({
-                    locationId: location.location_id,
-                    slotId,
-                    clearSlot: true
-                })
-            });
-            if (!res) return;
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "No se pudo limpiar Chatwoot");
-            }
-            toast.success(t('slots.chatwoot.cleared') || "Inbox de Chatwoot limpiado");
-            await loadChatwootConfig(slotId, true);
-        } catch (e) {
-            toast.error(t('slots.chatwoot.clear_error') || "Error limpiando Chatwoot", { description: e.message });
-        } finally {
-            toast.dismiss(loadingId);
-        }
-    };
-
     const loadTwilioConfig = async (slotId, forceRefresh = false) => {
         if (!slotId || !location?.location_id) return;
         if (!forceRefresh && twilioConfigBySlot[slotId]) return;
@@ -1008,12 +725,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res) return false;
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "Credenciales inv�lidas");
+                throw new Error(err.error || "Credenciales inv�lidas");
             }
             toast.success("Twilio validado correctamente");
             return true;
         } catch (e) {
-            toast.error("Validaci�n Twilio fall�", { description: e.message });
+            toast.error("Validaci�n Twilio fall�", { description: e.message });
             return false;
         } finally {
             toast.dismiss(loadingId);
@@ -1030,7 +747,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const tokenReady = tokenInput || current.authTokenMasked || current.hasAuthToken;
 
         if (!sidReady || !tokenReady || !fromNumber) {
-            toast.error("Completa SID, Auth Token y n�mero Twilio");
+            toast.error("Completa SID, Auth Token y n�mero Twilio");
             return;
         }
 
@@ -1053,7 +770,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 const err = await res.json().catch(() => ({}));
                 throw new Error(err.error || "No se pudo guardar");
             }
-            toast.success("Configuraci�n Twilio guardada");
+            toast.success("Configuraci�n Twilio guardada");
             await loadTwilioConfig(slotId, true);
         } catch (e) {
             toast.error("Error guardando Twilio", { description: e.message });
@@ -1120,46 +837,21 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 {/* BODY */}
                 <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50 dark:bg-black/20">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-                        <div className="flex flex-col md:flex-row md:items-center gap-4">
+                        {canWhiteLabel && (
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-4 shadow-sm">
                                 <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
-                                    <Link2 size={18} />
+                                    <Settings size={18} />
                                 </div>
                                 <div>
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{t('slots.crm.title') || "CRM"}</p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300">
-                                        {isGhlMode
-                                            ? (t('slots.crm.readonly_ghl') || "Este tenant opera solo con GoHighLevel")
-                                            : (t('slots.crm.readonly_chatwoot') || "Este tenant opera solo con Chatwoot")
-                                        }
-                                    </p>
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">White Label</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">Usar branding de la agencia</p>
                                 </div>
-                                <div className="ml-2">
-                                    <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide ${isGhlMode
-                                        ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
-                                        : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                                        }`}>
-                                        {isGhlMode ? "GoHighLevel" : "Chatwoot"}
-                                    </span>
-                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer ml-2">
+                                    <input type="checkbox" className="sr-only peer" checked={whiteLabelEnabled} onChange={toggleWhiteLabel} />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                                </label>
                             </div>
-
-                            {canWhiteLabel && (
-                                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-4 shadow-sm">
-                                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
-                                        <Settings size={18} />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">White Label</p>
-                                        <p className="text-sm text-gray-600 dark:text-gray-300">Usar branding de la agencia</p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer ml-2">
-                                        <input type="checkbox" className="sr-only peer" checked={whiteLabelEnabled} onChange={toggleWhiteLabel} />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
-                                    </label>
-                                </div>
-                            )}
-                        </div>
+                        )}
                         <div className="flex justify-end">
                             <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
                                 <Plus size={18} /> {t('slots.new')}
@@ -1234,12 +926,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 <div className="flex border-b border-gray-200 dark:border-gray-800 px-6 bg-white dark:bg-gray-900/50">
                                                     <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />
                                                     <TabButton active={activeSlotTab === 'integration'} onClick={() => setActiveSlotTab('integration')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
-                                                    {isGhlMode && (
-                                                        <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label={t('slots.tab.sms')} />
-                                                    )}
-                                                    {isGhlMode && (
-                                                        <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
-                                                    )}
+                                                    <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label={t('slots.tab.sms')} />
+                                                    <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
                                                     <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
                                                     <TabButton active={activeSlotTab === 'qr'} onClick={() => setActiveSlotTab('qr')} icon={<QrCode size={16} />} label={t('slots.tab.connection') || "Conexión"} />
                                                 </div>
@@ -1286,541 +974,328 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     {/* OTHER PANELS (GHL, Keywords, Groups) same as before... */}
                                                     {activeSlotTab === 'integration' && (
                                                         <div className="max-w-2xl space-y-6">
-                                                            {isGhlMode && (
-                                                                <>
-                                                                    {/* 🔥 NUEVO: OpenAI Key para este Slot */}
-                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                        <div className="flex justify-between items-start mb-4">
-                                                                            <div>
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                                                                    <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
-                                                                                        <Zap size={14} />
-                                                                                    </div>
-                                                                                    OpenAI API Key (Transcripción)
-                                                                                </label>
-                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                    Configura una key única para este número. Dejar vacío para desactivar.
-                                                                                </p>
+                                                            
+                                                            {/* 🔥 NUEVO: OpenAI Key para este Slot */}
+                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                <div className="flex justify-between items-start mb-4">
+                                                                    <div>
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                            <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
+                                                                                <Zap size={14} />
                                                                             </div>
-                                                                            {slot.openai_api_key && (
-                                                                                <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
-                                                                                    Conectado
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-
-                                                                        <div className="flex gap-2">
-                                                                            <input
-                                                                                type="password"
-                                                                                name={`openai_key_${slot.slot_id}`}
-                                                                                autoComplete="new-password"
-                                                                                placeholder={slot.openai_api_key ? "•••••••••••••••• (Oculto)" : "sk-..."}
-                                                                                className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
-                                                                                onKeyDown={(e) => {
-                                                                                    if (e.key === 'Enter') {
-                                                                                        const val = e.target.value.trim();
-                                                                                        if (val) {
-                                                                                            authFetch(`/agency/update-slot-config`, {
-                                                                                                method: 'POST',
-                                                                                                body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
-                                                                                            }).then(() => { toast.success("API Key guardada"); e.target.value = ""; loadData(); });
-                                                                                        }
-                                                                                    }
-                                                                                }}
-                                                                            />
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    // Buscamos el input hermano anterior
-                                                                                    const input = e.currentTarget.previousElementSibling;
-                                                                                    const val = input.value.trim();
-                                                                                    if (val) {
-                                                                                        authFetch(`/agency/update-slot-config`, {
-                                                                                            method: 'POST',
-                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
-                                                                                        }).then(() => { toast.success("API Key guardada"); input.value = ""; loadData(); });
-                                                                                    } else {
-                                                                                        toast.error("Ingresa una Key válida");
-                                                                                    }
-                                                                                }}
-                                                                                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
-                                                                            >
-                                                                                <Save size={18} /> Guardar
-                                                                            </button>
-
-                                                                            {slot.openai_api_key && (
-                                                                                <button
-                                                                                    onClick={() => {
-                                                                                        if (confirm("¿Borrar API Key de este número?")) {
-                                                                                            authFetch(`/agency/update-slot-config`, {
-                                                                                                method: 'POST',
-                                                                                                body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: "" }) // Send empty string to clear
-                                                                                            }).then(() => { toast.success("API Key eliminada"); loadData(); });
-                                                                                        }
-                                                                                    }}
-                                                                                    className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
-                                                                                    title="Borrar Key"
-                                                                                >
-                                                                                    <Trash2 size={18} />
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
+                                                                            OpenAI API Key (Transcripción)
+                                                                        </label>
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                            Configura una key única para este número. Dejar vacío para desactivar.
+                                                                        </p>
                                                                     </div>
+                                                                    {slot.openai_api_key && (
+                                                                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                                                            Conectado
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                
+                                                                <div className="flex gap-2">
+                                                                     <input 
+                                                                        type="password" 
+                                                                        name={`openai_key_${slot.slot_id}`}
+                                                                        autoComplete="new-password"
+                                                                        placeholder={slot.openai_api_key ? "•••••••••••••••• (Oculto)" : "sk-..."}
+                                                                        className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === 'Enter') {
+                                                                                const val = e.target.value.trim();
+                                                                                if (val) {
+                                                                                    authFetch(`/agency/update-slot-config`, {
+                                                                                        method: 'POST',
+                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                    }).then(() => { toast.success("API Key guardada"); e.target.value = ""; loadData(); });
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                     />
+                                                                     <button 
+                                                                        onClick={(e) => {
+                                                                             // Buscamos el input hermano anterior
+                                                                             const input = e.currentTarget.previousElementSibling;
+                                                                             const val = input.value.trim();
+                                                                             if (val) {
+                                                                                 authFetch(`/agency/update-slot-config`, {
+                                                                                     method: 'POST',
+                                                                                     body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                 }).then(() => { toast.success("API Key guardada"); input.value = ""; loadData(); });
+                                                                             } else {
+                                                                                 toast.error("Ingresa una Key válida");
+                                                                             }
+                                                                        }}
+                                                                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
+                                                                     >
+                                                                         <Save size={18} /> Guardar
+                                                                     </button>
+                                                                     
+                                                                     {slot.openai_api_key && (
+                                                                         <button 
+                                                                            onClick={() => {
+                                                                                if(confirm("¿Borrar API Key de este número?")) {
+                                                                                    authFetch(`/agency/update-slot-config`, {
+                                                                                        method: 'POST',
+                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: "" }) // Send empty string to clear
+                                                                                    }).then(() => { toast.success("API Key eliminada"); loadData(); });
+                                                                                }
+                                                                            }}
+                                                                            className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                            title="Borrar Key"
+                                                                         >
+                                                                             <Trash2 size={18} />
+                                                                         </button>
+                                                                     )}
+                                                                </div>
+                                                            </div>
 
-                                                                    {/* 🔥 NUEVO: ElevenLabs Key + Voz por defecto */}
-                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                        <div className="flex justify-between items-start mb-4">
-                                                                            <div>
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                                                                    <div className="w-6 h-6 bg-sky-100 dark:bg-sky-900/30 text-sky-600 rounded flex items-center justify-center">
-                                                                                        <Mic size={14} />
-                                                                                    </div>
-                                                                                    ElevenLabs API Key (Voces)
-                                                                                </label>
-                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                    Configura una key única para este número. Dejar vacío para desactivar.
-                                                                                </p>
+                                                            {/* 🔥 NUEVO: ElevenLabs Key + Voz por defecto */}
+                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                <div className="flex justify-between items-start mb-4">
+                                                                    <div>
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                            <div className="w-6 h-6 bg-sky-100 dark:bg-sky-900/30 text-sky-600 rounded flex items-center justify-center">
+                                                                                <Mic size={14} />
                                                                             </div>
-                                                                            {slot.elevenlabs_api_key && (
-                                                                                <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
-                                                                                    Conectado
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
+                                                                            ElevenLabs API Key (Voces)
+                                                                        </label>
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                            Configura una key única para este número. Dejar vacío para desactivar.
+                                                                        </p>
+                                                                    </div>
+                                                                    {slot.elevenlabs_api_key && (
+                                                                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                                                            Conectado
+                                                                        </span>
+                                                                    )}
+                                                                </div>
 
-                                                                        <div className="flex gap-2">
-                                                                            <input
-                                                                                type="password"
-                                                                                name={`elevenlabs_key_${slot.slot_id}`}
-                                                                                autoComplete="new-password"
-                                                                                placeholder={slot.elevenlabs_api_key ? "•••••••••••••••• (Oculto)" : "sk_..."}
-                                                                                className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition font-mono text-sm"
-                                                                                onKeyDown={(e) => {
-                                                                                    if (e.key === 'Enter') {
-                                                                                        const val = e.target.value;
-                                                                                        saveElevenApiKey(slot.slot_id, val).then((ok) => {
-                                                                                            if (ok) e.target.value = "";
-                                                                                        });
-                                                                                    }
-                                                                                }}
-                                                                            />
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    const input = e.currentTarget.previousElementSibling;
-                                                                                    const val = input.value;
-                                                                                    saveElevenApiKey(slot.slot_id, val).then((ok) => {
-                                                                                        if (ok) input.value = "";
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="password"
+                                                                        name={`elevenlabs_key_${slot.slot_id}`}
+                                                                        autoComplete="new-password"
+                                                                        placeholder={slot.elevenlabs_api_key ? "•••••••••••••••• (Oculto)" : "sk_..."}
+                                                                        className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition font-mono text-sm"
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === 'Enter') {
+                                                                                const val = e.target.value;
+                                                                                saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                    if (ok) e.target.value = "";
+                                                                                });
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            const input = e.currentTarget.previousElementSibling;
+                                                                            const val = input.value;
+                                                                            saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                if (ok) input.value = "";
+                                                                            });
+                                                                        }}
+                                                                        className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
+                                                                    >
+                                                                        <Save size={18} /> Guardar
+                                                                    </button>
+
+                                                                    {slot.elevenlabs_api_key && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (confirm("¿Borrar API Key de este número?")) {
+                                                                                    authFetch(`/agency/update-slot-config`, {
+                                                                                        method: 'POST',
+                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_api_key: "", elevenlabs_voice_id: "" })
+                                                                                    }).then(() => {
+                                                                                        toast.success("API Key eliminada");
+                                                                                        loadData();
+                                                                                        setElevenVoicesBySlot(prev => ({ ...prev, [slot.slot_id]: [] }));
                                                                                     });
-                                                                                }}
-                                                                                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
-                                                                            >
-                                                                                <Save size={18} /> Guardar
-                                                                            </button>
+                                                                                }
+                                                                            }}
+                                                                            className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                            title="Borrar Key"
+                                                                        >
+                                                                            <Trash2 size={18} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
 
-                                                                            {slot.elevenlabs_api_key && (
-                                                                                <button
-                                                                                    onClick={() => {
-                                                                                        if (confirm("¿Borrar API Key de este número?")) {
-                                                                                            authFetch(`/agency/update-slot-config`, {
-                                                                                                method: 'POST',
-                                                                                                body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_api_key: "", elevenlabs_voice_id: "" })
-                                                                                            }).then(() => {
-                                                                                                toast.success("API Key eliminada");
-                                                                                                loadData();
-                                                                                                setElevenVoicesBySlot(prev => ({ ...prev, [slot.slot_id]: [] }));
-                                                                                            });
-                                                                                        }
-                                                                                    }}
-                                                                                    className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
-                                                                                    title="Borrar Key"
-                                                                                >
-                                                                                    <Trash2 size={18} />
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
-
-                                                                        <div className="mt-4">
-                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                                                Voz por defecto
-                                                                            </label>
-                                                                            <div className="mb-2">
-                                                                                <input
-                                                                                    type="text"
-                                                                                    value={previewTextBySlot[slot.slot_id] || ""}
-                                                                                    onChange={(e) => setPreviewTextBySlot(prev => ({ ...prev, [slot.slot_id]: e.target.value }))}
-                                                                                    placeholder="Texto para preview (opcional)"
-                                                                                    className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition text-sm"
-                                                                                />
-                                                                            </div>
-                                                                            <div className="flex gap-2 items-center">
-                                                                                <select
-                                                                                    className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none"
-                                                                                    value={slot.elevenlabs_voice_id || ""}
-                                                                                    disabled={!slot.elevenlabs_api_key}
-                                                                                    onChange={(e) => {
-                                                                                        const val = e.target.value;
-                                                                                        authFetch(`/agency/update-slot-config`, {
-                                                                                            method: 'POST',
-                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_voice_id: val })
-                                                                                        }).then(() => {
-                                                                                            toast.success("Voz por defecto guardada");
-                                                                                            loadData();
-                                                                                        });
-                                                                                    }}
-                                                                                >
-                                                                                    <option value="">{slot.elevenlabs_api_key ? "Sin voz por defecto" : "Configura la API Key primero"}</option>
-                                                                                    {slot.elevenlabs_voice_id && !(elevenVoicesBySlot[slot.slot_id] || []).some(v => v.id === slot.elevenlabs_voice_id) && (
-                                                                                        <option value={slot.elevenlabs_voice_id}>Voz actual ({slot.elevenlabs_voice_id})</option>
-                                                                                    )}
-                                                                                    {(elevenVoicesBySlot[slot.slot_id] || []).map(v => (
-                                                                                        <option key={v.id} value={v.id}>{v.name}</option>
-                                                                                    ))}
-                                                                                </select>
-                                                                                <button
-                                                                                    onClick={() => loadElevenVoices(slot.slot_id, true)}
-                                                                                    disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
-                                                                                    className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
-                                                                                    title="Actualizar voces"
-                                                                                >
-                                                                                    <RefreshCw size={18} className={loadingElevenVoices[slot.slot_id] ? "animate-spin" : ""} />
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => {
-                                                                                        const fallbackVoice = (elevenVoicesBySlot[slot.slot_id] || [])[0]?.id || "";
-                                                                                        const previewVoice = slot.elevenlabs_voice_id || fallbackVoice;
-                                                                                        playVoicePreview(slot.slot_id, previewVoice);
-                                                                                    }}
-                                                                                    disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
-                                                                                    className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
-                                                                                    title="Preview"
-                                                                                >
-                                                                                    <Play size={18} />
-                                                                                </button>
-                                                                            </div>
-                                                                            {slot.elevenlabs_api_key && (elevenVoicesBySlot[slot.slot_id] || []).length === 0 && !loadingElevenVoices[slot.slot_id] && (
-                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                                                                    No hay voces cargadas o no se pudieron obtener.
-                                                                                </p>
-                                                                            )}
-                                                                        </div>
+                                                                <div className="mt-4">
+                                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                                        Voz por defecto
+                                                                    </label>
+                                                                    <div className="mb-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={previewTextBySlot[slot.slot_id] || ""}
+                                                                            onChange={(e) => setPreviewTextBySlot(prev => ({ ...prev, [slot.slot_id]: e.target.value }))}
+                                                                            placeholder="Texto para preview (opcional)"
+                                                                            className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition text-sm"
+                                                                        />
                                                                     </div>
-                                                                    {(() => {
-                                                                        const customProxy = customProxyBySlot[slot.slot_id] || createEmptyCustomProxyState();
-                                                                        const isLoadingCustomProxy = !!loadingCustomProxyBySlot[slot.slot_id];
-                                                                        const isSavingCustomProxy = !!savingCustomProxyBySlot[slot.slot_id];
-
-                                                                        return (
-                                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
-                                                                                <div className="flex flex-wrap items-start justify-between gap-4">
-                                                                                    <div>
-                                                                                        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.proxy.title')}</h4>
-                                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('slots.proxy.desc')}</p>
-                                                                                    </div>
-                                                                                    <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${customProxy.configured ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
-                                                                                        {customProxy.configured ? t('slots.proxy.configured') : t('slots.proxy.not_configured')}
-                                                                                    </div>
-                                                                                </div>
-
-                                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                                    <div>
-                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.host')}</label>
-                                                                                        <input
-                                                                                            type="text"
-                                                                                            value={customProxy.host || ""}
-                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "host", e.target.value)}
-                                                                                            placeholder={t('slots.proxy.ph_host')}
-                                                                                            autoComplete="off"
-                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                                                                                        />
-                                                                                    </div>
-                                                                                    <div>
-                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.port')}</label>
-                                                                                        <input
-                                                                                            type="number"
-                                                                                            value={customProxy.port || ""}
-                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "port", e.target.value)}
-                                                                                            placeholder={t('slots.proxy.ph_port')}
-                                                                                            autoComplete="off"
-                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                                                                                        />
-                                                                                    </div>
-                                                                                    <div>
-                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.username')}</label>
-                                                                                        <input
-                                                                                            type="text"
-                                                                                            value={customProxy.username || ""}
-                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "username", e.target.value)}
-                                                                                            placeholder={t('slots.proxy.ph_username')}
-                                                                                            autoComplete="off"
-                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                                                                                        />
-                                                                                    </div>
-                                                                                    <div>
-                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.password')}</label>
-                                                                                        <input
-                                                                                            type="password"
-                                                                                            value={customProxy.password || ""}
-                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "password", e.target.value)}
-                                                                                            placeholder={customProxy.passwordMasked || t('slots.proxy.ph_password')}
-                                                                                            autoComplete="new-password"
-                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                                                                                        />
-                                                                                    </div>
-                                                                                </div>
-
-                                                                                <div>
-                                                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.protocol')}</label>
-                                                                                    <select
-                                                                                        value={customProxy.protocol || "http"}
-                                                                                        onChange={(e) => updateCustomProxyField(slot.slot_id, "protocol", e.target.value)}
-                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                                                                                    >
-                                                                                        <option value="http">http</option>
-                                                                                        <option value="socks5">socks5</option>
-                                                                                    </select>
-                                                                                </div>
-
-                                                                                <div className="flex flex-wrap items-center gap-2">
-                                                                                    <button
-                                                                                        onClick={() => saveCustomProxyConfig(slot.slot_id)}
-                                                                                        disabled={isLoadingCustomProxy || isSavingCustomProxy}
-                                                                                        className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
-                                                                                    >
-                                                                                        {isSavingCustomProxy ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                                                                                        {t('slots.proxy.save')}
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => clearCustomProxyConfig(slot.slot_id)}
-                                                                                        disabled={isLoadingCustomProxy || isSavingCustomProxy || !customProxy.configured}
-                                                                                        className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
-                                                                                    >
-                                                                                        {t('slots.proxy.clear')}
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => loadCustomProxyConfig(slot.slot_id, true)}
-                                                                                        disabled={isLoadingCustomProxy || isSavingCustomProxy}
-                                                                                        className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
-                                                                                        title={t('slots.proxy.reload')}
-                                                                                    >
-                                                                                        <RefreshCw size={16} className={isLoadingCustomProxy ? "animate-spin" : ""} />
-                                                                                    </button>
-                                                                                </div>
-
-                                                                                <p className="text-xs text-gray-500 dark:text-gray-400">{t('slots.proxy.apply_note')}</p>
-                                                                                {customProxy.invalidConfig && (
-                                                                                    <p className="text-xs text-amber-600 dark:text-amber-400">{t('slots.proxy.invalid')}</p>
-                                                                                )}
-                                                                            </div>
-                                                                        );
-                                                                    })()}
-                                                                </>
-                                                            )}
-                                                            {isChatwootMode && (() => {
-                                                                const chatwoot = chatwootConfigBySlot[slot.slot_id] || createEmptyChatwootState();
-                                                                const isLoadingChatwoot = !!loadingChatwootBySlot[slot.slot_id];
-                                                                const isSavingChatwoot = !!savingChatwootBySlot[slot.slot_id];
-                                                                const statusLabel = chatwoot.configured
-                                                                    ? t('slots.chatwoot.configured')
-                                                                    : chatwoot.hasGlobalConfig
-                                                                        ? t('slots.chatwoot.global_only')
-                                                                        : t('slots.chatwoot.not_configured');
-                                                                const statusClass = chatwoot.configured
-                                                                    ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30'
-                                                                    : chatwoot.hasGlobalConfig
-                                                                        ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30'
-                                                                        : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300';
-                                                                const inboxIdNumber = Number.parseInt(String(chatwoot.inboxId || ""), 10);
-                                                                const hasInboxMapping = Number.isFinite(inboxIdNumber) && inboxIdNumber > 0;
-                                                                const hasTypedSecret = Boolean((chatwoot.webhookSecret || "").trim());
-                                                                const hasAnySecret = hasTypedSecret || chatwoot.hasWebhookSecret;
-                                                                const webhookUrl = buildChatwootWebhookUrl(chatwoot.webhookSecret || "");
-                                                                const stepGlobalReady = chatwoot.hasGlobalConfig;
-                                                                const stepInboxReady = hasInboxMapping;
-                                                                const stepWebhookReady = hasAnySecret;
+                                                                    <div className="flex gap-2 items-center">
+                                                                        <select
+                                                                            className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none"
+                                                                            value={slot.elevenlabs_voice_id || ""}
+                                                                            disabled={!slot.elevenlabs_api_key}
+                                                                            onChange={(e) => {
+                                                                                const val = e.target.value;
+                                                                                authFetch(`/agency/update-slot-config`, {
+                                                                                    method: 'POST',
+                                                                                    body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_voice_id: val })
+                                                                                }).then(() => {
+                                                                                    toast.success("Voz por defecto guardada");
+                                                                                    loadData();
+                                                                                });
+                                                                            }}
+                                                                        >
+                                                                            <option value="">{slot.elevenlabs_api_key ? "Sin voz por defecto" : "Configura la API Key primero"}</option>
+                                                                            {slot.elevenlabs_voice_id && !(elevenVoicesBySlot[slot.slot_id] || []).some(v => v.id === slot.elevenlabs_voice_id) && (
+                                                                                <option value={slot.elevenlabs_voice_id}>Voz actual ({slot.elevenlabs_voice_id})</option>
+                                                                            )}
+                                                                            {(elevenVoicesBySlot[slot.slot_id] || []).map(v => (
+                                                                                <option key={v.id} value={v.id}>{v.name}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                        <button
+                                                                            onClick={() => loadElevenVoices(slot.slot_id, true)}
+                                                                            disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                            className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                            title="Actualizar voces"
+                                                                        >
+                                                                            <RefreshCw size={18} className={loadingElevenVoices[slot.slot_id] ? "animate-spin" : ""} />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                const fallbackVoice = (elevenVoicesBySlot[slot.slot_id] || [])[0]?.id || "";
+                                                                                const previewVoice = slot.elevenlabs_voice_id || fallbackVoice;
+                                                                                playVoicePreview(slot.slot_id, previewVoice);
+                                                                            }}
+                                                                            disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                            className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                            title="Preview"
+                                                                        >
+                                                                            <Play size={18} />
+                                                                        </button>
+                                                                    </div>
+                                                                    {slot.elevenlabs_api_key && (elevenVoicesBySlot[slot.slot_id] || []).length === 0 && !loadingElevenVoices[slot.slot_id] && (
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                                            No hay voces cargadas o no se pudieron obtener.
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            {(() => {
+                                                                const customProxy = customProxyBySlot[slot.slot_id] || createEmptyCustomProxyState();
+                                                                const isLoadingCustomProxy = !!loadingCustomProxyBySlot[slot.slot_id];
+                                                                const isSavingCustomProxy = !!savingCustomProxyBySlot[slot.slot_id];
 
                                                                 return (
                                                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
                                                                         <div className="flex flex-wrap items-start justify-between gap-4">
                                                                             <div>
-                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.chatwoot.title')}</h4>
-                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('slots.chatwoot.desc')}</p>
+                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.proxy.title')}</h4>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('slots.proxy.desc')}</p>
                                                                             </div>
-                                                                            <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${statusClass}`}>
-                                                                                {statusLabel}
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                                                            <div className={`rounded-lg border px-3 py-2 ${stepGlobalReady ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40'}`}>
-                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step1')}</p>
-                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step1_desc')}</p>
-                                                                            </div>
-                                                                            <div className={`rounded-lg border px-3 py-2 ${stepInboxReady ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40'}`}>
-                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step2')}</p>
-                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step2_desc')}</p>
-                                                                            </div>
-                                                                            <div className={`rounded-lg border px-3 py-2 ${stepWebhookReady ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40'}`}>
-                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step3')}</p>
-                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step3_desc')}</p>
+                                                                            <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${customProxy.configured ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                                                                                {customProxy.configured ? t('slots.proxy.configured') : t('slots.proxy.not_configured')}
                                                                             </div>
                                                                         </div>
 
                                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                            <div className="md:col-span-2">
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.url')}</label>
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.host')}</label>
                                                                                 <input
                                                                                     type="text"
-                                                                                    value={chatwoot.chatwootUrl || ""}
-                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "chatwootUrl", e.target.value)}
-                                                                                    placeholder={chatwoot.chatwootUrlMasked || t('slots.chatwoot.ph_url')}
+                                                                                    value={customProxy.host || ""}
+                                                                                    onChange={(e) => updateCustomProxyField(slot.slot_id, "host", e.target.value)}
+                                                                                    placeholder={t('slots.proxy.ph_host')}
                                                                                     autoComplete="off"
                                                                                     className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                                                                                 />
                                                                             </div>
-
                                                                             <div>
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.api_token')}</label>
-                                                                                <input
-                                                                                    type="password"
-                                                                                    value={chatwoot.apiToken || ""}
-                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "apiToken", e.target.value)}
-                                                                                    placeholder={chatwoot.apiTokenMasked || t('slots.chatwoot.ph_token')}
-                                                                                    autoComplete="new-password"
-                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
-                                                                                />
-                                                                            </div>
-
-                                                                            <div>
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.account_id')}</label>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.port')}</label>
                                                                                 <input
                                                                                     type="number"
-                                                                                    min="1"
-                                                                                    value={chatwoot.accountId || ""}
-                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "accountId", e.target.value)}
-                                                                                    placeholder={t('slots.chatwoot.ph_account_id')}
+                                                                                    value={customProxy.port || ""}
+                                                                                    onChange={(e) => updateCustomProxyField(slot.slot_id, "port", e.target.value)}
+                                                                                    placeholder={t('slots.proxy.ph_port')}
                                                                                     autoComplete="off"
-                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                                                                                 />
                                                                             </div>
-
                                                                             <div>
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.inbox_id')}</label>
-                                                                                {chatwootInboxes.length > 0 ? (
-                                                                                    <select
-                                                                                        value={chatwoot.inboxId || ""}
-                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "inboxId", e.target.value)}
-                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
-                                                                                    >
-                                                                                        <option value="">{t('slots.chatwoot.select_inbox')}</option>
-                                                                                        {chatwootInboxes.map((inbox) => (
-                                                                                            <option key={inbox.id} value={String(inbox.id)}>
-                                                                                                {inbox.name} (#{inbox.id}{inbox.phoneNumber ? ` - ${inbox.phoneNumber}` : ""})
-                                                                                            </option>
-                                                                                        ))}
-                                                                                    </select>
-                                                                                ) : (
-                                                                                    <input
-                                                                                        type="number"
-                                                                                        min="1"
-                                                                                        value={chatwoot.inboxId || ""}
-                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "inboxId", e.target.value)}
-                                                                                        placeholder={t('slots.chatwoot.ph_inbox_id')}
-                                                                                        autoComplete="off"
-                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
-                                                                                    />
-                                                                                )}
-                                                                                <div className="mt-2">
-                                                                                    <button
-                                                                                        onClick={() => loadChatwootInboxes(true)}
-                                                                                        disabled={isLoadingChatwoot || isSavingChatwoot || loadingChatwootInboxes}
-                                                                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition disabled:opacity-60"
-                                                                                    >
-                                                                                        {loadingChatwootInboxes ? (t('slots.chatwoot.loading_inboxes')) : t('slots.chatwoot.load_inboxes')}
-                                                                                    </button>
-                                                                                </div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.username')}</label>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={customProxy.username || ""}
+                                                                                    onChange={(e) => updateCustomProxyField(slot.slot_id, "username", e.target.value)}
+                                                                                    placeholder={t('slots.proxy.ph_username')}
+                                                                                    autoComplete="off"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                />
                                                                             </div>
-
-                                                                            <div className="md:col-span-2">
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.webhook_secret')}</label>
-                                                                                <div className="flex flex-col md:flex-row gap-2">
-                                                                                    <input
-                                                                                        type="password"
-                                                                                        value={chatwoot.webhookSecret || ""}
-                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "webhookSecret", e.target.value)}
-                                                                                        placeholder={chatwoot.hasWebhookSecret ? "********" : t('slots.chatwoot.ph_webhook_secret')}
-                                                                                        autoComplete="new-password"
-                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
-                                                                                    />
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => generateChatwootSecret(slot.slot_id)}
-                                                                                        disabled={isLoadingChatwoot || isSavingChatwoot}
-                                                                                        className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 transition disabled:opacity-60 text-sm font-semibold whitespace-nowrap"
-                                                                                    >
-                                                                                        {t('slots.chatwoot.generate_secret')}
-                                                                                    </button>
-                                                                                </div>
-                                                                                {chatwoot.hasWebhookSecret && !hasTypedSecret && (
-                                                                                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">{t('slots.chatwoot.secret_masked_hint')}</p>
-                                                                                )}
-                                                                            </div>
-
-                                                                            <div className="md:col-span-2">
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.webhook_url')}</label>
-                                                                                <div className="flex flex-col md:flex-row gap-2">
-                                                                                    <input
-                                                                                        type="text"
-                                                                                        value={webhookUrl}
-                                                                                        readOnly
-                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/60 dark:text-white outline-none transition font-mono text-xs"
-                                                                                    />
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => copyToClipboard(webhookUrl, t('slots.chatwoot.webhook_copied'))}
-                                                                                        className="px-3 py-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition text-sm font-semibold flex items-center justify-center gap-1 whitespace-nowrap"
-                                                                                    >
-                                                                                        <Copy size={14} />
-                                                                                        {t('slots.chatwoot.copy_webhook')}
-                                                                                    </button>
-                                                                                </div>
-                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{t('slots.chatwoot.webhook_hint')}</p>
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.password')}</label>
+                                                                                <input
+                                                                                    type="password"
+                                                                                    value={customProxy.password || ""}
+                                                                                    onChange={(e) => updateCustomProxyField(slot.slot_id, "password", e.target.value)}
+                                                                                    placeholder={customProxy.passwordMasked || t('slots.proxy.ph_password')}
+                                                                                    autoComplete="new-password"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                />
                                                                             </div>
                                                                         </div>
 
-                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('slots.chatwoot.scope_note')}</p>
+                                                                        <div>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.protocol')}</label>
+                                                                            <select
+                                                                                value={customProxy.protocol || "http"}
+                                                                                onChange={(e) => updateCustomProxyField(slot.slot_id, "protocol", e.target.value)}
+                                                                                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                            >
+                                                                                <option value="http">http</option>
+                                                                                <option value="socks5">socks5</option>
+                                                                            </select>
+                                                                        </div>
 
                                                                         <div className="flex flex-wrap items-center gap-2">
                                                                             <button
-                                                                                onClick={() => validateChatwootConfigSlot(slot.slot_id)}
-                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
-                                                                                className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60 transition flex items-center gap-2"
-                                                                            >
-                                                                                <CheckCircle2 size={16} />
-                                                                                {t('slots.chatwoot.validate')}
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => saveChatwootConfig(slot.slot_id)}
-                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                onClick={() => saveCustomProxyConfig(slot.slot_id)}
+                                                                                disabled={isLoadingCustomProxy || isSavingCustomProxy}
                                                                                 className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
                                                                             >
-                                                                                {isSavingChatwoot ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                                                                                {t('slots.chatwoot.save')}
+                                                                                {isSavingCustomProxy ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                                                {t('slots.proxy.save')}
                                                                             </button>
                                                                             <button
-                                                                                onClick={() => clearChatwootSlotConfig(slot.slot_id)}
-                                                                                disabled={isLoadingChatwoot || isSavingChatwoot || (!chatwoot.inboxId && !chatwoot.configured)}
+                                                                                onClick={() => clearCustomProxyConfig(slot.slot_id)}
+                                                                                disabled={isLoadingCustomProxy || isSavingCustomProxy || !customProxy.configured}
                                                                                 className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
                                                                             >
-                                                                                {t('slots.chatwoot.clear_slot')}
+                                                                                {t('slots.proxy.clear')}
                                                                             </button>
                                                                             <button
-                                                                                onClick={() => loadChatwootConfig(slot.slot_id, true)}
-                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                onClick={() => loadCustomProxyConfig(slot.slot_id, true)}
+                                                                                disabled={isLoadingCustomProxy || isSavingCustomProxy}
                                                                                 className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
-                                                                                title={t('slots.chatwoot.reload')}
+                                                                                title={t('slots.proxy.reload')}
                                                                             >
-                                                                                <RefreshCw size={16} className={isLoadingChatwoot ? "animate-spin" : ""} />
+                                                                                <RefreshCw size={16} className={isLoadingCustomProxy ? "animate-spin" : ""} />
                                                                             </button>
                                                                         </div>
+
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('slots.proxy.apply_note')}</p>
+                                                                        {customProxy.invalidConfig && (
+                                                                            <p className="text-xs text-amber-600 dark:text-amber-400">{t('slots.proxy.invalid')}</p>
+                                                                        )}
                                                                     </div>
                                                                 );
                                                             })()}
@@ -1841,14 +1316,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.integration.routing')}</label>
                                                                         <input type="text" placeholder={t('slots.integration.routing_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.routing_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, settings)} />
-                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usar� este n�mero.</p>
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usar� este n�mero.</p>
                                                                     </div> 
                                                                     */}
                                                                 </>
-                                                            )}
+                                                        )}
                                                         </div>
                                                     )}
-                                                    {isGhlMode && activeSlotTab === 'sms' && (
+                                                    {activeSlotTab === 'sms' && (
                                                         <div className="max-w-2xl space-y-6">
                                                             {(() => {
                                                                 const twilio = twilioConfigBySlot[slot.slot_id] || {
@@ -1952,59 +1427,59 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                    {isGhlMode && activeSlotTab === 'keywords' && (
-                                                        <div className="max-w-2xl">
-                                                            <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
-                                                                <input name="keyword" required placeholder={t('slots.kw.input')} className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                                                <input name="tag" required placeholder={t('slots.kw.tag')} className="w-1/3 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                                                <button type="submit" className="bg-indigo-600 text-white px-5 rounded-xl hover:bg-indigo-700 font-bold"><Plus size={20} /></button>
-                                                            </form>
-                                                            <div className="space-y-2">
-                                                                {keywords.filter(k => k.slot_id === slot.slot_id).map(k => (
-                                                                    <div key={k.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                        <div className="flex gap-2 items-center"><span className="font-bold text-gray-800 dark:text-white">"{k.keyword}"</span> <span className="text-gray-400">&rarr;</span> <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-bold">{k.tag}</span></div>
-                                                                        <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    {activeSlotTab === 'groups' && (
-                                                        <div className="max-w-2xl">
-                                                            <div className="flex justify-between items-center mb-6">
-                                                                <h4 className="font-bold text-gray-700 dark:text-gray-300">{t('slots.groups.detected')}</h4>
-                                                                <button onClick={() => loadGroups(slot.slot_id)} className="text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 p-2 rounded-lg transition"><RefreshCw size={18} /></button>
-                                                            </div>
-                                                            {loadingGroups ? <div className="text-center py-10"><RefreshCw className="animate-spin mx-auto text-indigo-500" /></div> :
-                                                                <div className="space-y-3">
-                                                                    {groups.map(g => {
-                                                                        const isActive = settings.groups?.[g.id]?.active;
-                                                                        return (
-                                                                            <div key={g.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                                <div><h5 className="font-bold text-gray-800 dark:text-white">{g.subject}</h5><p className="text-xs text-gray-500 dark:text-gray-400">{g.participants} {t('slots.groups.participants')}</p></div>
-                                                                                <div className="flex items-center gap-4">
-                                                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                                                        <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, settings)} />
-                                                                                        <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                                                                                    </label>
-                                                                                    <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg" title={t('slots.groups.sync')}><Users size={18} /></button>
-                                                                                </div>
+                                                            {activeSlotTab === 'keywords' && (
+                                                                <div className="max-w-2xl">
+                                                                    <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
+                                                                        <input name="keyword" required placeholder={t('slots.kw.input')} className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                                        <input name="tag" required placeholder={t('slots.kw.tag')} className="w-1/3 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                                        <button type="submit" className="bg-indigo-600 text-white px-5 rounded-xl hover:bg-indigo-700 font-bold"><Plus size={20} /></button>
+                                                                    </form>
+                                                                    <div className="space-y-2">
+                                                                        {keywords.filter(k => k.slot_id === slot.slot_id).map(k => (
+                                                                            <div key={k.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                                <div className="flex gap-2 items-center"><span className="font-bold text-gray-800 dark:text-white">"{k.keyword}"</span> <span className="text-gray-400">&rarr;</span> <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-bold">{k.tag}</span></div>
+                                                                                <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
                                                                             </div>
-                                                                        )
-                                                                    })}
+                                                                        ))}
+                                                                    </div>
                                                                 </div>
-                                                            }
-                                                        </div>
-                                                    )}
-                                                    {activeSlotTab === 'qr' && (
-                                                        <SlotConnectionManager
-                                                            slot={slot}
-                                                            locationId={location.location_id}
-                                                            token={token}
-                                                            onUpdate={loadData}
-                                                            isAdminMode={isAdminMode}
-                                                        />
-                                                    )}
+                                                            )}
+                                                            {activeSlotTab === 'groups' && (
+                                                                <div className="max-w-2xl">
+                                                                    <div className="flex justify-between items-center mb-6">
+                                                                        <h4 className="font-bold text-gray-700 dark:text-gray-300">{t('slots.groups.detected')}</h4>
+                                                                        <button onClick={() => loadGroups(slot.slot_id)} className="text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 p-2 rounded-lg transition"><RefreshCw size={18} /></button>
+                                                                    </div>
+                                                                    {loadingGroups ? <div className="text-center py-10"><RefreshCw className="animate-spin mx-auto text-indigo-500" /></div> :
+                                                                        <div className="space-y-3">
+                                                                            {groups.map(g => {
+                                                                                const isActive = settings.groups?.[g.id]?.active;
+                                                                                return (
+                                                                                    <div key={g.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                                        <div><h5 className="font-bold text-gray-800 dark:text-white">{g.subject}</h5><p className="text-xs text-gray-500 dark:text-gray-400">{g.participants} {t('slots.groups.participants')}</p></div>
+                                                                                        <div className="flex items-center gap-4">
+                                                                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                                                                <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, settings)} />
+                                                                                                <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                                                                                            </label>
+                                                                                            <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg" title={t('slots.groups.sync')}><Users size={18} /></button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                )
+                                                                            })}
+                                                                        </div>
+                                                                    }
+                                                                </div>
+                                                            )}
+                                                            {activeSlotTab === 'qr' && (
+                                                                <SlotConnectionManager 
+                                                                    slot={slot} 
+                                                                    locationId={location.location_id} 
+                                                                    token={token} 
+                                                                    onUpdate={loadData}
+                                                                    isAdminMode={isAdminMode}
+                                                                />
+                                                            )}
                                                 </div>
                                             </div>
                                         )}
@@ -2088,7 +1563,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
 
     const stopPolling = () => {
         if (pollInterval.current) {
-            clearTimeout(pollInterval.current);
+            clearInterval(pollInterval.current);
             pollInterval.current = null;
         }
     };
@@ -2156,8 +1631,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
 
             setAccountSuspensionState(null);
             stopPolling();
-
-            const pollStep = async () => {
+            pollInterval.current = setInterval(async () => {
                 try {
                     const qrRes = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr`);
                     const qrError = await readAccessError(qrRes);
@@ -2166,18 +1640,10 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                     if (qrRes.ok) {
                         const data = await qrRes.json();
                         if (data.qr) setQr(data.qr);
-                        if (data.connected) {
-                            checkStatus();
-                            return; // Stop polling, checkStatus will clear the rest
-                        }
+                        if (data.connected) checkStatus();
                     }
                 } catch (e) { }
-
-                // Adaptive delay: 3s
-                pollInterval.current = setTimeout(pollStep, 3000);
-            };
-
-            pollStep();
+            }, 2000);
         } catch (e) {
             toast.error('Error iniciando conexion');
             setLoading(false);
@@ -2244,17 +1710,9 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             toast.success('Reconectando...');
 
             stopPolling();
-
-            const reconnectPollStep = async () => {
+            pollInterval.current = setInterval(async () => {
                 await checkStatus();
-                // If it successfully connected, checkStatus handles stopPolling.
-                // Otherwise, keep checking status every 4 seconds.
-                if (pollInterval.current) {
-                    pollInterval.current = setTimeout(reconnectPollStep, 4000);
-                }
-            };
-
-            pollInterval.current = setTimeout(reconnectPollStep, 4000);
+            }, 2000);
             setLoading(false);
         } catch (e) {
             toast.error(e.message || 'Error reconectando slot');
@@ -2290,20 +1748,20 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         : slotSuspendedBy === 'system'
             ? 'Suspendido por Sistema'
             : slotSuspendedBy === 'agency'
-                ? 'Slot Pausado'
-                : status.connected
-                    ? 'Dispositivo Conectado'
-                    : 'Vincular WhatsApp';
+            ? 'Slot Pausado'
+            : status.connected
+                ? 'Dispositivo Conectado'
+                : 'Vincular WhatsApp';
 
     const headerDescription = slotSuspendedBy === 'admin'
         ? 'Este slot esta bloqueado por administracion.'
         : slotSuspendedBy === 'system'
             ? 'Este slot esta bloqueado temporalmente por el sistema.'
             : slotSuspendedBy === 'agency'
-                ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
-                : status.connected
-                    ? `Numero: +${status.myNumber}`
-                    : 'Escanea el codigo QR para conectar.';
+            ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
+            : status.connected
+                ? `Numero: +${status.myNumber}`
+                : 'Escanea el codigo QR para conectar.';
 
     return (
         <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
@@ -2403,13 +1861,8 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                             <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
                                 {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
                             </div>
-                            <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">
-                                {qr
-                                    ? '📷 Escanea con WhatsApp (Expira pronto)'
-                                    : (slotSuspendedBy ? '🔄 Reconectando automáticamente...' : '⏳ Consiguiendo QR seguro...')
-                                }
-                            </p>
-                            <button onClick={() => { setQr(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-red-500 underline text-sm transition">Cancelar</button>
+                            <p className="text-sm text-gray-500 mb-4">{qr ? 'Escanea con tu telefono' : 'Iniciando sesion...'}</p>
+                            <button onClick={() => { setQr(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-gray-600 underline text-sm">Cancelar</button>
                         </div>
                     )}
                 </div>

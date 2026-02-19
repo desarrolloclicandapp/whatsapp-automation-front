@@ -11,10 +11,6 @@ export const useSocket = () => {
         socket = io(API_URL, {
             transports: ['websocket'],
             reconnection: true,
-            reconnectionAttempts: 15,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            timeout: 20000,
         });
     }
     return socket;
