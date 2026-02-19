@@ -43,11 +43,18 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [twilioConfigBySlot, setTwilioConfigBySlot] = useState({});
     const [loadingTwilioBySlot, setLoadingTwilioBySlot] = useState({});
     const [savingTwilioBySlot, setSavingTwilioBySlot] = useState({});
+    const [chatwootConfigBySlot, setChatwootConfigBySlot] = useState({});
+    const [loadingChatwootBySlot, setLoadingChatwootBySlot] = useState({});
+    const [savingChatwootBySlot, setSavingChatwootBySlot] = useState({});
     const [customProxyBySlot, setCustomProxyBySlot] = useState({});
     const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
     const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
+    const isChatwootMode = crmType === "chatwoot";
+    const isExpandedChatwootLoaded = Boolean(
+        expandedSlotId && chatwootConfigBySlot[expandedSlotId]?.loaded
+    );
 
     // ✅ Obtener instancia del socket
     const socket = useSocket();
@@ -146,6 +153,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if (customProxyBySlot[expandedSlotId]?.loaded) return;
         loadCustomProxyConfig(expandedSlotId);
     }, [activeSlotTab, expandedSlotId, customProxyBySlot]);
+
+    useEffect(() => {
+        if (activeSlotTab !== 'integration' || !expandedSlotId || !isChatwootMode) return;
+        if (isExpandedChatwootLoaded) return;
+        loadChatwootConfig(expandedSlotId);
+    }, [activeSlotTab, expandedSlotId, isChatwootMode, isExpandedChatwootLoaded]);
 
     useEffect(() => {
         return () => {
@@ -624,7 +637,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const clearCustomProxyConfig = async (slotId) => {
-        if (!confirm("�Quitar proxy personalizado de este numero?")) return;
+        if (!confirm("¿Quitar proxy personalizado de este numero?")) return;
 
         const loadingId = toast.loading("Quitando proxy custom...");
         try {
@@ -652,6 +665,201 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             toast.dismiss(loadingId);
         }
     };
+
+    const createEmptyChatwootState = () => ({
+        loaded: false,
+        configured: false,
+        hasGlobalConfig: false,
+        chatwootUrl: "",
+        apiToken: "",
+        accountId: "",
+        inboxId: "",
+        webhookSecret: "",
+        chatwootUrlMasked: "",
+        apiTokenMasked: "",
+        hasApiToken: false,
+        hasWebhookSecret: false
+    });
+
+    const loadChatwootConfig = async (slotId, forceRefresh = false) => {
+        if (!slotId || !location?.location_id) return;
+        if (!forceRefresh && chatwootConfigBySlot[slotId]?.loaded) return;
+
+        setLoadingChatwootBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/chatwoot/config?locationId=${location.location_id}&slotId=${slotId}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar Chatwoot");
+            }
+            const data = await res.json();
+            setChatwootConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    loaded: true,
+                    configured: !!data.configured,
+                    hasGlobalConfig: !!data.hasGlobalConfig,
+                    chatwootUrl: "",
+                    apiToken: "",
+                    accountId: data.accountId ? String(data.accountId) : "",
+                    inboxId: data.inboxId ? String(data.inboxId) : "",
+                    webhookSecret: "",
+                    chatwootUrlMasked: data.chatwootUrlMasked || "",
+                    apiTokenMasked: data.apiTokenMasked || "",
+                    hasApiToken: !!data.hasApiToken,
+                    hasWebhookSecret: !!data.hasWebhookSecret
+                }
+            }));
+        } catch (e) {
+            toast.error(t('slots.chatwoot.load_error') || "Error cargando Chatwoot", { description: e.message });
+        } finally {
+            setLoadingChatwootBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateChatwootField = (slotId, key, value) => {
+        setChatwootConfigBySlot(prev => {
+            const current = prev[slotId] || createEmptyChatwootState();
+            return {
+                ...prev,
+                [slotId]: {
+                    ...current,
+                    loaded: true,
+                    [key]: value
+                }
+            };
+        });
+    };
+
+    const validateChatwootConfigSlot = async (slotId) => {
+        const current = chatwootConfigBySlot[slotId] || createEmptyChatwootState();
+        const payload = { locationId: location.location_id };
+
+        const chatwootUrl = (current.chatwootUrl || "").trim();
+        const apiToken = (current.apiToken || "").trim();
+        const accountIdRaw = String(current.accountId || "").trim();
+
+        if (chatwootUrl) payload.chatwootUrl = chatwootUrl;
+        if (apiToken) payload.apiToken = apiToken;
+        if (accountIdRaw) {
+            const parsedAccount = Number.parseInt(accountIdRaw, 10);
+            if (!Number.isFinite(parsedAccount) || parsedAccount <= 0) {
+                toast.error(t('slots.chatwoot.invalid_account') || "Account ID inválido");
+                return false;
+            }
+            payload.accountId = parsedAccount;
+        }
+
+        const loadingId = toast.loading(t('slots.chatwoot.validating') || "Validando Chatwoot...");
+        try {
+            const res = await authFetch(`/agency/chatwoot/test`, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return false;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo validar Chatwoot");
+            }
+            const data = await res.json().catch(() => ({}));
+            const description = Number.isFinite(data?.agentsCount)
+                ? `${t('slots.chatwoot.agents') || "Agentes encontrados"}: ${data.agentsCount}`
+                : undefined;
+            toast.success(t('slots.chatwoot.valid') || "Chatwoot validado", { description });
+            return true;
+        } catch (e) {
+            toast.error(t('slots.chatwoot.invalid') || "Validación Chatwoot falló", { description: e.message });
+            return false;
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const saveChatwootConfig = async (slotId) => {
+        const current = chatwootConfigBySlot[slotId] || createEmptyChatwootState();
+        const chatwootUrl = (current.chatwootUrl || "").trim();
+        const apiToken = (current.apiToken || "").trim();
+        const webhookSecret = (current.webhookSecret || "").trim();
+        const accountIdRaw = String(current.accountId || "").trim();
+        const inboxIdRaw = String(current.inboxId || "").trim();
+
+        const hasUrl = chatwootUrl || current.chatwootUrlMasked;
+        const hasToken = apiToken || current.apiTokenMasked || current.hasApiToken;
+        if (!hasUrl || !hasToken || !accountIdRaw || !inboxIdRaw) {
+            toast.error(t('slots.chatwoot.required') || "Completa URL, API Token, Account ID e Inbox ID");
+            return;
+        }
+
+        const parsedAccount = Number.parseInt(accountIdRaw, 10);
+        if (!Number.isFinite(parsedAccount) || parsedAccount <= 0) {
+            toast.error(t('slots.chatwoot.invalid_account') || "Account ID inválido");
+            return;
+        }
+
+        const parsedInbox = Number.parseInt(inboxIdRaw, 10);
+        if (!Number.isFinite(parsedInbox) || parsedInbox <= 0) {
+            toast.error(t('slots.chatwoot.invalid_inbox') || "Inbox ID inválido");
+            return;
+        }
+
+        const payload = {
+            locationId: location.location_id,
+            slotId,
+            accountId: parsedAccount,
+            inboxId: parsedInbox
+        };
+        if (chatwootUrl) payload.chatwootUrl = chatwootUrl;
+        if (apiToken) payload.apiToken = apiToken;
+        if (webhookSecret) payload.webhookSecret = webhookSecret;
+
+        setSavingChatwootBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/chatwoot/config`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo guardar Chatwoot");
+            }
+            toast.success(t('slots.chatwoot.saved') || "Configuración Chatwoot guardada");
+            await loadChatwootConfig(slotId, true);
+        } catch (e) {
+            toast.error(t('slots.chatwoot.save_error') || "Error guardando Chatwoot", { description: e.message });
+        } finally {
+            setSavingChatwootBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const clearChatwootSlotConfig = async (slotId) => {
+        if (!confirm(t('slots.chatwoot.confirm_clear_slot') || "¿Quitar el Inbox ID de este número?")) return;
+
+        const loadingId = toast.loading(t('slots.chatwoot.clearing') || "Limpiando Chatwoot...");
+        try {
+            const res = await authFetch(`/agency/chatwoot/config`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    clearSlot: true
+                })
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo limpiar Chatwoot");
+            }
+            toast.success(t('slots.chatwoot.cleared') || "Inbox de Chatwoot limpiado");
+            await loadChatwootConfig(slotId, true);
+        } catch (e) {
+            toast.error(t('slots.chatwoot.clear_error') || "Error limpiando Chatwoot", { description: e.message });
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
     const loadTwilioConfig = async (slotId, forceRefresh = false) => {
         if (!slotId || !location?.location_id) return;
         if (!forceRefresh && twilioConfigBySlot[slotId]) return;
@@ -725,12 +933,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res) return false;
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "Credenciales inv�lidas");
+                throw new Error(err.error || "Credenciales inv�lidas");
             }
             toast.success("Twilio validado correctamente");
             return true;
         } catch (e) {
-            toast.error("Validaci�n Twilio fall�", { description: e.message });
+            toast.error("Validaci�n Twilio fall�", { description: e.message });
             return false;
         } finally {
             toast.dismiss(loadingId);
@@ -747,7 +955,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const tokenReady = tokenInput || current.authTokenMasked || current.hasAuthToken;
 
         if (!sidReady || !tokenReady || !fromNumber) {
-            toast.error("Completa SID, Auth Token y n�mero Twilio");
+            toast.error("Completa SID, Auth Token y n�mero Twilio");
             return;
         }
 
@@ -770,7 +978,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 const err = await res.json().catch(() => ({}));
                 throw new Error(err.error || "No se pudo guardar");
             }
-            toast.success("Configuraci�n Twilio guardada");
+            toast.success("Configuraci�n Twilio guardada");
             await loadTwilioConfig(slotId, true);
         } catch (e) {
             toast.error("Error guardando Twilio", { description: e.message });
@@ -1299,6 +1507,135 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     </div>
                                                                 );
                                                             })()}
+                                                            {isChatwootMode && (() => {
+                                                                const chatwoot = chatwootConfigBySlot[slot.slot_id] || createEmptyChatwootState();
+                                                                const isLoadingChatwoot = !!loadingChatwootBySlot[slot.slot_id];
+                                                                const isSavingChatwoot = !!savingChatwootBySlot[slot.slot_id];
+                                                                const statusLabel = chatwoot.configured
+                                                                    ? t('slots.chatwoot.configured')
+                                                                    : chatwoot.hasGlobalConfig
+                                                                        ? t('slots.chatwoot.global_only')
+                                                                        : t('slots.chatwoot.not_configured');
+                                                                const statusClass = chatwoot.configured
+                                                                    ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30'
+                                                                    : chatwoot.hasGlobalConfig
+                                                                        ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30'
+                                                                        : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300';
+
+                                                                return (
+                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
+                                                                        <div className="flex flex-wrap items-start justify-between gap-4">
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.chatwoot.title')}</h4>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('slots.chatwoot.desc')}</p>
+                                                                            </div>
+                                                                            <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${statusClass}`}>
+                                                                                {statusLabel}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                            <div className="md:col-span-2">
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.url')}</label>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={chatwoot.chatwootUrl || ""}
+                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "chatwootUrl", e.target.value)}
+                                                                                    placeholder={chatwoot.chatwootUrlMasked || t('slots.chatwoot.ph_url')}
+                                                                                    autoComplete="off"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                />
+                                                                            </div>
+
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.api_token')}</label>
+                                                                                <input
+                                                                                    type="password"
+                                                                                    value={chatwoot.apiToken || ""}
+                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "apiToken", e.target.value)}
+                                                                                    placeholder={chatwoot.apiTokenMasked || t('slots.chatwoot.ph_token')}
+                                                                                    autoComplete="new-password"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                />
+                                                                            </div>
+
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.account_id')}</label>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    min="1"
+                                                                                    value={chatwoot.accountId || ""}
+                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "accountId", e.target.value)}
+                                                                                    placeholder={t('slots.chatwoot.ph_account_id')}
+                                                                                    autoComplete="off"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                />
+                                                                            </div>
+
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.inbox_id')}</label>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    min="1"
+                                                                                    value={chatwoot.inboxId || ""}
+                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "inboxId", e.target.value)}
+                                                                                    placeholder={t('slots.chatwoot.ph_inbox_id')}
+                                                                                    autoComplete="off"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                />
+                                                                            </div>
+
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.webhook_secret')}</label>
+                                                                                <input
+                                                                                    type="password"
+                                                                                    value={chatwoot.webhookSecret || ""}
+                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "webhookSecret", e.target.value)}
+                                                                                    placeholder={chatwoot.hasWebhookSecret ? "••••••••" : t('slots.chatwoot.ph_webhook_secret')}
+                                                                                    autoComplete="new-password"
+                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('slots.chatwoot.scope_note')}</p>
+
+                                                                        <div className="flex flex-wrap items-center gap-2">
+                                                                            <button
+                                                                                onClick={() => validateChatwootConfigSlot(slot.slot_id)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                            >
+                                                                                <CheckCircle2 size={16} />
+                                                                                {t('slots.chatwoot.validate')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => saveChatwootConfig(slot.slot_id)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                            >
+                                                                                {isSavingChatwoot ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                                                {t('slots.chatwoot.save')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => clearChatwootSlotConfig(slot.slot_id)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot || (!chatwoot.inboxId && !chatwoot.configured)}
+                                                                                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
+                                                                            >
+                                                                                {t('slots.chatwoot.clear_slot')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => loadChatwootConfig(slot.slot_id, true)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
+                                                                                title={t('slots.chatwoot.reload')}
+                                                                            >
+                                                                                <RefreshCw size={16} className={isLoadingChatwoot ? "animate-spin" : ""} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                             {isGhlMode && (
                                                                 <>
                                                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -1316,7 +1653,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.integration.routing')}</label>
                                                                         <input type="text" placeholder={t('slots.integration.routing_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.routing_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, settings)} />
-                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usar� este n�mero.</p>
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usar� este n�mero.</p>
                                                                     </div> 
                                                                     */}
                                                                 </>

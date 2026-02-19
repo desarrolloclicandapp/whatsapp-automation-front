@@ -74,7 +74,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const agencyCrmType = String(accountInfo?.crm_type || crmPreference || "ghl").toLowerCase();
     const isGhlAgency = agencyCrmType === "ghl";
     const isCrmLocked = Boolean(accountInfo?.crm_type);
-    const crmLabelMap = { ghl: "GoHighLevel", odoo: "Odoo" };
+    const crmLabelMap = { ghl: "GoHighLevel", chatwoot: "Chatwoot", odoo: "Odoo" };
     const activeCrmLabel = crmLabelMap[agencyCrmType] || agencyCrmType.toUpperCase();
     const [searchTerm, setSearchTerm] = useState("");
     const [userEmail, setUserEmail] = useState("");
@@ -501,6 +501,9 @@ export default function AgencyDashboard({ token, onLogout }) {
             window.open("https://app.gohighlevel.com", "_blank", "noopener");
         }
     };
+    const openChatwootPortal = () => {
+        window.open("https://www.chatwoot.com", "_blank", "noopener");
+    };
     const handleSelectCrm = (crmType) => {
         if (isCrmLocked) {
             toast.info(t('agency.integrations.locked'));
@@ -508,7 +511,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
         setCrmPreference(crmType);
         localStorage.setItem("crmType", crmType);
-        if (crmType !== "ghl") {
+        if (crmType === "odoo") {
             toast.info(t('agency.integrations.coming_soon'));
         }
     };
@@ -589,6 +592,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </div>
                 <div className={gridClass}>
                     {renderCard("ghl", "GoHighLevel", t('agency.integrations.ghl_desc'), Globe, { showOpen: true, onOpen: openGhlPortal })}
+                    {renderCard("chatwoot", "Chatwoot", t('agency.integrations.chatwoot_desc'), MessageSquareText, { showOpen: true, onOpen: openChatwootPortal })}
                 </div>
             </div>
         );
