@@ -5,9 +5,9 @@ import { useSocket } from '../hooks/useSocket';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
-export default function SupportManager({ 
-    token, 
-    apiPrefix = "/admin/support", 
+export default function SupportManager({
+    token,
+    apiPrefix = "/admin/support",
     socketRoom = "__SYSTEM_SUPPORT__",
     title = "Bot de Alertas y Soporte",
     showDisconnectWarning = true,
@@ -16,7 +16,7 @@ export default function SupportManager({
     const [status, setStatus] = useState({ connected: false, myNumber: null });
     const [qr, setQr] = useState(null);
     const [loading, setLoading] = useState(false);
-    
+
     // Referencia para manejar el intervalo de polling
     const pollInterval = useRef(null);
 
@@ -53,7 +53,7 @@ export default function SupportManager({
     // Función auxiliar para detener el polling
     const stopPolling = () => {
         if (pollInterval.current) {
-            clearInterval(pollInterval.current);
+            clearTimeout(pollInterval.current);
             pollInterval.current = null;
         }
     };
@@ -61,7 +61,7 @@ export default function SupportManager({
     // ✅ EFECTO: Sockets + Polling de Seguridad
     useEffect(() => {
         if (demoMode) return; // 🚫 No hacer nada en modo demo
-        
+
         checkStatus();
 
         if (socket) {
@@ -96,16 +96,17 @@ export default function SupportManager({
     const handleConnect = async () => {
         setLoading(true);
         setQr(null);
-        
+
         try {
             // 1. Iniciar proceso en backend
             const res = await authFetch(`${apiPrefix}/start`, { method: 'POST' });
             if (!res.ok) throw new Error("Fallo al iniciar");
 
             // 2. Activar Polling de Respaldo (Por si el socket falla)
-            // Preguntamos cada 2 segundos si ya hay QR
+            // Preguntamos con backoff adaptativo
             stopPolling(); // Limpiar anteriores por si acaso
-            pollInterval.current = setInterval(async () => {
+
+            const pollStep = async () => {
                 try {
                     const qrRes = await authFetch(`${apiPrefix}/qr`);
                     if (qrRes.ok) {
@@ -113,8 +114,7 @@ export default function SupportManager({
                         if (data.qr) {
                             setQr(data.qr);
                             setLoading(false);
-                            // No detenemos el polling aún, por si el QR cambia, 
-                            // pero el socket debería tomar el relevo.
+                            // No detenemos el polling aún
                         }
                     }
                     // También verificamos si ya se conectó
@@ -125,9 +125,14 @@ export default function SupportManager({
                         setQr(null);
                         setLoading(false);
                         stopPolling();
+                        return; // Terminar polling
                     }
                 } catch (e) { console.error("Polling error", e); }
-            }, 2000);
+
+                pollInterval.current = setTimeout(pollStep, 3000);
+            };
+
+            pollStep();
 
         } catch (e) {
             alert("Error iniciando conexión");
