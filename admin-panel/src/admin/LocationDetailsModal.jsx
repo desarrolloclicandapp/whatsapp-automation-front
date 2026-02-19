@@ -52,7 +52,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [customProxyBySlot, setCustomProxyBySlot] = useState({});
     const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
     const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
-    const [savingCrmType, setSavingCrmType] = useState(false);
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
     const isChatwootMode = crmType === "chatwoot";
@@ -153,10 +152,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     }, [activeSlotTab, expandedSlotId, twilioConfigBySlot]);
 
     useEffect(() => {
-        if (activeSlotTab !== 'integration' || !expandedSlotId) return;
+        if (activeSlotTab !== 'integration' || !expandedSlotId || !isGhlMode) return;
         if (customProxyBySlot[expandedSlotId]?.loaded) return;
         loadCustomProxyConfig(expandedSlotId);
-    }, [activeSlotTab, expandedSlotId, customProxyBySlot]);
+    }, [activeSlotTab, expandedSlotId, customProxyBySlot, isGhlMode]);
 
     useEffect(() => {
         if (activeSlotTab !== 'integration' || !expandedSlotId || !isChatwootMode) return;
@@ -367,48 +366,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         } catch (e) {
             toast.error("Error guardando White Label");
             setWhiteLabelEnabled(!nextValue);
-        }
-    };
-
-    const updateLocationCrmType = async (nextCrmTypeRaw) => {
-        const nextCrmType = String(nextCrmTypeRaw || "").toLowerCase().trim();
-        if (!["ghl", "chatwoot"].includes(nextCrmType)) return;
-        if (nextCrmType === crmType) return;
-
-        const previousCrmType = crmType;
-        setSavingCrmType(true);
-        setTenantSettings(prev => ({ ...(prev || {}), crm_type: nextCrmType }));
-
-        try {
-            const res = await authFetch(`/agency/settings/${location.location_id}`, {
-                method: 'PUT',
-                body: JSON.stringify({ settings: { crm_type: nextCrmType } })
-            });
-            if (!res) throw new Error("No response");
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "No se pudo actualizar CRM");
-            }
-
-            if (nextCrmType === "chatwoot") {
-                setActiveSlotTab('integration');
-                setChatwootConfigBySlot({});
-                setChatwootInboxes([]);
-                setChatwootInboxesLoaded(false);
-            }
-
-            toast.success(
-                nextCrmType === "chatwoot"
-                    ? (t('slots.crm.chatwoot_active') || "Chatwoot activado para esta location")
-                    : (t('slots.crm.ghl_active') || "GoHighLevel activado para esta location")
-            );
-        } catch (e) {
-            setTenantSettings(prev => ({ ...(prev || {}), crm_type: previousCrmType }));
-            toast.error(t('slots.crm.save_error') || "No se pudo cambiar el CRM", {
-                description: e.message
-            });
-        } finally {
-            setSavingCrmType(false);
         }
     };
 
@@ -1172,22 +1129,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{t('slots.crm.title') || "CRM"}</p>
                                     <p className="text-sm text-gray-600 dark:text-gray-300">
                                         {isGhlMode
-                                            ? (t('slots.crm.desc') || "Selecciona el CRM de esta subcuenta")
-                                            : (t('slots.crm.desc_generic') || "Selecciona el CRM de esta location")
+                                            ? (t('slots.crm.readonly_ghl') || "Este tenant opera solo con GoHighLevel")
+                                            : (t('slots.crm.readonly_chatwoot') || "Este tenant opera solo con Chatwoot")
                                         }
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-2 ml-2">
-                                    <select
-                                        value={crmType}
-                                        onChange={(e) => updateLocationCrmType(e.target.value)}
-                                        disabled={savingCrmType}
-                                        className="p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-60"
-                                    >
-                                        <option value="ghl">GoHighLevel</option>
-                                        <option value="chatwoot">Chatwoot</option>
-                                    </select>
-                                    {savingCrmType && <Loader2 className="animate-spin text-indigo-500" size={16} />}
+                                <div className="ml-2">
+                                    <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide ${
+                                        isGhlMode
+                                            ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+                                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                                    }`}>
+                                        {isGhlMode ? "GoHighLevel" : "Chatwoot"}
+                                    </span>
                                 </div>
                             </div>
 
@@ -1281,8 +1235,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 <div className="flex border-b border-gray-200 dark:border-gray-800 px-6 bg-white dark:bg-gray-900/50">
                                                     <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />
                                                     <TabButton active={activeSlotTab === 'integration'} onClick={() => setActiveSlotTab('integration')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
-                                                    <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label={t('slots.tab.sms')} />
-                                                    <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
+                                                    {isGhlMode && (
+                                                        <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label={t('slots.tab.sms')} />
+                                                    )}
+                                                    {isGhlMode && (
+                                                        <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
+                                                    )}
                                                     <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
                                                     <TabButton active={activeSlotTab === 'qr'} onClick={() => setActiveSlotTab('qr')} icon={<QrCode size={16} />} label={t('slots.tab.connection') || "Conexión"} />
                                                 </div>
@@ -1329,7 +1287,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     {/* OTHER PANELS (GHL, Keywords, Groups) same as before... */}
                                                     {activeSlotTab === 'integration' && (
                                                         <div className="max-w-2xl space-y-6">
-                                                            
+                                                            {isGhlMode && (
+                                                                <>
                                                             {/* 🔥 NUEVO: OpenAI Key para este Slot */}
                                                             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                 <div className="flex justify-between items-start mb-4">
@@ -1654,6 +1613,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     </div>
                                                                 );
                                                             })()}
+                                                                </>
+                                                            )}
                                                             {isChatwootMode && (() => {
                                                                 const chatwoot = chatwootConfigBySlot[slot.slot_id] || createEmptyChatwootState();
                                                                 const isLoadingChatwoot = !!loadingChatwootBySlot[slot.slot_id];
@@ -1888,7 +1849,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         )}
                                                         </div>
                                                     )}
-                                                    {activeSlotTab === 'sms' && (
+                                                    {isGhlMode && activeSlotTab === 'sms' && (
                                                         <div className="max-w-2xl space-y-6">
                                                             {(() => {
                                                                 const twilio = twilioConfigBySlot[slot.slot_id] || {
@@ -1992,7 +1953,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                            {activeSlotTab === 'keywords' && (
+                                                            {isGhlMode && activeSlotTab === 'keywords' && (
                                                                 <div className="max-w-2xl">
                                                                     <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
                                                                         <input name="keyword" required placeholder={t('slots.kw.input')} className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
