@@ -49,6 +49,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [customProxyBySlot, setCustomProxyBySlot] = useState({});
     const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
     const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
+    const [savingCrmType, setSavingCrmType] = useState(false);
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
     const isChatwootMode = crmType === "chatwoot";
@@ -363,6 +364,46 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         } catch (e) {
             toast.error("Error guardando White Label");
             setWhiteLabelEnabled(!nextValue);
+        }
+    };
+
+    const updateLocationCrmType = async (nextCrmTypeRaw) => {
+        const nextCrmType = String(nextCrmTypeRaw || "").toLowerCase().trim();
+        if (!["ghl", "chatwoot"].includes(nextCrmType)) return;
+        if (nextCrmType === crmType) return;
+
+        const previousCrmType = crmType;
+        setSavingCrmType(true);
+        setTenantSettings(prev => ({ ...(prev || {}), crm_type: nextCrmType }));
+
+        try {
+            const res = await authFetch(`/agency/settings/${location.location_id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ settings: { crm_type: nextCrmType } })
+            });
+            if (!res) throw new Error("No response");
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo actualizar CRM");
+            }
+
+            if (nextCrmType === "chatwoot") {
+                setActiveSlotTab('integration');
+                setChatwootConfigBySlot({});
+            }
+
+            toast.success(
+                nextCrmType === "chatwoot"
+                    ? (t('slots.crm.chatwoot_active') || "Chatwoot activado para esta subcuenta")
+                    : (t('slots.crm.ghl_active') || "GoHighLevel activado para esta subcuenta")
+            );
+        } catch (e) {
+            setTenantSettings(prev => ({ ...(prev || {}), crm_type: previousCrmType }));
+            toast.error(t('slots.crm.save_error') || "No se pudo cambiar el CRM", {
+                description: e.message
+            });
+        } finally {
+            setSavingCrmType(false);
         }
     };
 
@@ -1045,21 +1086,45 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 {/* BODY */}
                 <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50 dark:bg-black/20">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-                        {canWhiteLabel && (
+                        <div className="flex flex-col md:flex-row md:items-center gap-4">
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-4 shadow-sm">
                                 <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
-                                    <Settings size={18} />
+                                    <Link2 size={18} />
                                 </div>
                                 <div>
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">White Label</p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300">Usar branding de la agencia</p>
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{t('slots.crm.title') || "CRM"}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">{t('slots.crm.desc') || "Selecciona el CRM de esta subcuenta"}</p>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer ml-2">
-                                    <input type="checkbox" className="sr-only peer" checked={whiteLabelEnabled} onChange={toggleWhiteLabel} />
-                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
-                                </label>
+                                <div className="flex items-center gap-2 ml-2">
+                                    <select
+                                        value={crmType}
+                                        onChange={(e) => updateLocationCrmType(e.target.value)}
+                                        disabled={savingCrmType}
+                                        className="p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-60"
+                                    >
+                                        <option value="ghl">GoHighLevel</option>
+                                        <option value="chatwoot">Chatwoot</option>
+                                    </select>
+                                    {savingCrmType && <Loader2 className="animate-spin text-indigo-500" size={16} />}
+                                </div>
                             </div>
-                        )}
+
+                            {canWhiteLabel && (
+                                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-4 shadow-sm">
+                                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
+                                        <Settings size={18} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">White Label</p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-300">Usar branding de la agencia</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer ml-2">
+                                        <input type="checkbox" className="sr-only peer" checked={whiteLabelEnabled} onChange={toggleWhiteLabel} />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                                    </label>
+                                </div>
+                            )}
+                        </div>
                         <div className="flex justify-end">
                             <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
                                 <Plus size={18} /> {t('slots.new')}
