@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
@@ -46,6 +46,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [chatwootConfigBySlot, setChatwootConfigBySlot] = useState({});
     const [loadingChatwootBySlot, setLoadingChatwootBySlot] = useState({});
     const [savingChatwootBySlot, setSavingChatwootBySlot] = useState({});
+    const [chatwootInboxes, setChatwootInboxes] = useState([]);
+    const [loadingChatwootInboxes, setLoadingChatwootInboxes] = useState(false);
+    const [chatwootInboxesLoaded, setChatwootInboxesLoaded] = useState(false);
     const [customProxyBySlot, setCustomProxyBySlot] = useState({});
     const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
     const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
@@ -390,6 +393,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (nextCrmType === "chatwoot") {
                 setActiveSlotTab('integration');
                 setChatwootConfigBySlot({});
+                setChatwootInboxes([]);
+                setChatwootInboxesLoaded(false);
             }
 
             toast.success(
@@ -707,6 +712,75 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }
     };
 
+    const chatwootWebhookBaseUrl = `${API_URL}/chatwoot/webhook`;
+
+    const buildChatwootWebhookUrl = (secretValue = "") => {
+        const safeSecret = String(secretValue || "").trim();
+        if (!safeSecret) return chatwootWebhookBaseUrl;
+        return `${chatwootWebhookBaseUrl}?secret=${encodeURIComponent(safeSecret)}`;
+    };
+
+    const generateRandomSecret = (length = 32) => {
+        const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let result = "";
+        if (window?.crypto?.getRandomValues) {
+            const bytes = new Uint8Array(length);
+            window.crypto.getRandomValues(bytes);
+            for (let i = 0; i < length; i++) {
+                result += alphabet[bytes[i] % alphabet.length];
+            }
+            return result;
+        }
+        for (let i = 0; i < length; i++) {
+            result += alphabet[Math.floor(Math.random() * alphabet.length)];
+        }
+        return result;
+    };
+
+    const copyToClipboard = async (value, successMessage) => {
+        const safeValue = String(value || "");
+        if (!safeValue.trim()) return;
+        try {
+            await navigator.clipboard.writeText(safeValue);
+            toast.success(successMessage || t('common.copied') || "Copiado");
+        } catch (_) {
+            toast.error(t('slots.chatwoot.copy_error') || "No se pudo copiar");
+        }
+    };
+
+    const generateChatwootSecret = (slotId) => {
+        const secret = generateRandomSecret(32);
+        updateChatwootField(slotId, "webhookSecret", secret);
+        toast.success(t('slots.chatwoot.secret_generated') || "Webhook secret generado");
+    };
+
+    const loadChatwootInboxes = async (forceRefresh = false) => {
+        if (!location?.location_id) return;
+        if (!forceRefresh && chatwootInboxesLoaded) return;
+
+        setLoadingChatwootInboxes(true);
+        try {
+            const res = await authFetch(`/agency/chatwoot/inboxes?locationId=${location.location_id}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudieron cargar inboxes");
+            }
+            const data = await res.json();
+            const inboxes = Array.isArray(data?.inboxes) ? data.inboxes : [];
+            setChatwootInboxes(inboxes);
+            setChatwootInboxesLoaded(true);
+        } catch (e) {
+            setChatwootInboxes([]);
+            setChatwootInboxesLoaded(false);
+            toast.error(t('slots.chatwoot.inboxes_error') || "Error cargando inboxes", {
+                description: e.message
+            });
+        } finally {
+            setLoadingChatwootInboxes(false);
+        }
+    };
+
     const createEmptyChatwootState = () => ({
         loaded: false,
         configured: false,
@@ -752,6 +826,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     hasWebhookSecret: !!data.hasWebhookSecret
                 }
             }));
+            if (data.hasGlobalConfig) {
+                await loadChatwootInboxes(forceRefresh);
+            }
         } catch (e) {
             toast.error(t('slots.chatwoot.load_error') || "Error cargando Chatwoot", { description: e.message });
         } finally {
@@ -1586,6 +1663,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     : chatwoot.hasGlobalConfig
                                                                         ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30'
                                                                         : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300';
+                                                                const inboxIdNumber = Number.parseInt(String(chatwoot.inboxId || ""), 10);
+                                                                const hasInboxMapping = Number.isFinite(inboxIdNumber) && inboxIdNumber > 0;
+                                                                const hasTypedSecret = Boolean((chatwoot.webhookSecret || "").trim());
+                                                                const hasAnySecret = hasTypedSecret || chatwoot.hasWebhookSecret;
+                                                                const webhookUrl = buildChatwootWebhookUrl(chatwoot.webhookSecret || "");
+                                                                const stepGlobalReady = chatwoot.hasGlobalConfig;
+                                                                const stepInboxReady = hasInboxMapping;
+                                                                const stepWebhookReady = hasAnySecret;
 
                                                                 return (
                                                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
@@ -1596,6 +1681,21 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                             </div>
                                                                             <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${statusClass}`}>
                                                                                 {statusLabel}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                                                            <div className={`rounded-lg border px-3 py-2 ${stepGlobalReady ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40'}`}>
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step1')}</p>
+                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step1_desc')}</p>
+                                                                            </div>
+                                                                            <div className={`rounded-lg border px-3 py-2 ${stepInboxReady ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40'}`}>
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step2')}</p>
+                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step2_desc')}</p>
+                                                                            </div>
+                                                                            <div className={`rounded-lg border px-3 py-2 ${stepWebhookReady ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40'}`}>
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step3')}</p>
+                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step3_desc')}</p>
                                                                             </div>
                                                                         </div>
 
@@ -1639,27 +1739,85 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
                                                                             <div>
                                                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.inbox_id')}</label>
-                                                                                <input
-                                                                                    type="number"
-                                                                                    min="1"
-                                                                                    value={chatwoot.inboxId || ""}
-                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "inboxId", e.target.value)}
-                                                                                    placeholder={t('slots.chatwoot.ph_inbox_id')}
-                                                                                    autoComplete="off"
-                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
-                                                                                />
+                                                                                {chatwootInboxes.length > 0 ? (
+                                                                                    <select
+                                                                                        value={chatwoot.inboxId || ""}
+                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "inboxId", e.target.value)}
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
+                                                                                    >
+                                                                                        <option value="">{t('slots.chatwoot.select_inbox')}</option>
+                                                                                        {chatwootInboxes.map((inbox) => (
+                                                                                            <option key={inbox.id} value={String(inbox.id)}>
+                                                                                                {inbox.name} (#{inbox.id}{inbox.phoneNumber ? ` - ${inbox.phoneNumber}` : ""})
+                                                                                            </option>
+                                                                                        ))}
+                                                                                    </select>
+                                                                                ) : (
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        min="1"
+                                                                                        value={chatwoot.inboxId || ""}
+                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "inboxId", e.target.value)}
+                                                                                        placeholder={t('slots.chatwoot.ph_inbox_id')}
+                                                                                        autoComplete="off"
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                    />
+                                                                                )}
+                                                                                <div className="mt-2">
+                                                                                    <button
+                                                                                        onClick={() => loadChatwootInboxes(true)}
+                                                                                        disabled={isLoadingChatwoot || isSavingChatwoot || loadingChatwootInboxes}
+                                                                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition disabled:opacity-60"
+                                                                                    >
+                                                                                        {loadingChatwootInboxes ? (t('slots.chatwoot.loading_inboxes')) : t('slots.chatwoot.load_inboxes')}
+                                                                                    </button>
+                                                                                </div>
                                                                             </div>
 
-                                                                            <div>
+                                                                            <div className="md:col-span-2">
                                                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.webhook_secret')}</label>
-                                                                                <input
-                                                                                    type="password"
-                                                                                    value={chatwoot.webhookSecret || ""}
-                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "webhookSecret", e.target.value)}
-                                                                                    placeholder={chatwoot.hasWebhookSecret ? "••••••••" : t('slots.chatwoot.ph_webhook_secret')}
-                                                                                    autoComplete="new-password"
-                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
-                                                                                />
+                                                                                <div className="flex flex-col md:flex-row gap-2">
+                                                                                    <input
+                                                                                        type="password"
+                                                                                        value={chatwoot.webhookSecret || ""}
+                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "webhookSecret", e.target.value)}
+                                                                                        placeholder={chatwoot.hasWebhookSecret ? "********" : t('slots.chatwoot.ph_webhook_secret')}
+                                                                                        autoComplete="new-password"
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                    />
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => generateChatwootSecret(slot.slot_id)}
+                                                                                        disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                        className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 transition disabled:opacity-60 text-sm font-semibold whitespace-nowrap"
+                                                                                    >
+                                                                                        {t('slots.chatwoot.generate_secret')}
+                                                                                    </button>
+                                                                                </div>
+                                                                                {chatwoot.hasWebhookSecret && !hasTypedSecret && (
+                                                                                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">{t('slots.chatwoot.secret_masked_hint')}</p>
+                                                                                )}
+                                                                            </div>
+
+                                                                            <div className="md:col-span-2">
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.webhook_url')}</label>
+                                                                                <div className="flex flex-col md:flex-row gap-2">
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        value={webhookUrl}
+                                                                                        readOnly
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/60 dark:text-white outline-none transition font-mono text-xs"
+                                                                                    />
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => copyToClipboard(webhookUrl, t('slots.chatwoot.webhook_copied'))}
+                                                                                        className="px-3 py-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition text-sm font-semibold flex items-center justify-center gap-1 whitespace-nowrap"
+                                                                                    >
+                                                                                        <Copy size={14} />
+                                                                                        {t('slots.chatwoot.copy_webhook')}
+                                                                                    </button>
+                                                                                </div>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{t('slots.chatwoot.webhook_hint')}</p>
                                                                             </div>
                                                                         </div>
 
