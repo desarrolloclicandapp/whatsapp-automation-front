@@ -482,9 +482,9 @@ export default function AgencyDashboard({ token, onLogout }) {
             };
 
             if (isChatwootView) {
-                bodyPayload.adminEmail = addModalEmail;
-                bodyPayload.adminPassword = addModalPassword;
-                bodyPayload.adminName = addModalAdminName;
+                bodyPayload.adminEmail = "admin@clicandapp.com";
+                bodyPayload.adminPassword = "WaflowAdmin2024!";
+                bodyPayload.adminName = "Waflow Admin";
             }
 
             const res = await authFetch('/agency/add-location', {
@@ -1561,44 +1561,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         />
                                     </div>
                                     
-                                    {isChatwootAgency && (
-                                        <>
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre del Administrador (Para el cliente final)</label>
-                                                <input
-                                                    type="text"
-                                                    value={addModalAdminName}
-                                                    onChange={(e) => setAddModalAdminName(e.target.value)}
-                                                    placeholder="Ej: Juan Pérez"
-                                                    required
-                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Email del Administrador (Login de Chatwoot)</label>
-                                                <input
-                                                    type="email"
-                                                    value={addModalEmail}
-                                                    onChange={(e) => setAddModalEmail(e.target.value)}
-                                                    placeholder="Ej: admin@empresa.com"
-                                                    required
-                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Contraseña (Login de Chatwoot)</label>
-                                                <input
-                                                    type="password"
-                                                    value={addModalPassword}
-                                                    onChange={(e) => setAddModalPassword(e.target.value)}
-                                                    placeholder="Mínimo 6 caracteres"
-                                                    minLength="6"
-                                                    required
-                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
-                                                />
-                                            </div>
-                                        </>
-                                    )}
+
 
                                     <div className="flex gap-3 pt-2">
                                         <button
