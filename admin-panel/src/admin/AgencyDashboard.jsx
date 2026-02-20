@@ -459,6 +459,17 @@ export default function AgencyDashboard({ token, onLogout }) {
         setShowAddModal(true);
     };
 
+    useEffect(() => {
+        if (!showAddModal) return;
+        // Some password managers/autofill tools inject values after mount; force-clear once more.
+        const timer = setTimeout(() => {
+            setAddModalEmail("");
+            setAddModalPassword("");
+            setAddModalAdminName("");
+        }, 60);
+        return () => clearTimeout(timer);
+    }, [showAddModal]);
+
     const confirmAddLocationModal = async (e) => {
         e.preventDefault();
         const isChatwootView = agencyCrmType === "chatwoot";
@@ -1548,7 +1559,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <Settings size={20} className="rotate-45" />
                                     </button>
                                 </div>
-                                <form onSubmit={confirmAddLocationModal} className="space-y-6">
+                                <form onSubmit={confirmAddLocationModal} className="space-y-6" autoComplete="off">
+                                    <input
+                                        type="text"
+                                        name="cw_fake_user"
+                                        autoComplete="username"
+                                        tabIndex={-1}
+                                        className="hidden"
+                                        aria-hidden="true"
+                                    />
+                                    <input
+                                        type="password"
+                                        name="cw_fake_pass"
+                                        autoComplete="current-password"
+                                        tabIndex={-1}
+                                        className="hidden"
+                                        aria-hidden="true"
+                                    />
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                             {isChatwootAgency ? (t('dash.chatwoot_accounts.name_prompt') || "Nombre de la cuenta (Ej: Empresa)") : (t('dash.locations.name_prompt') || "Nombre de la location")}
@@ -1558,6 +1585,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             value={addModalName}
                                             onChange={(e) => setAddModalName(e.target.value)}
                                             placeholder={isChatwootAgency ? "Ej: Mi Empresa LLC" : "Ej: Sucursal Centro"}
+                                            name="cw_account_name"
+                                            autoComplete="off"
                                             required
                                             autoFocus
                                             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
@@ -1572,6 +1601,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     value={addModalAdminName}
                                                     onChange={(e) => setAddModalAdminName(e.target.value)}
                                                     placeholder=""
+                                                    name="cw_admin_name"
+                                                    autoComplete="off"
                                                     required
                                                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                                 />
@@ -1583,6 +1614,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     value={addModalEmail}
                                                     onChange={(e) => setAddModalEmail(e.target.value)}
                                                     placeholder=""
+                                                    name="cw_admin_email"
+                                                    autoComplete="off"
                                                     required
                                                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                                 />
@@ -1594,6 +1627,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     value={addModalPassword}
                                                     onChange={(e) => setAddModalPassword(e.target.value)}
                                                     placeholder=""
+                                                    name="cw_admin_password"
+                                                    autoComplete="new-password"
                                                     minLength="6"
                                                     required
                                                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
