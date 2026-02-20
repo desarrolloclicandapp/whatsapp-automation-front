@@ -122,7 +122,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
         });
 
-        if (res.status === 401 || res.status === 403) {
+        if (res.status === 401) {
             onLogout();
             throw new Error(t('agency.session_expired'));
         }
@@ -1090,14 +1090,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     <RefreshCw size={16} className={loading || isAutoSyncing ? "animate-spin" : ""} />
                                                 </button>
                                                 <button
-                                                    onClick={isGhlAgency ? () => setActiveTab('billing') : handleAddLocation}
-                                                    className="px-4 py-2 text-white rounded-lg font-medium text-sm flex items-center gap-1.5 transition"
-                                                    style={{ backgroundColor: branding.primaryColor }}
+                                                    onClick={isGhlAgency ? () => setActiveTab('billing') : openAddLocationModal}
+                                                    className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-xl shadow-indigo-500/20"
                                                 >
-                                                    <Plus size={16} /> {isGhlAgency
-                                                        ? t('dash.subs.new')
-                                                        : (isChatwootAgency ? (t('dash.chatwoot_accounts.new') || "Nueva Cuenta Chatwoot") : (t('dash.locations.new') || "Nueva Location"))
-                                                    }
+                                                    <Plus size={20} />
+                                                    {isGhlAgency ? t('dash.empty.start_ghl') : t('dash.empty.start_chatwoot')}
                                                 </button>
                                             </div>
                                         </div>
