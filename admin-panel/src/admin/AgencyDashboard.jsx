@@ -446,7 +446,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const handleAddLocation = async () => {
         const isChatwootView = agencyCrmType === "chatwoot";
         const promptLabel = isChatwootView
-            ? (t('dash.inboxes.name_prompt') || "Nombre del inbox:")
+            ? (t('dash.chatwoot_accounts.name_prompt') || "Nombre de la cuenta (Ej: Empresa):")
             : (t('dash.locations.name_prompt') || "Nombre de la location:");
         const inputName = window.prompt(promptLabel, "");
         if (inputName === null) return;
@@ -455,7 +455,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         if (!safeName) {
             toast.error(
                 isChatwootView
-                    ? (t('dash.inboxes.create_error') || "Error creando inbox")
+                    ? (t('dash.chatwoot_accounts.create_error') || "Error creando cuenta Chatwoot")
                     : (t('dash.locations.create_error') || "Error creando location"),
                 {
                 description: t('common.name') || "Nombre requerido"
@@ -478,14 +478,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                 throw new Error(
                     data?.error || (
                         isChatwootView
-                            ? (t('dash.inboxes.create_error') || "Error creando inbox")
+                            ? (t('dash.chatwoot_accounts.create_error') || "Error creando cuenta Chatwoot")
                             : (t('dash.locations.create_error') || "Error creando location")
                     )
                 );
             }
             toast.success(
                 isChatwootView
-                    ? (t('dash.inboxes.created') || "Inbox creado")
+                    ? (t('dash.chatwoot_accounts.created') || "Cuenta Chatwoot creada")
                     : (t('dash.locations.created') || "Location creada"),
                 { id: loadingId }
             );
@@ -493,7 +493,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         } catch (e) {
             toast.error(
                 isChatwootView
-                    ? (t('dash.inboxes.create_error') || "Error creando inbox")
+                    ? (t('dash.chatwoot_accounts.create_error') || "Error creando cuenta Chatwoot")
                     : (t('dash.locations.create_error') || "Error creando location"),
                 {
                 id: loadingId,
@@ -1057,7 +1057,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                                                 {isGhlAgency
                                                     ? t('dash.subs.title')
-                                                    : (isChatwootAgency ? (t('dash.inboxes.title') || "Inboxes") : (t('dash.locations.title') || "Locations"))
+                                                    : (isChatwootAgency ? (t('dash.chatwoot_accounts.title') || "Cuentas Chatwoot") : (t('dash.locations.title') || "Locations"))
                                                 }
                                             </h3>
                                             <div className="flex gap-2">
@@ -1069,7 +1069,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         placeholder={
                                                             isGhlAgency
                                                                 ? t('dash.subs.search')
-                                                                : (isChatwootAgency ? (t('dash.inboxes.search') || "Buscar inboxes...") : (t('dash.locations.search') || "Buscar locations..."))
+                                                                : (isChatwootAgency ? (t('dash.chatwoot_accounts.search') || "Buscar cuentas...") : (t('dash.locations.search') || "Buscar locations..."))
                                                         }
                                                         className="pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white w-40 focus:w-52 transition-all"
                                                         value={searchTerm}
@@ -1086,7 +1086,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 >
                                                     <Plus size={16} /> {isGhlAgency
                                                         ? t('dash.subs.new')
-                                                        : (isChatwootAgency ? (t('dash.inboxes.new') || "Nuevo Inbox") : (t('dash.locations.new') || "Nueva Location"))
+                                                        : (isChatwootAgency ? (t('dash.chatwoot_accounts.new') || "Nueva Cuenta Chatwoot") : (t('dash.locations.new') || "Nueva Location"))
                                                     }
                                                 </button>
                                             </div>

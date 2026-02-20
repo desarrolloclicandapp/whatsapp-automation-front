@@ -309,7 +309,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     // --- ACCIONES PRINCIPALES ---
 
     const handleAddSlot = async () => {
-        const loadingId = toast.loading("Creando dispositivo...");
+        const loadingId = toast.loading(isChatwootMode ? (t('slots.chatwoot_inbox.creating') || "Creando inbox...") : "Creando dispositivo...");
         try {
             const res = await authFetch(`/agency/add-slot`, {
                 method: "POST",
@@ -324,7 +324,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
             // 🔥 NUEVA LÓGICA: Verificar 'data.success' aunque el status sea 200
             if (data.success) {
-                toast.success("Dispositivo agregado", { description: "Listo para vincular." });
+                toast.success(isChatwootMode ? (t('slots.chatwoot_inbox.added') || "Inbox agregado") : "Dispositivo agregado", { description: "Listo para vincular." });
                 loadData();
                 if (onDataChange) onDataChange();
             } else {
@@ -343,7 +343,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         }
                     });
                 } else {
-                    toast.error("Error", { description: data.error || "No se pudo agregar el dispositivo." });
+                    toast.error("Error", { description: data.error || (isChatwootMode ? "No se pudo agregar el inbox." : "No se pudo agregar el dispositivo.") });
                 }
             }
         } catch (e) {
@@ -370,7 +370,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const handleDeleteSlot = (slotId) => {
-        toast("¿Eliminar dispositivo?", {
+        toast(isChatwootMode ? "¿Eliminar inbox?" : "¿Eliminar dispositivo?", {
             description: "Esta acción desconectará el número y borrará su configuración.",
             action: {
                 label: 'Eliminar',
@@ -379,7 +379,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}`, { method: "DELETE" });
                     setDeletingSlotId(null);
                     if (res && res.ok) {
-                        toast.success("Dispositivo eliminado");
+                        toast.success(isChatwootMode ? "Inbox eliminado" : "Dispositivo eliminado");
                         loadData();
                     } else {
                         toast.error("No se pudo eliminar");
@@ -1162,7 +1162,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         </div>
                         <div className="flex justify-end">
                             <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
-                                <Plus size={18} /> {t('slots.new')}
+                                <Plus size={18} /> {isChatwootMode ? (t('slots.chatwoot_inbox.new') || "Nuevo Inbox") : t('slots.new')}
                             </button>
                         </div>
                     </div>
@@ -1191,7 +1191,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
                                                 <div>
                                                     <div className="flex items-center gap-3">
-                                                        <h3 className="font-bold text-gray-900 dark:text-white text-xl">{slot.slot_name || `Dispositivo ${slot.slot_id}`}</h3>
+                                                        <h3 className="font-bold text-gray-900 dark:text-white text-xl">{slot.slot_name || (isChatwootMode ? `Inbox ${slot.slot_id}` : `Dispositivo ${slot.slot_id}`)}</h3>
                                                         <div className="flex gap-1">
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
@@ -1824,26 +1824,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     </div>
                                                                 );
                                                             })()}
-                                                            {isGhlMode && (
+                                                            {(isGhlMode || isChatwootMode) && (
                                                                 <>
                                                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.integration.tag_auto')}</label>
                                                                         <input type="text" placeholder={t('slots.integration.tag_auto_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.crm_contact_tag ?? settings.ghl_contact_tag ?? ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'crm_contact_tag', e.target.value, settings)} />
                                                                     </div>
                                                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.integration.user')}</label>
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{isChatwootMode ? "Agente Asignado" : t('slots.integration.user')}</label>
                                                                         <select className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={settings.crm_assigned_user ?? settings.ghl_assigned_user ?? ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'crm_assigned_user', e.target.value, settings)}>
                                                                             <option value="">{t('slots.integration.user_none')}</option>
                                                                             {crmUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                                         </select>
                                                                     </div>
-                                                                    {/* 
-                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.integration.routing')}</label>
-                                                                        <input type="text" placeholder={t('slots.integration.routing_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.routing_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, settings)} />
-                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usar� este n�mero.</p>
-                                                                    </div> 
-                                                                    */}
                                                                 </>
                                                             )}
                                                         </div>
