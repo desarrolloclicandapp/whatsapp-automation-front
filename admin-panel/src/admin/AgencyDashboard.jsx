@@ -84,6 +84,11 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [suspensionStatus, setSuspensionStatus] = useState(null);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
+    // Modal state for adding locations
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [addModalName, setAddModalName] = useState("");
+    const [isAddingLocation, setIsAddingLocation] = useState(false);
+
     const getDaysLeft = (dateValue) => {
         if (!dateValue) return null;
         const diff = new Date(dateValue).getTime() - Date.now();
@@ -443,27 +448,29 @@ export default function AgencyDashboard({ token, onLogout }) {
         } catch (err) { toast.error(t('agency.tenant.delete_error'), { id: tId }); }
     };
 
-    const handleAddLocation = async () => {
-        const isChatwootView = agencyCrmType === "chatwoot";
-        const promptLabel = isChatwootView
-            ? (t('dash.chatwoot_accounts.name_prompt') || "Nombre de la cuenta (Ej: Empresa):")
-            : (t('dash.locations.name_prompt') || "Nombre de la location:");
-        const inputName = window.prompt(promptLabel, "");
-        if (inputName === null) return;
+    const openAddLocationModal = () => {
+        setAddModalName("");
+        setShowAddModal(true);
+    };
 
-        const safeName = String(inputName || "").trim();
+    const confirmAddLocationModal = async (e) => {
+        e.preventDefault();
+        const isChatwootView = agencyCrmType === "chatwoot";
+        const safeName = String(addModalName || "").trim();
+        
         if (!safeName) {
             toast.error(
                 isChatwootView
                     ? (t('dash.chatwoot_accounts.create_error') || "Error creando cuenta Chatwoot")
                     : (t('dash.locations.create_error') || "Error creando location"),
                 {
-                description: t('common.name') || "Nombre requerido"
+                    description: t('common.name') || "Nombre requerido"
                 }
             );
             return;
         }
 
+        setIsAddingLocation(true);
         const loadingId = toast.loading(t('common.create') || "Crear");
         try {
             const res = await authFetch('/agency/add-location', {
@@ -489,6 +496,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     : (t('dash.locations.created') || "Location creada"),
                 { id: loadingId }
             );
+            setShowAddModal(false);
             await refreshData();
         } catch (e) {
             toast.error(
@@ -496,10 +504,12 @@ export default function AgencyDashboard({ token, onLogout }) {
                     ? (t('dash.chatwoot_accounts.create_error') || "Error creando cuenta Chatwoot")
                     : (t('dash.locations.create_error') || "Error creando location"),
                 {
-                id: loadingId,
-                description: e.message
+                    id: loadingId,
+                    description: e.message
                 }
             );
+        } finally {
+            setIsAddingLocation(false);
         }
     };
 
@@ -1337,6 +1347,56 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                             {/* MODAL WEBHOOK */}
                             {showNewWebhookModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('dash.settings.new_webhook') || "Nuevo Webhook"}</h3><button onClick={() => setShowNewWebhookModal(false)} className="text-gray-400 hover:text-gray-600"><Settings size={20} className="rotate-45" /></button></div><form onSubmit={handleCreateWebhook} className="space-y-6"><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('common.name') || "Nombre"}</label><input name="hookName" placeholder="Ej: n8n Producción" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL</label><input name="hookUrl" type="url" placeholder="https://..." required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">{t('common.events') || "Eventos"}</label><div className="grid grid-cols-1 gap-3"><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp inbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Inbound Message</div></div></label><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp outbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Outbound Message</div></div></label></div></div><div className="flex gap-3"><button type="button" onClick={() => setShowNewWebhookModal(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl font-bold">{t('common.cancel') || "Cancelar"}</button><button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">{t('common.create') || "Crear"}</button></div></form></div></div>)}
+                            
+                            {/* MODAL ADD LOCATION/ACCOUNT */}
+                            {showAddModal && (
+                                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                                    <div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                                                {isChatwootAgency ? (t('dash.chatwoot_accounts.new') || "Nueva Cuenta Chatwoot") : (t('dash.locations.new') || "Nueva Entidad / Sucursal")}
+                                            </h3>
+                                            <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                                                <Settings size={20} className="rotate-45" />
+                                            </button>
+                                        </div>
+                                        <form onSubmit={confirmAddLocationModal} className="space-y-6">
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {isChatwootAgency ? (t('dash.chatwoot_accounts.name_prompt') || "Nombre de la cuenta (Ej: Empresa)") : (t('dash.locations.name_prompt') || "Nombre de la location")}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={addModalName}
+                                                    onChange={(e) => setAddModalName(e.target.value)}
+                                                    placeholder={isChatwootAgency ? "Ej: Mi Empresa LLC" : "Ej: Sucursal Centro"}
+                                                    required
+                                                    autoFocus
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                />
+                                            </div>
+                                            <div className="flex gap-3 pt-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowAddModal(false)}
+                                                    disabled={isAddingLocation}
+                                                    className="flex-1 py-3 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 dark:text-white rounded-xl font-bold transition-colors disabled:opacity-60"
+                                                >
+                                                    {t('common.cancel') || "Cancelar"}
+                                                </button>
+                                                <button
+                                                    type="submit"
+                                                    disabled={isAddingLocation || !addModalName.trim()}
+                                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:hover:translate-y-0 flex items-center justify-center gap-2"
+                                                >
+                                                    {isAddingLocation ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+                                                    {t('common.create') || "Crear"}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-center justify-between">
                                 <div><h4 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.theme.dark_mode')}</h4><p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('agency.theme.toggle')}</p></div>
