@@ -974,20 +974,18 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 {renderIntegrationsPanel("overview")}
                                 <>
                                     {/* ESTADÍSTICAS - Diseño Minimalista */}
-                                    <div className={`grid grid-cols-1 gap-4 ${isGhlAgency ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
-                                        {isGhlAgency && (
-                                            <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                                                        <Building2 size={20} className="text-indigo-600 dark:text-indigo-400" />
-                                                    </div>
-                                                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t('dash.stats.subaccounts')}</span>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                                                    <Building2 size={20} className="text-indigo-600 dark:text-indigo-400" />
                                                 </div>
-                                                <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                                                    {accountInfo.limits?.used_subagencies || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
-                                                </div>
+                                                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t('dash.stats.subaccounts') || "Subcuentas"}</span>
                                             </div>
-                                        )}
+                                            <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                                                {accountInfo.limits?.used_subagencies || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
+                                            </div>
+                                        </div>
 
                                         <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
                                             <div className="flex items-center justify-between mb-3">
@@ -1017,6 +1015,35 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 </div>
                                             )}
                                         </div>
+                                    </div>
+
+                                    {/* INTEGRATION SWITCHER */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                                        <button 
+                                            onClick={() => setAgencyCrmType('ghl')}
+                                            className={`relative overflow-hidden rounded-2xl p-5 border text-left transition-all ${isGhlAgency ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500 shadow-sm' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 opacity-70 hover:opacity-100'}`}
+                                        >
+                                            {isGhlAgency && <div className="absolute top-4 right-4 w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" title="Activo" />}
+                                            <h4 className="text-xl font-bold flex items-center justify-between text-gray-900 dark:text-white mb-1">
+                                                GoHighLevel
+                                            </h4>
+                                            <p className="text-sm font-medium text-gray-500">
+                                                {locations.filter(l => resolveTenantCrmType(l) === 'ghl').length} / {accountInfo.limits?.max_subagencies || 0}
+                                            </p>
+                                        </button>
+                                        
+                                        <button 
+                                            onClick={() => setAgencyCrmType('chatwoot')}
+                                            className={`relative overflow-hidden rounded-2xl p-5 border text-left transition-all ${isChatwootAgency ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500 shadow-sm' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 opacity-70 hover:opacity-100'}`}
+                                        >
+                                            {isChatwootAgency && <div className="absolute top-4 right-4 w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" title="Activo" />}
+                                            <h4 className="text-xl font-bold flex items-center justify-between text-gray-900 dark:text-white mb-1">
+                                                Chatwoot
+                                            </h4>
+                                            <p className="text-sm font-medium text-gray-500">
+                                                {locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length} / {accountInfo.limits?.max_subagencies || 0}
+                                            </p>
+                                        </button>
                                     </div>
 
                                     {suspensionStatus?.status === 'grace' && (
