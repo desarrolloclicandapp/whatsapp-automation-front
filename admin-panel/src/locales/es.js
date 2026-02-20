@@ -559,9 +559,9 @@ export const es = {
     "dash.users.protected_plan": "PROTEGIDO: El usuario tiene un plan vigente.",
     "dash.users.hard_delete_tooltip": "Destruir Usuario (Hard Delete)",
     "dash.users.soft_delete_tooltip": "Desactivar Usuario",
-    "dash.users.reactivate_tooltip": "Reactivar Usuario"
+    "dash.users.reactivate_tooltip": "Reactivar Usuario",
+    
+    // Empty State
+    "dash.empty.no_locations_title": "Límite Global Alcanzado",
+    "dash.empty.no_locations_desc": "Has alcanzado el límite de cuentas para tu plan actual. Si ya tienes cuentas conectadas en otra plataforma o CRM, debes eliminarlas primero o realizar un upgrade para continuar."
 };
-
-
-
-
