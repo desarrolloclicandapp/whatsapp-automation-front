@@ -1132,14 +1132,34 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     </div>
                                                 ))}
 
-                                                {isGhlAgency && !searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - crmScopedLocations.length) }).map((_, idx) => (
-                                                    <div key={`empty-${idx}`} onClick={handleInstallApp} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
+                                                {!searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
+                                                    <div key={`empty-${idx}`} onClick={isGhlAgency ? handleInstallApp : openAddLocationModal} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
                                                         <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                                                             <Plus size={20} className="text-gray-300 group-hover:text-indigo-600" />
                                                         </div>
-                                                        <p className="text-xs font-medium text-gray-500">{t('agency.location.empty_title')}</p>
+                                                        <p className="text-xs font-medium text-gray-500">
+                                                            {isGhlAgency ? t('agency.location.empty_title') : (t('dash.chatwoot_accounts.new_empty') || "Nueva Cuenta Chatwoot")}
+                                                        </p>
                                                     </div>
                                                 ))}
+                                                
+                                                {/* Empty State when no locations and no slots available */}
+                                                {filteredLocations.length === 0 && Math.max(0, (accountInfo?.limits?.max_subagencies || 0) - locations.length) === 0 && (
+                                                    <div className="col-span-full py-16 flex flex-col items-center justify-center text-center bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 border-dashed">
+                                                        <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 text-gray-400">
+                                                            {isChatwootAgency ? <MessageSquareText size={32} /> : <Building2 size={32} />}
+                                                        </div>
+                                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                                                            {t('dash.empty.no_locations_title') || "No hay cuentas"}
+                                                        </h3>
+                                                        <p className="text-sm text-gray-500 max-w-sm mx-auto mb-6">
+                                                            {t('dash.empty.no_locations_desc') || "Has alcanzado el límite global de tu plan actual y no puedes crear más. Si ya tienes cuentas en otro CRM, debes eliminarlas o hacer un upgrade para crear aquí."}
+                                                        </p>
+                                                        <button onClick={() => setActiveTab('billing')} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-2 transition-transform active:scale-95 shadow-md">
+                                                            <Zap size={18} fill="currentColor" /> {t('dash.upgrade.cta') || "Desbloquear Límite"}
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
