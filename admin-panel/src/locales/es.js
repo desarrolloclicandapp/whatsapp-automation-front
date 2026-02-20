@@ -217,6 +217,7 @@ export const es = {
     "dash.locations.search": "Buscar locations...",
     "dash.chatwoot_accounts.title": "Cuentas Chatwoot",
     "dash.chatwoot_accounts.new": "Nueva Cuenta Chatwoot",
+    "dash.chatwoot_accounts.new_empty": "Nueva Cuenta Chatwoot",
     "dash.chatwoot_accounts.name_prompt": "Nombre de la cuenta Chatwoot:",
     "dash.chatwoot_accounts.created": "Cuenta Chatwoot creada",
     "dash.chatwoot_accounts.create_error": "Error creando cuenta Chatwoot",

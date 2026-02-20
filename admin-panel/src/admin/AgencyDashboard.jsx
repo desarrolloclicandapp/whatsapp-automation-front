@@ -497,6 +497,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 { id: loadingId }
             );
             setShowAddModal(false);
+            setAddModalName(""); // ✅ Clean up input form
             await refreshData();
         } catch (e) {
             toast.error(
@@ -755,8 +756,8 @@ export default function AgencyDashboard({ token, onLogout }) {
     const crmScopedLocations = locations.filter((loc) => resolveTenantCrmType(loc) === agencyCrmType);
 
     const filteredLocations = crmScopedLocations.filter(loc =>
-        loc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        loc.location_id?.toLowerCase().includes(searchTerm.toLowerCase())
+        (loc.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
+        (loc.location_id || '').toLowerCase().includes((searchTerm || '').toLowerCase())
     );
 
     // ✅ Componente de Bloqueo "Glass" (Visible pero no interactivo)
