@@ -21,7 +21,7 @@ import {
     TrendingUp, ShieldCheck, Settings, Trash2,
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
     Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Mic, Hammer,
-    Sparkles, Bot, CalendarCheck, MessageSquareText // ✅ Iconos
+    Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -87,6 +87,9 @@ export default function AgencyDashboard({ token, onLogout }) {
     // Modal state for adding locations
     const [showAddModal, setShowAddModal] = useState(false);
     const [addModalName, setAddModalName] = useState("");
+    const [addModalEmail, setAddModalEmail] = useState("");
+    const [addModalPassword, setAddModalPassword] = useState("");
+    const [addModalAdminName, setAddModalAdminName] = useState("");
     const [isAddingLocation, setIsAddingLocation] = useState(false);
 
     const getDaysLeft = (dateValue) => {
@@ -473,12 +476,20 @@ export default function AgencyDashboard({ token, onLogout }) {
         setIsAddingLocation(true);
         const loadingId = toast.loading(t('common.create') || "Crear");
         try {
+            const bodyPayload = {
+                name: safeName,
+                crmType: agencyCrmType
+            };
+
+            if (isChatwootView) {
+                bodyPayload.adminEmail = addModalEmail;
+                bodyPayload.adminPassword = addModalPassword;
+                bodyPayload.adminName = addModalAdminName;
+            }
+
             const res = await authFetch('/agency/add-location', {
                 method: 'POST',
-                body: JSON.stringify({
-                    name: safeName,
-                    crmType: agencyCrmType
-                })
+                body: JSON.stringify(bodyPayload)
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data?.success) {
@@ -498,6 +509,9 @@ export default function AgencyDashboard({ token, onLogout }) {
             );
             setShowAddModal(false);
             setAddModalName(""); // ✅ Clean up input form
+            setAddModalEmail("");
+            setAddModalPassword("");
+            setAddModalAdminName("");
             await refreshData();
         } catch (e) {
             toast.error(
@@ -574,7 +588,13 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
     const openChatwootPortal = () => {
-        window.open("https://www.chatwoot.com", "_blank", "noopener");
+        // Try to open the user's own Chatwoot instance from tenant settings
+        const cwTenant = locations.find(l => {
+            const s = l.settings || {};
+            return s.crm_type === 'chatwoot' && s.chatwoot_url;
+        });
+        const cwUrl = cwTenant?.settings?.chatwoot_url || "https://www.chatwoot.com";
+        window.open(cwUrl, "_blank", "noopener");
     };
     const handleSelectCrm = (crmType) => {
         if (isCrmLocked) {
@@ -971,7 +991,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </div>
                                 </div>
 
-                                {renderIntegrationsPanel("overview")}
+
                                 <>
                                     {/* ESTADÍSTICAS - Diseño Minimalista */}
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1017,33 +1037,136 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         </div>
                                     </div>
 
-                                    {/* INTEGRATION SWITCHER */}
+                                    {/* INTEGRATION SWITCHER — Enhanced Cards */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                                        <button 
-                                            onClick={() => setAgencyCrmType('ghl')}
-                                            className={`relative overflow-hidden rounded-2xl p-5 border text-left transition-all ${isGhlAgency ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500 shadow-sm' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 opacity-70 hover:opacity-100'}`}
-                                        >
-                                            {isGhlAgency && <div className="absolute top-4 right-4 w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" title="Activo" />}
-                                            <h4 className="text-xl font-bold flex items-center justify-between text-gray-900 dark:text-white mb-1">
-                                                GoHighLevel
-                                            </h4>
-                                            <p className="text-sm font-medium text-gray-500">
-                                                {locations.filter(l => resolveTenantCrmType(l) === 'ghl').length} / {accountInfo.limits?.max_subagencies || 0}
-                                            </p>
-                                        </button>
-                                        
-                                        <button 
-                                            onClick={() => setAgencyCrmType('chatwoot')}
-                                            className={`relative overflow-hidden rounded-2xl p-5 border text-left transition-all ${isChatwootAgency ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500 shadow-sm' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 opacity-70 hover:opacity-100'}`}
-                                        >
-                                            {isChatwootAgency && <div className="absolute top-4 right-4 w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" title="Activo" />}
-                                            <h4 className="text-xl font-bold flex items-center justify-between text-gray-900 dark:text-white mb-1">
-                                                Chatwoot
-                                            </h4>
-                                            <p className="text-sm font-medium text-gray-500">
-                                                {locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length} / {accountInfo.limits?.max_subagencies || 0}
-                                            </p>
-                                        </button>
+                                        {/* GoHighLevel Card */}
+                                        <div className={`relative overflow-hidden rounded-2xl border transition-all ${
+                                            isGhlAgency
+                                                ? 'bg-gradient-to-br from-white via-indigo-50/40 to-blue-50/20 dark:from-gray-900 dark:via-indigo-950/20 dark:to-blue-950/10 border-indigo-400/60 dark:border-indigo-700/50 shadow-md shadow-indigo-100/50 dark:shadow-indigo-900/20'
+                                                : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-sm'
+                                        }`}>
+                                            <div className="p-5">
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                                            isGhlAgency
+                                                                ? 'bg-indigo-100 dark:bg-indigo-900/40'
+                                                                : 'bg-gray-100 dark:bg-gray-800'
+                                                        }`}>
+                                                            <Globe size={20} className={isGhlAgency ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400'} />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">GoHighLevel</h4>
+                                                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                                                {t('agency.integrations.ghl_desc') || 'Gestiona subcuentas e instalaciones de GHL'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <span className={`shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${
+                                                        isGhlAgency
+                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                                                            : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                                                    }`}>
+                                                        {isGhlAgency ? t('agency.integrations.status_active') : t('agency.integrations.status_available')}
+                                                    </span>
+                                                </div>
+
+                                                <div className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                                                    {locations.filter(l => resolveTenantCrmType(l) === 'ghl').length}
+                                                    <span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
+                                                    <span className="text-xs font-normal text-gray-400 ml-2">{t('dash.stats.subaccounts') || 'subcuentas'}</span>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleSelectCrm('ghl')}
+                                                        disabled={isCrmLocked || isGhlAgency}
+                                                        className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition border ${
+                                                            isGhlAgency
+                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 cursor-default'
+                                                                : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700'
+                                                        } disabled:opacity-60 disabled:cursor-not-allowed`}
+                                                    >
+                                                        {isGhlAgency ? (t('agency.integrations.selected') || 'Seleccionado') : (t('agency.integrations.select') || 'Seleccionar')}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); openGhlPortal(); }}
+                                                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition"
+                                                    >
+                                                        <ExternalLink size={12} /> {t('agency.integrations.open') || 'Abrir portal'}
+                                                    </button>
+                                                    {isGhlAgency && (
+                                                        <button
+                                                            onClick={handleInstallApp}
+                                                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 text-xs font-semibold transition"
+                                                            title={t('agency.install_app') || 'Instalar App'}
+                                                        >
+                                                            <Download size={12} /> {t('agency.install_app') || 'Instalar App'}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Chatwoot Card */}
+                                        <div className={`relative overflow-hidden rounded-2xl border transition-all ${
+                                            isChatwootAgency
+                                                ? 'bg-gradient-to-br from-white via-indigo-50/40 to-violet-50/20 dark:from-gray-900 dark:via-indigo-950/20 dark:to-violet-950/10 border-indigo-400/60 dark:border-indigo-700/50 shadow-md shadow-indigo-100/50 dark:shadow-indigo-900/20'
+                                                : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-sm'
+                                        }`}>
+                                            <div className="p-5">
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                                            isChatwootAgency
+                                                                ? 'bg-indigo-100 dark:bg-indigo-900/40'
+                                                                : 'bg-gray-100 dark:bg-gray-800'
+                                                        }`}>
+                                                            <MessageSquare size={20} className={isChatwootAgency ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400'} />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">Chatwoot</h4>
+                                                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                                                {t('agency.integrations.chatwoot_desc') || 'Conecta Waflow con Chatwoot por inbox/slot'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <span className={`shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${
+                                                        isChatwootAgency
+                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                                                            : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                                                    }`}>
+                                                        {isChatwootAgency ? t('agency.integrations.status_active') : t('agency.integrations.status_available')}
+                                                    </span>
+                                                </div>
+
+                                                <div className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                                                    {locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length}
+                                                    <span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
+                                                    <span className="text-xs font-normal text-gray-400 ml-2">{t('dash.stats.subaccounts') || 'subcuentas'}</span>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleSelectCrm('chatwoot')}
+                                                        disabled={isCrmLocked || isChatwootAgency}
+                                                        className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition border ${
+                                                            isChatwootAgency
+                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 cursor-default'
+                                                                : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700'
+                                                        } disabled:opacity-60 disabled:cursor-not-allowed`}
+                                                    >
+                                                        {isChatwootAgency ? (t('agency.integrations.selected') || 'Seleccionado') : (t('agency.integrations.select') || 'Seleccionar')}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); openChatwootPortal(); }}
+                                                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition"
+                                                    >
+                                                        <ExternalLink size={12} /> {t('agency.integrations.open') || 'Abrir portal'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {suspensionStatus?.status === 'grace' && (
@@ -1437,6 +1560,46 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                         />
                                     </div>
+                                    
+                                    {isChatwootAgency && (
+                                        <>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre del Administrador (Para el cliente final)</label>
+                                                <input
+                                                    type="text"
+                                                    value={addModalAdminName}
+                                                    onChange={(e) => setAddModalAdminName(e.target.value)}
+                                                    placeholder="Ej: Juan Pérez"
+                                                    required
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Email del Administrador (Login de Chatwoot)</label>
+                                                <input
+                                                    type="email"
+                                                    value={addModalEmail}
+                                                    onChange={(e) => setAddModalEmail(e.target.value)}
+                                                    placeholder="Ej: admin@empresa.com"
+                                                    required
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Contraseña (Login de Chatwoot)</label>
+                                                <input
+                                                    type="password"
+                                                    value={addModalPassword}
+                                                    onChange={(e) => setAddModalPassword(e.target.value)}
+                                                    placeholder="Mínimo 6 caracteres"
+                                                    minLength="6"
+                                                    required
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+
                                     <div className="flex gap-3 pt-2">
                                         <button
                                             type="button"

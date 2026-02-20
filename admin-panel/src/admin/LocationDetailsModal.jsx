@@ -1665,42 +1665,54 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                         </div>
 
                                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                            <div className="md:col-span-2">
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.url')}</label>
-                                                                                <input
-                                                                                    type="text"
-                                                                                    value={chatwoot.chatwootUrl || ""}
-                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "chatwootUrl", e.target.value)}
-                                                                                    placeholder={chatwoot.chatwootUrlMasked || t('slots.chatwoot.ph_url')}
-                                                                                    autoComplete="off"
-                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                                                                                />
-                                                                            </div>
+                                                                            {tenantSettings.is_auto_provisioned ? (
+                                                                                <div className="md:col-span-2 p-4 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-lg border border-indigo-100 dark:border-indigo-800 text-sm flex items-center gap-3">
+                                                                                    <CheckCircle2 className="shrink-0" size={18} />
+                                                                                    <div>
+                                                                                        <p className="font-bold">Aprovisionamiento Automático</p>
+                                                                                        <p className="text-xs opacity-90">Las credenciales de Chatwoot (URL, Token, Account ID) están gestionadas internamente por Waflow.</p>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <div className="md:col-span-2">
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.url')}</label>
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            value={chatwoot.chatwootUrl || ""}
+                                                                                            onChange={(e) => updateChatwootField(slot.slot_id, "chatwootUrl", e.target.value)}
+                                                                                            placeholder={chatwoot.chatwootUrlMasked || t('slots.chatwoot.ph_url')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                        />
+                                                                                    </div>
 
-                                                                            <div>
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.api_token')}</label>
-                                                                                <input
-                                                                                    type="password"
-                                                                                    value={chatwoot.apiToken || ""}
-                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "apiToken", e.target.value)}
-                                                                                    placeholder={chatwoot.apiTokenMasked || t('slots.chatwoot.ph_token')}
-                                                                                    autoComplete="new-password"
-                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
-                                                                                />
-                                                                            </div>
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.api_token')}</label>
+                                                                                        <input
+                                                                                            type="password"
+                                                                                            value={chatwoot.apiToken || ""}
+                                                                                            onChange={(e) => updateChatwootField(slot.slot_id, "apiToken", e.target.value)}
+                                                                                            placeholder={chatwoot.apiTokenMasked || t('slots.chatwoot.ph_token')}
+                                                                                            autoComplete="new-password"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                        />
+                                                                                    </div>
 
-                                                                            <div>
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.account_id')}</label>
-                                                                                <input
-                                                                                    type="number"
-                                                                                    min="1"
-                                                                                    value={chatwoot.accountId || ""}
-                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "accountId", e.target.value)}
-                                                                                    placeholder={t('slots.chatwoot.ph_account_id')}
-                                                                                    autoComplete="off"
-                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
-                                                                                />
-                                                                            </div>
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.account_id')}</label>
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            min="1"
+                                                                                            value={chatwoot.accountId || ""}
+                                                                                            onChange={(e) => updateChatwootField(slot.slot_id, "accountId", e.target.value)}
+                                                                                            placeholder={t('slots.chatwoot.ph_account_id')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                        />
+                                                                                    </div>
+                                                                                </>
+                                                                            )}
 
                                                                             <div>
                                                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.inbox_id')}</label>
