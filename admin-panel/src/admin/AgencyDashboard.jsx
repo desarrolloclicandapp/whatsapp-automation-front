@@ -90,6 +90,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [addModalEmail, setAddModalEmail] = useState("");
     const [addModalPassword, setAddModalPassword] = useState("");
     const [addModalAdminName, setAddModalAdminName] = useState("");
+    const [addModalInboxName, setAddModalInboxName] = useState("");
     const [isAddingLocation, setIsAddingLocation] = useState(false);
 
     const getDaysLeft = (dateValue) => {
@@ -456,6 +457,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         setAddModalEmail("");
         setAddModalPassword("");
         setAddModalAdminName("");
+        setAddModalInboxName("");
         setShowAddModal(true);
     };
 
@@ -466,6 +468,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             setAddModalEmail("");
             setAddModalPassword("");
             setAddModalAdminName("");
+            setAddModalInboxName("");
         }, 60);
         return () => clearTimeout(timer);
     }, [showAddModal]);
@@ -474,6 +477,9 @@ export default function AgencyDashboard({ token, onLogout }) {
         e.preventDefault();
         const isChatwootView = agencyCrmType === "chatwoot";
         const safeName = String(addModalName || "").trim();
+        const safeInboxName = String(addModalInboxName || "").trim();
+        const safePassword = String(addModalPassword || "");
+        const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
         
         if (!safeName) {
             toast.error(
@@ -482,6 +488,16 @@ export default function AgencyDashboard({ token, onLogout }) {
                     : (t('dash.locations.create_error') || "Error creando location"),
                 {
                     description: t('common.name') || "Nombre requerido"
+                }
+            );
+            return;
+        }
+
+        if (isChatwootView && !passRegex.test(safePassword)) {
+            toast.error(
+                t('dash.chatwoot_accounts.password_invalid') || "Contraseña inválida",
+                {
+                    description: t('dash.chatwoot_accounts.password_rules') || "Debe tener mínimo 6 caracteres, incluyendo mayúscula, minúscula, número y símbolo."
                 }
             );
             return;
@@ -499,6 +515,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 bodyPayload.adminEmail = addModalEmail;
                 bodyPayload.adminPassword = addModalPassword;
                 bodyPayload.adminName = addModalAdminName;
+                bodyPayload.inboxName = safeInboxName;
             }
 
             const res = await authFetch('/agency/add-location', {
@@ -526,6 +543,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             setAddModalEmail("");
             setAddModalPassword("");
             setAddModalAdminName("");
+            setAddModalInboxName("");
             await refreshData();
         } catch (e) {
             toast.error(
@@ -1594,6 +1612,20 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </div>
                                     {isChatwootAgency && (
                                         <>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('dash.chatwoot_accounts.inbox_prompt') || "Nombre del Primer Inbox"}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={addModalInboxName}
+                                                    onChange={(e) => setAddModalInboxName(e.target.value)}
+                                                    placeholder="Ej: Soporte Principal"
+                                                    name="cw_first_inbox_name"
+                                                    autoComplete="off"
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                />
+                                            </div>
                                             <div>
                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre del Administrador (Para el cliente final)</label>
                                                 <input

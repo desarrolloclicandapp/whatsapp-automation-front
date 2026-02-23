@@ -324,7 +324,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
             // 🔥 NUEVA LÓGICA: Verificar 'data.success' aunque el status sea 200
             if (data.success) {
-                toast.success(isChatwootMode ? (t('slots.chatwoot_inbox.added') || "Inbox agregado") : "Dispositivo agregado", { description: "Listo para vincular." });
+                const successDescription = isChatwootMode
+                    ? (tenantSettings?.is_auto_provisioned
+                        ? (t('slots.chatwoot.auto_provisioned_ready') || "Configurado automáticamente en Chatwoot.")
+                        : "Listo para vincular.")
+                    : "Listo para vincular.";
+                toast.success(isChatwootMode ? (t('slots.chatwoot_inbox.added') || "Inbox agregado") : "Dispositivo agregado", { description: successDescription });
                 loadData();
                 if (onDataChange) onDataChange();
             } else {
@@ -750,7 +755,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         chatwootUrlMasked: "",
         apiTokenMasked: "",
         hasApiToken: false,
-        hasWebhookSecret: false
+        hasWebhookSecret: false,
+        showAdvancedDetails: false
     });
 
     const loadChatwootConfig = async (slotId, forceRefresh = false) => {
@@ -780,7 +786,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     chatwootUrlMasked: data.chatwootUrlMasked || "",
                     apiTokenMasked: data.apiTokenMasked || "",
                     hasApiToken: !!data.hasApiToken,
-                    hasWebhookSecret: !!data.hasWebhookSecret
+                    hasWebhookSecret: !!data.hasWebhookSecret,
+                    showAdvancedDetails: !!prev[slotId]?.showAdvancedDetails
                 }
             }));
             if (data.hasGlobalConfig) {
@@ -1618,6 +1625,42 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 const chatwoot = chatwootConfigBySlot[slot.slot_id] || createEmptyChatwootState();
                                                                 const isLoadingChatwoot = !!loadingChatwootBySlot[slot.slot_id];
                                                                 const isSavingChatwoot = !!savingChatwootBySlot[slot.slot_id];
+                                                                const mappedInboxId = slot.chatwoot_inbox_id || chatwoot.inboxId || null;
+                                                                const showAdvancedChatwootDetails = !!chatwoot.showAdvancedDetails;
+                                                                const isReadOnlyChatwootView = !isAdminMode || !showAdvancedChatwootDetails;
+
+                                                                if (isReadOnlyChatwootView) {
+                                                                    return (
+                                                                        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-3">
+                                                                            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 rounded-lg border border-emerald-100 dark:border-emerald-800 text-sm flex items-start gap-3">
+                                                                                <CheckCircle2 className="shrink-0 mt-0.5" size={18} />
+                                                                                <div>
+                                                                                    <p className="font-bold">{t('slots.chatwoot.auto_provision_title') || "Aprovisionamiento Automático"}</p>
+                                                                                    <p className="text-xs opacity-90 mt-1">
+                                                                                        {t('slots.chatwoot.auto_provision_desc') || "Las credenciales de Chatwoot (URL, Token, Account ID y Webhooks) están gestionadas internamente por Waflow."}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                                                                                {mappedInboxId
+                                                                                    ? `${t('slots.chatwoot.auto_provision_inbox') || "Inbox vinculado"}: #${mappedInboxId}`
+                                                                                    : (t('slots.chatwoot.auto_provision_pending') || "El Inbox se asigna automáticamente al crear o agregar slots.")}
+                                                                            </div>
+                                                                            {isAdminMode && (
+                                                                                <div className="pt-1">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => updateChatwootField(slot.slot_id, "showAdvancedDetails", true)}
+                                                                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/40 transition"
+                                                                                    >
+                                                                                        {t('slots.chatwoot.show_debug') || "Ver detalles técnicos"}
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                }
+
                                                                 const statusLabel = chatwoot.configured
                                                                     ? t('slots.chatwoot.configured')
                                                                     : chatwoot.hasGlobalConfig
@@ -1644,8 +1687,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.chatwoot.title')}</h4>
                                                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('slots.chatwoot.desc')}</p>
                                                                             </div>
-                                                                            <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${statusClass}`}>
-                                                                                {statusLabel}
+                                                                            <div className="flex items-center gap-2">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => updateChatwootField(slot.slot_id, "showAdvancedDetails", false)}
+                                                                                    className="px-2 py-1 text-[10px] font-bold rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition"
+                                                                                >
+                                                                                    {t('slots.chatwoot.hide_debug') || "Ocultar debug"}
+                                                                                </button>
+                                                                                <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${statusClass}`}>
+                                                                                    {statusLabel}
+                                                                                </div>
                                                                             </div>
                                                                         </div>
 
