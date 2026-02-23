@@ -21,7 +21,7 @@ import {
     TrendingUp, ShieldCheck, Settings, Trash2,
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
     Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Mic, Hammer,
-    Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare // ✅ Iconos
+    Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare, Loader2 // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -90,8 +90,16 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [addModalEmail, setAddModalEmail] = useState("");
     const [addModalPassword, setAddModalPassword] = useState("");
     const [addModalAdminName, setAddModalAdminName] = useState("");
+    const [addModalClientRole, setAddModalClientRole] = useState("agent");
     const [addModalInboxName, setAddModalInboxName] = useState("");
     const [isAddingLocation, setIsAddingLocation] = useState(false);
+    const [chatwootMasterConfigured, setChatwootMasterConfigured] = useState(false);
+    const [chatwootMasterName, setChatwootMasterName] = useState("");
+    const [chatwootMasterEmail, setChatwootMasterEmail] = useState("");
+    const [chatwootMasterPassword, setChatwootMasterPassword] = useState("");
+    const [chatwootMasterEmailMasked, setChatwootMasterEmailMasked] = useState("");
+    const [isLoadingChatwootMaster, setIsLoadingChatwootMaster] = useState(false);
+    const [isSavingChatwootMaster, setIsSavingChatwootMaster] = useState(false);
 
     const getDaysLeft = (dateValue) => {
         if (!dateValue) return null;
@@ -143,6 +151,9 @@ export default function AgencyDashboard({ token, onLogout }) {
             if (accRes && accRes.ok) {
                 const data = await accRes.json();
                 setAccountInfo(data);
+                setChatwootMasterConfigured(Boolean(data.chatwoot_master_configured));
+                setChatwootMasterEmailMasked(String(data.chatwoot_master_email_masked || ""));
+                setChatwootMasterName(String(data.chatwoot_master_name || ""));
                 if (typeof data.ghl_instalation_link === "string" && data.ghl_instalation_link.trim()) {
                     setCrmInstallLink(data.ghl_instalation_link.trim());
                 }
@@ -453,10 +464,19 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     const openAddLocationModal = () => {
+        if (isChatwootAgency && !chatwootMasterConfigured) {
+            toast.error(
+                t('dash.chatwoot_master.must_configure') ||
+                "Configura primero el Usuario Maestro de Chatwoot en Settings."
+            );
+            setActiveTab('settings');
+            return;
+        }
         setAddModalName("");
         setAddModalEmail("");
         setAddModalPassword("");
         setAddModalAdminName("");
+        setAddModalClientRole("agent");
         setAddModalInboxName("");
         setShowAddModal(true);
     };
@@ -468,6 +488,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             setAddModalEmail("");
             setAddModalPassword("");
             setAddModalAdminName("");
+            setAddModalClientRole("agent");
             setAddModalInboxName("");
         }, 60);
         return () => clearTimeout(timer);
@@ -478,6 +499,8 @@ export default function AgencyDashboard({ token, onLogout }) {
         const isChatwootView = agencyCrmType === "chatwoot";
         const safeName = String(addModalName || "").trim();
         const safeInboxName = String(addModalInboxName || "").trim();
+        const safeClientName = String(addModalAdminName || "").trim();
+        const safeClientEmail = String(addModalEmail || "").trim().toLowerCase();
         const safePassword = String(addModalPassword || "");
         const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
         
@@ -493,14 +516,33 @@ export default function AgencyDashboard({ token, onLogout }) {
             return;
         }
 
-        if (isChatwootView && !passRegex.test(safePassword)) {
-            toast.error(
-                t('dash.chatwoot_accounts.password_invalid') || "Contraseña inválida",
-                {
-                    description: t('dash.chatwoot_accounts.password_rules') || "Debe tener mínimo 6 caracteres, incluyendo mayúscula, minúscula, número y símbolo."
-                }
-            );
-            return;
+        if (isChatwootView) {
+            if (!chatwootMasterConfigured) {
+                toast.error(
+                    t('dash.chatwoot_master.must_configure') ||
+                    "Configura primero el Usuario Maestro de Chatwoot en Settings."
+                );
+                setActiveTab('settings');
+                return;
+            }
+
+            if (!safeClientName || !safeClientEmail) {
+                toast.error(
+                    t('dash.chatwoot_accounts.create_error') || "Error creando cuenta Chatwoot",
+                    { description: t('dash.chatwoot_accounts.client_required') || "Nombre y email del cliente final son requeridos." }
+                );
+                return;
+            }
+
+            if (!passRegex.test(safePassword)) {
+                toast.error(
+                    t('dash.chatwoot_accounts.password_invalid') || "Contraseña inválida",
+                    {
+                        description: t('dash.chatwoot_accounts.password_rules') || "Debe tener mínimo 6 caracteres, incluyendo mayúscula, minúscula, número y símbolo."
+                    }
+                );
+                return;
+            }
         }
 
         setIsAddingLocation(true);
@@ -512,9 +554,15 @@ export default function AgencyDashboard({ token, onLogout }) {
             };
 
             if (isChatwootView) {
-                bodyPayload.adminEmail = addModalEmail;
-                bodyPayload.adminPassword = addModalPassword;
-                bodyPayload.adminName = addModalAdminName;
+                const resolvedRole = addModalClientRole === "administrator" ? "administrator" : "agent";
+                bodyPayload.clientEmail = safeClientEmail;
+                bodyPayload.clientPassword = safePassword;
+                bodyPayload.clientName = safeClientName;
+                bodyPayload.clientRole = resolvedRole;
+                // Backward-compatible aliases
+                bodyPayload.adminEmail = safeClientEmail;
+                bodyPayload.adminPassword = safePassword;
+                bodyPayload.adminName = safeClientName;
                 bodyPayload.inboxName = safeInboxName;
             }
 
@@ -543,6 +591,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             setAddModalEmail("");
             setAddModalPassword("");
             setAddModalAdminName("");
+            setAddModalClientRole("agent");
             setAddModalInboxName("");
             await refreshData();
         } catch (e) {
@@ -611,6 +660,93 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
+    const fetchChatwootMasterUser = async ({ silent = true } = {}) => {
+        if (agencyCrmType !== "chatwoot") return;
+        setIsLoadingChatwootMaster(true);
+        try {
+            const res = await authFetch('/agency/chatwoot/master-user');
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || "No se pudo cargar la configuración maestra de Chatwoot");
+            }
+
+            const configured = Boolean(data.configured);
+            setChatwootMasterConfigured(configured);
+            setChatwootMasterName(String(data.masterName || ""));
+            setChatwootMasterEmail(String(data.masterEmail || ""));
+            setChatwootMasterEmailMasked(String(data.masterEmailMasked || ""));
+            if (!configured) {
+                setChatwootMasterPassword("");
+            }
+        } catch (e) {
+            if (!silent) {
+                toast.error(e.message || "Error cargando usuario maestro de Chatwoot");
+            }
+        } finally {
+            setIsLoadingChatwootMaster(false);
+        }
+    };
+
+    const handleSaveChatwootMasterUser = async (e) => {
+        if (e?.preventDefault) e.preventDefault();
+
+        const safeName = String(chatwootMasterName || "").trim();
+        const safeEmail = String(chatwootMasterEmail || "").trim().toLowerCase();
+        const safePassword = String(chatwootMasterPassword || "");
+        const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
+
+        if (!safeName || !safeEmail || !safePassword) {
+            toast.error(t('dash.chatwoot_master.required') || "Completa nombre, email y contraseña del usuario maestro.");
+            return;
+        }
+
+        if (!passRegex.test(safePassword)) {
+            toast.error(
+                t('dash.chatwoot_accounts.password_invalid') || "Contraseña inválida",
+                { description: t('dash.chatwoot_accounts.password_rules') || "Debe tener mínimo 6 caracteres, incluyendo mayúscula, minúscula, número y símbolo." }
+            );
+            return;
+        }
+
+        setIsSavingChatwootMaster(true);
+        const loadingId = toast.loading(t('common.save') || "Guardar");
+        try {
+            const res = await authFetch('/agency/chatwoot/master-user', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    masterName: safeName,
+                    masterEmail: safeEmail,
+                    masterPassword: safePassword
+                })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || "No se pudo guardar el usuario maestro de Chatwoot");
+            }
+
+            setChatwootMasterConfigured(Boolean(data.configured));
+            setChatwootMasterName(String(data.masterName || safeName));
+            setChatwootMasterEmail(String(data.masterEmail || safeEmail));
+            setChatwootMasterEmailMasked(String(data.masterEmailMasked || ""));
+            setChatwootMasterPassword("");
+            setAccountInfo(prev => prev ? {
+                ...prev,
+                chatwoot_master_configured: true,
+                chatwoot_master_name: String(data.masterName || safeName),
+                chatwoot_master_email_masked: String(data.masterEmailMasked || "")
+            } : prev);
+
+            toast.success(
+                t('dash.chatwoot_master.saved') || "Usuario maestro de Chatwoot guardado",
+                { id: loadingId }
+            );
+        } catch (e2) {
+            toast.error(e2.message || "No se pudo guardar el usuario maestro de Chatwoot", { id: loadingId });
+        } finally {
+            setIsSavingChatwootMaster(false);
+        }
+    };
+
     const openGhlPortal = () => {
         try {
             const parsed = new URL(installUrlPreview);
@@ -643,6 +779,11 @@ export default function AgencyDashboard({ token, onLogout }) {
     useEffect(() => {
         localStorage.setItem("crmType", crmPreference);
     }, [crmPreference]);
+
+    useEffect(() => {
+        if (agencyCrmType !== "chatwoot") return;
+        fetchChatwootMasterUser({ silent: true });
+    }, [agencyCrmType]);
 
     const renderIntegrationsPanel = (variant = "settings") => {
         const isOverview = variant === "overview";
@@ -1398,6 +1539,91 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             )}
 
+                            {isChatwootAgency && (
+                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                                    <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <MessageSquareText size={20} className="text-indigo-500" /> {t('dash.chatwoot_master.title') || "Usuario Maestro de Chatwoot"}
+                                            </h3>
+                                            <p className="text-sm text-gray-500 mt-1">
+                                                {t('dash.chatwoot_master.desc') || "Configura una sola vez el usuario administrador maestro que se reutilizará en todas tus cuentas Chatwoot."}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => fetchChatwootMasterUser({ silent: false })}
+                                            disabled={isLoadingChatwootMaster}
+                                            className="border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl font-bold text-sm dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60 transition-colors"
+                                        >
+                                            {isLoadingChatwootMaster ? (t('common.loading') || "Cargando...") : (t('common.reload') || "Recargar")}
+                                        </button>
+                                    </div>
+
+                                    <form onSubmit={handleSaveChatwootMasterUser} className="space-y-5">
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                {t('dash.chatwoot_master.name') || "Nombre del Usuario Maestro"}
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={chatwootMasterName}
+                                                onChange={(e) => setChatwootMasterName(e.target.value)}
+                                                placeholder="Ej: Soporte Agencia"
+                                                autoComplete="off"
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                {t('dash.chatwoot_master.email') || "Email del Usuario Maestro"}
+                                            </label>
+                                            <input
+                                                type="email"
+                                                value={chatwootMasterEmail}
+                                                onChange={(e) => setChatwootMasterEmail(e.target.value)}
+                                                placeholder="soporte@agencia.com"
+                                                autoComplete="off"
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                            />
+                                            {chatwootMasterConfigured && chatwootMasterEmailMasked && (
+                                                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2">
+                                                    {(t('dash.chatwoot_master.configured_as') || "Configurado como") + ` ${chatwootMasterEmailMasked}`}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                {t('dash.chatwoot_master.password') || "Contraseña del Usuario Maestro"}
+                                            </label>
+                                            <input
+                                                type="password"
+                                                value={chatwootMasterPassword}
+                                                onChange={(e) => setChatwootMasterPassword(e.target.value)}
+                                                placeholder="••••••••"
+                                                autoComplete="new-password"
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                            />
+                                            <p className="text-xs text-gray-500 mt-2">
+                                                {t('dash.chatwoot_accounts.password_rules') || "Debe tener mínimo 6 caracteres, incluyendo mayúscula, minúscula, número y símbolo."}
+                                            </p>
+                                        </div>
+
+                                        <div className="flex justify-end">
+                                            <button
+                                                type="submit"
+                                                disabled={isSavingChatwootMaster}
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2 disabled:opacity-60"
+                                            >
+                                                {isSavingChatwootMaster ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                                {t('dash.chatwoot_master.save') || "Guardar Usuario Maestro"}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            )}
+
                             {renderIntegrationsPanel("settings")}
 
                             {/* ✅ NUEVO: AGENCIA SOPORTE (Ahora protegido por Wrapper) */}
@@ -1627,7 +1853,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nombre del Administrador (Para el cliente final)</label>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('dash.chatwoot_accounts.client_name_prompt') || "Nombre del Usuario del Cliente Final"}
+                                                </label>
                                                 <input
                                                     type="text"
                                                     value={addModalAdminName}
@@ -1640,7 +1868,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Email del Administrador (Login de Chatwoot)</label>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('dash.chatwoot_accounts.client_email_prompt') || "Email del Usuario del Cliente Final"}
+                                                </label>
                                                 <input
                                                     type="email"
                                                     value={addModalEmail}
@@ -1653,7 +1883,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Contraseña (Login de Chatwoot)</label>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('dash.chatwoot_accounts.client_password_prompt') || "Contraseña del Usuario del Cliente Final"}
+                                                </label>
                                                 <input
                                                     type="password"
                                                     value={addModalPassword}
@@ -1665,6 +1897,19 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     required
                                                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                                 />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('dash.chatwoot_accounts.client_role_prompt') || "Rol del Usuario del Cliente Final"}
+                                                </label>
+                                                <select
+                                                    value={addModalClientRole}
+                                                    onChange={(e) => setAddModalClientRole(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                >
+                                                    <option value="agent">{t('dash.chatwoot_accounts.client_role_agent') || "Agente (Recomendado)"}</option>
+                                                    <option value="administrator">{t('dash.chatwoot_accounts.client_role_admin') || "Administrador"}</option>
+                                                </select>
                                             </div>
                                         </>
                                     )}
