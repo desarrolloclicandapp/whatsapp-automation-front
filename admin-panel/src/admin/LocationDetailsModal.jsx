@@ -55,6 +55,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
     const isChatwootMode = crmType === "chatwoot";
+    const supportsSmsAndKeywords = isGhlMode || isChatwootMode;
     const isExpandedChatwootLoaded = Boolean(
         expandedSlotId && chatwootConfigBySlot[expandedSlotId]?.loaded
     );
@@ -1241,10 +1242,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 <div className="flex border-b border-gray-200 dark:border-gray-800 px-6 bg-white dark:bg-gray-900/50">
                                                     <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />
                                                     <TabButton active={activeSlotTab === 'integration'} onClick={() => setActiveSlotTab('integration')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
-                                                    {isGhlMode && (
+                                                    {supportsSmsAndKeywords && (
                                                         <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label={t('slots.tab.sms')} />
                                                     )}
-                                                    {isGhlMode && (
+                                                    {supportsSmsAndKeywords && (
                                                         <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
                                                     )}
                                                     <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
@@ -1627,7 +1628,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 const isSavingChatwoot = !!savingChatwootBySlot[slot.slot_id];
                                                                 const mappedInboxId = slot.chatwoot_inbox_id || chatwoot.inboxId || null;
                                                                 const showAdvancedChatwootDetails = !!chatwoot.showAdvancedDetails;
-                                                                const isReadOnlyChatwootView = !isAdminMode || !showAdvancedChatwootDetails;
+                                                                const isReadOnlyChatwootView = !showAdvancedChatwootDetails;
 
                                                                 if (isReadOnlyChatwootView) {
                                                                     return (
@@ -1646,17 +1647,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                     ? `${t('slots.chatwoot.auto_provision_inbox') || "Inbox vinculado"}: #${mappedInboxId}`
                                                                                     : (t('slots.chatwoot.auto_provision_pending') || "El Inbox se asigna automáticamente al crear o agregar slots.")}
                                                                             </div>
-                                                                            {isAdminMode && (
-                                                                                <div className="pt-1">
-                                                                                    <button
-                                                                                        type="button"
+                                                                            <div className="pt-1">
+                                                                                <button
+                                                                                    type="button"
                                                                                         onClick={() => updateChatwootField(slot.slot_id, "showAdvancedDetails", true)}
                                                                                         className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/40 transition"
                                                                                     >
                                                                                         {t('slots.chatwoot.show_debug') || "Ver detalles técnicos"}
                                                                                     </button>
                                                                                 </div>
-                                                                            )}
                                                                         </div>
                                                                     );
                                                                 }
@@ -1905,7 +1904,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             )}
                                                         </div>
                                                     )}
-                                                    {isGhlMode && activeSlotTab === 'sms' && (
+                                                    {supportsSmsAndKeywords && activeSlotTab === 'sms' && (
                                                         <div className="max-w-2xl space-y-6">
                                                             {(() => {
                                                                 const twilio = twilioConfigBySlot[slot.slot_id] || {
@@ -2009,7 +2008,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                    {isGhlMode && activeSlotTab === 'keywords' && (
+                                                    {supportsSmsAndKeywords && activeSlotTab === 'keywords' && (
                                                         <div className="max-w-2xl">
                                                             <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
                                                                 <input name="keyword" required placeholder={t('slots.kw.input')} className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
