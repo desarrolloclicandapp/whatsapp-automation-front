@@ -92,7 +92,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [addModalClientName, setAddModalClientName] = useState("");
     const [addModalClientEmail, setAddModalClientEmail] = useState("");
     const [addModalClientPassword, setAddModalClientPassword] = useState("");
-    const [addModalClientRole, setAddModalClientRole] = useState("agent");
+    const [addModalClientRole, setAddModalClientRole] = useState("administrator");
     const [isAddingLocation, setIsAddingLocation] = useState(false);
     const [chatwootMasterConfigured, setChatwootMasterConfigured] = useState(false);
     const [chatwootMasterName, setChatwootMasterName] = useState("");
@@ -478,7 +478,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         setAddModalClientName("");
         setAddModalClientEmail("");
         setAddModalClientPassword("");
-        setAddModalClientRole("agent");
+        setAddModalClientRole("administrator");
         setShowAddModal(true);
     };
 
@@ -500,12 +500,11 @@ export default function AgencyDashboard({ token, onLogout }) {
         const safeClientName = String(addModalClientName || "").trim();
         const safeClientEmail = String(addModalClientEmail || "").trim().toLowerCase();
         const safeClientPassword = String(addModalClientPassword || "");
-        const safeClientRole = addModalClientRole === "administrator" ? "administrator" : "agent";
+        const safeClientRole = "administrator";
         const hasAnyClientIdentityField = Boolean(
             safeClientName ||
             safeClientEmail ||
-            safeClientPassword ||
-            safeClientRole !== "agent"
+            safeClientPassword
         );
         
         if (!safeName) {
@@ -611,7 +610,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             setAddModalClientName("");
             setAddModalClientEmail("");
             setAddModalClientPassword("");
-            setAddModalClientRole("agent");
+            setAddModalClientRole("administrator");
             await refreshData();
         } catch (e) {
             toast.error(
@@ -1923,12 +1922,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         </label>
                                                         <select
                                                             value={addModalClientRole}
-                                                            onChange={(e) => setAddModalClientRole(e.target.value)}
+                                                            disabled
                                                             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                                         >
-                                                            <option value="agent">{t('dash.chatwoot_accounts.client_role_agent') || "Agente (Recomendado)"}</option>
                                                             <option value="administrator">{t('dash.chatwoot_accounts.client_role_admin') || "Administrador"}</option>
                                                         </select>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                            Todos los clientes finales nuevos se crean como administrador.
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>
