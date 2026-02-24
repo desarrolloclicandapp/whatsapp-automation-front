@@ -92,7 +92,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [addModalClientName, setAddModalClientName] = useState("");
     const [addModalClientEmail, setAddModalClientEmail] = useState("");
     const [addModalClientPassword, setAddModalClientPassword] = useState("");
-    const [addModalClientRole, setAddModalClientRole] = useState("administrator");
     const [isAddingLocation, setIsAddingLocation] = useState(false);
     const [chatwootMasterConfigured, setChatwootMasterConfigured] = useState(false);
     const [chatwootMasterName, setChatwootMasterName] = useState("");
@@ -478,7 +477,6 @@ export default function AgencyDashboard({ token, onLogout }) {
         setAddModalClientName("");
         setAddModalClientEmail("");
         setAddModalClientPassword("");
-        setAddModalClientRole("administrator");
         setShowAddModal(true);
     };
 
@@ -610,7 +608,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             setAddModalClientName("");
             setAddModalClientEmail("");
             setAddModalClientPassword("");
-            setAddModalClientRole("administrator");
             await refreshData();
         } catch (e) {
             toast.error(
@@ -1915,21 +1912,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             autoComplete="new-password"
                                                             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                                         />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                            {t('dash.chatwoot_accounts.client_role_prompt') || "Rol del usuario del cliente final:"}
-                                                        </label>
-                                                        <select
-                                                            value={addModalClientRole}
-                                                            disabled
-                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
-                                                        >
-                                                            <option value="administrator">{t('dash.chatwoot_accounts.client_role_admin') || "Administrador"}</option>
-                                                        </select>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                                            Todos los clientes finales nuevos se crean como administrador.
-                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>
