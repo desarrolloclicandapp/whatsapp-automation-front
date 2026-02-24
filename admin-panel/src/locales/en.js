@@ -10,6 +10,7 @@ export const en = {
     "common.close": "Close",
     "common.copied": "Copied",
     "common.understood": "Understood",
+    "common.reload": "Reload",
     "common.delete": "Delete",
     "common.reactivate": "Reactivate",
     "common.permanently_delete": "Permanently Delete",
