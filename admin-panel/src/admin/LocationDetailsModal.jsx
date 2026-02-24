@@ -1642,11 +1642,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                     </p>
                                                                                 </div>
                                                                             </div>
-                                                                            <div className="text-xs text-gray-600 dark:text-gray-300">
-                                                                                {mappedInboxId
-                                                                                    ? `${t('slots.chatwoot.auto_provision_inbox') || "Inbox vinculado"}: #${mappedInboxId}`
-                                                                                    : (t('slots.chatwoot.auto_provision_pending') || "El Inbox se asigna automáticamente al crear o agregar slots.")}
-                                                                            </div>
                                                                             <div className="pt-1">
                                                                                 <button
                                                                                     type="button"
