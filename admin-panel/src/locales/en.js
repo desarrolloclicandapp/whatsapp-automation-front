@@ -590,6 +590,7 @@ export const en = {
     "dash.users.hard_delete_success": "User and data deleted.",
     "dash.users.soft_delete_success": "User deactivated successfully.",
     "dash.users.reactivate_success": "User reactivated successfully.",
+    "dash.users.reactivate_button": "Reactivate",
     "dash.users.protected_plan": "PROTECTED: User has an active plan.",
     "dash.users.hard_delete_tooltip": "Destroy User (Hard Delete)",
     "dash.users.soft_delete_tooltip": "Deactivate User",

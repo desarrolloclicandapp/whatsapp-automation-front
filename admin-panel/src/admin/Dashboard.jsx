@@ -172,17 +172,37 @@ export default function AdminDashboard({ token, onLogout }) {
     const executeReactivateUser = async (userId) => {
         try {
             const res = await authFetch(`/admin/users/${userId}/reactivate`, { method: 'PUT' });
+            const data = await res.json().catch(() => ({}));
             if (res.ok) {
-                toast.success(t('dash.users.reactivate_success'));
+                const status = data.plan_status ? String(data.plan_status).toUpperCase() : null;
+                const trialEnds = data.trial_ends_at ? new Date(data.trial_ends_at).toLocaleDateString() : null;
+                const suffix = status === 'TRIAL' && trialEnds ? ` (TRIAL hasta ${trialEnds})` : status ? ` (${status})` : '';
+                toast.success(`${t('dash.users.reactivate_success')}${suffix}`);
                 fetchUsers();
             } else {
-                const data = await res.json();
                 toast.error(data.error || t('common.error'));
             }
         } catch (error) { toast.error(t('sub.toast.error_connection')); }
         setConfirmModal({ ...confirmModal, show: false });
     };
 
+    const executeSoftDisconnectUser = async (userId) => {
+        try {
+            const res = await authFetch(`/admin/users/${userId}/soft-disconnect`, { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                const disconnected = Number(data.disconnected_slots || 0);
+                const total = Number(data.total_slots || 0);
+                toast.success(`Usuario inactivado en modo suave. Slots desconectados: ${disconnected}/${total}`);
+                fetchUsers();
+            } else {
+                toast.error(data.error || 'No se pudo inactivar en modo suave');
+            }
+        } catch (error) {
+            toast.error(t('sub.toast.error_connection'));
+        }
+        setConfirmModal({ ...confirmModal, show: false });
+    };
     const executeSuspendUser = async (userId, reason = 'Manual admin action') => {
         try {
             const res = await authFetch(`/admin/users/${userId}/suspend`, {
@@ -209,7 +229,10 @@ export default function AdminDashboard({ token, onLogout }) {
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
                 const attempts = Number(data.reconnect_attempts || 0);
-                toast.success("Usuario reactivado. Reconexiones iniciadas: " + attempts);
+                const status = data.plan_status ? String(data.plan_status).toUpperCase() : null;
+                const trialEnds = data.trial_ends_at ? new Date(data.trial_ends_at).toLocaleDateString() : null;
+                const statusSuffix = status === 'TRIAL' && trialEnds ? ` | Plan: TRIAL hasta ${trialEnds}` : status ? ` | Plan: ${status}` : '';
+                toast.success(`Usuario reactivado. Reconexiones iniciadas: ${attempts}${statusSuffix}`);
                 fetchUsers();
             } else {
                 toast.error(data.error || 'No se pudo reactivar');
@@ -788,6 +811,32 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                         </td>
                                                         <td className="px-6 py-4 text-right">
                                                             <div className="flex justify-end items-center gap-2">
+                                                                {user.role !== 'admin' && (isSuspended || user.is_active === false) && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (isSuspended) {
+                                                                                openConfirm(
+                                                                                    'Reactivar suspension',
+                                                                                    `Quieres reactivar la cuenta de ${user.name || user.email}?`,
+                                                                                    () => executeReactivateSuspension(user.id),
+                                                                                    false
+                                                                                );
+                                                                                return;
+                                                                            }
+
+                                                                            openConfirm(
+                                                                                t('dash.users.reactivate_title'),
+                                                                                t('dash.users.reactivate_msg').replace('{name}', user.name || user.email),
+                                                                                () => executeReactivateUser(user.id),
+                                                                                false
+                                                                            );
+                                                                        }}
+                                                                        className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-lg hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 transition"
+                                                                        title={t('dash.users.reactivate_tooltip')}
+                                                                    >
+                                                                        {t('dash.users.reactivate_button')}
+                                                                    </button>
+                                                                )}
                                                                 {canManageTrial && (
                                                                     <button 
                                                                         onClick={() => {
@@ -801,6 +850,20 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                     </button>
                                                                 )}
                                                                 
+                                                                {user.role !== 'admin' && user.is_active !== false && !isSuspended && (
+                                                                    <button
+                                                                        onClick={() => openConfirm(
+                                                                            'Inactivar suave',
+                                                                            `Quieres inactivar en modo suave a ${user.name || user.email}?\n\nEsto desconecta todos sus slots sin borrar credenciales.`,
+                                                                            () => executeSoftDisconnectUser(user.id),
+                                                                            true
+                                                                        )}
+                                                                        className="p-2 text-sky-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition"
+                                                                        title="Inactivar suave (preserva credenciales)"
+                                                                    >
+                                                                        <RotateCcw size={18} />
+                                                                    </button>
+                                                                )}
                                                                 {user.role !== 'admin' && !isSuspended && (
                                                                     <button
                                                                         onClick={() => openConfirm(
