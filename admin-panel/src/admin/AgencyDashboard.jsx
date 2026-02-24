@@ -27,6 +27,7 @@ import {
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
 const DEFAULT_INSTALL_APP_URL = import.meta.env.DEFAULT_INSTALL_APP_URL || "https://app.gohighlevel.com/integration/6968d10f1f0b9e6b537024cd";
+const CHATWOOT_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
 
 function normalizeInstallLink(rawValue = "") {
     const raw = String(rawValue || "").trim();
@@ -88,6 +89,10 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [showAddModal, setShowAddModal] = useState(false);
     const [addModalName, setAddModalName] = useState("");
     const [addModalInboxName, setAddModalInboxName] = useState("");
+    const [addModalClientName, setAddModalClientName] = useState("");
+    const [addModalClientEmail, setAddModalClientEmail] = useState("");
+    const [addModalClientPassword, setAddModalClientPassword] = useState("");
+    const [addModalClientRole, setAddModalClientRole] = useState("agent");
     const [isAddingLocation, setIsAddingLocation] = useState(false);
     const [chatwootMasterConfigured, setChatwootMasterConfigured] = useState(false);
     const [chatwootMasterName, setChatwootMasterName] = useState("");
@@ -470,6 +475,10 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
         setAddModalName("");
         setAddModalInboxName("");
+        setAddModalClientName("");
+        setAddModalClientEmail("");
+        setAddModalClientPassword("");
+        setAddModalClientRole("agent");
         setShowAddModal(true);
     };
 
@@ -478,6 +487,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         // Some password managers/autofill tools inject values after mount; force-clear once more.
         const timer = setTimeout(() => {
             setAddModalInboxName("");
+            setAddModalClientPassword("");
         }, 60);
         return () => clearTimeout(timer);
     }, [showAddModal]);
@@ -487,6 +497,16 @@ export default function AgencyDashboard({ token, onLogout }) {
         const isChatwootView = agencyCrmType === "chatwoot";
         const safeName = String(addModalName || "").trim();
         const safeInboxName = String(addModalInboxName || "").trim();
+        const safeClientName = String(addModalClientName || "").trim();
+        const safeClientEmail = String(addModalClientEmail || "").trim().toLowerCase();
+        const safeClientPassword = String(addModalClientPassword || "");
+        const safeClientRole = addModalClientRole === "administrator" ? "administrator" : "agent";
+        const hasAnyClientIdentityField = Boolean(
+            safeClientName ||
+            safeClientEmail ||
+            safeClientPassword ||
+            safeClientRole !== "agent"
+        );
         
         if (!safeName) {
             toast.error(
@@ -509,6 +529,22 @@ export default function AgencyDashboard({ token, onLogout }) {
                 setActiveTab('settings');
                 return;
             }
+
+            if (hasAnyClientIdentityField && (!safeClientName || !safeClientEmail)) {
+                toast.error(
+                    t('dash.chatwoot_accounts.client_required') ||
+                    "Nombre y email del cliente final son requeridos."
+                );
+                return;
+            }
+
+            if (safeClientPassword && !CHATWOOT_PASSWORD_REGEX.test(safeClientPassword)) {
+                toast.error(
+                    t('dash.chatwoot_accounts.password_invalid') || "Contraseña inválida",
+                    { description: t('dash.chatwoot_accounts.password_rules') || "Debe tener mínimo 6 caracteres, incluyendo mayúscula, minúscula, número y símbolo." }
+                );
+                return;
+            }
         }
 
         setIsAddingLocation(true);
@@ -521,6 +557,14 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             if (isChatwootView) {
                 bodyPayload.inboxName = safeInboxName;
+                if (safeClientName && safeClientEmail) {
+                    bodyPayload.clientName = safeClientName;
+                    bodyPayload.clientEmail = safeClientEmail;
+                    bodyPayload.clientRole = safeClientRole;
+                    if (safeClientPassword) {
+                        bodyPayload.clientPassword = safeClientPassword;
+                    }
+                }
             }
 
             const res = await authFetch('/agency/add-location', {
@@ -543,9 +587,31 @@ export default function AgencyDashboard({ token, onLogout }) {
                     : (t('dash.locations.created') || "Location creada"),
                 { id: loadingId }
             );
+
+            if (isChatwootView && data?.chatwootClient?.provisioned) {
+                const generatedPassword = String(data.chatwootClient.generatedPassword || "");
+                const safeEmail = String(data.chatwootClient.email || safeClientEmail || "").trim();
+                const safeRoleLabel = data.chatwootClient.role === "administrator"
+                    ? (t('dash.chatwoot_accounts.client_role_admin') || "Administrador")
+                    : (t('dash.chatwoot_accounts.client_role_agent') || "Agente (Recomendado)");
+
+                toast.success(
+                    t('dash.chatwoot_accounts.client_access_ready') || "Acceso del cliente final listo",
+                    {
+                        description: generatedPassword
+                            ? `${safeEmail} (${safeRoleLabel}) | Password temporal: ${generatedPassword}`
+                            : `${safeEmail} (${safeRoleLabel})`
+                    }
+                );
+            }
+
             setShowAddModal(false);
             setAddModalName(""); // ✅ Clean up input form
             setAddModalInboxName("");
+            setAddModalClientName("");
+            setAddModalClientEmail("");
+            setAddModalClientPassword("");
+            setAddModalClientRole("agent");
             await refreshData();
         } catch (e) {
             toast.error(
@@ -646,14 +712,13 @@ export default function AgencyDashboard({ token, onLogout }) {
         const safeName = String(chatwootMasterName || "").trim();
         const safeEmail = String(chatwootMasterEmail || "").trim().toLowerCase();
         const safePassword = String(chatwootMasterPassword || "");
-        const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
 
         if (!safeName || !safeEmail || !safePassword) {
             toast.error(t('dash.chatwoot_master.required') || "Completa nombre, email y contraseña del usuario maestro.");
             return;
         }
 
-        if (!passRegex.test(safePassword)) {
+        if (!CHATWOOT_PASSWORD_REGEX.test(safePassword)) {
             toast.error(
                 t('dash.chatwoot_accounts.password_invalid') || "Contraseña inválida",
                 { description: t('dash.chatwoot_accounts.password_rules') || "Debe tener mínimo 6 caracteres, incluyendo mayúscula, minúscula, número y símbolo." }
@@ -1804,6 +1869,68 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     autoComplete="off"
                                                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                                 />
+                                            </div>
+                                            <div className="pt-1 border-t border-gray-200 dark:border-gray-700">
+                                                <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mt-4 mb-3">
+                                                    {t('dash.chatwoot_accounts.client_access_title') || "Acceso del Cliente Final (Opcional)"}
+                                                </p>
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                            {t('dash.chatwoot_accounts.client_name_prompt') || "Nombre del usuario del cliente final:"}
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={addModalClientName}
+                                                            onChange={(e) => setAddModalClientName(e.target.value)}
+                                                            placeholder="Ej: María Operaciones"
+                                                            name="cw_client_name"
+                                                            autoComplete="off"
+                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                            {t('dash.chatwoot_accounts.client_email_prompt') || "Email del usuario del cliente final:"}
+                                                        </label>
+                                                        <input
+                                                            type="email"
+                                                            value={addModalClientEmail}
+                                                            onChange={(e) => setAddModalClientEmail(e.target.value)}
+                                                            placeholder="cliente@empresa.com"
+                                                            name="cw_client_email"
+                                                            autoComplete="off"
+                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                            {t('dash.chatwoot_accounts.client_password_prompt') || "Contraseña del usuario del cliente final:"}
+                                                        </label>
+                                                        <input
+                                                            type="password"
+                                                            value={addModalClientPassword}
+                                                            onChange={(e) => setAddModalClientPassword(e.target.value)}
+                                                            placeholder={t('dash.chatwoot_accounts.client_password_optional') || "Opcional: si lo dejas vacío, se genera automática"}
+                                                            name="cw_client_password"
+                                                            autoComplete="new-password"
+                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                            {t('dash.chatwoot_accounts.client_role_prompt') || "Rol del usuario del cliente final:"}
+                                                        </label>
+                                                        <select
+                                                            value={addModalClientRole}
+                                                            onChange={(e) => setAddModalClientRole(e.target.value)}
+                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                        >
+                                                            <option value="agent">{t('dash.chatwoot_accounts.client_role_agent') || "Agente (Recomendado)"}</option>
+                                                            <option value="administrator">{t('dash.chatwoot_accounts.client_role_admin') || "Administrador"}</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </>
                                     )}
