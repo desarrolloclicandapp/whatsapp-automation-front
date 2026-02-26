@@ -90,8 +90,11 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [addModalName, setAddModalName] = useState("");
     const [addModalInboxName, setAddModalInboxName] = useState("");
     const [addModalClientName, setAddModalClientName] = useState("");
-    const [addModalClientEmail, setAddModalClientEmail] = useState("");
     const [addModalClientPassword, setAddModalClientPassword] = useState("");
+    const [addModalChatwootExternal, setAddModalChatwootExternal] = useState(false);
+    const [addModalChatwootUrl, setAddModalChatwootUrl] = useState("");
+    const [addModalChatwootAccountId, setAddModalChatwootAccountId] = useState("");
+    const [addModalChatwootApiToken, setAddModalChatwootApiToken] = useState("");
     const [isAddingLocation, setIsAddingLocation] = useState(false);
     const [chatwootMasterConfigured, setChatwootMasterConfigured] = useState(false);
     const [chatwootMasterName, setChatwootMasterName] = useState("");
@@ -475,8 +478,11 @@ export default function AgencyDashboard({ token, onLogout }) {
         setAddModalName("");
         setAddModalInboxName("");
         setAddModalClientName("");
-        setAddModalClientEmail("");
         setAddModalClientPassword("");
+        setAddModalChatwootExternal(false);
+        setAddModalChatwootUrl("");
+        setAddModalChatwootAccountId("");
+        setAddModalChatwootApiToken("");
         setShowAddModal(true);
     };
 
@@ -486,6 +492,8 @@ export default function AgencyDashboard({ token, onLogout }) {
         const timer = setTimeout(() => {
             setAddModalInboxName("");
             setAddModalClientPassword("");
+            setAddModalChatwootUrl("");
+            setAddModalChatwootApiToken("");
         }, 60);
         return () => clearTimeout(timer);
     }, [showAddModal]);
@@ -496,15 +504,14 @@ export default function AgencyDashboard({ token, onLogout }) {
         const safeName = String(addModalName || "").trim();
         const safeInboxName = String(addModalInboxName || "").trim();
         const safeClientName = String(addModalClientName || "").trim();
-        const safeClientEmail = String(addModalClientEmail || "").trim().toLowerCase();
         const safeClientPassword = String(addModalClientPassword || "");
         const safeClientRole = "administrator";
-        const hasAnyClientIdentityField = Boolean(
-            safeClientName ||
-            safeClientEmail ||
-            safeClientPassword
-        );
-        
+
+        const isExternalChatwoot = Boolean(addModalChatwootExternal);
+        const safeExternalUrl = String(addModalChatwootUrl || "").trim();
+        const safeExternalAccountId = String(addModalChatwootAccountId || "").trim();
+        const safeExternalApiToken = String(addModalChatwootApiToken || "").trim();
+
         if (!safeName) {
             toast.error(
                 isChatwootView
@@ -518,7 +525,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
 
         if (isChatwootView) {
-            if (!chatwootMasterConfigured) {
+            if (!isExternalChatwoot && !chatwootMasterConfigured) {
                 toast.error(
                     t('dash.chatwoot_master.must_configure') ||
                     "Configura primero el Usuario Maestro de Chatwoot en Settings."
@@ -527,12 +534,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                 return;
             }
 
-            if (hasAnyClientIdentityField && (!safeClientName || !safeClientEmail)) {
-                toast.error(
-                    t('dash.chatwoot_accounts.client_required') ||
-                    "Nombre y email del cliente final son requeridos."
-                );
-                return;
+            if (isExternalChatwoot) {
+                if (!safeExternalUrl || !safeExternalAccountId || !safeExternalApiToken) {
+                    toast.error(
+                        t('dash.chatwoot_accounts.external_required') ||
+                        "URL, ID de Cuenta y Token son requeridos para cuentas BYOC."
+                    );
+                    return;
+                }
             }
 
             if (safeClientPassword && !CHATWOOT_PASSWORD_REGEX.test(safeClientPassword)) {
@@ -549,14 +558,17 @@ export default function AgencyDashboard({ token, onLogout }) {
         try {
             const bodyPayload = {
                 name: safeName,
-                crmType: agencyCrmType
+                crmType: isExternalChatwoot ? "chatwoot_external" : agencyCrmType
             };
 
             if (isChatwootView) {
                 bodyPayload.inboxName = safeInboxName;
-                if (safeClientName && safeClientEmail) {
+                if (isExternalChatwoot) {
+                    bodyPayload.chatwootUrl = safeExternalUrl;
+                    bodyPayload.chatwootAccountId = safeExternalAccountId;
+                    bodyPayload.chatwootApiToken = safeExternalApiToken;
+                } else if (safeClientName) {
                     bodyPayload.clientName = safeClientName;
-                    bodyPayload.clientEmail = safeClientEmail;
                     bodyPayload.clientRole = safeClientRole;
                     if (safeClientPassword) {
                         bodyPayload.clientPassword = safeClientPassword;
@@ -587,7 +599,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             if (isChatwootView && data?.chatwootClient?.provisioned) {
                 const generatedPassword = String(data.chatwootClient.generatedPassword || "");
-                const safeEmail = String(data.chatwootClient.email || safeClientEmail || "").trim();
+                const safeEmail = String(data.chatwootClient.email || "").trim();
                 const safeRoleLabel = data.chatwootClient.role === "administrator"
                     ? (t('dash.chatwoot_accounts.client_role_admin') || "Administrador")
                     : (t('dash.chatwoot_accounts.client_role_agent') || "Agente (Recomendado)");
@@ -606,7 +618,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             setAddModalName(""); // ✅ Clean up input form
             setAddModalInboxName("");
             setAddModalClientName("");
-            setAddModalClientEmail("");
             setAddModalClientPassword("");
             await refreshData();
         } catch (e) {
@@ -1852,6 +1863,63 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </div>
                                     {isChatwootAgency && (
                                         <>
+                                            <div className="flex items-center gap-3 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800/30">
+                                                <input
+                                                    type="checkbox"
+                                                    id="cw_external_toggle"
+                                                    checked={addModalChatwootExternal}
+                                                    onChange={e => setAddModalChatwootExternal(e.target.checked)}
+                                                    className="w-5 h-5 text-indigo-600 rounded bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 focus:ring-indigo-500"
+                                                />
+                                                <label htmlFor="cw_external_toggle" className="text-sm font-bold text-indigo-900 dark:text-indigo-200 cursor-pointer user-select-none">
+                                                    Bring Your Own Chatwoot (BYOC)
+                                                </label>
+                                            </div>
+
+                                            {addModalChatwootExternal ? (
+                                                <div className="space-y-4 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                                    <p className="text-xs text-gray-500 mb-2">
+                                                        Conecta Waflow a un Chatwoot alojado externamente. Proporciona las credenciales de un administrador o súper administrador.
+                                                    </p>
+                                                    <div>
+                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                            URL de Chatwoot
+                                                        </label>
+                                                        <input
+                                                            type="url"
+                                                            value={addModalChatwootUrl}
+                                                            onChange={(e) => setAddModalChatwootUrl(e.target.value)}
+                                                            placeholder="https://chat.tuempresa.com"
+                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                            Account ID
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            value={addModalChatwootAccountId}
+                                                            onChange={(e) => setAddModalChatwootAccountId(e.target.value)}
+                                                            placeholder="Ej: 1"
+                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                            Access Token de API
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={addModalChatwootApiToken}
+                                                            onChange={(e) => setAddModalChatwootApiToken(e.target.value)}
+                                                            placeholder="Token de acceso (api_access_token)"
+                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <>
                                             <div>
                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                                     {t('dash.chatwoot_accounts.inbox_prompt') || "Nombre del Primer Inbox"}
@@ -1887,20 +1955,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     </div>
                                                     <div>
                                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                            {t('dash.chatwoot_accounts.client_email_prompt') || "Email del usuario del cliente final:"}
-                                                        </label>
-                                                        <input
-                                                            type="email"
-                                                            value={addModalClientEmail}
-                                                            onChange={(e) => setAddModalClientEmail(e.target.value)}
-                                                            placeholder="cliente@empresa.com"
-                                                            name="cw_client_email"
-                                                            autoComplete="off"
-                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                                             {t('dash.chatwoot_accounts.client_password_prompt') || "Contraseña del usuario del cliente final:"}
                                                         </label>
                                                         <input
@@ -1912,9 +1966,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             autoComplete="new-password"
                                                             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                                         />
+                                                        <p className="text-[11px] text-gray-500 mt-1">
+                                                            Sugerencia: Usa una contraseña segura (mínimo 6 caracteres).
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>
+                                        </>
+                                        )}
                                         </>
                                     )}
 
