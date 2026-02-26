@@ -467,14 +467,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     const openAddLocationModal = () => {
-        if (isChatwootAgency && !chatwootMasterConfigured) {
-            toast.error(
-                t('dash.chatwoot_master.must_configure') ||
-                "Configura primero el Usuario Maestro de Chatwoot en Settings."
-            );
-            setActiveTab('settings');
-            return;
-        }
         setAddModalName("");
         setAddModalInboxName("");
         setAddModalClientName("");
@@ -1198,7 +1190,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
                                                     <Building2 size={20} className="text-indigo-600 dark:text-indigo-400" />
                                                 </div>
-                                                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t('dash.stats.subaccounts') || "Subcuentas"}</span>
+                                                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{isChatwootAgency ? t('dash.stats.cw_accounts') : (t('dash.stats.subaccounts') || "Subcuentas")}</span>
                                             </div>
                                             <div className="text-2xl font-bold text-gray-900 dark:text-white">
                                                 {accountInfo.limits?.used_subagencies || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
@@ -1272,7 +1264,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <div className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
                                                     {locations.filter(l => resolveTenantCrmType(l) === 'ghl').length}
                                                     <span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
-                                                    <span className="text-xs font-normal text-gray-400 ml-2">{t('dash.stats.subaccounts') || 'subcuentas'}</span>
+                                                    <span className="text-xs font-normal text-gray-400 ml-2">{isChatwootAgency ? t('dash.stats.cw_accounts') : (t('dash.stats.subaccounts') || 'subcuentas')}</span>
                                                 </div>
 
                                                 <div className="flex items-center gap-2">
@@ -1341,7 +1333,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <div className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
                                                     {locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length}
                                                     <span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
-                                                    <span className="text-xs font-normal text-gray-400 ml-2">{t('dash.stats.subaccounts') || 'subcuentas'}</span>
+                                                    <span className="text-xs font-normal text-gray-400 ml-2">{isChatwootAgency ? t('dash.stats.cw_accounts') : (t('dash.stats.subaccounts') || 'subcuentas')}</span>
                                                 </div>
 
                                                 <div className="flex items-center gap-2">
@@ -1416,7 +1408,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                                                 {isGhlAgency
                                                     ? t('dash.subs.title')
-                                                    : (isChatwootAgency ? (t('dash.chatwoot_accounts.title') || "Cuentas Chatwoot") : (t('dash.locations.title') || "Locations"))
+                                                    : (isChatwootAgency ? (t('dash.subs.cw_title') || "Cuentas Chatwoot Activas") : (t('dash.locations.title') || "Locations"))
                                                 }
                                             </h3>
                                             <div className="flex gap-2">
@@ -1811,8 +1803,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                     {activeTab === 'builder' && <InteractiveMessageBuilder />}
 
                     {activeTab === 'billing' && (
-                        isGhlAgency
-                            ? <SubscriptionManager token={token} accountInfo={accountInfo} onDataChange={refreshData} />
+                        (isGhlAgency || isChatwootAgency)
+                            ? <SubscriptionManager token={token} accountInfo={accountInfo} onDataChange={refreshData} isChatwootAgency={isChatwootAgency} />
                             : renderIntegrationPlaceholder('agency.integrations.billing_title', 'agency.integrations.billing_desc')
                     )}
 

@@ -166,6 +166,18 @@ export const es = {
     "sub.feat.99_numbers": "99 Números vinculables",
     "sub.feat.save_annual": "Ahorra 2 meses con Anual",
 
+    // Chatwoot specific features
+    "sub.feat.cw_1_sub": "1 Cuenta Chatwoot",
+    "sub.feat.cw_3_subs": "3 Cuentas Chatwoot",
+    "sub.feat.cw_10_subs": "10 Cuentas Chatwoot",
+    "sub.feat.cw_1_extra_sub": "1 Cuenta Extra",
+    "sub.feat.cw_3_extra_subs": "3 Cuentas Extra",
+    "sub.feat.cw_10_extra_subs": "10 Cuentas Extra",
+    "sub.feat.cw_sync": "Sincronización de medios e imágenes",
+    "sub.feat.cw_qr": "Conexión estable con código QR",
+    "sub.feat.cw_multi": "Soporte para múltiples canales",
+    "sub.feat.cw_inbox": "Integración fluida con INBOX Chatwoot",
+
     // Plan features - Founder/Volume
     "sub.feat.1_extra_sub": "1 Subcuenta Extra",
     "sub.feat.3_extra_subs": "3 Subcuentas Extra",
@@ -198,6 +210,7 @@ export const es = {
     "dash.header.builder": "Constructor de botones",
 
     "dash.stats.subaccounts": "Subcuentas",
+    "dash.stats.cw_accounts": "Cuentas Chatwoot",
     "dash.stats.connections": "Conexiones WA",
     "dash.stats.plan": "Plan Actual",
     "dash.stats.active": "Activo",
@@ -208,6 +221,7 @@ export const es = {
     "dash.upgrade.cta": "Mejorar",
 
     "dash.subs.title": "Subcuentas Activas",
+    "dash.subs.cw_title": "Cuentas Chatwoot Activas",
     "dash.subs.search": "Buscar...",
     "dash.subs.new": "Nueva",
     "dash.locations.title": "Locations",

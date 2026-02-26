@@ -55,7 +55,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
     const isChatwootMode = crmType === "chatwoot";
-    const supportsSmsAndKeywords = isGhlMode || isChatwootMode;
+    const supportsSmsAndKeywords = isGhlMode; // Solo GHL soporta keywords y SMS locales
     const isExpandedChatwootLoaded = Boolean(
         expandedSlotId && chatwootConfigBySlot[expandedSlotId]?.loaded
     );
@@ -1201,13 +1201,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     <div className="flex items-center gap-3">
                                                         <h3 className="font-bold text-gray-900 dark:text-white text-xl">{slot.slot_name || (isChatwootMode ? `Inbox ${slot.slot_id}` : `Dispositivo ${slot.slot_id}`)}</h3>
                                                         <div className="flex gap-1">
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
-                                                                className={`p-1.5 rounded-lg transition ${slot.is_favorite ? 'text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
-                                                                title="Favorito"
-                                                            >
-                                                                <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
-                                                            </button>
+                                                            {isGhlMode && (
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
+                                                                    className={`p-1.5 rounded-lg transition ${slot.is_favorite ? 'text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                                                                    title="Favorito"
+                                                                >
+                                                                    <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
+                                                                </button>
+                                                            )}
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); editSlotName(slot.slot_id, slot.slot_name); }}
                                                                 className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition"
@@ -1218,8 +1220,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     </div>
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1 flex items-center gap-2">
                                                         {isConnected ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{slot.phone_number}</span> : t('slots.card.disconnected')}
-                                                        <span className="text-gray-300 dark:text-gray-600">•</span>
-                                                        <span>{t('slots.card.priority')}: {currentPrio}</span>
+                                                        {isGhlMode && (
+                                                            <>
+                                                                <span className="text-gray-300 dark:text-gray-600">•</span>
+                                                                <span>{t('slots.card.priority')}: {currentPrio}</span>
+                                                            </>
+                                                        )}
                                                     </p>
                                                 </div>
                                             </div>
@@ -1256,16 +1262,18 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     {/* CONFIG PANELS */}
                                                     {activeSlotTab === 'general' && (
                                                         <div className="max-w-2xl">
-                                                            <div className="mb-8">
-                                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{t('slots.settings.order')}</h4>
-                                                                <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.settings.priority_level')}:</label>
-                                                                    <select className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none" value={currentPrio} onChange={(e) => changePriority(slot.slot_id, e.target.value)}>
-                                                                        {Array.from({ length: slots.length }, (_, k) => k + 1).map(p => <option key={p} value={p}>{p} {p === 1 ? '(Alta)' : ''}</option>)}
-                                                                        {currentPrio > slots.length && <option value={currentPrio}>{currentPrio}</option>}
-                                                                    </select>
+                                                            {isGhlMode && (
+                                                                <div className="mb-8">
+                                                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{t('slots.settings.order')}</h4>
+                                                                    <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                                                        <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.settings.priority_level')}:</label>
+                                                                        <select className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none" value={currentPrio} onChange={(e) => changePriority(slot.slot_id, e.target.value)}>
+                                                                            {Array.from({ length: slots.length }, (_, k) => k + 1).map(p => <option key={p} value={p}>{p} {p === 1 ? '(Alta)' : ''}</option>)}
+                                                                            {currentPrio > slots.length && <option value={currentPrio}>{currentPrio}</option>}
+                                                                        </select>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
+                                                            )}
                                                             <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{t('slots.settings.behavior')}</h4>
                                                             <div className="space-y-3 bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700">
                                                                 <SettingRow label={t('slots.settings.source_label')} desc={t('slots.settings.source_desc')} checked={settings.show_source_label ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'show_source_label', settings)} />

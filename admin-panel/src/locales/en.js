@@ -168,6 +168,18 @@ export const en = {
     "sub.feat.99_numbers": "99 Linkable Numbers",
     "sub.feat.save_annual": "Save 2 months with Annual",
 
+    // Chatwoot specific features
+    "sub.feat.cw_1_sub": "1 Chatwoot Account",
+    "sub.feat.cw_3_subs": "3 Chatwoot Accounts",
+    "sub.feat.cw_10_subs": "10 Chatwoot Accounts",
+    "sub.feat.cw_1_extra_sub": "1 Extra Chatwoot Account",
+    "sub.feat.cw_3_extra_subs": "3 Extra Chatwoot Accounts",
+    "sub.feat.cw_10_extra_subs": "10 Extra Chatwoot Accounts",
+    "sub.feat.cw_sync": "Media & Images Synchronization",
+    "sub.feat.cw_qr": "Stable Connection via WebSockets/QR",
+    "sub.feat.cw_multi": "Multi-channel Support",
+    "sub.feat.cw_inbox": "Seamless Chatwoot INBOX Integration",
+
     // Plan features - Founder/Volume
     "sub.feat.1_extra_sub": "1 Extra Subaccount",
     "sub.feat.3_extra_subs": "3 Extra Subaccounts",
@@ -200,6 +212,7 @@ export const en = {
     "dash.header.builder": "Builder buttons",
 
     "dash.stats.subaccounts": "Subaccounts",
+    "dash.stats.cw_accounts": "Chatwoot Accounts",
     "dash.stats.connections": "WA Connections",
     "dash.stats.plan": "Current Plan",
     "dash.stats.active": "Active",
@@ -210,6 +223,7 @@ export const en = {
     "dash.upgrade.cta": "Upgrade",
 
     "dash.subs.title": "Active Subaccounts",
+    "dash.subs.cw_title": "Active Chatwoot Accounts",
     "dash.subs.search": "Search...",
     "dash.subs.new": "New",
     "dash.locations.title": "Locations",
