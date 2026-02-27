@@ -90,6 +90,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [addModalName, setAddModalName] = useState("");
     const [addModalInboxName, setAddModalInboxName] = useState("");
     const [addModalClientName, setAddModalClientName] = useState("");
+    const [addModalClientEmail, setAddModalClientEmail] = useState("");
     const [addModalClientPassword, setAddModalClientPassword] = useState("");
     const [addModalChatwootExternal, setAddModalChatwootExternal] = useState(false);
     const [addModalChatwootUrl, setAddModalChatwootUrl] = useState("");
@@ -470,6 +471,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         setAddModalName("");
         setAddModalInboxName("");
         setAddModalClientName("");
+        setAddModalClientEmail("");
         setAddModalClientPassword("");
         setAddModalChatwootExternal(false);
         setAddModalChatwootUrl("");
@@ -483,6 +485,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         // Some password managers/autofill tools inject values after mount; force-clear once more.
         const timer = setTimeout(() => {
             setAddModalInboxName("");
+            setAddModalClientEmail("");
             setAddModalClientPassword("");
             setAddModalChatwootUrl("");
             setAddModalChatwootApiToken("");
@@ -496,6 +499,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         const safeName = String(addModalName || "").trim();
         const safeInboxName = String(addModalInboxName || "").trim();
         const safeClientName = String(addModalClientName || "").trim();
+        const safeClientEmail = String(addModalClientEmail || "").trim().toLowerCase();
         const safeClientPassword = String(addModalClientPassword || "");
         const safeClientRole = "administrator";
 
@@ -543,6 +547,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                 );
                 return;
             }
+
+            if (!isExternalChatwoot && Boolean(safeClientName) !== Boolean(safeClientEmail)) {
+                toast.error(
+                    t('dash.chatwoot_accounts.client_required') || "Nombre y email del cliente final son requeridos."
+                );
+                return;
+            }
+
+            if (safeClientEmail) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(safeClientEmail)) {
+                    toast.error(
+                        t('dash.chatwoot_accounts.client_email_invalid') || "Email del cliente final inválido."
+                    );
+                    return;
+                }
+            }
         }
 
         setIsAddingLocation(true);
@@ -561,6 +582,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     bodyPayload.chatwootApiToken = safeExternalApiToken;
                 } else if (safeClientName) {
                     bodyPayload.clientName = safeClientName;
+                    bodyPayload.clientEmail = safeClientEmail;
                     bodyPayload.clientRole = safeClientRole;
                     if (safeClientPassword) {
                         bodyPayload.clientPassword = safeClientPassword;
@@ -610,6 +632,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             setAddModalName(""); // ✅ Clean up input form
             setAddModalInboxName("");
             setAddModalClientName("");
+            setAddModalClientEmail("");
             setAddModalClientPassword("");
             await refreshData();
         } catch (e) {
@@ -1942,6 +1965,20 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             placeholder="Ej: María Operaciones"
                                                             name="cw_client_name"
                                                             autoComplete="off"
+                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                            {t('dash.chatwoot_accounts.client_email_prompt') || "Email del usuario del cliente final:"}
+                                                        </label>
+                                                        <input
+                                                            type="email"
+                                                            value={addModalClientEmail}
+                                                            onChange={(e) => setAddModalClientEmail(e.target.value)}
+                                                            placeholder="cliente@empresa.com"
+                                                            name="cw_client_email"
+                                                            autoComplete="email"
                                                             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                                         />
                                                     </div>

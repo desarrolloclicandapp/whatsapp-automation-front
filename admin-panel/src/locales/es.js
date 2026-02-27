@@ -292,6 +292,7 @@ export const es = {
     "dash.chatwoot_accounts.client_role_agent": "Agente (Recomendado)",
     "dash.chatwoot_accounts.client_role_admin": "Administrador",
     "dash.chatwoot_accounts.client_required": "Nombre y email del cliente final son requeridos.",
+    "dash.chatwoot_accounts.client_email_invalid": "Email del cliente final inválido.",
     "dash.chatwoot_accounts.client_access_title": "Acceso del Cliente Final (Opcional)",
     "dash.chatwoot_accounts.client_access_ready": "Acceso del cliente final listo",
     "dash.chatwoot_master.title": "Usuario Maestro de Chatwoot",

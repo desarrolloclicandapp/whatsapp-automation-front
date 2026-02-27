@@ -294,6 +294,7 @@ export const en = {
     "dash.chatwoot_accounts.client_role_agent": "Agent (Recommended)",
     "dash.chatwoot_accounts.client_role_admin": "Administrator",
     "dash.chatwoot_accounts.client_required": "Final client name and email are required.",
+    "dash.chatwoot_accounts.client_email_invalid": "Final client email is invalid.",
     "dash.chatwoot_accounts.client_access_title": "Final Client Access (Optional)",
     "dash.chatwoot_accounts.client_access_ready": "Final client access ready",
     "dash.chatwoot_master.title": "Chatwoot Master User",
