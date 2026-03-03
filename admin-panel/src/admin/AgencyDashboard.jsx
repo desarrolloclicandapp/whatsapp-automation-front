@@ -1173,7 +1173,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
                                                 <Sparkles size={16} className="text-white" />
                                             </div>
-                                            <div>
+                                            {/*<div>
                                                 <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                                     Waflow CRM
                                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold uppercase rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white tracking-wider">
@@ -1183,7 +1183,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                                     CRM independiente con IA integrada — califica leads, agenda citas y cierra ventas.
                                                 </p>
-                                            </div>
+                                            </div>*/}
                                         </div>
                                         
                                         {/* Feature pills */}
