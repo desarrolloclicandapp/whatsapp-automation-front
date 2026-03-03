@@ -499,6 +499,7 @@ export const es = {
     "agency.connection_error": "Error de conexión",
 
     // Agency Dashboard - Installation
+    "agency.install_app": "Instalar App",
     "agency.install.waiting": "Esperando instalación de CRM...",
     "agency.install.detected": "Instalación detectada, sincronizando...",
     "agency.install.waiting_webhook": "Esperando webhook de CRM...",
