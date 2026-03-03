@@ -1165,7 +1165,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         !accountInfo ? (<div className="flex justify-center items-center h-full text-gray-400"><RefreshCw className="animate-spin mr-2" /> {t('agency.loading_panel')}</div>) : (
                             <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 {/* WAFLOW CRM — Sección independiente */}
-                                <div className="relative overflow-hidden rounded-2xl border border-indigo-200/60 dark:border-indigo-800/30 bg-gradient-to-r from-white via-indigo-50/30 to-violet-50/20 dark:from-gray-900 dark:via-indigo-950/20 dark:to-violet-950/10 p-5 shadow-sm">
+                                {/*<div className="relative overflow-hidden rounded-2xl border border-indigo-200/60 dark:border-indigo-800/30 bg-gradient-to-r from-white via-indigo-50/30 to-violet-50/20 dark:from-gray-900 dark:via-indigo-950/20 dark:to-violet-950/10 p-5 shadow-sm">
                                     <div className="absolute -top-10 -right-10 w-28 h-28 bg-indigo-500/8 dark:bg-indigo-400/5 rounded-full blur-2xl pointer-events-none" />
                                     
                                     <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -1173,7 +1173,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
                                                 <Sparkles size={16} className="text-white" />
                                             </div>
-                                            {/*<div>
+                                            /*<div>
                                                 <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                                     Waflow CRM
                                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold uppercase rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white tracking-wider">
@@ -1183,10 +1183,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                                     CRM independiente con IA integrada — califica leads, agenda citas y cierra ventas.
                                                 </p>
-                                            </div>*/}
+                                            </div>
                                         </div>
                                         
-                                        {/* Feature pills */}
                                         <div className="flex flex-wrap gap-1.5 shrink-0">
                                             <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-lg bg-white/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/40 text-gray-600 dark:text-gray-300">
                                                 <Bot size={12} className="text-indigo-500" /> Agentes IA
@@ -1202,7 +1201,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </span>
                                         </div>
                                     </div>
-                                </div>
+                                </div>*/}
 
 
                                 <>
