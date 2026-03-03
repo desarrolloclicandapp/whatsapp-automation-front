@@ -19,6 +19,8 @@ export default function SupportManager({
 
     // Referencia para manejar el intervalo de polling
     const pollInterval = useRef(null);
+    const pollActive = useRef(false);
+    const pollAbortController = useRef(null);
 
     const socket = useSocket();
 
@@ -52,6 +54,13 @@ export default function SupportManager({
 
     // Función auxiliar para detener el polling
     const stopPolling = () => {
+        pollActive.current = false;
+        if (pollAbortController.current) {
+            try {
+                pollAbortController.current.abort();
+            } catch (_) { }
+            pollAbortController.current = null;
+        }
         if (pollInterval.current) {
             clearTimeout(pollInterval.current);
             pollInterval.current = null;
@@ -105,10 +114,15 @@ export default function SupportManager({
             // 2. Activar Polling de Respaldo (Por si el socket falla)
             // Preguntamos con backoff adaptativo
             stopPolling(); // Limpiar anteriores por si acaso
+            pollActive.current = true;
 
             const pollStep = async () => {
+                if (!pollActive.current) return;
                 try {
-                    const qrRes = await authFetch(`${apiPrefix}/qr`);
+                    const controller = new AbortController();
+                    pollAbortController.current = controller;
+
+                    const qrRes = await authFetch(`${apiPrefix}/qr`, { signal: controller.signal });
                     if (qrRes.ok) {
                         const data = await qrRes.json();
                         if (data.qr) {
@@ -118,7 +132,7 @@ export default function SupportManager({
                         }
                     }
                     // También verificamos si ya se conectó
-                    const statusRes = await authFetch(`${apiPrefix}/status`);
+                    const statusRes = await authFetch(`${apiPrefix}/status`, { signal: controller.signal });
                     const statusData = await statusRes.json();
                     if (statusData.connected) {
                         setStatus(statusData);
@@ -127,8 +141,14 @@ export default function SupportManager({
                         stopPolling();
                         return; // Terminar polling
                     }
-                } catch (e) { console.error("Polling error", e); }
+                } catch (e) {
+                    // AbortError is expected when user cancels.
+                    if (e?.name !== "AbortError") console.error("Polling error", e);
+                } finally {
+                    pollAbortController.current = null;
+                }
 
+                if (!pollActive.current) return;
                 pollInterval.current = setTimeout(pollStep, 3000);
             };
 
