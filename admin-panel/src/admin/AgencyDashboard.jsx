@@ -1162,7 +1162,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     return (
-        <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
+        <div className="agency-dashboard-ui flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
             <ExpiryPopup token={token} /> {/* ✅ Popup Global */}
             {isAccountSuspended && <SubscriptionBlocker token={token} onLogout={onLogout} accountInfo={accountInfo} />}
             {showUpgradeModal && isGhlAgency && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
