@@ -146,7 +146,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     // Integration filter for accounts list
     const [accountsFilter, setAccountsFilter] = useState("all"); // "all" | "ghl" | "chatwoot"
-    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+    const [settingsSection, setSettingsSection] = useState("guide");
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -1126,6 +1126,57 @@ export default function AgencyDashboard({ token, onLogout }) {
     const isChatwootModal = modalCrmType === "chatwoot";
     const canGoBackToChatwootOnboarding = isChatwootModal && addModalChatwootModeLocked;
     const chatwootMasterDisplayEmail = String(chatwootMasterEmailMasked || chatwootMasterEmail || "").trim();
+    const settingsMenuGroups = [
+        {
+            key: "general",
+            label: t('agency.settings_nav.general') || "General",
+            items: [
+                { id: "guide", label: t('agency.settings_nav.guide') || (t('agency.settings_guide.title') || "Guía rápida"), icon: Sparkles },
+                { id: "account", label: t('agency.account.title') || "Cuenta", icon: User },
+                ...(isGhlAgency
+                    ? [{ id: "crm_link", label: t('agency.crm.title') || "Link CRM", icon: Globe }]
+                    : []),
+                ...(isChatwootAgency
+                    ? [{ id: "chatwoot_master", label: t('dash.chatwoot_master.title') || "Usuario Maestro Chatwoot", icon: MessageSquareText }]
+                    : [])
+            ]
+        },
+        {
+            key: "ops",
+            label: t('agency.settings_nav.operations') || "Operación",
+            items: [
+                { id: "integrations", label: t('agency.integrations.title') || "Integraciones", icon: Link },
+                { id: "support", label: t('agency.settings_nav.support_short') || "Soporte", icon: LifeBuoy },
+                { id: "whitelabel", label: t('agency.wl.title') || "Marca Blanca", icon: Palette }
+            ]
+        },
+        {
+            key: "advanced",
+            label: t('agency.settings_nav.advanced') || "Avanzado",
+            items: [
+                ...(isGhlAgency
+                    ? [{ id: "voice", label: t('agency.voice.title') || "Notas de Voz", icon: Mic }]
+                    : []),
+                { id: "developer", label: t('dash.settings.dev_title') || "Desarrolladores", icon: Terminal },
+                { id: "appearance", label: t('agency.settings_nav.appearance') || "Apariencia", icon: Moon }
+            ]
+        }
+    ];
+    const allSettingsSectionIds = settingsMenuGroups.flatMap((group) => group.items.map((item) => item.id));
+    const currentSettingsSectionId = allSettingsSectionIds.includes(settingsSection)
+        ? settingsSection
+        : (allSettingsSectionIds[0] || "guide");
+    const settingsSectionTitleMap = settingsMenuGroups.reduce((acc, group) => {
+        for (const item of group.items) acc[item.id] = item.label;
+        return acc;
+    }, {});
+    const activeSettingsSectionTitle = settingsSectionTitleMap[currentSettingsSectionId] || (t('dash.header.settings') || "Configuración");
+
+    useEffect(() => {
+        if (!allSettingsSectionIds.includes(settingsSection)) {
+            setSettingsSection(allSettingsSectionIds[0] || "guide");
+        }
+    }, [settingsSection, isGhlAgency, isChatwootAgency]);
 
     // ✅ Componente de Bloqueo "Glass" (Visible pero no interactivo)
     const RestrictedFeatureWrapper = ({ isRestricted, children, title }) => {
@@ -1555,8 +1606,62 @@ export default function AgencyDashboard({ token, onLogout }) {
                     )}
 
                     {activeTab === 'settings' && (
-                        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4">
-                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <div className="max-w-7xl mx-auto space-y-5 animate-in fade-in slide-in-from-right-4">
+                            <div className="px-1">
+                                <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-gray-500 dark:text-gray-400">
+                                    {t('agency.settings_nav.system') || "System Settings"}
+                                </p>
+                                <h2 className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+                                    {t('dash.header.settings') || "Configuración"}
+                                </h2>
+                            </div>
+                            <div className="bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm overflow-hidden">
+                                <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] min-h-[720px]">
+                                    <aside className="border-r-2 border-gray-300 dark:border-gray-700 bg-gray-50/90 dark:bg-gray-950/50 p-5 xl:p-6">
+                                    <div className="space-y-5">
+                                        {settingsMenuGroups.map((group) => (
+                                            <div key={group.key}>
+                                                <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-gray-500 dark:text-gray-400 mb-2">
+                                                    {group.label}
+                                                </p>
+                                                <div className="space-y-1.5">
+                                                    {group.items.map((item) => {
+                                                        const Icon = item.icon;
+                                                        const isActive = currentSettingsSectionId === item.id;
+                                                        return (
+                                                            <button
+                                                                key={item.id}
+                                                                onClick={() => setSettingsSection(item.id)}
+                                                                className={`w-full text-left rounded-lg border-2 px-3 py-2.5 transition-all duration-150 flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
+                                                                    isActive
+                                                                        ? "bg-indigo-600 border-indigo-700 text-white shadow-[0_10px_24px_-14px_rgba(79,70,229,0.8)]"
+                                                                        : "bg-white dark:bg-gray-900/80 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:border-indigo-300 dark:hover:border-indigo-500"
+                                                                }`}
+                                                            >
+                                                                <Icon size={15} className={isActive ? "text-white" : "text-gray-500 dark:text-gray-400"} />
+                                                                <span className="text-sm font-semibold">{item.label}</span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </aside>
+                                <div className="p-5 md:p-7 space-y-6">
+                                    <div className="bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm p-6 md:p-7">
+                                        <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-gray-500 dark:text-gray-400">
+                                            {t('agency.settings_nav.template') || "Template Settings"}
+                                        </p>
+                                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
+                                            {activeSettingsSectionTitle}
+                                        </h3>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                                            {t('agency.settings_nav.section_helper') || "Selecciona una sección del panel izquierdo para configurar tu agencia."}
+                                        </p>
+                                    </div>
+                            {currentSettingsSectionId === 'guide' && (
+                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm">
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1608,13 +1713,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <CreditCard size={14} /> {t('agency.settings_guide.go_billing') || "Ver plan"}
                                             </button>
                                             <button
-                                                onClick={() => setShowAdvancedSettings((prev) => !prev)}
+                                                onClick={() => setSettingsSection('integrations')}
                                                 className="px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 text-xs font-semibold transition hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30 flex items-center gap-1.5"
                                             >
                                                 <Settings size={14} />
-                                                {showAdvancedSettings
-                                                    ? (t('agency.settings_guide.hide_advanced') || "Ocultar avanzado")
-                                                    : (t('agency.settings_guide.show_advanced') || "Mostrar avanzado")}
+                                                {t('agency.settings_nav.open_advanced') || "Ir a Configuración Avanzada"}
                                             </button>
                                         </div>
                                     </div>
@@ -1654,8 +1757,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </div>
                                 </div>
                             </div>
+                            )}
 
-                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            {currentSettingsSectionId === 'account' && (
+                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm">
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2"><User size={20} /> {t('agency.account.title')}</h3>
                                 <div className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1664,10 +1769,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </div>
                                 </div>
                             </div>
+                            )}
 
                             {/* ✅ NUEVO: CONFIGURACIÓN DE DOMINIO CRM */}
-                            {isGhlAgency && (
-                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            {currentSettingsSectionId === 'crm_link' && isGhlAgency && (
+                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm">
                                     <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
                                         <div>
                                             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1700,8 +1806,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             )}
 
-                            {isChatwootAgency && (
-                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            {currentSettingsSectionId === 'chatwoot_master' && isChatwootAgency && (
+                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm">
                                     <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
                                         <div>
                                             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1804,47 +1910,26 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             )}
 
-                            {!showAdvancedSettings && (
-                                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 shadow-sm">
-                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                        <p className="text-sm text-gray-600 dark:text-gray-300">
-                                            {t('agency.settings_guide.advanced_collapsed_desc') || "La configuración avanzada está oculta para simplificar el onboarding inicial."}
-                                        </p>
-                                        <button
-                                            onClick={() => setShowAdvancedSettings(true)}
-                                            className="px-4 py-2 rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 text-sm font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition flex items-center gap-2"
-                                        >
-                                            <Settings size={15} />
-                                            {t('agency.settings_guide.show_advanced') || "Mostrar avanzado"}
-                                        </button>
-                                    </div>
-                                </div>
+                            {currentSettingsSectionId === 'integrations' && renderIntegrationsPanel("settings")}
+
+                            {currentSettingsSectionId === 'support' && (
+                                <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.support.title')}>
+                                    <SupportManager
+                                        token={token}
+                                        apiPrefix="/agency/support"
+                                        socketRoom={`__AGENCY_SUPPORT_${AGENCY_ID}__`}
+                                        title={t('agency.support.title')}
+                                        showDisconnectWarning={false}
+                                        demoMode={isRestricted}
+                                    />
+                                </RestrictedFeatureWrapper>
                             )}
 
-                            {showAdvancedSettings && (
-                                <>
-                            {renderIntegrationsPanel("settings")}
+                            {currentSettingsSectionId === 'whitelabel' && <WhiteLabelSettings />}
 
-                            {/* ✅ NUEVO: AGENCIA SOPORTE (Ahora protegido por Wrapper) */}
-                            <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.support.title')}>
-                                <SupportManager 
-                                    token={token} 
-                                    apiPrefix="/agency/support" 
-                                    socketRoom={`__AGENCY_SUPPORT_${AGENCY_ID}__`}
-                                    title={t('agency.support.title')}
-                                    showDisconnectWarning={false}
-                                    demoMode={isRestricted} // 🔥 Si es restringido, va en modo demo para que no falle
-                                />
-                            </RestrictedFeatureWrapper>
-
-
-
-                            <WhiteLabelSettings />
-                            {/* <SecurityCard token={token} /> */}
-
-                            {isGhlAgency && (
+                            {currentSettingsSectionId === 'voice' && isGhlAgency && (
                                 <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.voice.title')}>
-                                    <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
+                                    <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm animate-in fade-in slide-in-from-right-4">
                                         <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
                                             <div>
                                                 <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1883,8 +1968,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </RestrictedFeatureWrapper>
                             )}
 
+                            {currentSettingsSectionId === 'developer' && (
                             <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('dash.settings.dev_title')}>
-                                <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4`}>
+                                <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm animate-in fade-in slide-in-from-right-4`}>
                                     <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
                                         <div>
                                             <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1969,18 +2055,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </div>
                                 </div>
                             </RestrictedFeatureWrapper>
+                            )}
 
                             {/* MODAL API KEY */}
                             {showNewKeyModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="mb-6 text-center"><div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600"><ShieldCheck size={32} /></div><h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('dash.settings.key_generated') || "Clave Generada"}</h3><p className="text-sm text-gray-500 mt-2">{t('dash.settings.key_copy_warning') || "Cópiala ahora, no podrás verla después."}</p></div><div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 mb-6 relative group"><div className="font-mono text-sm break-all pr-10 text-indigo-600 dark:text-indigo-400 font-bold">{generatedKey}</div><button onClick={() => { navigator.clipboard.writeText(generatedKey); toast.success(t('common.copied') || "Copiado"); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-indigo-600 transition"><Copy size={18} /></button></div><button onClick={() => { setShowNewKeyModal(false); setGeneratedKey(null); }} className="w-full py-3 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl font-bold hover:opacity-90 transition">{t('common.understood') || "Entendido"}</button></div></div>)}
 
                             {/* MODAL WEBHOOK */}
                             {showNewWebhookModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('dash.settings.new_webhook') || "Nuevo Webhook"}</h3><button onClick={() => setShowNewWebhookModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button></div><form onSubmit={handleCreateWebhook} className="space-y-6"><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('common.name') || "Nombre"}</label><input name="hookName" placeholder="Ej: n8n Producción" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL</label><input name="hookUrl" type="url" placeholder="https://..." required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">{t('common.events') || "Eventos"}</label><div className="grid grid-cols-1 gap-3"><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp inbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Inbound Message</div></div></label><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp outbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Outbound Message</div></div></label></div></div><div className="flex gap-3"><button type="button" onClick={() => setShowNewWebhookModal(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl font-bold">{t('common.cancel') || "Cancelar"}</button><button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">{t('common.create') || "Crear"}</button></div></form></div></div>)}
-                                                        <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-center justify-between">
-                                <div><h4 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.theme.dark_mode')}</h4><p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('agency.theme.toggle')}</p></div>
-                                <button onClick={toggleTheme} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition text-gray-600 dark:text-yellow-400">{theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}</button>
-                            </div>
-                                </>
+
+                            {currentSettingsSectionId === 'appearance' && (
+                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm flex items-center justify-between">
+                                    <div><h4 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.theme.dark_mode')}</h4><p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('agency.theme.toggle')}</p></div>
+                                    <button onClick={toggleTheme} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition text-gray-600 dark:text-yellow-400">{theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}</button>
+                                </div>
                             )}
+                                </div>
+                            </div>
+                        </div>
                         </div>
                     )}
 

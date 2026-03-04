@@ -705,6 +705,16 @@ export const en = {
     "agency.settings_guide.show_advanced": "Show advanced",
     "agency.settings_guide.hide_advanced": "Hide advanced",
     "agency.settings_guide.advanced_collapsed_desc": "Advanced settings are hidden to keep the initial onboarding simpler.",
+    "agency.settings_nav.system": "System Settings",
+    "agency.settings_nav.general": "General",
+    "agency.settings_nav.operations": "Operations",
+    "agency.settings_nav.advanced": "Advanced",
+    "agency.settings_nav.guide": "Quick Guide",
+    "agency.settings_nav.support_short": "Support",
+    "agency.settings_nav.appearance": "Appearance",
+    "agency.settings_nav.template": "Settings Panel",
+    "agency.settings_nav.section_helper": "Pick a section on the left to configure your agency.",
+    "agency.settings_nav.open_advanced": "Open Advanced Settings",
 
     // Agency Dashboard - Support
     "agency.support.title": "Your Support Number (White Label)",

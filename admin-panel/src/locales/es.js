@@ -703,6 +703,16 @@ export const es = {
     "agency.settings_guide.show_advanced": "Mostrar avanzado",
     "agency.settings_guide.hide_advanced": "Ocultar avanzado",
     "agency.settings_guide.advanced_collapsed_desc": "La configuración avanzada está oculta para simplificar el onboarding inicial.",
+    "agency.settings_nav.system": "Configuración del Sistema",
+    "agency.settings_nav.general": "General",
+    "agency.settings_nav.operations": "Operación",
+    "agency.settings_nav.advanced": "Avanzado",
+    "agency.settings_nav.guide": "Guía rápida",
+    "agency.settings_nav.support_short": "Soporte",
+    "agency.settings_nav.appearance": "Apariencia",
+    "agency.settings_nav.template": "Panel de Configuración",
+    "agency.settings_nav.section_helper": "Selecciona una sección del panel izquierdo para configurar tu agencia.",
+    "agency.settings_nav.open_advanced": "Ir a Configuración Avanzada",
 
     // Agency Dashboard - Support
     "agency.support.title": "Tu Número de Soporte (Marca Blanca)",
