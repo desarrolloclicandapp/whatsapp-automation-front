@@ -106,6 +106,8 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [chatwootMasterEmailMasked, setChatwootMasterEmailMasked] = useState("");
     const [isLoadingChatwootMaster, setIsLoadingChatwootMaster] = useState(false);
     const [isSavingChatwootMaster, setIsSavingChatwootMaster] = useState(false);
+    const [isTestingChatwootMaster, setIsTestingChatwootMaster] = useState(false);
+    const [chatwootMasterTestStatus, setChatwootMasterTestStatus] = useState(null);
 
     const getDaysLeft = (dateValue) => {
         if (!dateValue) return null;
@@ -520,6 +522,15 @@ export default function AgencyDashboard({ token, onLogout }) {
         setShowOnboarding(true);
     };
 
+    const openOnboardingChatwootAddModal = ({ external = false } = {}) => {
+        setShowOnboarding(false);
+        openAddLocationModal({
+            crmType: "chatwoot",
+            isExternal: external,
+            lockExternalMode: true
+        });
+    };
+
     const goToOnboardingConnectionStep = (crmType) => {
         setOnboardingCrmType(crmType);
         setOnboardingHoveredCard(crmType);
@@ -572,15 +583,23 @@ export default function AgencyDashboard({ token, onLogout }) {
             return;
         }
 
-        if (isChatwootView) {
-            if (!isExternalChatwoot && !chatwootMasterConfigured) {
-                toast.error(
-                    t('dash.chatwoot_master.must_configure') ||
-                    "Configura primero el Usuario Maestro de Chatwoot en Settings."
-                );
-                setActiveTab('settings');
-                return;
-            }
+            if (isChatwootView) {
+                if (!isExternalChatwoot && !chatwootMasterConfigured) {
+                    toast.error(
+                        t('dash.chatwoot_master.must_configure') ||
+                        "Configura primero el Usuario Maestro de Chatwoot en Settings."
+                    );
+                    if (addModalChatwootModeLocked) {
+                        closeAddLocationModal();
+                        setOnboardingStep(1);
+                        setOnboardingCrmType("chatwoot");
+                        setOnboardingConnectionType("chatwoot_setup_master");
+                        setShowOnboarding(true);
+                    } else {
+                        setActiveTab('settings');
+                    }
+                    return;
+                }
 
             if (isExternalChatwoot) {
                 if (!safeExternalUrl || !safeExternalAccountId || !safeExternalApiToken) {
@@ -789,7 +808,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
         if (!safeName || !safeEmail || !safePassword) {
             toast.error(t('dash.chatwoot_master.required') || "Completa nombre, email y contraseña del usuario maestro.");
-            return;
+            return false;
         }
 
         if (!CHATWOOT_PASSWORD_REGEX.test(safePassword)) {
@@ -797,7 +816,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 t('dash.chatwoot_accounts.password_invalid') || "Contraseña inválida",
                 { description: t('dash.chatwoot_accounts.password_rules') || "Debe tener mínimo 6 caracteres, incluyendo mayúscula, minúscula, número y símbolo." }
             );
-            return;
+            return false;
         }
 
         setIsSavingChatwootMaster(true);
@@ -832,10 +851,64 @@ export default function AgencyDashboard({ token, onLogout }) {
                 t('dash.chatwoot_master.saved') || "Usuario maestro de Chatwoot guardado",
                 { id: loadingId }
             );
+            return true;
         } catch (e2) {
             toast.error(e2.message || "No se pudo guardar el usuario maestro de Chatwoot", { id: loadingId });
+            return false;
         } finally {
             setIsSavingChatwootMaster(false);
+        }
+    };
+
+    const handleTestChatwootMasterUser = async () => {
+        if (agencyCrmType !== "chatwoot") return;
+
+        setIsTestingChatwootMaster(true);
+        const loadingId = toast.loading(t('dash.chatwoot_master.testing') || "Probando conexión...");
+        try {
+            const res = await authFetch('/agency/chatwoot/master-user/test', {
+                method: 'POST'
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data?.success) {
+                throw new Error(data?.error || (t('dash.chatwoot_master.test_error') || "No se pudo validar el Usuario Maestro."));
+            }
+
+            const safeName = String(data.masterName || chatwootMasterName || "").trim();
+            const safeEmail = String(data.masterEmail || chatwootMasterEmail || "").trim().toLowerCase();
+            const safeEmailMasked = String(data.masterEmailMasked || chatwootMasterEmailMasked || "");
+            const successMessage = String(data.message || "").trim() || (t('dash.chatwoot_master.test_success') || "Conexión validada correctamente.");
+
+            setChatwootMasterConfigured(Boolean(data.configured));
+            setChatwootMasterName(safeName);
+            setChatwootMasterEmail(safeEmail);
+            setChatwootMasterEmailMasked(safeEmailMasked);
+            setChatwootMasterTestStatus({
+                ok: true,
+                message: successMessage,
+                checkedAt: Date.now()
+            });
+            setAccountInfo(prev => prev ? {
+                ...prev,
+                chatwoot_master_configured: Boolean(data.configured),
+                chatwoot_master_name: safeName,
+                chatwoot_master_email_masked: safeEmailMasked
+            } : prev);
+
+            toast.success(successMessage, { id: loadingId });
+        } catch (err) {
+            const errorMessage = String(err?.message || "").trim() || (t('dash.chatwoot_master.test_error') || "No se pudo validar el Usuario Maestro.");
+            setChatwootMasterTestStatus({
+                ok: false,
+                message: errorMessage,
+                checkedAt: Date.now()
+            });
+            toast.error(t('dash.chatwoot_master.test_error') || "No se pudo validar el Usuario Maestro.", {
+                id: loadingId,
+                description: errorMessage
+            });
+        } finally {
+            setIsTestingChatwootMaster(false);
         }
     };
 
@@ -1052,6 +1125,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     ).toLowerCase();
     const isChatwootModal = modalCrmType === "chatwoot";
     const canGoBackToChatwootOnboarding = isChatwootModal && addModalChatwootModeLocked;
+    const chatwootMasterDisplayEmail = String(chatwootMasterEmailMasked || chatwootMasterEmail || "").trim();
 
     // ✅ Componente de Bloqueo "Glass" (Visible pero no interactivo)
     const RestrictedFeatureWrapper = ({ isRestricted, children, title }) => {
@@ -1637,14 +1711,33 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 {t('dash.chatwoot_master.desc') || "Configura una sola vez el usuario administrador maestro que se reutilizará en todas tus cuentas Chatwoot."}
                                             </p>
                                         </div>
-                                        <button
-                                            onClick={() => fetchChatwootMasterUser({ silent: false })}
-                                            disabled={isLoadingChatwootMaster}
-                                            className="border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl font-bold text-sm dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60 transition-colors"
-                                        >
-                                            {isLoadingChatwootMaster ? (t('common.loading') || "Cargando...") : (t('common.reload') || "Recargar")}
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={handleTestChatwootMasterUser}
+                                                disabled={isTestingChatwootMaster || isLoadingChatwootMaster}
+                                                className="border border-emerald-200 dark:border-emerald-700 px-4 py-2 rounded-xl font-bold text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-60 transition-colors flex items-center gap-2"
+                                            >
+                                                {isTestingChatwootMaster ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                                                {t('dash.chatwoot_master.test_button') || "Probar conexión"}
+                                            </button>
+                                            <button
+                                                onClick={() => fetchChatwootMasterUser({ silent: false })}
+                                                disabled={isLoadingChatwootMaster || isTestingChatwootMaster}
+                                                className="border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl font-bold text-sm dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60 transition-colors"
+                                            >
+                                                {isLoadingChatwootMaster ? (t('common.loading') || "Cargando...") : (t('common.reload') || "Recargar")}
+                                            </button>
+                                        </div>
                                     </div>
+                                    {chatwootMasterTestStatus?.message && (
+                                        <p className={`text-xs mb-4 ${
+                                            chatwootMasterTestStatus.ok
+                                                ? "text-emerald-600 dark:text-emerald-400"
+                                                : "text-rose-600 dark:text-rose-400"
+                                        }`}>
+                                            {chatwootMasterTestStatus.message}
+                                        </p>
+                                    )}
 
                                     <form onSubmit={handleSaveChatwootMasterUser} className="space-y-5">
                                         <div>
@@ -2123,14 +2216,27 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
                                     <div className="flex items-center gap-3">
                                         {onboardingStep > 0 && (
-                                            <button onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setOnboardingHoveredCard(null); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition">
+                                            <button
+                                                onClick={() => {
+                                                    if (onboardingStep === 1 && onboardingCrmType === 'chatwoot' && onboardingConnectionType === 'chatwoot_setup_master') {
+                                                        setOnboardingConnectionType(null);
+                                                        return;
+                                                    }
+                                                    setOnboardingStep(0);
+                                                    setOnboardingCrmType(null);
+                                                    setOnboardingConnectionType(null);
+                                                    setOnboardingHoveredCard(null);
+                                                }}
+                                                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+                                            >
                                                 <ChevronRight size={18} className="rotate-180" />
                                             </button>
                                         )}
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                                             {onboardingStep === 0 && (t('agency.onboarding.title') || 'Nueva Cuenta')}
                                             {onboardingStep === 1 && onboardingCrmType === 'ghl' && 'GoHighLevel'}
-                                            {onboardingStep === 1 && onboardingCrmType === 'chatwoot' && 'Chatwoot'}
+                                            {onboardingStep === 1 && onboardingCrmType === 'chatwoot' && onboardingConnectionType !== 'chatwoot_setup_master' && 'Chatwoot'}
+                                            {onboardingStep === 1 && onboardingCrmType === 'chatwoot' && onboardingConnectionType === 'chatwoot_setup_master' && (t('dash.chatwoot_master.title') || 'Usuario Maestro de Chatwoot')}
                                         </h3>
                                     </div>
                                     <button onClick={() => setShowOnboarding(false)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 transition">
@@ -2390,21 +2496,135 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         </form>
                                     )}
 
+                                    {/* Step 1 Chatwoot: Master user quick setup */}
+                                    {onboardingStep === 1 && onboardingCrmType === 'chatwoot' && onboardingConnectionType === 'chatwoot_setup_master' && (
+                                        <form
+                                            onSubmit={async (e) => {
+                                                const saved = await handleSaveChatwootMasterUser(e);
+                                                if (!saved) return;
+                                                setOnboardingConnectionType('chatwoot_selfhosted');
+                                                openOnboardingChatwootAddModal({ external: false });
+                                            }}
+                                            className="space-y-4"
+                                        >
+                                            <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/20 p-4">
+                                                <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
+                                                    {t('agency.onboarding.chatwoot_master_step_desc') || 'Este usuario se reutiliza para aprovisionar nuevas cuentas Chatwoot hospedadas por nosotros.'}
+                                                </p>
+                                                {chatwootMasterDisplayEmail && (
+                                                    <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-2">
+                                                        {(t('dash.chatwoot_master.configured_as') || 'Configurado como') + ` ${chatwootMasterDisplayEmail}`}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('dash.chatwoot_master.name') || 'Nombre del Usuario Maestro'}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={chatwootMasterName}
+                                                    onChange={(e) => setChatwootMasterName(e.target.value)}
+                                                    placeholder="Ej: Soporte Agencia"
+                                                    autoComplete="off"
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('dash.chatwoot_master.email') || 'Email del Usuario Maestro'}
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    value={chatwootMasterEmail}
+                                                    onChange={(e) => setChatwootMasterEmail(e.target.value)}
+                                                    placeholder="soporte@agencia.com"
+                                                    autoComplete="off"
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('dash.chatwoot_master.password') || 'Contraseña del Usuario Maestro'}
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    value={chatwootMasterPassword}
+                                                    onChange={(e) => setChatwootMasterPassword(e.target.value)}
+                                                    placeholder="••••••••"
+                                                    autoComplete="new-password"
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                />
+                                                <p className="text-xs text-gray-500 mt-2">
+                                                    {t('dash.chatwoot_accounts.password_rules') || 'Debe tener mínimo 6 caracteres, incluyendo mayúscula, minúscula, número y símbolo.'}
+                                                </p>
+                                            </div>
+                                            <div className="flex justify-end gap-2 pt-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOnboardingConnectionType(null)}
+                                                    className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition"
+                                                >
+                                                    {t('agency.onboarding.back') || 'Volver'}
+                                                </button>
+                                                <button
+                                                    type="submit"
+                                                    disabled={isSavingChatwootMaster}
+                                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {isSavingChatwootMaster ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                                    {t('agency.onboarding.chatwoot_master_save_continue') || 'Guardar y continuar'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    )}
+
                                     {/* Step 1 Chatwoot: Connection type */}
-                                    {onboardingStep === 1 && onboardingCrmType === 'chatwoot' && (
+                                    {onboardingStep === 1 && onboardingCrmType === 'chatwoot' && onboardingConnectionType !== 'chatwoot_setup_master' && (
                                         <div className="space-y-3">
                                             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
                                                 {t('agency.onboarding.connection_type') || '¿Cómo deseas conectar tu cuenta?'}
                                             </p>
+
+                                            {chatwootMasterConfigured ? (
+                                                <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                                                            {t('agency.onboarding.chatwoot_master_configured') || 'Usuario Maestro configurado'}
+                                                        </p>
+                                                        {chatwootMasterDisplayEmail && (
+                                                            <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
+                                                                {(t('dash.chatwoot_master.configured_as') || 'Configurado como') + ` ${chatwootMasterDisplayEmail}`}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setOnboardingConnectionType('chatwoot_setup_master')}
+                                                        className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30 transition"
+                                                    >
+                                                        {t('agency.onboarding.chatwoot_master_edit') || 'Editar Usuario Maestro'}
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/20 p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                    <p className="text-sm text-amber-900 dark:text-amber-200">
+                                                        {t('agency.onboarding.chatwoot_master_missing') || 'Para cuentas hospedadas por nosotros, primero configura el Usuario Maestro de Chatwoot.'}
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setOnboardingConnectionType('chatwoot_setup_master')}
+                                                        className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100/80 dark:hover:bg-amber-900/30 transition"
+                                                    >
+                                                        {t('agency.onboarding.chatwoot_master_configure_now') || 'Configurar Usuario Maestro'}
+                                                    </button>
+                                                </div>
+                                            )}
+
                                             <button
                                                 onClick={() => {
                                                     setOnboardingConnectionType('chatwoot_existing');
-                                                    setShowOnboarding(false);
-                                                    openAddLocationModal({
-                                                        crmType: 'chatwoot',
-                                                        isExternal: true,
-                                                        lockExternalMode: true
-                                                    });
+                                                    openOnboardingChatwootAddModal({ external: true });
                                                 }}
                                                 className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-violet-400 dark:hover:border-violet-600 bg-white dark:bg-gray-800 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-all group text-left flex items-center gap-4"
                                             >
@@ -2424,17 +2644,22 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <button
                                                 onClick={() => {
                                                     setOnboardingConnectionType('chatwoot_selfhosted');
-                                                    setShowOnboarding(false);
-                                                    openAddLocationModal({
-                                                        crmType: 'chatwoot',
-                                                        isExternal: false,
-                                                        lockExternalMode: true
-                                                    });
+                                                    if (!chatwootMasterConfigured) {
+                                                        setOnboardingConnectionType('chatwoot_setup_master');
+                                                        return;
+                                                    }
+                                                    openOnboardingChatwootAddModal({ external: false });
                                                 }}
-                                                className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-violet-400 dark:hover:border-violet-600 bg-white dark:bg-gray-800 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-all group text-left flex items-center gap-4"
+                                                className={`w-full p-4 rounded-xl border-2 bg-white dark:bg-gray-800 transition-all group text-left flex items-center gap-4 ${
+                                                    chatwootMasterConfigured
+                                                        ? 'border-gray-200 dark:border-gray-700 hover:border-violet-400 dark:hover:border-violet-600 hover:bg-violet-50/50 dark:hover:bg-violet-900/10'
+                                                        : 'border-amber-300 dark:border-amber-700 hover:border-amber-400 dark:hover:border-amber-600 hover:bg-amber-50/60 dark:hover:bg-amber-900/10'
+                                                }`}
                                             >
-                                                <div className="w-10 h-10 rounded-lg bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
-                                                    <Building2 size={20} className="text-violet-600 dark:text-violet-400" />
+                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                                                    chatwootMasterConfigured ? 'bg-violet-50 dark:bg-violet-900/30' : 'bg-amber-100 dark:bg-amber-900/30'
+                                                }`}>
+                                                    <Building2 size={20} className={chatwootMasterConfigured ? 'text-violet-600 dark:text-violet-400' : 'text-amber-700 dark:text-amber-300'} />
                                                 </div>
                                                 <div>
                                                     <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
@@ -2443,8 +2668,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                                         {t('agency.onboarding.chatwoot_selfhosted_form') || 'Creamos y administramos tu cuenta de Chatwoot'}
                                                     </p>
+                                                    {!chatwootMasterConfigured && (
+                                                        <span className="mt-1.5 inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                                                            {t('agency.onboarding.chatwoot_master_required_badge') || 'Requiere Usuario Maestro'}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-violet-500 ml-auto shrink-0 transition" />
+                                                <ChevronRight size={16} className={chatwootMasterConfigured ? "text-gray-300 group-hover:text-violet-500 ml-auto shrink-0 transition" : "text-amber-400 group-hover:text-amber-600 ml-auto shrink-0 transition"} />
                                             </button>
                                         </div>
                                     )}
