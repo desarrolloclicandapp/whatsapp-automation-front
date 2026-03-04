@@ -26,7 +26,9 @@ import {
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
-const DEFAULT_INSTALL_APP_URL = import.meta.env.DEFAULT_INSTALL_APP_URL || "https://app.gohighlevel.com/integration/6968d10f1f0b9e6b537024cd";
+const DEFAULT_GHL_INSTALL_PATH = "/integration/6968d10f1f0b9e6b537024cd";
+const DEFAULT_INSTALL_APP_URL =
+    import.meta.env.DEFAULT_INSTALL_APP_URL || `https://app.gohighlevel.com${DEFAULT_GHL_INSTALL_PATH}`;
 const CHATWOOT_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
 
 function normalizeInstallLink(rawValue = "") {
@@ -47,9 +49,49 @@ function normalizeInstallLink(rawValue = "") {
     return parsed.toString();
 }
 
+function normalizeInstallDomain(rawValue = "") {
+    const raw = String(rawValue || "").trim();
+    if (!raw) return null;
+
+    const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    let parsed;
+    try {
+        parsed = new URL(withProtocol);
+    } catch (_) {
+        return null;
+    }
+
+    if (!/^https?:$/i.test(parsed.protocol)) return null;
+    return `${parsed.protocol}//${parsed.host}`;
+}
+
+function extractInstallPath(rawInstallLink = "", fallbackPath = DEFAULT_GHL_INSTALL_PATH) {
+    const normalized = normalizeInstallLink(rawInstallLink);
+    if (!normalized) return fallbackPath;
+
+    try {
+        const parsed = new URL(normalized);
+        const path = `${parsed.pathname}${parsed.search || ""}`;
+        if (!/\/integration\/[^/?#]+/i.test(parsed.pathname)) return fallbackPath;
+        return path || fallbackPath;
+    } catch (_) {
+        return fallbackPath;
+    }
+}
+
+function buildInstallLinkFromDomain(rawDomain = "", installPath = DEFAULT_GHL_INSTALL_PATH) {
+    const domain = normalizeInstallDomain(rawDomain);
+    if (!domain) return null;
+    const cleanPath = String(installPath || "").trim();
+    if (!cleanPath) return null;
+    const normalizedPath = cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`;
+    return `${domain}${normalizedPath}`;
+}
+
 const ENV_INSTALL_APP_URL = normalizeInstallLink(
     String(import.meta.env.VITE_INSTALL_APP_URL || DEFAULT_INSTALL_APP_URL).trim()
 ) || DEFAULT_INSTALL_APP_URL;
+const ENV_GHL_INSTALL_PATH = extractInstallPath(ENV_INSTALL_APP_URL, DEFAULT_GHL_INSTALL_PATH);
 
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
@@ -124,12 +166,17 @@ export default function AgencyDashboard({ token, onLogout }) {
 
 
 
-    // ✅ Estado para link de instalación CRM (persistido por usuario en backend)
-    const [crmInstallLink, setCrmInstallLink] = useState("");
+    // ✅ Estado para dominio base de instalación CRM (persistido por usuario en backend)
+    const [crmInstallDomain, setCrmInstallDomain] = useState(
+        normalizeInstallDomain(ENV_INSTALL_APP_URL) || "https://app.gohighlevel.com"
+    );
+    const backendDefaultInstallLink =
+        normalizeInstallLink(accountInfo?.ghl_default_installation_link || "") || ENV_INSTALL_APP_URL;
+    const lockedInstallPath = extractInstallPath(backendDefaultInstallLink, ENV_GHL_INSTALL_PATH);
     const installUrlPreview =
-        normalizeInstallLink(crmInstallLink) ||
+        normalizeInstallLink(buildInstallLinkFromDomain(crmInstallDomain, lockedInstallPath) || "") ||
         normalizeInstallLink(accountInfo?.ghl_instalation_link || "") ||
-        ENV_INSTALL_APP_URL;
+        backendDefaultInstallLink;
 
     // Estados API Keys & Webhooks
     const [apiKeys, setApiKeys] = useState([]);
@@ -185,8 +232,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                 setChatwootMasterConfigured(Boolean(data.chatwoot_master_configured));
                 setChatwootMasterEmailMasked(String(data.chatwoot_master_email_masked || ""));
                 setChatwootMasterName(String(data.chatwoot_master_name || ""));
-                if (typeof data.ghl_instalation_link === "string" && data.ghl_instalation_link.trim()) {
-                    setCrmInstallLink(data.ghl_instalation_link.trim());
+                const resolvedInstallDomain = normalizeInstallDomain(
+                    data.ghl_instalation_link ||
+                    data.ghl_default_installation_link ||
+                    ENV_INSTALL_APP_URL
+                );
+                if (resolvedInstallDomain) {
+                    setCrmInstallDomain(resolvedInstallDomain);
                 }
 
                 let liveSuspension = null;
@@ -733,7 +785,17 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     // ✅ LÓGICA DE INSTALACIÓN DINÁMICA
-    const handleInstallApp = async () => {
+    const handleInstallApp = async (options = {}) => {
+        const opts = typeof options === "string" ? { installUrl: options } : options;
+        const resolvedInstallUrl =
+            normalizeInstallLink(opts.installUrl || "") ||
+            normalizeInstallLink(installUrlPreview || "");
+
+        if (!resolvedInstallUrl) {
+            toast.error(t('agency.crm.invalid_domain') || "Ingresa un dominio válido de GHL");
+            return false;
+        }
+
         const tId = toast.loading(t('agency.install.verifying'));
         try {
             const res = await authFetch('/agency/validate-limits?type=tenant');
@@ -742,44 +804,67 @@ export default function AgencyDashboard({ token, onLogout }) {
             toast.dismiss(tId);
 
             if (data.allowed) {
-                const installUrl = installUrlPreview;
-                console.log("Redirigiendo a:", installUrl);
-                window.location.href = installUrl;
+                console.log("Redirigiendo a:", resolvedInstallUrl);
+                window.location.href = resolvedInstallUrl;
+                return true;
             } else {
                 toast.error(t('agency.install.limit_reached'), { description: data.reason });
                 setShowUpgradeModal(true);
+                return false;
             }
         } catch (e) {
             toast.dismiss(tId);
             toast.error(t('agency.install.limit_error'));
+            return false;
         }
     };
 
     // ✅ GUARDAR LINK DE INSTALACIÓN CRM POR USUARIO
-    const handleSaveCrmDomain = async () => {
-        const normalized = normalizeInstallLink(crmInstallLink || "");
-        if (!normalized) {
-            toast.error(t('agency.crm.invalid_link'));
-            return;
+    const handleSaveCrmDomain = async (options = {}) => {
+        const opts = typeof options === "boolean" ? { silentSuccess: options } : options;
+        const normalizedDomain = normalizeInstallDomain(crmInstallDomain || "");
+        if (!normalizedDomain) {
+            toast.error(t('agency.crm.invalid_domain') || "Ingresa un dominio válido de GHL");
+            return null;
+        }
+
+        const normalizedLink = buildInstallLinkFromDomain(normalizedDomain, lockedInstallPath);
+        if (!normalizedLink) {
+            toast.error(t('agency.crm.invalid_domain') || "Ingresa un dominio válido de GHL");
+            return null;
         }
 
         const tId = toast.loading(t('common.save'));
         try {
             const res = await authFetch('/agency/ghl-installation-link', {
                 method: 'PUT',
-                body: JSON.stringify({ ghl_instalation_link: normalized })
+                body: JSON.stringify({
+                    ghl_installation_domain: normalizedDomain,
+                    ghl_instalation_link: normalizedLink
+                })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 throw new Error(data.error || t('agency.server_error'));
             }
 
-            const savedLink = data.ghl_instalation_link || normalized;
-            setCrmInstallLink(savedLink);
+            const savedLink = normalizeInstallLink(data.ghl_instalation_link || "") || normalizedLink;
+            const savedDomain = normalizeInstallDomain(savedLink) || normalizedDomain;
+
+            setCrmInstallDomain(savedDomain);
             setAccountInfo(prev => prev ? { ...prev, ghl_instalation_link: savedLink } : prev);
-            toast.success(t('agency.crm.domain_saved'), { id: tId, description: `${t('agency.crm.domain_saved_desc')} ${savedLink}` });
+            if (!opts.silentSuccess) {
+                toast.success(t('agency.crm.domain_saved'), {
+                    id: tId,
+                    description: `${t('agency.crm.domain_saved_desc')} ${savedLink}`
+                });
+            } else {
+                toast.dismiss(tId);
+            }
+            return savedLink;
         } catch (e) {
             toast.error(e.message || t('agency.connection_error'), { id: tId });
+            return null;
         }
     };
 
@@ -1081,10 +1166,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <input
                                     type="text"
                                     className="w-full p-2.5 text-sm border border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                    value={crmInstallLink}
-                                    onChange={(e) => setCrmInstallLink(e.target.value)}
+                                    value={crmInstallDomain}
+                                    onChange={(e) => setCrmInstallDomain(e.target.value)}
                                     placeholder={t('agency.crm.domain_placeholder')}
                                 />
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 break-all">
+                                    {t('agency.crm.install_suffix_locked') || "Sufijo fijo:"}{" "}
+                                    <span className="font-mono text-gray-700 dark:text-gray-200">{lockedInstallPath}</span>
+                                </p>
                                 <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 break-all">
                                     {t('agency.crm.install_link')} <span className="font-mono text-indigo-600 dark:text-indigo-300">{installUrlPreview}</span>
                                 </p>
@@ -2591,7 +2680,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 {t('agency.onboarding.connection_type') || '¿Cómo deseas conectar tu cuenta?'}
                                             </p>
                                             <button
-                                                onClick={() => { setShowOnboarding(false); handleInstallApp(); }}
+                                                onClick={() => setOnboardingConnectionType('ghl_existing')}
                                                 className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all group text-left flex items-center gap-4"
                                             >
                                                 <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
@@ -2625,6 +2714,61 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-500 ml-auto shrink-0 transition" />
                                             </button>
                                         </div>
+                                    )}
+
+                                    {/* Step 1 GHL: Existing account install setup */}
+                                    {onboardingStep === 1 && onboardingCrmType === 'ghl' && onboardingConnectionType === 'ghl_existing' && (
+                                        <form
+                                            onSubmit={async (e) => {
+                                                e.preventDefault();
+                                                const savedInstallUrl = await handleSaveCrmDomain({ silentSuccess: true });
+                                                if (!savedInstallUrl) return;
+                                                setShowOnboarding(false);
+                                                setOnboardingConnectionType(null);
+                                                await handleInstallApp({ installUrl: savedInstallUrl });
+                                            }}
+                                            className="space-y-4"
+                                        >
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                {t('agency.onboarding.ghl_existing_form') || 'Configura el dominio de tu CRM para instalar la app de Waflow en tu location existente.'}
+                                            </p>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    {t('agency.crm.install_domain') || 'Dominio de instalación'}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={crmInstallDomain}
+                                                    onChange={(e) => setCrmInstallDomain(e.target.value)}
+                                                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    placeholder={t('agency.crm.domain_placeholder') || 'https://app.gohighlevel.com'}
+                                                />
+                                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 break-all">
+                                                    {t('agency.crm.install_suffix_locked') || "Sufijo fijo:"}{" "}
+                                                    <span className="font-mono text-gray-700 dark:text-gray-200">{lockedInstallPath}</span>
+                                                </p>
+                                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 break-all">
+                                                    {t('agency.crm.install_link')}{" "}
+                                                    <span className="font-mono text-indigo-600 dark:text-indigo-300">{installUrlPreview}</span>
+                                                </p>
+                                            </div>
+                                            <div className="flex justify-end gap-2 pt-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOnboardingConnectionType(null)}
+                                                    className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition"
+                                                >
+                                                    {t('agency.onboarding.back') || 'Volver'}
+                                                </button>
+                                                <button
+                                                    type="submit"
+                                                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 transition"
+                                                >
+                                                    <Save size={16} />
+                                                    {t('agency.onboarding.ghl_save_and_install') || 'Guardar e instalar app'}
+                                                </button>
+                                            </div>
+                                        </form>
                                     )}
 
                                     {/* Step 1 GHL: Create sub-account form */}
