@@ -20,7 +20,7 @@ import {
     ExternalLink, Menu, CheckCircle2, ChevronRight, ArrowRight, Zap,
     TrendingUp, ShieldCheck, Settings, Trash2,
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
-    Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Mic, Hammer,
+    Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Hammer,
     Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare, Loader2, X // ✅ Iconos
 } from 'lucide-react';
 
@@ -965,10 +965,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             : "border border-gray-200 dark:border-gray-800 rounded-xl p-4 bg-gray-50/70 dark:bg-gray-800/40";
         const descKey = isOverview ? 'agency.integrations.overview_desc' : 'agency.integrations.desc';
         const showContextConfig = !isOverview;
-        const openSettingsSection = (sectionId) => {
-            setActiveTab('settings');
-            setSettingsSection(sectionId);
-        };
 
         const renderCard = (id, name, desc, Icon, options = {}) => {
             const isSelected = agencyCrmType === id;
@@ -1062,14 +1058,8 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                             <div className="rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-                                <div className="flex items-center justify-between gap-2 mb-3">
+                                <div className="mb-3">
                                     <h5 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.crm.title')}</h5>
-                                    <button
-                                        onClick={() => openSettingsSection('crm_link')}
-                                        className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
-                                    >
-                                        {t('agency.integrations.open_full') || "Abrir panel completo"}
-                                    </button>
                                 </div>
                                 <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
                                     {t('agency.crm.install_domain')}
@@ -1101,14 +1091,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </div>
 
                             <div className="rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-                                <div className="flex items-center justify-between gap-2 mb-3">
+                                <div className="mb-3">
                                     <h5 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.voice.title')}</h5>
-                                    <button
-                                        onClick={() => openSettingsSection('voice')}
-                                        className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
-                                    >
-                                        {t('agency.integrations.open_full') || "Abrir panel completo"}
-                                    </button>
                                 </div>
                                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
                                     {t('agency.voice.desc')}
@@ -1134,12 +1118,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
                                     >
                                         <Copy size={13} /> {t('agency.integrations.voice_copy_script') || "Copiar script"}
-                                    </button>
-                                    <button
-                                        onClick={() => openSettingsSection('developer')}
-                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
-                                    >
-                                        <Terminal size={13} /> {t('dash.settings.dev_title') || "Desarrolladores"}
                                     </button>
                                 </div>
                                 {isRestricted && (
@@ -1175,12 +1153,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         ? (t('agency.integrations.chatwoot_master_state_ready') || "Usuario maestro configurado")
                                         : (t('agency.integrations.chatwoot_master_state_pending') || "Pendiente de configuración")}
                                 </span>
-                                <button
-                                    onClick={() => openSettingsSection('chatwoot_master')}
-                                    className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
-                                >
-                                    {t('agency.integrations.open_full') || "Abrir panel completo"}
-                                </button>
                             </div>
                         </div>
 
@@ -1416,13 +1388,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             label: t('agency.settings_nav.general') || "General",
             items: [
                 { id: "guide", label: t('agency.settings_nav.guide') || (t('agency.settings_guide.title') || "Guía rápida"), icon: Sparkles },
-                { id: "account", label: t('agency.account.title') || "Cuenta", icon: User },
-                ...(isGhlAgency
-                    ? [{ id: "crm_link", label: t('agency.crm.title') || "Link CRM", icon: Globe }]
-                    : []),
-                ...(isChatwootAgency
-                    ? [{ id: "chatwoot_master", label: t('dash.chatwoot_master.title') || "Usuario Maestro Chatwoot", icon: MessageSquareText }]
-                    : [])
+                { id: "account", label: t('agency.account.title') || "Cuenta", icon: User }
             ]
         },
         {
@@ -1438,9 +1404,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             key: "advanced",
             label: t('agency.settings_nav.advanced') || "Avanzado",
             items: [
-                ...(isGhlAgency
-                    ? [{ id: "voice", label: t('agency.voice.title') || "Notas de Voz", icon: Mic }]
-                    : []),
                 { id: "developer", label: t('dash.settings.dev_title') || "Desarrolladores", icon: Terminal },
                 { id: "appearance", label: t('agency.settings_nav.appearance') || "Apariencia", icon: Moon }
             ]
@@ -2089,145 +2052,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </div>
                             )}
 
-                            {/* ✅ NUEVO: CONFIGURACIÓN DE DOMINIO CRM */}
-                            {currentSettingsSectionId === 'crm_link' && isGhlAgency && (
-                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm">
-                                    <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
-                                        <div>
-                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                <Globe size={20} className="text-blue-500" /> {t('agency.crm.title')}
-                                            </h3>
-                                            <p className="text-sm text-gray-500 mt-1">
-                                                {t('agency.crm.desc')}
-                                            </p>
-                                        </div>
-                                        <button 
-                                            onClick={handleSaveCrmDomain}
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2"
-                                        >
-                                            <Save size={16} /> {t('agency.crm.save_btn')}
-                                        </button>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
-                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('agency.crm.install_domain')}</label>
-                                        <input 
-                                            type="text" 
-                                            className="w-full p-3 border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" 
-                                            value={crmInstallLink}
-                                            onChange={(e) => setCrmInstallLink(e.target.value)}
-                                            placeholder={t('agency.crm.domain_placeholder')}
-                                        />
-                                        <p className="text-xs text-gray-400 mt-2">
-                                        {t('agency.crm.install_link')} <span className="font-mono text-indigo-500">{installUrlPreview}</span>
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-
-                            {currentSettingsSectionId === 'chatwoot_master' && isChatwootAgency && (
-                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm">
-                                    <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
-                                        <div>
-                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                <MessageSquareText size={20} className="text-indigo-500" /> {t('dash.chatwoot_master.title') || "Usuario Maestro de Chatwoot"}
-                                            </h3>
-                                            <p className="text-sm text-gray-500 mt-1">
-                                                {t('dash.chatwoot_master.desc') || "Configura una sola vez el usuario administrador maestro que se reutilizará en todas tus cuentas Chatwoot."}
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={handleTestChatwootMasterUser}
-                                                disabled={isTestingChatwootMaster || isLoadingChatwootMaster}
-                                                className="border border-emerald-200 dark:border-emerald-700 px-4 py-2 rounded-xl font-bold text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-60 transition-colors flex items-center gap-2"
-                                            >
-                                                {isTestingChatwootMaster ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-                                                {t('dash.chatwoot_master.test_button') || "Probar conexión"}
-                                            </button>
-                                            <button
-                                                onClick={() => fetchChatwootMasterUser({ silent: false })}
-                                                disabled={isLoadingChatwootMaster || isTestingChatwootMaster}
-                                                className="border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl font-bold text-sm dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60 transition-colors"
-                                            >
-                                                {isLoadingChatwootMaster ? (t('common.loading') || "Cargando...") : (t('common.reload') || "Recargar")}
-                                            </button>
-                                        </div>
-                                    </div>
-                                    {chatwootMasterTestStatus?.message && (
-                                        <p className={`text-xs mb-4 ${
-                                            chatwootMasterTestStatus.ok
-                                                ? "text-emerald-600 dark:text-emerald-400"
-                                                : "text-rose-600 dark:text-rose-400"
-                                        }`}>
-                                            {chatwootMasterTestStatus.message}
-                                        </p>
-                                    )}
-
-                                    <form onSubmit={handleSaveChatwootMasterUser} className="space-y-5">
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                {t('dash.chatwoot_master.name') || "Nombre del Usuario Maestro"}
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={chatwootMasterName}
-                                                onChange={(e) => setChatwootMasterName(e.target.value)}
-                                                placeholder="Ej: Soporte Agencia"
-                                                autoComplete="off"
-                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                {t('dash.chatwoot_master.email') || "Email del Usuario Maestro"}
-                                            </label>
-                                            <input
-                                                type="email"
-                                                value={chatwootMasterEmail}
-                                                onChange={(e) => setChatwootMasterEmail(e.target.value)}
-                                                placeholder="soporte@agencia.com"
-                                                autoComplete="off"
-                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
-                                            />
-                                            {chatwootMasterConfigured && chatwootMasterEmailMasked && (
-                                                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2">
-                                                    {(t('dash.chatwoot_master.configured_as') || "Configurado como") + ` ${chatwootMasterEmailMasked}`}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                {t('dash.chatwoot_master.password') || "Contraseña del Usuario Maestro"}
-                                            </label>
-                                            <input
-                                                type="password"
-                                                value={chatwootMasterPassword}
-                                                onChange={(e) => setChatwootMasterPassword(e.target.value)}
-                                                placeholder="••••••••"
-                                                autoComplete="new-password"
-                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
-                                            />
-                                            <p className="text-xs text-gray-500 mt-2">
-                                                {t('dash.chatwoot_accounts.password_rules') || "Debe tener mínimo 6 caracteres, incluyendo mayúscula, minúscula, número y símbolo."}
-                                            </p>
-                                        </div>
-
-                                        <div className="flex justify-end">
-                                            <button
-                                                type="submit"
-                                                disabled={isSavingChatwootMaster}
-                                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2 disabled:opacity-60"
-                                            >
-                                                {isSavingChatwootMaster ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                                {t('dash.chatwoot_master.save') || "Guardar Usuario Maestro"}
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            )}
-
                             {currentSettingsSectionId === 'integrations' && renderIntegrationsPanel("settings")}
 
                             {currentSettingsSectionId === 'support' && (
@@ -2244,47 +2068,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                             )}
 
                             {currentSettingsSectionId === 'whitelabel' && <WhiteLabelSettings />}
-
-                            {currentSettingsSectionId === 'voice' && isGhlAgency && (
-                                <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('agency.voice.title')}>
-                                    <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm animate-in fade-in slide-in-from-right-4">
-                                        <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
-                                            <div>
-                                                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                    <Mic size={24} className="text-emerald-500" /> {t('agency.voice.title')}
-                                                </h3>
-                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.voice.desc')}</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-6">
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                    {t('agency.voice.script_label')}
-                                                </label>
-                                                <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 relative">
-                                                    <pre className="text-xs whitespace-pre-wrap text-gray-600 dark:text-gray-300">{buildVoiceScript()}</pre>
-                                                    <button
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(buildVoiceScript());
-                                                            toast.success(t('common.copied') || "Copiado");
-                                                        }}
-                                                        className="absolute right-3 top-3 p-2 text-gray-400 hover:text-emerald-600 transition"
-                                                    >
-                                                        <Copy size={16} />
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div className="text-sm text-gray-600 dark:text-gray-300 space-y-2">
-                                                <p><strong>{t('agency.voice.step1_title')}</strong> {t('agency.voice.step1')}</p>
-                                                <p><strong>{t('agency.voice.step2_title')}</strong> {t('agency.voice.step2')}</p>
-                                                <p><strong>{t('agency.voice.step3_title')}</strong> {t('agency.voice.step3')}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </RestrictedFeatureWrapper>
-                            )}
 
                             {currentSettingsSectionId === 'developer' && (
                             <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('dash.settings.dev_title')}>
