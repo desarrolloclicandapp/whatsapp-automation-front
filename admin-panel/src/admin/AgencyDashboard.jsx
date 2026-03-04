@@ -96,6 +96,8 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [addModalChatwootUrl, setAddModalChatwootUrl] = useState("");
     const [addModalChatwootAccountId, setAddModalChatwootAccountId] = useState("");
     const [addModalChatwootApiToken, setAddModalChatwootApiToken] = useState("");
+    const [addModalCrmType, setAddModalCrmType] = useState(null);
+    const [addModalChatwootModeLocked, setAddModalChatwootModeLocked] = useState(false);
     const [isAddingLocation, setIsAddingLocation] = useState(false);
     const [chatwootMasterConfigured, setChatwootMasterConfigured] = useState(false);
     const [chatwootMasterName, setChatwootMasterName] = useState("");
@@ -481,17 +483,39 @@ export default function AgencyDashboard({ token, onLogout }) {
         } catch (err) { toast.error(t('agency.tenant.delete_error'), { id: tId }); }
     };
 
-    const openAddLocationModal = (isExternal = false) => {
+    const openAddLocationModal = (options = {}) => {
+        const opts = typeof options === "boolean" ? { isExternal: options } : options;
+        const resolvedCrmType = String(
+            opts.crmType || onboardingCrmType || agencyCrmType || "ghl"
+        ).toLowerCase();
+        const lockMode = Boolean(opts.lockExternalMode) && resolvedCrmType === "chatwoot";
+
         setAddModalName("");
         setAddModalInboxName("");
         setAddModalClientName("");
         setAddModalClientEmail("");
         setAddModalClientPassword("");
-        setAddModalChatwootExternal(isExternal);
+        setAddModalCrmType(resolvedCrmType);
+        setAddModalChatwootModeLocked(lockMode);
+        setAddModalChatwootExternal(Boolean(opts.isExternal));
         setAddModalChatwootUrl("");
         setAddModalChatwootAccountId("");
         setAddModalChatwootApiToken("");
         setShowAddModal(true);
+    };
+
+    const closeAddLocationModal = () => {
+        setShowAddModal(false);
+        setAddModalCrmType(null);
+        setAddModalChatwootModeLocked(false);
+    };
+
+    const goBackToChatwootOnboarding = () => {
+        closeAddLocationModal();
+        setOnboardingStep(1);
+        setOnboardingCrmType("chatwoot");
+        setOnboardingConnectionType(null);
+        setShowOnboarding(true);
     };
 
     useEffect(() => {
@@ -509,7 +533,9 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const confirmAddLocationModal = async (e) => {
         e.preventDefault();
-        const currentCrmType = (onboardingCrmType || agencyCrmType).toLowerCase();
+        const currentCrmType = String(
+            addModalCrmType || onboardingCrmType || agencyCrmType || "ghl"
+        ).toLowerCase();
         const isChatwootView = currentCrmType === "chatwoot";
         const safeName = String(addModalName || "").trim();
         const safeInboxName = String(addModalInboxName || "").trim();
@@ -518,7 +544,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         const safeClientPassword = String(addModalClientPassword || "");
         const safeClientRole = "administrator";
 
-        const isExternalChatwoot = Boolean(addModalChatwootExternal);
+        const isExternalChatwoot = isChatwootView && Boolean(addModalChatwootExternal);
         const safeExternalUrl = String(addModalChatwootUrl || "").trim();
         const safeExternalAccountId = String(addModalChatwootAccountId || "").trim();
         const safeExternalApiToken = String(addModalChatwootApiToken || "").trim();
@@ -643,7 +669,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 );
             }
 
-            setShowAddModal(false);
+            closeAddLocationModal();
             setAddModalName(""); // ✅ Clean up input form
             setAddModalInboxName("");
             setAddModalClientName("");
@@ -1010,6 +1036,11 @@ export default function AgencyDashboard({ token, onLogout }) {
         (loc.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
         (loc.location_id || '').toLowerCase().includes((searchTerm || '').toLowerCase())
     );
+    const modalCrmType = String(
+        addModalCrmType || onboardingCrmType || agencyCrmType || "ghl"
+    ).toLowerCase();
+    const isChatwootModal = modalCrmType === "chatwoot";
+    const canGoBackToChatwootOnboarding = isChatwootModal && addModalChatwootModeLocked;
 
     // ✅ Componente de Bloqueo "Glass" (Visible pero no interactivo)
     const RestrictedFeatureWrapper = ({ isRestricted, children, title }) => {
@@ -1745,8 +1776,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                                         {t('agency.onboarding.new_account') || "Nueva Cuenta"}
                                     </h3>
-                                    <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                                        <Settings size={20} className="rotate-45" />
+                                    <button onClick={closeAddLocationModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                                        <X size={20} />
                                     </button>
                                 </div>
                                 <form onSubmit={confirmAddLocationModal} className="space-y-6" autoComplete="off">
@@ -1768,13 +1799,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     />
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                            {isChatwootAgency ? (t('dash.chatwoot_accounts.name_prompt') || "Nombre de la cuenta (Ej: Empresa)") : (t('dash.locations.name_prompt') || "Nombre de la location")}
+                                            {isChatwootModal ? (t('dash.chatwoot_accounts.name_prompt') || "Nombre de la cuenta (Ej: Empresa)") : (t('dash.locations.name_prompt') || "Nombre de la location")}
                                         </label>
                                         <input
                                             type="text"
                                             value={addModalName}
                                             onChange={(e) => setAddModalName(e.target.value)}
-                                            placeholder={isChatwootAgency ? "Ej: Mi Empresa LLC" : "Ej: Sucursal Centro"}
+                                            placeholder={isChatwootModal ? "Ej: Mi Empresa LLC" : "Ej: Sucursal Centro"}
                                             name="cw_account_name"
                                             autoComplete="off"
                                             required
@@ -1782,20 +1813,22 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                         />
                                     </div>
-                                    {isChatwootAgency && (
+                                    {isChatwootModal && (
                                         <>
-                                            <div className="flex items-center gap-3 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800/30">
-                                                <input
-                                                    type="checkbox"
-                                                    id="cw_external_toggle"
-                                                    checked={addModalChatwootExternal}
-                                                    onChange={e => setAddModalChatwootExternal(e.target.checked)}
-                                                    className="w-5 h-5 text-indigo-600 rounded bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 focus:ring-indigo-500"
-                                                />
-                                                <label htmlFor="cw_external_toggle" className="text-sm font-bold text-indigo-900 dark:text-indigo-200 cursor-pointer user-select-none">
-                                                    Bring Your Own Chatwoot (BYOC)
-                                                </label>
-                                            </div>
+                                            {!addModalChatwootModeLocked && (
+                                                <div className="flex items-center gap-3 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800/30">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="cw_external_toggle"
+                                                        checked={addModalChatwootExternal}
+                                                        onChange={e => setAddModalChatwootExternal(e.target.checked)}
+                                                        className="w-5 h-5 text-indigo-600 rounded bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 focus:ring-indigo-500"
+                                                    />
+                                                    <label htmlFor="cw_external_toggle" className="text-sm font-bold text-indigo-900 dark:text-indigo-200 cursor-pointer user-select-none">
+                                                        Bring Your Own Chatwoot (BYOC)
+                                                    </label>
+                                                </div>
+                                            )}
 
                                             {addModalChatwootExternal ? (
                                                 <div className="space-y-4 pt-2 border-t border-gray-200 dark:border-gray-700">
@@ -1914,9 +1947,19 @@ export default function AgencyDashboard({ token, onLogout }) {
 
 
                                     <div className="flex gap-3 pt-2">
+                                        {canGoBackToChatwootOnboarding && (
+                                            <button
+                                                type="button"
+                                                onClick={goBackToChatwootOnboarding}
+                                                disabled={isAddingLocation}
+                                                className="flex-1 py-3 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 dark:text-white rounded-xl font-bold transition-colors disabled:opacity-60"
+                                            >
+                                                {t('agency.onboarding.back') || "Volver"}
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
-                                            onClick={() => setShowAddModal(false)}
+                                            onClick={closeAddLocationModal}
                                             disabled={isAddingLocation}
                                             className="flex-1 py-3 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 dark:text-white rounded-xl font-bold transition-colors disabled:opacity-60"
                                         >
@@ -1962,43 +2005,72 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <div className="p-6">
                                     {/* Step 0: Choose integration type */}
                                     {onboardingStep === 0 && (
-                                        <div className="space-y-3">
-                                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                        <div className="space-y-4">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
                                                 {t('agency.onboarding.choose_integration') || 'Elige el tipo de integración para la nueva cuenta'}
+                                            </p>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                {t('agency.onboarding.choose_integration_summary') || 'Elige la experiencia ideal para cada cliente. Puedes crear cuentas mixtas dentro de la misma agencia.'}
                                             </p>
                                             <button
                                                 onClick={() => { setOnboardingCrmType('ghl'); setOnboardingStep(1); }}
-                                                className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all group text-left flex items-center gap-4"
+                                                className="w-full p-4 rounded-2xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all group text-left"
                                             >
-                                                <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
-                                                    <Globe size={24} className="text-blue-600 dark:text-blue-400" />
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                                                        <Globe size={24} className="text-blue-600 dark:text-blue-400" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-gray-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-300 transition">
+                                                            {t('agency.onboarding.ghl_title') || 'CRM GoHighLevel'}
+                                                        </h4>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                            {t('agency.onboarding.ghl_desc') || 'Gestiona contactos y comunicación con GoHighLevel'}
+                                                        </p>
+                                                    </div>
+                                                    <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-500 ml-auto shrink-0 transition" />
                                                 </div>
-                                                <div>
-                                                    <h4 className="font-bold text-gray-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-300 transition">
-                                                        {t('agency.onboarding.ghl_title') || 'CRM GoHighLevel'}
-                                                    </h4>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                                        {t('agency.onboarding.ghl_desc') || 'Gestiona contactos y comunicación con GoHighLevel'}
-                                                    </p>
+                                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                    <div className="text-[11px] rounded-lg px-2.5 py-2 bg-blue-50/70 dark:bg-blue-900/20 text-blue-700 dark:text-blue-200">
+                                                        {t('agency.onboarding.ghl_benefit_1') || 'Pipeline y CRM en un solo lugar'}
+                                                    </div>
+                                                    <div className="text-[11px] rounded-lg px-2.5 py-2 bg-blue-50/70 dark:bg-blue-900/20 text-blue-700 dark:text-blue-200">
+                                                        {t('agency.onboarding.ghl_benefit_2') || 'Automatizaciones y campañas'}
+                                                    </div>
+                                                    <div className="text-[11px] rounded-lg px-2.5 py-2 bg-blue-50/70 dark:bg-blue-900/20 text-blue-700 dark:text-blue-200">
+                                                        {t('agency.onboarding.ghl_benefit_3') || 'Instalación rápida de Waflow'}
+                                                    </div>
                                                 </div>
-                                                <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-500 ml-auto shrink-0 transition" />
                                             </button>
                                             <button
                                                 onClick={() => { setOnboardingCrmType('chatwoot'); setOnboardingStep(1); }}
-                                                className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-violet-400 dark:hover:border-violet-600 bg-white dark:bg-gray-800 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-all group text-left flex items-center gap-4"
+                                                className="w-full p-4 rounded-2xl border-2 border-gray-200 dark:border-gray-700 hover:border-violet-400 dark:hover:border-violet-600 bg-white dark:bg-gray-800 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-all group text-left"
                                             >
-                                                <div className="w-12 h-12 rounded-xl bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
-                                                    <MessageSquare size={24} className="text-violet-600 dark:text-violet-400" />
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
+                                                        <MessageSquare size={24} className="text-violet-600 dark:text-violet-400" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-gray-900 dark:text-white group-hover:text-violet-700 dark:group-hover:text-violet-300 transition">
+                                                            {t('agency.onboarding.chatwoot_title') || 'Mensajería Chatwoot'}
+                                                        </h4>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                            {t('agency.onboarding.chatwoot_desc') || 'Conecta Waflow con Chatwoot para tu bandeja de entrada'}
+                                                        </p>
+                                                    </div>
+                                                    <ChevronRight size={18} className="text-gray-300 group-hover:text-violet-500 ml-auto shrink-0 transition" />
                                                 </div>
-                                                <div>
-                                                    <h4 className="font-bold text-gray-900 dark:text-white group-hover:text-violet-700 dark:group-hover:text-violet-300 transition">
-                                                        {t('agency.onboarding.chatwoot_title') || 'Mensajería Chatwoot'}
-                                                    </h4>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                                        {t('agency.onboarding.chatwoot_desc') || 'Conecta Waflow con Chatwoot para tu bandeja de entrada'}
-                                                    </p>
+                                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                    <div className="text-[11px] rounded-lg px-2.5 py-2 bg-violet-50/70 dark:bg-violet-900/20 text-violet-700 dark:text-violet-200">
+                                                        {t('agency.onboarding.chatwoot_benefit_1') || 'Bandeja omnicanal colaborativa'}
+                                                    </div>
+                                                    <div className="text-[11px] rounded-lg px-2.5 py-2 bg-violet-50/70 dark:bg-violet-900/20 text-violet-700 dark:text-violet-200">
+                                                        {t('agency.onboarding.chatwoot_benefit_2') || 'Asignación por equipo e inbox'}
+                                                    </div>
+                                                    <div className="text-[11px] rounded-lg px-2.5 py-2 bg-violet-50/70 dark:bg-violet-900/20 text-violet-700 dark:text-violet-200">
+                                                        {t('agency.onboarding.chatwoot_benefit_3') || 'Conexión nativa con WhatsApp'}
+                                                    </div>
                                                 </div>
-                                                <ChevronRight size={18} className="text-gray-300 group-hover:text-violet-500 ml-auto shrink-0 transition" />
                                             </button>
                                         </div>
                                     )}
@@ -2149,8 +2221,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </p>
                                             <button
                                                 onClick={() => {
+                                                    setOnboardingConnectionType('chatwoot_existing');
                                                     setShowOnboarding(false);
-                                                    openAddLocationModal(true);
+                                                    openAddLocationModal({
+                                                        crmType: 'chatwoot',
+                                                        isExternal: true,
+                                                        lockExternalMode: true
+                                                    });
                                                 }}
                                                 className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-violet-400 dark:hover:border-violet-600 bg-white dark:bg-gray-800 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-all group text-left flex items-center gap-4"
                                             >
@@ -2169,8 +2246,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </button>
                                             <button
                                                 onClick={() => {
+                                                    setOnboardingConnectionType('chatwoot_selfhosted');
                                                     setShowOnboarding(false);
-                                                    openAddLocationModal(false);
+                                                    openAddLocationModal({
+                                                        crmType: 'chatwoot',
+                                                        isExternal: false,
+                                                        lockExternalMode: true
+                                                    });
                                                 }}
                                                 className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-violet-400 dark:hover:border-violet-600 bg-white dark:bg-gray-800 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-all group text-left flex items-center gap-4"
                                             >
