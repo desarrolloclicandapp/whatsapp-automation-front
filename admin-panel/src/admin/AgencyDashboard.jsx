@@ -114,6 +114,12 @@ export default function AgencyDashboard({ token, onLogout }) {
         const diff = new Date(dateValue).getTime() - Date.now();
         return Math.max(0, Math.ceil(diff / (24 * 60 * 60 * 1000)));
     };
+    const formatDateTime = (dateValue) => {
+        if (!dateValue) return null;
+        const parsed = new Date(dateValue);
+        if (Number.isNaN(parsed.getTime())) return null;
+        return parsed.toLocaleString();
+    };
 
 
 
@@ -958,6 +964,11 @@ export default function AgencyDashboard({ token, onLogout }) {
             ? "border border-gray-200 dark:border-gray-800 rounded-xl p-4 bg-white dark:bg-gray-900 hover:shadow-sm transition-all"
             : "border border-gray-200 dark:border-gray-800 rounded-xl p-4 bg-gray-50/70 dark:bg-gray-800/40";
         const descKey = isOverview ? 'agency.integrations.overview_desc' : 'agency.integrations.desc';
+        const showContextConfig = !isOverview;
+        const openSettingsSection = (sectionId) => {
+            setActiveTab('settings');
+            setSettingsSection(sectionId);
+        };
 
         const renderCard = (id, name, desc, Icon, options = {}) => {
             const isSelected = agencyCrmType === id;
@@ -1034,6 +1045,235 @@ export default function AgencyDashboard({ token, onLogout }) {
             );
         };
 
+        const renderSelectedConfigPanel = () => {
+            if (!showContextConfig) return null;
+
+            if (agencyCrmType === "ghl") {
+                return (
+                    <div className="mt-4 rounded-2xl border-2 border-indigo-200 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 p-5 space-y-4">
+                        <div>
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                                {((t('agency.integrations.config_for') || "Configuración de {crm}")).replace("{crm}", "GoHighLevel")}
+                            </h4>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                {t('agency.integrations.ghl_config_desc') || "Configura el link de instalación y las notas de voz para dejar el onboarding listo en un solo paso."}
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            <div className="rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+                                <div className="flex items-center justify-between gap-2 mb-3">
+                                    <h5 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.crm.title')}</h5>
+                                    <button
+                                        onClick={() => openSettingsSection('crm_link')}
+                                        className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
+                                    >
+                                        {t('agency.integrations.open_full') || "Abrir panel completo"}
+                                    </button>
+                                </div>
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                                    {t('agency.crm.install_domain')}
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full p-2.5 text-sm border border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                    value={crmInstallLink}
+                                    onChange={(e) => setCrmInstallLink(e.target.value)}
+                                    placeholder={t('agency.crm.domain_placeholder')}
+                                />
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 break-all">
+                                    {t('agency.crm.install_link')} <span className="font-mono text-indigo-600 dark:text-indigo-300">{installUrlPreview}</span>
+                                </p>
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                    <button
+                                        onClick={handleSaveCrmDomain}
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition"
+                                    >
+                                        <Save size={14} /> {t('agency.crm.save_btn')}
+                                    </button>
+                                    <button
+                                        onClick={openGhlPortal}
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
+                                    >
+                                        <ExternalLink size={13} /> {t('agency.integrations.open')}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+                                <div className="flex items-center justify-between gap-2 mb-3">
+                                    <h5 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.voice.title')}</h5>
+                                    <button
+                                        onClick={() => openSettingsSection('voice')}
+                                        className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
+                                    >
+                                        {t('agency.integrations.open_full') || "Abrir panel completo"}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                                    {t('agency.voice.desc')}
+                                </p>
+                                <div className="relative rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
+                                    <pre className="text-[11px] text-gray-600 dark:text-gray-300 whitespace-pre-wrap pr-8">{buildVoiceScript()}</pre>
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(buildVoiceScript());
+                                            toast.success(t('common.copied') || "Copiado");
+                                        }}
+                                        className="absolute right-2 top-2 p-1.5 rounded-md text-gray-500 hover:text-indigo-600 hover:bg-white dark:hover:bg-gray-900 transition"
+                                    >
+                                        <Copy size={14} />
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(buildVoiceScript());
+                                            toast.success(t('common.copied') || "Copiado");
+                                        }}
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
+                                    >
+                                        <Copy size={13} /> {t('agency.integrations.voice_copy_script') || "Copiar script"}
+                                    </button>
+                                    <button
+                                        onClick={() => openSettingsSection('developer')}
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
+                                    >
+                                        <Terminal size={13} /> {t('dash.settings.dev_title') || "Desarrolladores"}
+                                    </button>
+                                </div>
+                                {isRestricted && (
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-2">
+                                        {t('agency.integrations.voice_requires_pro') || "Notas de voz requiere plan superior."}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (agencyCrmType === "chatwoot") {
+                return (
+                    <div className="mt-4 rounded-2xl border-2 border-indigo-200 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 p-5">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+                            <div>
+                                <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                                    {((t('agency.integrations.config_for') || "Configuración de {crm}")).replace("{crm}", "Chatwoot")}
+                                </h4>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                    {t('agency.integrations.chatwoot_config_desc') || "Define el Usuario Maestro para aprovisionar cuentas Chatwoot hospedadas automáticamente."}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border ${
+                                    chatwootMasterConfigured
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
+                                        : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+                                }`}>
+                                    {chatwootMasterConfigured
+                                        ? (t('agency.integrations.chatwoot_master_state_ready') || "Usuario maestro configurado")
+                                        : (t('agency.integrations.chatwoot_master_state_pending') || "Pendiente de configuración")}
+                                </span>
+                                <button
+                                    onClick={() => openSettingsSection('chatwoot_master')}
+                                    className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
+                                >
+                                    {t('agency.integrations.open_full') || "Abrir panel completo"}
+                                </button>
+                            </div>
+                        </div>
+
+                        <form onSubmit={handleSaveChatwootMasterUser} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                                    {t('dash.chatwoot_master.name') || "Nombre del Usuario Maestro"}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={chatwootMasterName}
+                                    onChange={(e) => setChatwootMasterName(e.target.value)}
+                                    placeholder="Ej: Soporte Agencia"
+                                    autoComplete="off"
+                                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                                    {t('dash.chatwoot_master.email') || "Email del Usuario Maestro"}
+                                </label>
+                                <input
+                                    type="email"
+                                    value={chatwootMasterEmail}
+                                    onChange={(e) => setChatwootMasterEmail(e.target.value)}
+                                    placeholder="soporte@agencia.com"
+                                    autoComplete="off"
+                                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                                {chatwootMasterConfigured && chatwootMasterEmailMasked && (
+                                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
+                                        {(t('dash.chatwoot_master.configured_as') || "Configurado como") + ` ${chatwootMasterEmailMasked}`}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="xl:col-span-2">
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                                    {t('dash.chatwoot_master.password') || "Contraseña del Usuario Maestro"}
+                                </label>
+                                <input
+                                    type="password"
+                                    value={chatwootMasterPassword}
+                                    onChange={(e) => setChatwootMasterPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                    autoComplete="new-password"
+                                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                            <div className="xl:col-span-2 flex flex-wrap justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleTestChatwootMasterUser}
+                                    disabled={isTestingChatwootMaster || isLoadingChatwootMaster}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-700 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-60 transition-colors"
+                                >
+                                    {isTestingChatwootMaster ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                                    {t('dash.chatwoot_master.test_button') || "Probar conexión"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => fetchChatwootMasterUser({ silent: false })}
+                                    disabled={isLoadingChatwootMaster || isTestingChatwootMaster}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60 transition-colors"
+                                >
+                                    <RotateCcw size={13} />
+                                    {isLoadingChatwootMaster ? (t('common.loading') || "Cargando...") : (t('common.reload') || "Recargar")}
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSavingChatwootMaster}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition disabled:opacity-60"
+                                >
+                                    {isSavingChatwootMaster ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                                    {t('dash.chatwoot_master.save') || "Guardar Usuario Maestro"}
+                                </button>
+                            </div>
+                            {chatwootMasterTestStatus?.message && (
+                                <p className={`xl:col-span-2 text-[11px] ${
+                                    chatwootMasterTestStatus.ok
+                                        ? "text-emerald-600 dark:text-emerald-400"
+                                        : "text-rose-600 dark:text-rose-400"
+                                }`}>
+                                    {chatwootMasterTestStatus.message}
+                                </p>
+                            )}
+                        </form>
+                    </div>
+                );
+            }
+
+            return null;
+        };
+
         return (
             <div className={`bg-white dark:bg-gray-900 ${panelPadding} rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm`}>
                 <div className="flex items-center justify-between mb-4">
@@ -1050,6 +1290,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     {renderCard("ghl", "GoHighLevel", t('agency.integrations.ghl_desc'), Globe, { showOpen: true, onOpen: openGhlPortal })}
                     {renderCard("chatwoot", "Chatwoot", t('agency.integrations.chatwoot_desc'), MessageSquareText, { showOpen: true, onOpen: openChatwootPortal })}
                 </div>
+                {renderSelectedConfigPanel()}
             </div>
         );
     };
@@ -1126,6 +1367,49 @@ export default function AgencyDashboard({ token, onLogout }) {
     const isChatwootModal = modalCrmType === "chatwoot";
     const canGoBackToChatwootOnboarding = isChatwootModal && addModalChatwootModeLocked;
     const chatwootMasterDisplayEmail = String(chatwootMasterEmailMasked || chatwootMasterEmail || "").trim();
+    const accountPlanCode = String(accountInfo?.plan || "").toLowerCase();
+    const accountPlanLabelMap = {
+        active: t('agency.account.plan_active') || "Activo",
+        trial: t('agency.account.plan_trial') || "Prueba",
+        suspended: t('agency.account.plan_suspended') || "Suspendido",
+        cancelled: t('agency.account.plan_cancelled') || "Cancelado",
+        past_due: t('agency.account.plan_past_due') || "Pago pendiente"
+    };
+    const accountPlanLabel =
+        accountPlanLabelMap[accountPlanCode] ||
+        (String(accountInfo?.plan || "").trim() || (t('agency.account.loading') || "Cargando..."));
+    const accountProfileEmail =
+        String(accountInfo?.email || userEmail || "").trim() ||
+        (t('agency.account.loading') || "Cargando...");
+    const accountProfilePhone =
+        String(accountInfo?.phone || "").trim() ||
+        (t('agency.account.not_available') || "No disponible");
+    const accountCreatedAtLabel =
+        formatDateTime(accountInfo?.created_at) ||
+        (t('agency.account.not_available') || "No disponible");
+    const accountStatusCode = String(
+        suspensionStatus?.status ||
+        (accountInfo?.is_active === false ? "inactive" : "active")
+    ).toLowerCase();
+    const accountStatusLabelMap = {
+        active: t('agency.account.status_active') || "Activa",
+        inactive: t('agency.account.status_inactive') || "Inactiva",
+        grace: t('agency.account.status_grace') || "En gracia",
+        suspended: t('agency.account.status_suspended') || "Suspendida",
+        pending_deletion: t('agency.account.status_pending_deletion') || "Pendiente de eliminación",
+        permanently_deleted: t('agency.account.status_deleted') || "Eliminada"
+    };
+    const accountStatusLabel =
+        accountStatusLabelMap[accountStatusCode] ||
+        (t('agency.account.status_unknown') || "Estado no definido");
+    const accountStatusToneClass =
+        accountStatusCode === "active"
+            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
+            : accountStatusCode === "grace"
+                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+                : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800";
+    const accountUsageAccounts = `${accountInfo?.limits?.used_subagencies || 0}/${accountInfo?.limits?.max_subagencies || 0}`;
+    const accountUsageSlots = `${accountInfo?.limits?.used_slots || 0}/${accountInfo?.limits?.max_slots || 0}`;
     const settingsMenuGroups = [
         {
             key: "general",
@@ -1762,10 +2046,44 @@ export default function AgencyDashboard({ token, onLogout }) {
                             {currentSettingsSectionId === 'account' && (
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm">
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2"><User size={20} /> {t('agency.account.title')}</h3>
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div><label className="block text-sm font-medium text-gray-500 mb-1.5">{t('agency.account.agency_id')}</label><div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 font-mono font-medium dark:text-gray-200">{AGENCY_ID}</div></div>
-                                        <div><label className="block text-sm font-medium text-gray-500 mb-1.5">{t('agency.account.email')}</label><div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 font-medium dark:text-gray-200">{userEmail || t('agency.account.loading')}</div></div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.agency_id')}</label>
+                                        <div className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100 break-all">{AGENCY_ID}</div>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.email')}</label>
+                                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 break-all">{accountProfileEmail}</div>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.phone') || "Teléfono registrado"}</label>
+                                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{accountProfilePhone}</div>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.plan') || "Plan activo"}</label>
+                                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{accountPlanLabel}</div>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.status') || "Estado de cuenta"}</label>
+                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-bold uppercase tracking-wide ${accountStatusToneClass}`}>
+                                            {accountStatusLabel}
+                                        </span>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.crm') || "CRM principal"}</label>
+                                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{activeCrmLabel}</div>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.created_at') || "Fecha de registro"}</label>
+                                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{accountCreatedAtLabel}</div>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.subaccounts_limit') || "Subcuentas usadas / límite"}</label>
+                                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{accountUsageAccounts}</div>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.slots_limit') || "Conexiones usadas / límite"}</label>
+                                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{accountUsageSlots}</div>
                                     </div>
                                 </div>
                             </div>
