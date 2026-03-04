@@ -297,7 +297,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                 try {
                     const res = await authFetch(`/agency/sync-ghl`, {
                         method: "POST",
-                        body: JSON.stringify({ locationIdToVerify: resolvedLocationId || null, code: code || null })
+                        body: JSON.stringify({
+                            locationIdToVerify: resolvedLocationId || null,
+                            code: code || null,
+                            expectedAgencyId: accountInfo?.agencyId || AGENCY_ID || null
+                        })
                     });
 
                     if (res.ok) {
