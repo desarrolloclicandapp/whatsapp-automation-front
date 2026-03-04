@@ -144,6 +144,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     // Integration filter for accounts list
     const [accountsFilter, setAccountsFilter] = useState("all"); // "all" | "ghl" | "chatwoot"
+    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -1482,6 +1483,105 @@ export default function AgencyDashboard({ token, onLogout }) {
                     {activeTab === 'settings' && (
                         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4">
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <Sparkles size={20} className="text-indigo-500" /> {t('agency.settings_guide.title') || "Guía rápida de configuración"}
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                            {t('agency.settings_guide.desc') || "Esto te muestra lo mínimo que debes configurar para empezar, y lo que puedes dejar para después."}
+                                        </p>
+                                    </div>
+                                    <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full border bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-300">
+                                        {t('agency.settings_guide.tag') || "Onboarding"}
+                                    </span>
+                                </div>
+
+                                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-4">
+                                        <h4 className="text-sm font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                                            <CheckCircle2 size={16} /> {t('agency.settings_guide.required_title') || "Necesario para empezar"}
+                                        </h4>
+                                        <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                                            <li className="flex gap-2">
+                                                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                                <span>{t('agency.settings_guide.required_create_accounts') || "Crear cuentas desde Overview > New Account (flujo principal)."}</span>
+                                            </li>
+                                            {isChatwootAgency && (
+                                                <li className="flex gap-2">
+                                                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                                    <span>{t('agency.settings_guide.required_chatwoot_master') || "Configurar Usuario Maestro de Chatwoot (sin esto no podrás aprovisionar cuentas hosted)."}</span>
+                                                </li>
+                                            )}
+                                            {isGhlAgency && (
+                                                <li className="flex gap-2">
+                                                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                                    <span>{t('agency.settings_guide.required_ghl_install') || "Revisar el link de instalación GHL solo si usas dominio/app personalizada."}</span>
+                                                </li>
+                                            )}
+                                        </ul>
+                                        <div className="mt-4 flex gap-2">
+                                            <button
+                                                onClick={() => setActiveTab('overview')}
+                                                className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition flex items-center gap-1.5"
+                                            >
+                                                <LayoutGrid size={14} /> {t('agency.settings_guide.go_overview') || "Ir a Overview"}
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveTab('billing')}
+                                                className="px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 text-xs font-semibold transition hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30 flex items-center gap-1.5"
+                                            >
+                                                <CreditCard size={14} /> {t('agency.settings_guide.go_billing') || "Ver plan"}
+                                            </button>
+                                            <button
+                                                onClick={() => setShowAdvancedSettings((prev) => !prev)}
+                                                className="px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 text-xs font-semibold transition hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30 flex items-center gap-1.5"
+                                            >
+                                                <Settings size={14} />
+                                                {showAdvancedSettings
+                                                    ? (t('agency.settings_guide.hide_advanced') || "Ocultar avanzado")
+                                                    : (t('agency.settings_guide.show_advanced') || "Mostrar avanzado")}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/20 p-4">
+                                        <h4 className="text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                                            <Zap size={16} /> {t('agency.settings_guide.optional_title') || "Opcional / avanzado (puedes omitir al inicio)"}
+                                        </h4>
+                                        <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                                            <li className="flex gap-2">
+                                                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                                <span>{t('agency.settings_guide.optional_integrations') || "Panel de Integraciones (referencia y accesos rápidos)."}</span>
+                                            </li>
+                                            <li className="flex gap-2">
+                                                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                                <span>{t('agency.settings_guide.optional_whitelabel') || "White Label (branding visual de tu panel)."}</span>
+                                            </li>
+                                            {isGhlAgency && (
+                                                <li className="flex gap-2">
+                                                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                                    <span>{t('agency.settings_guide.optional_voice') || "Notas de voz en CRM (script avanzado)."}</span>
+                                                </li>
+                                            )}
+                                            <li className="flex gap-2">
+                                                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                                <span>{t('agency.settings_guide.optional_dev') || "API Keys y Webhooks (integraciones técnicas)."}</span>
+                                            </li>
+                                            <li className="flex gap-2">
+                                                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                                <span>{t('agency.settings_guide.optional_support') || "Soporte white-label (si tu operación ya requiere atención dedicada)."}</span>
+                                            </li>
+                                            <li className="flex gap-2">
+                                                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                                <span>{t('agency.settings_guide.optional_theme') || "Tema claro/oscuro (preferencia visual)."}</span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2"><User size={20} /> {t('agency.account.title')}</h3>
                                 <div className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1611,6 +1711,25 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             )}
 
+                            {!showAdvancedSettings && (
+                                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 shadow-sm">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                                            {t('agency.settings_guide.advanced_collapsed_desc') || "La configuración avanzada está oculta para simplificar el onboarding inicial."}
+                                        </p>
+                                        <button
+                                            onClick={() => setShowAdvancedSettings(true)}
+                                            className="px-4 py-2 rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 text-sm font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition flex items-center gap-2"
+                                        >
+                                            <Settings size={15} />
+                                            {t('agency.settings_guide.show_advanced') || "Mostrar avanzado"}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {showAdvancedSettings && (
+                                <>
                             {renderIntegrationsPanel("settings")}
 
                             {/* ✅ NUEVO: AGENCIA SOPORTE (Ahora protegido por Wrapper) */}
@@ -1762,11 +1881,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                             {showNewKeyModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="mb-6 text-center"><div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600"><ShieldCheck size={32} /></div><h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('dash.settings.key_generated') || "Clave Generada"}</h3><p className="text-sm text-gray-500 mt-2">{t('dash.settings.key_copy_warning') || "Cópiala ahora, no podrás verla después."}</p></div><div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 mb-6 relative group"><div className="font-mono text-sm break-all pr-10 text-indigo-600 dark:text-indigo-400 font-bold">{generatedKey}</div><button onClick={() => { navigator.clipboard.writeText(generatedKey); toast.success(t('common.copied') || "Copiado"); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-indigo-600 transition"><Copy size={18} /></button></div><button onClick={() => { setShowNewKeyModal(false); setGeneratedKey(null); }} className="w-full py-3 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl font-bold hover:opacity-90 transition">{t('common.understood') || "Entendido"}</button></div></div>)}
 
                             {/* MODAL WEBHOOK */}
-                            {showNewWebhookModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('dash.settings.new_webhook') || "Nuevo Webhook"}</h3><button onClick={() => setShowNewWebhookModal(false)} className="text-gray-400 hover:text-gray-600"><Settings size={20} className="rotate-45" /></button></div><form onSubmit={handleCreateWebhook} className="space-y-6"><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('common.name') || "Nombre"}</label><input name="hookName" placeholder="Ej: n8n Producción" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL</label><input name="hookUrl" type="url" placeholder="https://..." required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">{t('common.events') || "Eventos"}</label><div className="grid grid-cols-1 gap-3"><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp inbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Inbound Message</div></div></label><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp outbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Outbound Message</div></div></label></div></div><div className="flex gap-3"><button type="button" onClick={() => setShowNewWebhookModal(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl font-bold">{t('common.cancel') || "Cancelar"}</button><button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">{t('common.create') || "Crear"}</button></div></form></div></div>)}
+                            {showNewWebhookModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('dash.settings.new_webhook') || "Nuevo Webhook"}</h3><button onClick={() => setShowNewWebhookModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button></div><form onSubmit={handleCreateWebhook} className="space-y-6"><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('common.name') || "Nombre"}</label><input name="hookName" placeholder="Ej: n8n Producción" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL</label><input name="hookUrl" type="url" placeholder="https://..." required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">{t('common.events') || "Eventos"}</label><div className="grid grid-cols-1 gap-3"><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp inbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Inbound Message</div></div></label><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp outbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Outbound Message</div></div></label></div></div><div className="flex gap-3"><button type="button" onClick={() => setShowNewWebhookModal(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl font-bold">{t('common.cancel') || "Cancelar"}</button><button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">{t('common.create') || "Crear"}</button></div></form></div></div>)}
                                                         <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-center justify-between">
                                 <div><h4 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.theme.dark_mode')}</h4><p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('agency.theme.toggle')}</p></div>
                                 <button onClick={toggleTheme} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition text-gray-600 dark:text-yellow-400">{theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}</button>
                             </div>
+                                </>
+                            )}
                         </div>
                     )}
 

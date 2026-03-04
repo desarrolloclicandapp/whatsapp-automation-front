@@ -674,6 +674,27 @@ export const en = {
     "agency.theme.dark_mode": "Dark Mode",
     "agency.theme.toggle": "Toggle theme.",
 
+    // Agency Dashboard - Settings Guide
+    "agency.settings_guide.title": "Quick Setup Guide",
+    "agency.settings_guide.desc": "This shows what you must configure first, and what can be left for later.",
+    "agency.settings_guide.tag": "Onboarding",
+    "agency.settings_guide.required_title": "Required to start",
+    "agency.settings_guide.required_create_accounts": "Create accounts from Overview > New Account (main flow).",
+    "agency.settings_guide.required_chatwoot_master": "Configure Chatwoot Master User (required to provision hosted accounts).",
+    "agency.settings_guide.required_ghl_install": "Review GHL install link only if you use a custom domain/app.",
+    "agency.settings_guide.go_overview": "Go to Overview",
+    "agency.settings_guide.go_billing": "View plan",
+    "agency.settings_guide.optional_title": "Optional / advanced (safe to skip at first)",
+    "agency.settings_guide.optional_integrations": "Integrations panel (reference and quick access).",
+    "agency.settings_guide.optional_whitelabel": "White Label (panel branding).",
+    "agency.settings_guide.optional_voice": "Voice Notes in CRM (advanced script).",
+    "agency.settings_guide.optional_dev": "API Keys and Webhooks (technical integrations).",
+    "agency.settings_guide.optional_support": "White-label support number (when your operation needs dedicated support).",
+    "agency.settings_guide.optional_theme": "Light/dark theme (visual preference).",
+    "agency.settings_guide.show_advanced": "Show advanced",
+    "agency.settings_guide.hide_advanced": "Hide advanced",
+    "agency.settings_guide.advanced_collapsed_desc": "Advanced settings are hidden to keep the initial onboarding simpler.",
+
     // Agency Dashboard - Support
     "agency.support.title": "Your Support Number (White Label)",
 

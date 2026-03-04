@@ -672,6 +672,27 @@ export const es = {
     "agency.theme.dark_mode": "Modo Oscuro",
     "agency.theme.toggle": "Alternar tema.",
 
+    // Agency Dashboard - Settings Guide
+    "agency.settings_guide.title": "Guía rápida de configuración",
+    "agency.settings_guide.desc": "Esto te muestra lo mínimo que debes configurar para empezar, y lo que puedes dejar para después.",
+    "agency.settings_guide.tag": "Onboarding",
+    "agency.settings_guide.required_title": "Necesario para empezar",
+    "agency.settings_guide.required_create_accounts": "Crear cuentas desde Overview > New Account (flujo principal).",
+    "agency.settings_guide.required_chatwoot_master": "Configurar Usuario Maestro de Chatwoot (sin esto no podrás aprovisionar cuentas hosted).",
+    "agency.settings_guide.required_ghl_install": "Revisar el link de instalación GHL solo si usas dominio/app personalizada.",
+    "agency.settings_guide.go_overview": "Ir a Overview",
+    "agency.settings_guide.go_billing": "Ver plan",
+    "agency.settings_guide.optional_title": "Opcional / avanzado (puedes omitir al inicio)",
+    "agency.settings_guide.optional_integrations": "Panel de Integraciones (referencia y accesos rápidos).",
+    "agency.settings_guide.optional_whitelabel": "White Label (branding visual de tu panel).",
+    "agency.settings_guide.optional_voice": "Notas de voz en CRM (script avanzado).",
+    "agency.settings_guide.optional_dev": "API Keys y Webhooks (integraciones técnicas).",
+    "agency.settings_guide.optional_support": "Soporte white-label (si tu operación ya requiere atención dedicada).",
+    "agency.settings_guide.optional_theme": "Tema claro/oscuro (preferencia visual).",
+    "agency.settings_guide.show_advanced": "Mostrar avanzado",
+    "agency.settings_guide.hide_advanced": "Ocultar avanzado",
+    "agency.settings_guide.advanced_collapsed_desc": "La configuración avanzada está oculta para simplificar el onboarding inicial.",
+
     // Agency Dashboard - Support
     "agency.support.title": "Tu Número de Soporte (Marca Blanca)",
 
