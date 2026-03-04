@@ -1,4 +1,4 @@
-export const en = {
+﻿export const en = {
     // General
     "app.name": "Subscription Manager",
     "app.welcome": "Welcome",
@@ -62,7 +62,7 @@ export const en = {
     "sub.edit.upgrade": "Upgrade Plan",
 
     "sub.extras.title": "Extras",
-    "sub.extras.vip": "⚡ VIP Pricing Active",
+    "sub.extras.vip": "âš¡ VIP Pricing Active",
     "sub.extras.subagency": "Extra Subagency",
     "sub.extras.subagency_desc": "+1 Agency / 5 Slots",
     "sub.extras.slot": "Extra Slot",
@@ -305,6 +305,10 @@ export const en = {
     "dash.chatwoot_master.save": "Save Master User",
     "dash.chatwoot_master.saved": "Chatwoot master user saved",
     "dash.chatwoot_master.required": "Complete master user name, email and password.",
+    "dash.chatwoot_master.verify_required": "Enter the current password to verify changes.",
+    "dash.chatwoot_master.verify_password": "Current verification password",
+    "dash.chatwoot_master.verify_password_desc": "Before saving changes, verify with the current Master User password.",
+    "dash.chatwoot_master.new_password": "New Master User password",
     "dash.chatwoot_master.must_configure": "Configure Chatwoot Master User first in Settings.",
     "dash.chatwoot_master.configured_as": "Configured as",
     "dash.chatwoot_master.test_button": "Test connection",
@@ -667,7 +671,7 @@ export const en = {
     "agency.wl.favicon_url": "Favicon URL",
     "agency.wl.save_changes": "Save Changes",
     "agency.wl.reset": "Reset",
-    "agency.wl.saved": "Brand updated 🎨",
+    "agency.wl.saved": "Brand updated ðŸŽ¨",
     "agency.wl.confirm_reset": "Restore default values?",
     "agency.wl.reset_success": "Brand restored",
 
@@ -698,7 +702,7 @@ export const en = {
     "agency.account.loading": "Loading...",
 
     // Agency Dashboard - Trial Banner
-    "agency.trial.title": "Trial Period Active ⚡",
+    "agency.trial.title": "Trial Period Active âš¡",
     "agency.trial.desc_prefix": "Your free access expires on",
     "agency.trial.desc_suffix": ". Subscribe to a plan now.",
     "agency.trial.choose_plan": "Choose a Plan",
@@ -760,7 +764,7 @@ export const en = {
     "dash.users.soft_delete_title": "Deactivate User",
     "dash.users.soft_delete_msg": "Are you sure you want to deactivate \"{name}\"?\n\nThe user will lose access and their WhatsApp sessions will be closed. Their data will NOT be deleted.",
     "dash.users.hard_delete_title": "PERMANENT DELETION",
-    "dash.users.hard_delete_msg": "💀 Are you sure you want to destroy \"{name}\"?\n\nThis will wipe them from the database, delete their subaccounts, and disconnect everything.\n\nTHERE IS NO GOING BACK.\n\n(Only allowed if they have no active plan)",
+    "dash.users.hard_delete_msg": "ðŸ’€ Are you sure you want to destroy \"{name}\"?\n\nThis will wipe them from the database, delete their subaccounts, and disconnect everything.\n\nTHERE IS NO GOING BACK.\n\n(Only allowed if they have no active plan)",
     "dash.users.hard_delete_success": "User and data deleted.",
     "dash.users.soft_delete_success": "User deactivated successfully.",
     "dash.users.reactivate_success": "User reactivated successfully.",
@@ -774,3 +778,4 @@ export const en = {
     "dash.empty.no_locations_title": "Global Limit Reached",
     "dash.empty.no_locations_desc": "You have reached the account limit for your current plan. If you already have connected accounts in another platform or CRM, you must remove them first or upgrade to continue."
 };
+

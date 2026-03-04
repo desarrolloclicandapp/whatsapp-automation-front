@@ -103,6 +103,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [chatwootMasterName, setChatwootMasterName] = useState("");
     const [chatwootMasterEmail, setChatwootMasterEmail] = useState("");
     const [chatwootMasterPassword, setChatwootMasterPassword] = useState("");
+    const [chatwootMasterVerificationPassword, setChatwootMasterVerificationPassword] = useState("");
     const [chatwootMasterEmailMasked, setChatwootMasterEmailMasked] = useState("");
     const [isLoadingChatwootMaster, setIsLoadingChatwootMaster] = useState(false);
     const [isSavingChatwootMaster, setIsSavingChatwootMaster] = useState(false);
@@ -793,6 +794,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             setChatwootMasterName(String(data.masterName || ""));
             setChatwootMasterEmail(String(data.masterEmail || ""));
             setChatwootMasterEmailMasked(String(data.masterEmailMasked || ""));
+            setChatwootMasterVerificationPassword("");
             if (!configured) {
                 setChatwootMasterPassword("");
             }
@@ -811,9 +813,15 @@ export default function AgencyDashboard({ token, onLogout }) {
         const safeName = String(chatwootMasterName || "").trim();
         const safeEmail = String(chatwootMasterEmail || "").trim().toLowerCase();
         const safePassword = String(chatwootMasterPassword || "");
+        const safeVerificationPassword = String(chatwootMasterVerificationPassword || "");
 
         if (!safeName || !safeEmail || !safePassword) {
             toast.error(t('dash.chatwoot_master.required') || "Completa nombre, email y contraseña del usuario maestro.");
+            return false;
+        }
+
+        if (chatwootMasterConfigured && !safeVerificationPassword) {
+            toast.error(t('dash.chatwoot_master.verify_required') || "Ingresa la contraseña actual para verificar los cambios.");
             return false;
         }
 
@@ -833,7 +841,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                 body: JSON.stringify({
                     masterName: safeName,
                     masterEmail: safeEmail,
-                    masterPassword: safePassword
+                    masterPassword: safePassword,
+                    verificationPassword: safeVerificationPassword
                 })
             });
             const data = await res.json().catch(() => ({}));
@@ -846,6 +855,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             setChatwootMasterEmail(String(data.masterEmail || safeEmail));
             setChatwootMasterEmailMasked(String(data.masterEmailMasked || ""));
             setChatwootMasterPassword("");
+            setChatwootMasterVerificationPassword("");
             setAccountInfo(prev => prev ? {
                 ...prev,
                 chatwoot_master_configured: true,
@@ -1188,9 +1198,29 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </p>
                                 )}
                             </div>
+                            {chatwootMasterConfigured && (
+                                <div className="xl:col-span-2">
+                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                                        {t('dash.chatwoot_master.verify_password') || "Contraseña actual para verificar cambios"}
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={chatwootMasterVerificationPassword}
+                                        onChange={(e) => setChatwootMasterVerificationPassword(e.target.value)}
+                                        placeholder="••••••••"
+                                        autoComplete="current-password"
+                                        className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                                        {t('dash.chatwoot_master.verify_password_desc') || "Antes de guardar cambios, verifica con la contraseña actual del Usuario Maestro."}
+                                    </p>
+                                </div>
+                            )}
                             <div className="xl:col-span-2">
                                 <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                                    {t('dash.chatwoot_master.password') || "Contraseña del Usuario Maestro"}
+                                    {chatwootMasterConfigured
+                                        ? (t('dash.chatwoot_master.new_password') || "Nueva contraseña del Usuario Maestro")
+                                        : (t('dash.chatwoot_master.password') || "Contraseña del Usuario Maestro")}
                                 </label>
                                 <input
                                     type="password"
@@ -2735,9 +2765,29 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                                 />
                                             </div>
+                                            {chatwootMasterConfigured && (
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                        {t('dash.chatwoot_master.verify_password') || 'Contraseña actual para verificar cambios'}
+                                                    </label>
+                                                    <input
+                                                        type="password"
+                                                        value={chatwootMasterVerificationPassword}
+                                                        onChange={(e) => setChatwootMasterVerificationPassword(e.target.value)}
+                                                        placeholder="••••••••"
+                                                        autoComplete="current-password"
+                                                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                    />
+                                                    <p className="text-xs text-gray-500 mt-2">
+                                                        {t('dash.chatwoot_master.verify_password_desc') || 'Antes de guardar cambios, verifica con la contraseña actual del Usuario Maestro.'}
+                                                    </p>
+                                                </div>
+                                            )}
                                             <div>
                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                    {t('dash.chatwoot_master.password') || 'Contraseña del Usuario Maestro'}
+                                                    {chatwootMasterConfigured
+                                                        ? (t('dash.chatwoot_master.new_password') || 'Nueva contraseña del Usuario Maestro')
+                                                        : (t('dash.chatwoot_master.password') || 'Contraseña del Usuario Maestro')}
                                                 </label>
                                                 <input
                                                     type="password"
