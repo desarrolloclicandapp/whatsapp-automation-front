@@ -128,6 +128,20 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [webhooks, setWebhooks] = useState([]);
     const [showNewWebhookModal, setShowNewWebhookModal] = useState(false);
 
+    // Onboarding Wizard state
+    const [showOnboarding, setShowOnboarding] = useState(false);
+    const [onboardingStep, setOnboardingStep] = useState(0);
+    const [onboardingCrmType, setOnboardingCrmType] = useState(null); // "ghl" | "chatwoot"
+    const [onboardingConnectionType, setOnboardingConnectionType] = useState(null);
+    // "ghl_existing" | "ghl_create_subaccount" | "chatwoot_existing" | "chatwoot_selfhosted"
+    const [onboardingSubaccountName, setOnboardingSubaccountName] = useState("");
+    const [onboardingSubaccountEmail, setOnboardingSubaccountEmail] = useState("");
+    const [onboardingSubaccountPhone, setOnboardingSubaccountPhone] = useState("");
+    const [isCreatingSubaccount, setIsCreatingSubaccount] = useState(false);
+
+    // Integration filter for accounts list
+    const [accountsFilter, setAccountsFilter] = useState("all"); // "all" | "ghl" | "chatwoot"
+
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
             ...options,
@@ -467,13 +481,13 @@ export default function AgencyDashboard({ token, onLogout }) {
         } catch (err) { toast.error(t('agency.tenant.delete_error'), { id: tId }); }
     };
 
-    const openAddLocationModal = () => {
+    const openAddLocationModal = (isExternal = false) => {
         setAddModalName("");
         setAddModalInboxName("");
         setAddModalClientName("");
         setAddModalClientEmail("");
         setAddModalClientPassword("");
-        setAddModalChatwootExternal(false);
+        setAddModalChatwootExternal(isExternal);
         setAddModalChatwootUrl("");
         setAddModalChatwootAccountId("");
         setAddModalChatwootApiToken("");
@@ -495,7 +509,8 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const confirmAddLocationModal = async (e) => {
         e.preventDefault();
-        const isChatwootView = agencyCrmType === "chatwoot";
+        const currentCrmType = (onboardingCrmType || agencyCrmType).toLowerCase();
+        const isChatwootView = currentCrmType === "chatwoot";
         const safeName = String(addModalName || "").trim();
         const safeInboxName = String(addModalInboxName || "").trim();
         const safeClientName = String(addModalClientName || "").trim();
@@ -571,7 +586,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         try {
             const bodyPayload = {
                 name: safeName,
-                crmType: isExternalChatwoot ? "chatwoot_external" : agencyCrmType
+                crmType: isExternalChatwoot ? "chatwoot_external" : currentCrmType
             };
 
             if (isChatwootView) {
@@ -986,9 +1001,12 @@ export default function AgencyDashboard({ token, onLogout }) {
         return hasChatwootHints ? "chatwoot" : "ghl";
     };
 
-    const crmScopedLocations = locations.filter((loc) => resolveTenantCrmType(loc) === agencyCrmType);
+    // Integration filter: show all locations or filtered by CRM type
+    const accountsFilteredLocations = accountsFilter === "all"
+        ? locations
+        : locations.filter((loc) => resolveTenantCrmType(loc) === accountsFilter);
 
-    const filteredLocations = crmScopedLocations.filter(loc =>
+    const filteredLocations = accountsFilteredLocations.filter(loc =>
         (loc.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
         (loc.location_id || '').toLowerCase().includes((searchTerm || '').toLowerCase())
     );
@@ -1249,136 +1267,31 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         </div>
                                     </div>
 
-                                    {/* INTEGRATION SWITCHER — Enhanced Cards */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                                        {/* GoHighLevel Card */}
-                                        <div className={`relative overflow-hidden rounded-2xl border transition-all ${
-                                            isGhlAgency
-                                                ? 'bg-gradient-to-br from-white via-indigo-50/40 to-blue-50/20 dark:from-gray-900 dark:via-indigo-950/20 dark:to-blue-950/10 border-indigo-400/60 dark:border-indigo-700/50 shadow-md shadow-indigo-100/50 dark:shadow-indigo-900/20'
-                                                : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-sm'
-                                        }`}>
-                                            <div className="p-5">
-                                                <div className="flex items-start justify-between mb-3">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                                            isGhlAgency
-                                                                ? 'bg-indigo-100 dark:bg-indigo-900/40'
-                                                                : 'bg-gray-100 dark:bg-gray-800'
-                                                        }`}>
-                                                            <Globe size={20} className={isGhlAgency ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400'} />
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">GoHighLevel</h4>
-                                                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                                                                {t('agency.integrations.ghl_desc') || 'Gestiona subcuentas e instalaciones de GHL'}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <span className={`shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${
-                                                        isGhlAgency
-                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
-                                                            : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
-                                                    }`}>
-                                                        {isGhlAgency ? t('agency.integrations.status_active') : t('agency.integrations.status_available')}
-                                                    </span>
-                                                </div>
-
-                                                <div className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                                                    {locations.filter(l => resolveTenantCrmType(l) === 'ghl').length}
-                                                    <span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
-                                                    <span className="text-xs font-normal text-gray-400 ml-2">{isChatwootAgency ? t('dash.stats.cw_accounts') : (t('dash.stats.subaccounts') || 'subcuentas')}</span>
-                                                </div>
-
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        onClick={() => handleSelectCrm('ghl')}
-                                                        disabled={isCrmLocked || isGhlAgency}
-                                                        className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition border ${
-                                                            isGhlAgency
-                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 cursor-default'
-                                                                : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700'
-                                                        } disabled:opacity-60 disabled:cursor-not-allowed`}
-                                                    >
-                                                        {isGhlAgency ? (t('agency.integrations.selected') || 'Seleccionado') : (t('agency.integrations.select') || 'Seleccionar')}
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); openGhlPortal(); }}
-                                                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition"
-                                                    >
-                                                        <ExternalLink size={12} /> {t('agency.integrations.open') || 'Abrir portal'}
-                                                    </button>
-                                                    {isGhlAgency && (
-                                                        <button
-                                                            onClick={handleInstallApp}
-                                                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 text-xs font-semibold transition"
-                                                            title={t('agency.install_app') || 'Instalar App'}
-                                                        >
-                                                            <Download size={12} /> {t('agency.install_app') || 'Instalar App'}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Chatwoot Card */}
-                                        <div className={`relative overflow-hidden rounded-2xl border transition-all ${
-                                            isChatwootAgency
-                                                ? 'bg-gradient-to-br from-white via-indigo-50/40 to-violet-50/20 dark:from-gray-900 dark:via-indigo-950/20 dark:to-violet-950/10 border-indigo-400/60 dark:border-indigo-700/50 shadow-md shadow-indigo-100/50 dark:shadow-indigo-900/20'
-                                                : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-sm'
-                                        }`}>
-                                            <div className="p-5">
-                                                <div className="flex items-start justify-between mb-3">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                                            isChatwootAgency
-                                                                ? 'bg-indigo-100 dark:bg-indigo-900/40'
-                                                                : 'bg-gray-100 dark:bg-gray-800'
-                                                        }`}>
-                                                            <MessageSquare size={20} className={isChatwootAgency ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400'} />
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">Chatwoot</h4>
-                                                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                                                                {t('agency.integrations.chatwoot_desc') || 'Conecta Waflow con Chatwoot por inbox/slot'}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <span className={`shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${
-                                                        isChatwootAgency
-                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
-                                                            : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
-                                                    }`}>
-                                                        {isChatwootAgency ? t('agency.integrations.status_active') : t('agency.integrations.status_available')}
-                                                    </span>
-                                                </div>
-
-                                                <div className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                                                    {locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length}
-                                                    <span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
-                                                    <span className="text-xs font-normal text-gray-400 ml-2">{isChatwootAgency ? t('dash.stats.cw_accounts') : (t('dash.stats.subaccounts') || 'subcuentas')}</span>
-                                                </div>
-
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        onClick={() => handleSelectCrm('chatwoot')}
-                                                        disabled={isCrmLocked || isChatwootAgency}
-                                                        className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition border ${
-                                                            isChatwootAgency
-                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 cursor-default'
-                                                                : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700'
-                                                        } disabled:opacity-60 disabled:cursor-not-allowed`}
-                                                    >
-                                                        {isChatwootAgency ? (t('agency.integrations.selected') || 'Seleccionado') : (t('agency.integrations.select') || 'Seleccionar')}
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); openChatwootPortal(); }}
-                                                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition"
-                                                    >
-                                                        <ExternalLink size={12} /> {t('agency.integrations.open') || 'Abrir portal'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    {/* INTEGRATION FILTER TABS */}
+                                    <div className="flex items-center gap-2 mt-6 mb-2">
+                                        {[
+                                            { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: locations.length },
+                                            { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: locations.filter(l => resolveTenantCrmType(l) === 'ghl').length },
+                                            { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
+                                        ].map(tab => (
+                                            <button
+                                                key={tab.id}
+                                                onClick={() => setAccountsFilter(tab.id)}
+                                                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                                                    accountsFilter === tab.id
+                                                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800 shadow-sm'
+                                                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800 dark:hover:border-gray-700'
+                                                }`}
+                                            >
+                                                {tab.icon && <tab.icon size={13} />}
+                                                {tab.label}
+                                                <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                                                    accountsFilter === tab.id
+                                                        ? 'bg-indigo-200/60 text-indigo-800 dark:bg-indigo-800/40 dark:text-indigo-200'
+                                                        : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
+                                                }`}>{tab.count}</span>
+                                            </button>
+                                        ))}
                                     </div>
 
                                     {suspensionStatus?.status === 'grace' && (
@@ -1428,10 +1341,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <div>
                                         <div className="flex items-center justify-between mb-4">
                                             <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-                                                {isGhlAgency
-                                                    ? t('dash.subs.title')
-                                                    : (isChatwootAgency ? (t('dash.subs.cw_title') || "Cuentas Chatwoot Activas") : (t('dash.locations.title') || "Locations"))
-                                                }
+                                                {t('agency.onboarding.accounts_title') || 'Cuentas Activas'}
                                             </h3>
                                             <div className="flex gap-2">
                                                 <div className="relative">
@@ -1439,11 +1349,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     <input
                                                         type="text"
                                                         autoComplete="off"
-                                                        placeholder={
-                                                            isGhlAgency
-                                                                ? t('dash.subs.search')
-                                                                : (isChatwootAgency ? (t('dash.chatwoot_accounts.search') || "Buscar cuentas...") : (t('dash.locations.search') || "Buscar locations..."))
-                                                        }
+                                                        placeholder={t('agency.onboarding.search_accounts') || 'Buscar cuentas...'}
                                                         className="pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white w-40 focus:w-52 transition-all"
                                                         value={searchTerm}
                                                         onChange={e => setSearchTerm(e.target.value)}
@@ -1453,14 +1359,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     <RefreshCw size={16} className={loading || isAutoSyncing ? "animate-spin" : ""} />
                                                 </button>
                                                 <button
-                                                    onClick={isGhlAgency ? () => setActiveTab('billing') : openAddLocationModal}
+                                                    onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setShowOnboarding(true); }}
                                                     className="px-4 py-2 text-white rounded-lg font-medium text-sm flex items-center gap-1.5 transition"
                                                     style={{ backgroundColor: branding.primaryColor }}
                                                 >
-                                                    <Plus size={16} /> {isGhlAgency
-                                                        ? t('dash.subs.new')
-                                                        : (isChatwootAgency ? (t('dash.chatwoot_accounts.new') || "Nueva Cuenta Chatwoot") : (t('dash.locations.new') || "Nueva Location"))
-                                                    }
+                                                    <Plus size={16} /> {t('agency.onboarding.new_account') || 'Nueva Cuenta'}
                                                 </button>
                                             </div>
                                         </div>
@@ -1473,17 +1376,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer">
                                                         <div className="flex items-start justify-between mb-3">
                                                             <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                                                                {isGhlAgency
-                                                                    ? <Building2 size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                                                                    : (isChatwootAgency
-                                                                        ? <MessageSquareText size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                                                                        : <Smartphone size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                                                                    )
+                                                                {resolveTenantCrmType(loc) === 'chatwoot'
+                                                                    ? <MessageSquareText size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
+                                                                    : <Globe size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
                                                                 }
                                                             </div>
-                                                            <button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100">
-                                                                <Trash2 size={14} />
-                                                            </button>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-full border ${
+                                                                    resolveTenantCrmType(loc) === 'chatwoot'
+                                                                        ? 'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-800'
+                                                                        : 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+                                                                }`}>
+                                                                    {resolveTenantCrmType(loc) === 'chatwoot' ? 'Chatwoot' : 'GHL'}
+                                                                </span>
+                                                                <button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100">
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                         <h4 className="font-semibold text-gray-900 dark:text-white mb-1 truncate text-sm">{loc.name || t('agency.location.no_name')}</h4>
                                                         <div className="flex items-center justify-between">
@@ -1496,7 +1405,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 ))}
 
                                                 {!searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
-                                                    <div key={`empty-${idx}`} onClick={isGhlAgency ? handleInstallApp : openAddLocationModal} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
+                                                    <div key={`empty-${idx}`} onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setShowOnboarding(true); }} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
                                                         <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                                                             <Plus size={20} className="text-gray-300 group-hover:text-indigo-600" />
                                                         </div>
@@ -2028,7 +1937,267 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </div>
                         </div>
                     )}
+
+                    {/* ═══════════════ ONBOARDING WIZARD MODAL ═══════════════ */}
+                    {showOnboarding && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowOnboarding(false)}>
+                            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+                                {/* Header */}
+                                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                                    <div className="flex items-center gap-3">
+                                        {onboardingStep > 0 && (
+                                            <button onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition">
+                                                <ChevronRight size={18} className="rotate-180" />
+                                            </button>
+                                        )}
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                                            {onboardingStep === 0 && (t('agency.onboarding.title') || 'Nueva Cuenta')}
+                                            {onboardingStep === 1 && onboardingCrmType === 'ghl' && 'GoHighLevel'}
+                                            {onboardingStep === 1 && onboardingCrmType === 'chatwoot' && 'Chatwoot'}
+                                        </h3>
+                                    </div>
+                                    <button onClick={() => setShowOnboarding(false)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 transition">
+                                        <X size={18} />
+                                    </button>
+                                </div>
+
+                                <div className="p-6">
+                                    {/* Step 0: Choose integration type */}
+                                    {onboardingStep === 0 && (
+                                        <div className="space-y-3">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                                {t('agency.onboarding.choose_integration') || 'Elige el tipo de integración para la nueva cuenta'}
+                                            </p>
+                                            <button
+                                                onClick={() => { setOnboardingCrmType('ghl'); setOnboardingStep(1); }}
+                                                className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all group text-left flex items-center gap-4"
+                                            >
+                                                <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                                                    <Globe size={24} className="text-blue-600 dark:text-blue-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-gray-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-300 transition">
+                                                        {t('agency.onboarding.ghl_title') || 'CRM GoHighLevel'}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {t('agency.onboarding.ghl_desc') || 'Gestiona contactos y comunicación con GoHighLevel'}
+                                                    </p>
+                                                </div>
+                                                <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-500 ml-auto shrink-0 transition" />
+                                            </button>
+                                            <button
+                                                onClick={() => { setOnboardingCrmType('chatwoot'); setOnboardingStep(1); }}
+                                                className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-violet-400 dark:hover:border-violet-600 bg-white dark:bg-gray-800 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-all group text-left flex items-center gap-4"
+                                            >
+                                                <div className="w-12 h-12 rounded-xl bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
+                                                    <MessageSquare size={24} className="text-violet-600 dark:text-violet-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-gray-900 dark:text-white group-hover:text-violet-700 dark:group-hover:text-violet-300 transition">
+                                                        {t('agency.onboarding.chatwoot_title') || 'Mensajería Chatwoot'}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {t('agency.onboarding.chatwoot_desc') || 'Conecta Waflow con Chatwoot para tu bandeja de entrada'}
+                                                    </p>
+                                                </div>
+                                                <ChevronRight size={18} className="text-gray-300 group-hover:text-violet-500 ml-auto shrink-0 transition" />
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Step 1 GHL: Connection type */}
+                                    {onboardingStep === 1 && onboardingCrmType === 'ghl' && !onboardingConnectionType && (
+                                        <div className="space-y-3">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                                {t('agency.onboarding.connection_type') || '¿Cómo deseas conectar tu cuenta?'}
+                                            </p>
+                                            <button
+                                                onClick={() => { setShowOnboarding(false); handleInstallApp(); }}
+                                                className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all group text-left flex items-center gap-4"
+                                            >
+                                                <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                                                    <Download size={20} className="text-blue-600 dark:text-blue-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                        {t('agency.onboarding.already_have_account') || 'Ya tengo una cuenta'}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {t('agency.onboarding.ghl_install_panel') || 'Instala la app de Waflow en tu location existente'}
+                                                    </p>
+                                                </div>
+                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-500 ml-auto shrink-0 transition" />
+                                            </button>
+                                            <button
+                                                onClick={() => setOnboardingConnectionType('ghl_create_subaccount')}
+                                                className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all group text-left flex items-center gap-4"
+                                            >
+                                                <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                                                    <Plus size={20} className="text-blue-600 dark:text-blue-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                        {t('agency.onboarding.create_subaccount') || 'Crear subcuenta con nuestra agencia'}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {t('agency.onboarding.ghl_create_subaccount_form') || 'Creamos una nueva subcuenta GoHighLevel para ti'}
+                                                    </p>
+                                                </div>
+                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-500 ml-auto shrink-0 transition" />
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Step 1 GHL: Create sub-account form */}
+                                    {onboardingStep === 1 && onboardingCrmType === 'ghl' && onboardingConnectionType === 'ghl_create_subaccount' && (
+                                        <form onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            if (!onboardingSubaccountName.trim()) return;
+                                            setIsCreatingSubaccount(true);
+                                            try {
+                                                const resp = await authFetch('/agency/ghl/create-subaccount', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        name: onboardingSubaccountName.trim(),
+                                                        email: onboardingSubaccountEmail.trim() || undefined,
+                                                        phone: onboardingSubaccountPhone.trim() || undefined
+                                                    })
+                                                });
+                                                const data = await resp.json();
+                                                if (!resp.ok) throw new Error(data.error || 'Error creando subcuenta');
+                                                toast.success(t('agency.onboarding.subaccount_created') || `Subcuenta "${data.name}" creada exitosamente`);
+                                                setShowOnboarding(false);
+                                                setOnboardingSubaccountName('');
+                                                setOnboardingSubaccountEmail('');
+                                                setOnboardingSubaccountPhone('');
+                                                setOnboardingConnectionType(null);
+                                                refreshData();
+                                                // If installUrl, prompt install
+                                                if (data.installUrl) {
+                                                    setTimeout(() => {
+                                                        if (window.confirm(t('agency.onboarding.install_app_prompt') || '¿Deseas instalar la app de Waflow en la nueva subcuenta ahora?')) {
+                                                            window.open(data.installUrl, '_blank');
+                                                        }
+                                                    }, 500);
+                                                }
+                                            } catch (err) {
+                                                toast.error(err.message || 'Error creando subcuenta');
+                                            } finally {
+                                                setIsCreatingSubaccount(false);
+                                            }
+                                        }} className="space-y-4">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                                                {t('agency.onboarding.ghl_create_subaccount_form') || 'Creamos una nueva subcuenta GoHighLevel para ti'}
+                                            </p>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    {t('agency.onboarding.ghl_subaccount_name') || 'Nombre de la subcuenta'} *
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    value={onboardingSubaccountName}
+                                                    onChange={e => setOnboardingSubaccountName(e.target.value)}
+                                                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    placeholder="Mi Negocio"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    {t('agency.onboarding.ghl_subaccount_email') || 'Email del negocio'}
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    value={onboardingSubaccountEmail}
+                                                    onChange={e => setOnboardingSubaccountEmail(e.target.value)}
+                                                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    placeholder="email@negocio.com"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    {t('agency.onboarding.ghl_subaccount_phone') || 'Teléfono'}
+                                                </label>
+                                                <input
+                                                    type="tel"
+                                                    value={onboardingSubaccountPhone}
+                                                    onChange={e => setOnboardingSubaccountPhone(e.target.value)}
+                                                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    placeholder="+1234567890"
+                                                />
+                                            </div>
+                                            <div className="flex justify-end gap-2 pt-2">
+                                                <button type="button" onClick={() => setOnboardingConnectionType(null)} className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition">
+                                                    {t('agency.onboarding.back') || 'Volver'}
+                                                </button>
+                                                <button
+                                                    type="submit"
+                                                    disabled={isCreatingSubaccount || !onboardingSubaccountName.trim()}
+                                                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {isCreatingSubaccount ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                                                    {t('common.create') || 'Crear'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    )}
+
+                                    {/* Step 1 Chatwoot: Connection type */}
+                                    {onboardingStep === 1 && onboardingCrmType === 'chatwoot' && (
+                                        <div className="space-y-3">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                                {t('agency.onboarding.connection_type') || '¿Cómo deseas conectar tu cuenta?'}
+                                            </p>
+                                            <button
+                                                onClick={() => {
+                                                    setShowOnboarding(false);
+                                                    openAddLocationModal(true);
+                                                }}
+                                                className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-violet-400 dark:hover:border-violet-600 bg-white dark:bg-gray-800 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-all group text-left flex items-center gap-4"
+                                            >
+                                                <div className="w-10 h-10 rounded-lg bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
+                                                    <ExternalLink size={20} className="text-violet-600 dark:text-violet-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                        {t('agency.onboarding.already_have_account') || 'Ya tengo una cuenta'}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {t('agency.onboarding.chatwoot_existing_form') || 'Conecta tu instancia existente de Chatwoot (BYOC)'}
+                                                    </p>
+                                                </div>
+                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-violet-500 ml-auto shrink-0 transition" />
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setShowOnboarding(false);
+                                                    openAddLocationModal(false);
+                                                }}
+                                                className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-violet-400 dark:hover:border-violet-600 bg-white dark:bg-gray-800 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-all group text-left flex items-center gap-4"
+                                            >
+                                                <div className="w-10 h-10 rounded-lg bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
+                                                    <Building2 size={20} className="text-violet-600 dark:text-violet-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                        {t('agency.onboarding.selfhosted_account') || 'Cuenta hospedada por nosotros'}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {t('agency.onboarding.chatwoot_selfhosted_form') || 'Creamos y administramos tu cuenta de Chatwoot'}
+                                                    </p>
+                                                </div>
+                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-violet-500 ml-auto shrink-0 transition" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                 </main>
+
             </div>
 
             {selectedLocation && (
