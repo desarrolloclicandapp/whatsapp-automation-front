@@ -21,7 +21,7 @@ import {
     TrendingUp, ShieldCheck, Settings, Trash2,
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
     Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Mic, Hammer,
-    Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare, Loader2 // ✅ Iconos
+    Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare, Loader2, X // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -1267,33 +1267,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         </div>
                                     </div>
 
-                                    {/* INTEGRATION FILTER TABS */}
-                                    <div className="flex items-center gap-2 mt-6 mb-2">
-                                        {[
-                                            { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: locations.length },
-                                            { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: locations.filter(l => resolveTenantCrmType(l) === 'ghl').length },
-                                            { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
-                                        ].map(tab => (
-                                            <button
-                                                key={tab.id}
-                                                onClick={() => setAccountsFilter(tab.id)}
-                                                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
-                                                    accountsFilter === tab.id
-                                                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800 shadow-sm'
-                                                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800 dark:hover:border-gray-700'
-                                                }`}
-                                            >
-                                                {tab.icon && <tab.icon size={13} />}
-                                                {tab.label}
-                                                <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-                                                    accountsFilter === tab.id
-                                                        ? 'bg-indigo-200/60 text-indigo-800 dark:bg-indigo-800/40 dark:text-indigo-200'
-                                                        : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
-                                                }`}>{tab.count}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-
                                     {suspensionStatus?.status === 'grace' && (
                                         <div className="mt-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/40 p-4 rounded-xl">
                                             <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200">
@@ -1339,11 +1312,36 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     )}
 
                                     <div>
-                                        <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center justify-between gap-3 mb-4">
                                             <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                                                 {t('agency.onboarding.accounts_title') || 'Cuentas Activas'}
                                             </h3>
-                                            <div className="flex gap-2">
+                                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    {[
+                                                        { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: locations.length },
+                                                        { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: locations.filter(l => resolveTenantCrmType(l) === 'ghl').length },
+                                                        { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
+                                                    ].map(tab => (
+                                                        <button
+                                                            key={tab.id}
+                                                            onClick={() => setAccountsFilter(tab.id)}
+                                                            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                                                                accountsFilter === tab.id
+                                                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800 shadow-sm'
+                                                                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800 dark:hover:border-gray-700'
+                                                            }`}
+                                                        >
+                                                            {tab.icon && <tab.icon size={13} />}
+                                                            {tab.label}
+                                                            <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                                                                accountsFilter === tab.id
+                                                                    ? 'bg-indigo-200/60 text-indigo-800 dark:bg-indigo-800/40 dark:text-indigo-200'
+                                                                    : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
+                                                            }`}>{tab.count}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
                                                 <div className="relative">
                                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                                                     <input
@@ -1745,7 +1743,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200">
                                 <div className="flex justify-between items-center mb-6">
                                     <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                                        {isChatwootAgency ? (t('dash.chatwoot_accounts.new') || "Nueva Cuenta Chatwoot") : (t('dash.locations.new') || "Nueva Entidad / Sucursal")}
+                                        {t('agency.onboarding.new_account') || "Nueva Cuenta"}
                                     </h3>
                                     <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
                                         <Settings size={20} className="rotate-45" />
