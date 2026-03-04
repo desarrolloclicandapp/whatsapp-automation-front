@@ -299,8 +299,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         method: "POST",
                         body: JSON.stringify({
                             locationIdToVerify: resolvedLocationId || null,
-                            code: code || null,
-                            expectedAgencyId: accountInfo?.agencyId || AGENCY_ID || null
+                            code: code || null
                         })
                     });
 
