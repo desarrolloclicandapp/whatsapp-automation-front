@@ -504,6 +504,8 @@ export const es = {
     "agency.onboarding.compare_title": "Compara beneficios y elige tu plataforma",
     "agency.onboarding.choose_integration_summary": "Elige la experiencia ideal para cada cliente. Puedes crear cuentas mixtas dentro de la misma agencia.",
     "agency.onboarding.benefits_title": "Listado de beneficios",
+    "agency.onboarding.card_select": "Seleccionar",
+    "agency.onboarding.card_selected": "Seleccionado",
     "agency.onboarding.ghl_title": "CRM GoHighLevel",
     "agency.onboarding.ghl_desc": "Gestiona contactos y comunicación con GoHighLevel",
     "agency.onboarding.ghl_benefit_1": "Pipeline y CRM en un solo lugar",

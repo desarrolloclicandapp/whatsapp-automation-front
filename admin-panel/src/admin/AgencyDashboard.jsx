@@ -140,6 +140,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [onboardingSubaccountEmail, setOnboardingSubaccountEmail] = useState("");
     const [onboardingSubaccountPhone, setOnboardingSubaccountPhone] = useState("");
     const [isCreatingSubaccount, setIsCreatingSubaccount] = useState(false);
+    const [onboardingHoveredCard, setOnboardingHoveredCard] = useState(null);
 
     // Integration filter for accounts list
     const [accountsFilter, setAccountsFilter] = useState("all"); // "all" | "ghl" | "chatwoot"
@@ -516,6 +517,15 @@ export default function AgencyDashboard({ token, onLogout }) {
         setOnboardingCrmType("chatwoot");
         setOnboardingConnectionType(null);
         setShowOnboarding(true);
+    };
+
+    const goToOnboardingConnectionStep = (crmType) => {
+        setOnboardingCrmType(crmType);
+        setOnboardingHoveredCard(crmType);
+        setTimeout(() => {
+            setOnboardingStep(1);
+            setOnboardingHoveredCard(null);
+        }, 120);
     };
 
     useEffect(() => {
@@ -1388,7 +1398,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     <RefreshCw size={16} className={loading || isAutoSyncing ? "animate-spin" : ""} />
                                                 </button>
                                                 <button
-                                                    onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setShowOnboarding(true); }}
+                                                    onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setOnboardingHoveredCard(null); setShowOnboarding(true); }}
                                                     className="px-4 py-2 text-white rounded-lg font-medium text-sm flex items-center gap-1.5 transition"
                                                     style={{ backgroundColor: branding.primaryColor }}
                                                 >
@@ -1434,7 +1444,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 ))}
 
                                                 {!searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
-                                                    <div key={`empty-${idx}`} onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setShowOnboarding(true); }} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
+                                                    <div key={`empty-${idx}`} onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setOnboardingHoveredCard(null); setShowOnboarding(true); }} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
                                                         <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                                                             <Plus size={20} className="text-gray-300 group-hover:text-indigo-600" />
                                                         </div>
@@ -1992,7 +2002,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
                                     <div className="flex items-center gap-3">
                                         {onboardingStep > 0 && (
-                                            <button onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition">
+                                            <button onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setOnboardingHoveredCard(null); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition">
                                                 <ChevronRight size={18} className="rotate-180" />
                                             </button>
                                         )}
@@ -2023,14 +2033,38 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                                             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <button
-                                                    onClick={() => { setOnboardingCrmType('ghl'); setOnboardingStep(1); }}
-                                                    className="rounded-2xl border-2 border-gray-900 dark:border-gray-200 bg-white dark:bg-gray-900 p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg hover:border-blue-500 dark:hover:border-blue-400"
+                                                    onClick={() => goToOnboardingConnectionStep('ghl')}
+                                                    onMouseEnter={() => setOnboardingHoveredCard('ghl')}
+                                                    onMouseLeave={() => setOnboardingHoveredCard(null)}
+                                                    onFocus={() => setOnboardingHoveredCard('ghl')}
+                                                    onBlur={() => setOnboardingHoveredCard(null)}
+                                                    className={`group rounded-xl border-[3px] p-5 text-left transition-all duration-200 ${
+                                                        onboardingHoveredCard === 'ghl'
+                                                            ? 'border-blue-600 dark:border-blue-400 bg-blue-50/60 dark:bg-blue-900/20 shadow-[0_14px_30px_rgba(37,99,235,0.25)] -translate-y-0.5'
+                                                            : onboardingHoveredCard
+                                                                ? 'opacity-75 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900'
+                                                                : 'border-gray-900 dark:border-gray-200 bg-white dark:bg-gray-900 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-[0_10px_24px_rgba(59,130,246,0.18)]'
+                                                    }`}
                                                 >
-                                                    <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-3 justify-between">
+                                                        <span className={`inline-flex items-center px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-md border ${
+                                                            onboardingHoveredCard === 'ghl'
+                                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                                : 'bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+                                                        }`}>
+                                                            {onboardingHoveredCard === 'ghl' ? (t('agency.onboarding.card_selected') || 'Seleccionado') : (t('agency.onboarding.card_select') || 'Seleccionar')}
+                                                        </span>
+                                                        <ChevronRight size={18} className={`shrink-0 transition ${
+                                                            onboardingHoveredCard === 'ghl'
+                                                                ? 'text-blue-600 dark:text-blue-300'
+                                                                : 'text-gray-300 group-hover:text-blue-500'
+                                                        }`} />
+                                                    </div>
+                                                    <div className="flex items-center gap-3 mt-3">
                                                         <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
                                                             <Globe size={20} className="text-blue-600 dark:text-blue-400" />
                                                         </div>
-                                                        <h5 className="text-xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+                                                        <h5 className="text-xl font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
                                                             {t('agency.onboarding.ghl_title') || 'CRM GoHighLevel'}
                                                         </h5>
                                                     </div>
@@ -2038,23 +2072,47 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         {t('agency.onboarding.benefits_title') || 'Listado de beneficios'}
                                                     </p>
                                                     <ul className="mt-3 space-y-2 text-sm text-gray-800 dark:text-gray-200">
-                                                        <li className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0"></span><span>{t('agency.onboarding.ghl_benefit_1') || 'Pipeline y CRM en un solo lugar'}</span></li>
-                                                        <li className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0"></span><span>{t('agency.onboarding.ghl_benefit_2') || 'Automatizaciones y campañas'}</span></li>
-                                                        <li className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0"></span><span>{t('agency.onboarding.ghl_benefit_3') || 'Instalación rápida de Waflow'}</span></li>
-                                                        <li className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0"></span><span>{t('agency.onboarding.ghl_benefit_4') || 'Mayor control comercial del cliente'}</span></li>
-                                                        <li className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0"></span><span>{t('agency.onboarding.ghl_benefit_5') || 'Escalable para múltiples subcuentas'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_1') || 'Pipeline y CRM en un solo lugar'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_2') || 'Automatizaciones y campañas'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_3') || 'Instalación rápida de Waflow'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_4') || 'Mayor control comercial del cliente'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_5') || 'Escalable para múltiples subcuentas'}</span></li>
                                                     </ul>
                                                 </button>
 
                                                 <button
-                                                    onClick={() => { setOnboardingCrmType('chatwoot'); setOnboardingStep(1); }}
-                                                    className="rounded-2xl border-2 border-gray-900 dark:border-gray-200 bg-white dark:bg-gray-900 p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg hover:border-violet-500 dark:hover:border-violet-400"
+                                                    onClick={() => goToOnboardingConnectionStep('chatwoot')}
+                                                    onMouseEnter={() => setOnboardingHoveredCard('chatwoot')}
+                                                    onMouseLeave={() => setOnboardingHoveredCard(null)}
+                                                    onFocus={() => setOnboardingHoveredCard('chatwoot')}
+                                                    onBlur={() => setOnboardingHoveredCard(null)}
+                                                    className={`group rounded-xl border-[3px] p-5 text-left transition-all duration-200 ${
+                                                        onboardingHoveredCard === 'chatwoot'
+                                                            ? 'border-violet-600 dark:border-violet-400 bg-violet-50/60 dark:bg-violet-900/20 shadow-[0_14px_30px_rgba(124,58,237,0.25)] -translate-y-0.5'
+                                                            : onboardingHoveredCard
+                                                                ? 'opacity-75 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900'
+                                                                : 'border-gray-900 dark:border-gray-200 bg-white dark:bg-gray-900 hover:border-violet-500 dark:hover:border-violet-400 hover:shadow-[0_10px_24px_rgba(139,92,246,0.2)]'
+                                                    }`}
                                                 >
-                                                    <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-3 justify-between">
+                                                        <span className={`inline-flex items-center px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-md border ${
+                                                            onboardingHoveredCard === 'chatwoot'
+                                                                ? 'bg-violet-600 text-white border-violet-600'
+                                                                : 'bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+                                                        }`}>
+                                                            {onboardingHoveredCard === 'chatwoot' ? (t('agency.onboarding.card_selected') || 'Seleccionado') : (t('agency.onboarding.card_select') || 'Seleccionar')}
+                                                        </span>
+                                                        <ChevronRight size={18} className={`shrink-0 transition ${
+                                                            onboardingHoveredCard === 'chatwoot'
+                                                                ? 'text-violet-600 dark:text-violet-300'
+                                                                : 'text-gray-300 group-hover:text-violet-500'
+                                                        }`} />
+                                                    </div>
+                                                    <div className="flex items-center gap-3 mt-3">
                                                         <div className="w-10 h-10 rounded-lg bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
                                                             <MessageSquare size={20} className="text-violet-600 dark:text-violet-400" />
                                                         </div>
-                                                        <h5 className="text-xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+                                                        <h5 className="text-xl font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
                                                             {t('agency.onboarding.chatwoot_title') || 'Chatwoot'}
                                                         </h5>
                                                     </div>
@@ -2062,11 +2120,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         {t('agency.onboarding.benefits_title') || 'Listado de beneficios'}
                                                     </p>
                                                     <ul className="mt-3 space-y-2 text-sm text-gray-800 dark:text-gray-200">
-                                                        <li className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-violet-500 shrink-0"></span><span>{t('agency.onboarding.chatwoot_benefit_1') || 'Bandeja omnicanal colaborativa'}</span></li>
-                                                        <li className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-violet-500 shrink-0"></span><span>{t('agency.onboarding.chatwoot_benefit_2') || 'Asignación por equipo e inbox'}</span></li>
-                                                        <li className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-violet-500 shrink-0"></span><span>{t('agency.onboarding.chatwoot_benefit_3') || 'Conexión nativa con WhatsApp'}</span></li>
-                                                        <li className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-violet-500 shrink-0"></span><span>{t('agency.onboarding.chatwoot_benefit_4') || 'Contexto completo por conversación'}</span></li>
-                                                        <li className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-violet-500 shrink-0"></span><span>{t('agency.onboarding.chatwoot_benefit_5') || 'Ideal para equipos de soporte/operación'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_1') || 'Bandeja omnicanal colaborativa'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_2') || 'Asignación por equipo e inbox'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_3') || 'Conexión nativa con WhatsApp'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_4') || 'Contexto completo por conversación'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_5') || 'Ideal para equipos de soporte/operación'}</span></li>
                                                     </ul>
                                                 </button>
                                             </div>
