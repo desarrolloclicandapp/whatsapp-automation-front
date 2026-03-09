@@ -1224,27 +1224,32 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50 dark:bg-black/20">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
                         <div className="flex flex-col md:flex-row md:items-center gap-4">
-                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-4 shadow-sm">
-                                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
-                                    <Link2 size={18} />
-                                </div>
-                                <div>
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{t('slots.crm.title') || "CRM"}</p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300">
-                                        {isGhlMode
-                                            ? (t('slots.crm.readonly_ghl') || "Este tenant opera solo con GoHighLevel")
-                                            : (t('slots.crm.readonly_chatwoot') || "Esta cuenta funciona solo con Chatwoot")
-                                        }
-                                    </p>
-                                </div>
-                                <div className="ml-2">
-                                    <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide ${isGhlMode
-                                        ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
-                                        : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                                        }`}>
-                                        {isGhlMode ? "GoHighLevel" : "Chatwoot"}
-                                    </span>
-                                </div>
+                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
+                                <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-[0.18em] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                    {isGhlMode ? "GOHIGHLEVEL" : "CHATWOOT"}
+                                </span>
+                                {isChatwootMode && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => window.open(chatwootHeaderLoginUrl, '_blank', 'noopener,noreferrer')}
+                                            disabled={!chatwootHeaderLoginUrl}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition"
+                                        >
+                                            <Link2 size={16} />
+                                            Abrir Login
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowChatwootAccessModal(true)}
+                                            disabled={loadingChatwootAccess}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 transition"
+                                        >
+                                            <User size={16} />
+                                            Info
+                                        </button>
+                                    </>
+                                )}
                             </div>
 
                             {canWhiteLabel && (
@@ -1269,29 +1274,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                             </button>
                         </div>
                     </div>
-
-                    {isChatwootMode && (
-                        <div className="mb-8 flex justify-end gap-3 flex-wrap">
-                            <button
-                                type="button"
-                                onClick={() => window.open(chatwootHeaderLoginUrl, '_blank', 'noopener,noreferrer')}
-                                disabled={!chatwootHeaderLoginUrl}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition"
-                            >
-                                <Link2 size={16} />
-                                Abrir Login
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowChatwootAccessModal(true)}
-                                disabled={loadingChatwootAccess}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-800 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 transition"
-                            >
-                                <User size={16} />
-                                Info
-                            </button>
-                        </div>
-                    )}
 
                     {loading ? (
                         <div className="flex justify-center p-20"><RefreshCw className="animate-spin text-indigo-500 w-10 h-10" /></div>
