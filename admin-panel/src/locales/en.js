@@ -363,6 +363,17 @@ export const en = {
     "slots.tab.groups": "Groups",
     "slots.tab.connection": "Connection QR",
     "slots.tab.sms": "SMS / Twilio",
+    "slots.share.generate_link": "Generate QR URL",
+    "slots.share.card_title": "Shareable QR link",
+    "slots.share.card_desc": "Send this URL to the client so they can link devices from Waflow without opening GHL or Chatwoot.",
+    "slots.share.copy_link": "Copy URL",
+    "slots.share.open_link": "Open",
+    "slots.share.copied": "QR URL copied",
+    "slots.share.link_ready": "QR URL generated",
+    "slots.share.link_ready_desc": "Your client can open it and generate the QR codes for this location.",
+    "slots.share.copy_hint": "Copy the URL from the field to share it with your client.",
+    "slots.share.no_slots": "Add at least one slot before generating the link",
+    "slots.share.error": "Could not generate the QR link",
 
     // SMS / Twilio
     "slots.sms.title": "SMS / Twilio",
