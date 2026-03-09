@@ -1138,7 +1138,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     <p className="text-sm text-gray-600 dark:text-gray-300">
                                         {isGhlMode
                                             ? (t('slots.crm.readonly_ghl') || "Este tenant opera solo con GoHighLevel")
-                                            : (t('slots.crm.readonly_chatwoot') || "Este tenant opera solo con Chatwoot")
+                                            : (t('slots.crm.readonly_chatwoot') || "Esta cuenta funciona solo con Chatwoot")
                                         }
                                     </p>
                                 </div>

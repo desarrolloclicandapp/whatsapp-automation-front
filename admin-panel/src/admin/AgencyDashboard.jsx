@@ -118,6 +118,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const isGhlAgency = agencyCrmType === "ghl";
     const isChatwootAgency = agencyCrmType === "chatwoot";
     const isCrmLocked = Boolean(accountInfo?.crm_type);
+    const isGhlSubaccountVerificationDisabled = Boolean(accountInfo?.ghl_subaccount_contact_verification_disabled);
     const crmLabelMap = { ghl: "GoHighLevel", chatwoot: "Chatwoot", odoo: "Odoo" };
     const activeCrmLabel = crmLabelMap[agencyCrmType] || agencyCrmType.toUpperCase();
     const [searchTerm, setSearchTerm] = useState("");
@@ -195,7 +196,13 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [onboardingSubaccountName, setOnboardingSubaccountName] = useState("");
     const [onboardingSubaccountEmail, setOnboardingSubaccountEmail] = useState("");
     const [onboardingSubaccountPhone, setOnboardingSubaccountPhone] = useState("");
+    const [onboardingSubaccountEmailCode, setOnboardingSubaccountEmailCode] = useState("");
+    const [onboardingSubaccountPhoneCode, setOnboardingSubaccountPhoneCode] = useState("");
     const [isCreatingSubaccount, setIsCreatingSubaccount] = useState(false);
+    const [isSendingSubaccountEmailOtp, setIsSendingSubaccountEmailOtp] = useState(false);
+    const [isSendingSubaccountPhoneOtp, setIsSendingSubaccountPhoneOtp] = useState(false);
+    const [subaccountEmailOtpRequested, setSubaccountEmailOtpRequested] = useState(false);
+    const [subaccountPhoneOtpRequested, setSubaccountPhoneOtpRequested] = useState(false);
     const [onboardingHoveredCard, setOnboardingHoveredCard] = useState(null);
 
     // Integration filter for accounts list
@@ -217,6 +224,70 @@ export default function AgencyDashboard({ token, onLogout }) {
             throw new Error(t('agency.session_expired'));
         }
         return res;
+    };
+
+    const resetOnboardingSubaccountForm = () => {
+        setOnboardingSubaccountName('');
+        setOnboardingSubaccountEmail('');
+        setOnboardingSubaccountPhone('');
+        setOnboardingSubaccountEmailCode('');
+        setOnboardingSubaccountPhoneCode('');
+        setSubaccountEmailOtpRequested(false);
+        setSubaccountPhoneOtpRequested(false);
+    };
+
+    const handleSendSubaccountEmailOtp = async () => {
+        const email = onboardingSubaccountEmail.trim().toLowerCase();
+        if (!email || !email.includes('@') || !email.includes('.')) {
+            toast.error(t('agency.onboarding.invalid_email') || 'Ingresa un email válido antes de solicitar el código.');
+            return;
+        }
+
+        setIsSendingSubaccountEmailOtp(true);
+        try {
+            const res = await fetch(`${API_URL}/auth/otp/email/request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email,
+                    name: onboardingSubaccountName.trim() || email.split('@')[0]
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'No se pudo enviar el código al email.');
+            setSubaccountEmailOtpRequested(true);
+            toast.success(t('agency.onboarding.email_code_sent') || `Código enviado a ${email}`);
+        } catch (err) {
+            toast.error(err.message || 'Error enviando código al email');
+        } finally {
+            setIsSendingSubaccountEmailOtp(false);
+        }
+    };
+
+    const handleSendSubaccountPhoneOtp = async () => {
+        const phone = onboardingSubaccountPhone.trim();
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length < 8) {
+            toast.error(t('agency.onboarding.invalid_phone') || 'Ingresa un teléfono válido antes de solicitar el código.');
+            return;
+        }
+
+        setIsSendingSubaccountPhoneOtp(true);
+        try {
+            const res = await fetch(`${API_URL}/auth/otp/request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'No se pudo enviar el código al WhatsApp.');
+            setSubaccountPhoneOtpRequested(true);
+            toast.success(t('agency.onboarding.phone_code_sent') || 'Código enviado al WhatsApp indicado');
+        } catch (err) {
+            toast.error(err.message || 'Error enviando código al teléfono');
+        } finally {
+            setIsSendingSubaccountPhoneOtp(false);
+        }
     };
 
     const refreshData = async () => {
@@ -2552,7 +2623,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                     {/* ═══════════════ ONBOARDING WIZARD MODAL ═══════════════ */}
                     {showOnboarding && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowOnboarding(false)}>
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { resetOnboardingSubaccountForm(); setShowOnboarding(false); }}>
                             <div
                                 className={`bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full mx-4 overflow-hidden ${
                                     onboardingStep === 0 ? "max-w-4xl" : "max-w-lg"
@@ -2569,6 +2640,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         setOnboardingConnectionType(null);
                                                         return;
                                                     }
+                                                    resetOnboardingSubaccountForm();
                                                     setOnboardingStep(0);
                                                     setOnboardingCrmType(null);
                                                     setOnboardingConnectionType(null);
@@ -2586,7 +2658,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             {onboardingStep === 1 && onboardingCrmType === 'chatwoot' && onboardingConnectionType === 'chatwoot_setup_master' && (t('dash.chatwoot_master.title') || 'Usuario Maestro de Chatwoot')}
                                         </h3>
                                     </div>
-                                    <button onClick={() => setShowOnboarding(false)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 transition">
+                                    <button onClick={() => { resetOnboardingSubaccountForm(); setShowOnboarding(false); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 transition">
                                         <X size={18} />
                                     </button>
                                 </div>
@@ -2752,7 +2824,24 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     {onboardingStep === 1 && onboardingCrmType === 'ghl' && onboardingConnectionType === 'ghl_create_subaccount' && (
                                         <form onSubmit={async (e) => {
                                             e.preventDefault();
-                                            if (!onboardingSubaccountName.trim()) return;
+                                            if (
+                                                !onboardingSubaccountName.trim() ||
+                                                !onboardingSubaccountEmail.trim() ||
+                                                !onboardingSubaccountPhone.trim()
+                                            ) {
+                                                toast.error('Completa nombre, email y teléfono antes de crear la subcuenta.');
+                                                return;
+                                            }
+                                            if (
+                                                !isGhlSubaccountVerificationDisabled &&
+                                                (
+                                                    !onboardingSubaccountEmailCode.trim() ||
+                                                    !onboardingSubaccountPhoneCode.trim()
+                                                )
+                                            ) {
+                                                toast.error(t('agency.onboarding.ghl_verification_required') || 'Completa y verifica email y teléfono antes de crear la subcuenta.');
+                                                return;
+                                            }
                                             setIsCreatingSubaccount(true);
                                             try {
                                                 const resp = await authFetch('/agency/ghl/create-subaccount', {
@@ -2760,17 +2849,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({
                                                         name: onboardingSubaccountName.trim(),
-                                                        email: onboardingSubaccountEmail.trim() || undefined,
-                                                        phone: onboardingSubaccountPhone.trim() || undefined
+                                                        email: onboardingSubaccountEmail.trim(),
+                                                        phone: onboardingSubaccountPhone.trim(),
+                                                        emailOtpCode: onboardingSubaccountEmailCode.trim(),
+                                                        phoneOtpCode: onboardingSubaccountPhoneCode.trim()
                                                     })
                                                 });
                                                 const data = await resp.json();
                                                 if (!resp.ok) throw new Error(data.error || 'Error creando subcuenta');
                                                 toast.success(t('agency.onboarding.subaccount_created') || `Subcuenta "${data.name}" creada exitosamente`);
                                                 setShowOnboarding(false);
-                                                setOnboardingSubaccountName('');
-                                                setOnboardingSubaccountEmail('');
-                                                setOnboardingSubaccountPhone('');
+                                                resetOnboardingSubaccountForm();
                                                 setOnboardingConnectionType(null);
                                                 refreshData();
                                                 // If installUrl, prompt install
@@ -2790,6 +2879,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
                                                 {t('agency.onboarding.ghl_create_subaccount_form') || 'Creamos una nueva subcuenta GoHighLevel para ti'}
                                             </p>
+                                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                                                {isGhlSubaccountVerificationDisabled
+                                                    ? (t('agency.onboarding.ghl_verification_disabled_hint') || 'Modo test activo: la verificación de email y teléfono está deshabilitada para crear subcuentas.')
+                                                    : (t('agency.onboarding.ghl_verification_hint') || 'Para evitar abusos, esta creación requiere verificar el email y el teléfono del negocio con un código.')}
+                                            </p>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                     {t('agency.onboarding.ghl_subaccount_name') || 'Nombre de la subcuenta'} *
@@ -2805,35 +2899,109 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    {t('agency.onboarding.ghl_subaccount_email') || 'Email del negocio'}
+                                                    {t('agency.onboarding.ghl_subaccount_email') || 'Email del negocio'} *
                                                 </label>
-                                                <input
-                                                    type="email"
-                                                    value={onboardingSubaccountEmail}
-                                                    onChange={e => setOnboardingSubaccountEmail(e.target.value)}
-                                                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                                                    placeholder="email@negocio.com"
-                                                />
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="email"
+                                                        required
+                                                        value={onboardingSubaccountEmail}
+                                                        onChange={e => {
+                                                            setOnboardingSubaccountEmail(e.target.value);
+                                                            setOnboardingSubaccountEmailCode('');
+                                                            setSubaccountEmailOtpRequested(false);
+                                                        }}
+                                                        className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        placeholder="email@negocio.com"
+                                                    />
+                                                    {!isGhlSubaccountVerificationDisabled && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleSendSubaccountEmailOtp}
+                                                            disabled={isSendingSubaccountEmailOtp || !onboardingSubaccountEmail.trim()}
+                                                            className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            {isSendingSubaccountEmailOtp
+                                                                ? (t('agency.onboarding.sending_code') || 'Enviando...')
+                                                                : (subaccountEmailOtpRequested
+                                                                    ? (t('agency.onboarding.resend_code') || 'Reenviar código')
+                                                                    : (t('agency.onboarding.send_code') || 'Enviar código'))}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {!isGhlSubaccountVerificationDisabled && (
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        value={onboardingSubaccountEmailCode}
+                                                        onChange={e => setOnboardingSubaccountEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                        className="w-full mt-2 px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        placeholder={t('agency.onboarding.email_verification_code') || 'Código de verificación del email'}
+                                                    />
+                                                )}
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    {t('agency.onboarding.ghl_subaccount_phone') || 'Teléfono'}
+                                                    {t('agency.onboarding.ghl_subaccount_phone') || 'Teléfono'} *
                                                 </label>
-                                                <input
-                                                    type="tel"
-                                                    value={onboardingSubaccountPhone}
-                                                    onChange={e => setOnboardingSubaccountPhone(e.target.value)}
-                                                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                                                    placeholder="+1234567890"
-                                                />
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="tel"
+                                                        required
+                                                        value={onboardingSubaccountPhone}
+                                                        onChange={e => {
+                                                            setOnboardingSubaccountPhone(e.target.value);
+                                                            setOnboardingSubaccountPhoneCode('');
+                                                            setSubaccountPhoneOtpRequested(false);
+                                                        }}
+                                                        className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        placeholder="+1234567890"
+                                                    />
+                                                    {!isGhlSubaccountVerificationDisabled && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleSendSubaccountPhoneOtp}
+                                                            disabled={isSendingSubaccountPhoneOtp || !onboardingSubaccountPhone.trim()}
+                                                            className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            {isSendingSubaccountPhoneOtp
+                                                                ? (t('agency.onboarding.sending_code') || 'Enviando...')
+                                                                : (subaccountPhoneOtpRequested
+                                                                    ? (t('agency.onboarding.resend_code') || 'Reenviar código')
+                                                                    : (t('agency.onboarding.send_code') || 'Enviar código'))}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {!isGhlSubaccountVerificationDisabled && (
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        value={onboardingSubaccountPhoneCode}
+                                                        onChange={e => setOnboardingSubaccountPhoneCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                        className="w-full mt-2 px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        placeholder={t('agency.onboarding.phone_verification_code') || 'Código de verificación del teléfono'}
+                                                    />
+                                                )}
                                             </div>
                                             <div className="flex justify-end gap-2 pt-2">
-                                                <button type="button" onClick={() => setOnboardingConnectionType(null)} className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition">
+                                                <button type="button" onClick={() => { resetOnboardingSubaccountForm(); setOnboardingConnectionType(null); }} className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition">
                                                     {t('agency.onboarding.back') || 'Volver'}
                                                 </button>
                                                 <button
                                                     type="submit"
-                                                    disabled={isCreatingSubaccount || !onboardingSubaccountName.trim()}
+                                                    disabled={
+                                                        isCreatingSubaccount ||
+                                                        !onboardingSubaccountName.trim() ||
+                                                        !onboardingSubaccountEmail.trim() ||
+                                                        !onboardingSubaccountPhone.trim() ||
+                                                        (
+                                                            !isGhlSubaccountVerificationDisabled &&
+                                                            (
+                                                                !onboardingSubaccountEmailCode.trim() ||
+                                                                !onboardingSubaccountPhoneCode.trim()
+                                                            )
+                                                        )
+                                                    }
                                                     className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     {isCreatingSubaccount ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
