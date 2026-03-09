@@ -52,8 +52,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [customProxyBySlot, setCustomProxyBySlot] = useState({});
     const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
     const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
-    const [isGeneratingQrShareLink, setIsGeneratingQrShareLink] = useState(false);
-    const [generatedQrShareUrl, setGeneratedQrShareUrl] = useState("");
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
     const isChatwootMode = crmType === "chatwoot";
@@ -174,11 +172,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             }
         };
     }, []);
-
-    useEffect(() => {
-        setGeneratedQrShareUrl("");
-        setIsGeneratingQrShareLink(false);
-    }, [location?.location_id]);
 
     const loadData = async () => {
         if (slots.length === 0) setLoading(true);
@@ -718,49 +711,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }
     };
 
-    const handleGenerateQrShareLink = async () => {
-        const slotIds = slots
-            .map((slot) => Number.parseInt(String(slot?.slot_id ?? ""), 10))
-            .filter((slotId) => Number.isFinite(slotId));
-
-        if (slotIds.length === 0) {
-            toast.error(t('slots.share.no_slots') || "Agrega al menos un slot antes de generar el enlace");
-            return;
-        }
-
-        setIsGeneratingQrShareLink(true);
-        try {
-            const res = await authFetch(`/agency/locations/${location.location_id}/qr-share-link`, {
-                method: 'POST',
-                body: JSON.stringify({ slotIds })
-            });
-            if (!res) return;
-
-            const data = await res.json().catch(() => null);
-            if (!res.ok || !data?.shareUrl) {
-                throw new Error(data?.error || (t('slots.share.error') || "No se pudo generar el enlace QR"));
-            }
-
-            setGeneratedQrShareUrl(data.shareUrl);
-            try {
-                await navigator.clipboard.writeText(data.shareUrl);
-                toast.success(t('slots.share.link_ready') || "URL QR generada", {
-                    description: t('slots.share.link_ready_desc') || "Tu cliente podrá abrirla y generar los QR de esta location."
-                });
-            } catch (_) {
-                toast.success(t('slots.share.link_ready') || "URL QR generada", {
-                    description: t('slots.share.copy_hint') || "Copia la URL desde el campo para compartirla con tu cliente."
-                });
-            }
-        } catch (e) {
-            toast.error(t('slots.share.error') || "No se pudo generar el enlace QR", {
-                description: e.message || undefined
-            });
-        } finally {
-            setIsGeneratingQrShareLink(false);
-        }
-    };
-
     const generateChatwootSecret = (slotId) => {
         const secret = generateRandomSecret(32);
         updateChatwootField(slotId, "webhookSecret", secret);
@@ -1219,61 +1169,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                             )}
                         </div>
                         <div className="flex justify-end gap-3 flex-wrap">
-                            <button
-                                type="button"
-                                onClick={handleGenerateQrShareLink}
-                                disabled={isGeneratingQrShareLink || slots.length === 0}
-                                className="flex items-center gap-2 bg-white dark:bg-gray-900 text-indigo-700 dark:text-indigo-300 px-5 py-2.5 rounded-xl font-bold border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 shadow-sm transition disabled:opacity-60"
-                            >
-                                {isGeneratingQrShareLink ? <Loader2 className="animate-spin" size={18} /> : <QrCode size={18} />}
-                                {t('slots.share.generate_link') || "Generar URL QR"}
-                            </button>
                             <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
                                 <Plus size={18} /> {isChatwootMode ? (t('slots.chatwoot_inbox.new') || "Nuevo Inbox") : t('slots.new')}
                             </button>
                         </div>
                     </div>
-
-                    {generatedQrShareUrl && (
-                        <div className="mb-8 bg-white dark:bg-gray-900 border border-indigo-100 dark:border-indigo-900/60 rounded-2xl p-5 shadow-sm">
-                            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                                <div>
-                                    <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">
-                                        {t('slots.share.card_title') || "Enlace compartible para QR"}
-                                    </p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                                        {t('slots.share.card_desc') || "Envía esta URL al cliente para que vincule los dispositivos desde Waflow."}
-                                    </p>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => copyToClipboard(generatedQrShareUrl, t('slots.share.copied') || "URL QR copiada")}
-                                        className="px-4 py-2 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 transition font-semibold flex items-center gap-2"
-                                    >
-                                        <Copy size={16} />
-                                        {t('slots.share.copy_link') || "Copiar URL"}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => window.open(generatedQrShareUrl, '_blank', 'noopener,noreferrer')}
-                                        className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 transition font-semibold flex items-center gap-2"
-                                    >
-                                        <Link2 size={16} />
-                                        {t('slots.share.open_link') || "Abrir"}
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="mt-4">
-                                <input
-                                    type="text"
-                                    readOnly
-                                    value={generatedQrShareUrl}
-                                    className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 dark:text-white outline-none text-sm font-mono"
-                                />
-                            </div>
-                        </div>
-                    )}
 
                     {loading ? (
                         <div className="flex justify-center p-20"><RefreshCw className="animate-spin text-indigo-500 w-10 h-10" /></div>
@@ -2204,6 +2104,8 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
     const [accountSuspensionState, setAccountSuspensionState] = useState(null);
     const [slotSuspendedBy, setSlotSuspendedBy] = useState(slot?.suspended_by || null);
     const [slotLockMessage, setSlotLockMessage] = useState(null);
+    const [shareUrl, setShareUrl] = useState("");
+    const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
     const pollInterval = useRef(null);
 
     const authFetch = async (endpoint, options = {}) => {
@@ -2297,6 +2199,11 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         checkStatus();
         return () => stopPolling();
     }, []);
+
+    useEffect(() => {
+        setShareUrl("");
+        setIsGeneratingShareUrl(false);
+    }, [locationId, slot?.slot_id]);
 
     const handleConnect = async () => {
         if (!isAdminMode && (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system')) {
@@ -2444,6 +2351,40 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         setLoading(false);
     };
 
+    const handleGenerateShareUrl = async () => {
+        setIsGeneratingShareUrl(true);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr-share-link`, { method: 'POST' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+            if (!res?.ok) {
+                const err = await res?.json().catch(() => ({}));
+                throw new Error(err?.error || 'No se pudo generar la URL QR');
+            }
+
+            const data = await res.json().catch(() => ({}));
+            if (!data?.shareUrl) throw new Error('No se pudo generar la URL QR');
+
+            setShareUrl(data.shareUrl);
+            try {
+                await navigator.clipboard.writeText(data.shareUrl);
+                toast.success(t('slots.share.link_ready') || 'URL QR generada', {
+                    description: t('slots.share.link_ready_slot_desc') || 'Tu cliente podrá abrirla y el QR de este slot se generará automáticamente.'
+                });
+            } catch (_) {
+                toast.success(t('slots.share.link_ready') || 'URL QR generada', {
+                    description: t('slots.share.copy_hint') || 'Copia la URL desde el campo para compartirla con tu cliente.'
+                });
+            }
+        } catch (e) {
+            toast.error(t('slots.share.error') || 'No se pudo generar el enlace QR', {
+                description: e.message || undefined
+            });
+        } finally {
+            setIsGeneratingShareUrl(false);
+        }
+    };
+
     const headerTitle = slotSuspendedBy === 'admin'
         ? 'Suspendido por Admin'
         : slotSuspendedBy === 'system'
@@ -2552,9 +2493,19 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             ) : (
                 <div className="w-full flex flex-col items-center">
                     {!qr && !loading && !accountSuspensionState && (
-                        <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
-                            <QrCode size={20} /> Generar Codigo QR
-                        </button>
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                            <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
+                                <QrCode size={20} /> Generar Codigo QR
+                            </button>
+                            <button
+                                onClick={handleGenerateShareUrl}
+                                disabled={isGeneratingShareUrl}
+                                className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 disabled:opacity-60"
+                            >
+                                {isGeneratingShareUrl ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+                                {t('slots.share.generate_link') || "Generar URL QR"}
+                            </button>
+                        </div>
                     )}
 
                     {!accountSuspensionState && (qr || loading) && (
@@ -2569,6 +2520,27 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                                 }
                             </p>
                             <button onClick={() => { setQr(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-red-500 underline text-sm transition">Cancelar</button>
+                        </div>
+                    )}
+
+                    {!qr && shareUrl && (
+                        <div className="w-full mt-5 max-w-xl">
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <input
+                                    type="text"
+                                    readOnly
+                                    value={shareUrl}
+                                    className="flex-1 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 dark:text-white outline-none text-sm font-mono"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => navigator.clipboard.writeText(shareUrl).then(() => toast.success(t('slots.share.copied') || 'URL QR copiada')).catch(() => toast.error(t('slots.chatwoot.copy_error') || 'No se pudo copiar'))}
+                                    className="px-4 py-3 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 transition font-semibold flex items-center justify-center gap-2"
+                                >
+                                    <Copy size={16} />
+                                    {t('slots.share.copy_link') || "Copiar URL"}
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
