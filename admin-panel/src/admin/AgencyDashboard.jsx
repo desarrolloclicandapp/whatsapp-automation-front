@@ -2422,7 +2422,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             {addModalChatwootExternal ? (
                                                 <div className="space-y-4 pt-2 border-t border-gray-200 dark:border-gray-700">
                                                     <p className="text-xs text-gray-500 mb-2">
-                                                        Conecta Waflow a un Chatwoot alojado externamente. Proporciona las credenciales de un administrador o súper administrador.
+                                                        Conecta Waflow a un Chatwoot alojado externamente.
                                                     </p>
                                                     <div>
                                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
@@ -2479,7 +2479,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </div>
                                             <div className="pt-1 border-t border-gray-200 dark:border-gray-700">
                                                 <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mt-4 mb-3">
-                                                    {t('dash.chatwoot_accounts.client_access_title') || "Acceso del Cliente Final (Opcional)"}
+                                                            {t('dash.chatwoot_accounts.client_access_title') || "Acceso del Usuario"}
                                                 </p>
                                                 <div className="space-y-3">
                                                     <div>
@@ -2756,7 +2756,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 </div>
                                                 <div>
                                                     <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                                                        {t('agency.onboarding.create_subaccount') || 'Crear subcuenta con nuestra agencia'}
+                                                        {t('agency.onboarding.create_subaccount') || 'Solicitar Cuenta con nuestra agencia'}
                                                     </h4>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                                         {t('agency.onboarding.ghl_create_subaccount_form') || 'Creamos una nueva subcuenta GoHighLevel para ti'}
@@ -2821,7 +2821,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </p>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    {t('agency.onboarding.ghl_subaccount_name') || 'Nombre del negocio'} *
+                                                    {t('agency.onboarding.ghl_subaccount_name') || 'Nombre de la Cuenta'} *
                                                 </label>
                                                 <input
                                                     type="text"

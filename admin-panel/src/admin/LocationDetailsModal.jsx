@@ -51,8 +51,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [chatwootInboxesLoaded, setChatwootInboxesLoaded] = useState(false);
     const [chatwootAccessInfo, setChatwootAccessInfo] = useState(null);
     const [loadingChatwootAccess, setLoadingChatwootAccess] = useState(false);
-    const [chatwootAccessShareUrl, setChatwootAccessShareUrl] = useState("");
-    const [generatingChatwootAccessShare, setGeneratingChatwootAccessShare] = useState(false);
     const [customProxyBySlot, setCustomProxyBySlot] = useState({});
     const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
     const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
@@ -198,7 +196,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     loadChatwootAccessInfo();
                 } else {
                     setChatwootAccessInfo(null);
-                    setChatwootAccessShareUrl("");
                 }
             }
 
@@ -722,27 +719,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }
     };
 
-    const generateChatwootAccessShareLink = async () => {
-        setGeneratingChatwootAccessShare(true);
-        try {
-            const res = await authFetch(`/agency/locations/${location.location_id}/chatwoot-access-link`, {
-                method: 'POST',
-                body: JSON.stringify({})
-            });
-            if (!res) return;
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok || !data?.success) {
-                throw new Error(data?.error || "No se pudo generar la guía de acceso");
-            }
-            setChatwootAccessShareUrl(data.shareUrl || "");
-            toast.success("Guía de acceso generada");
-        } catch (e) {
-            toast.error("Error generando guía", { description: e.message });
-        } finally {
-            setGeneratingChatwootAccessShare(false);
-        }
-    };
-
     const loadChatwootAccessInfo = async () => {
         if (!location?.location_id) return;
         setLoadingChatwootAccess(true);
@@ -1156,6 +1132,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             toast.dismiss(loadingId);
         }
     };
+    const chatwootHeaderLoginUrl = String(
+        chatwootAccessInfo?.loginUrl ||
+        (tenantSettings?.chatwoot_url ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/login` : "")
+    ).trim();
+    const chatwootHeaderEmail = String(
+        chatwootAccessInfo?.clientEmail ||
+        tenantSettings?.chatwoot_client_email ||
+        ""
+    ).trim();
+    const chatwootHeaderPassword = String(chatwootAccessInfo?.clientPassword || "").trim();
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
             <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-200 dark:border-gray-800">
@@ -1225,6 +1212,55 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                             </button>
                         </div>
                     </div>
+
+                    {isChatwootMode && (
+                        <div className="mb-8 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
+                            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                                <div>
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Acceso Chatwoot</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                        Datos del usuario para que la agencia pueda compartir el acceso con el cliente final.
+                                    </p>
+                                </div>
+                                {chatwootHeaderLoginUrl && (
+                                    <button
+                                        type="button"
+                                        onClick={() => window.open(chatwootHeaderLoginUrl, '_blank', 'noopener,noreferrer')}
+                                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition"
+                                    >
+                                        <Link2 size={16} />
+                                        Abrir Login
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-3 mt-5">
+                                <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Email</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderEmail || "No disponible")}
+                                    </p>
+                                </div>
+                                <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Contraseña inicial</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderPassword || "No disponible")}
+                                    </p>
+                                    {!chatwootHeaderPassword && !loadingChatwootAccess && (
+                                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                                            Solo aparece si Waflow pudo guardar la contraseña al aprovisionar la cuenta.
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Login</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderLoginUrl || "No disponible")}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {loading ? (
                         <div className="flex justify-center p-20"><RefreshCw className="animate-spin text-indigo-500 w-10 h-10" /></div>
@@ -1688,22 +1724,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 const mappedInboxId = slot.chatwoot_inbox_id || chatwoot.inboxId || null;
                                                                 const showAdvancedChatwootDetails = !!chatwoot.showAdvancedDetails;
                                                                 const isReadOnlyChatwootView = !showAdvancedChatwootDetails;
-                                                                const showClientAccessCard = slot.slot_id === 1;
-                                                                const clientAccessReady = !!chatwootAccessInfo?.clientConfigured;
-                                                                const chatwootLoginUrl = String(
-                                                                    chatwootAccessInfo?.loginUrl ||
-                                                                    (tenantSettings?.chatwoot_url ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/login` : "")
-                                                                ).trim();
-                                                                const clientAccessEmail = String(
-                                                                    chatwootAccessInfo?.clientEmail ||
-                                                                    tenantSettings?.chatwoot_client_email ||
-                                                                    ""
-                                                                ).trim();
-                                                                const clientAccessName = String(
-                                                                    chatwootAccessInfo?.clientName ||
-                                                                    tenantSettings?.chatwoot_client_name ||
-                                                                    ""
-                                                                ).trim();
+                                                                const showClientAccessCard = false;
+                                                                const clientAccessReady = false;
+                                                                const clientAccessEmail = "";
+                                                                const clientAccessName = "";
+                                                                const chatwootLoginUrl = "";
+                                                                const generatingChatwootAccessShare = false;
+                                                                const chatwootAccessShareUrl = "";
+                                                                const generateChatwootAccessShareLink = () => {};
 
                                                                 const chatwootAccessCard = showClientAccessCard ? (
                                                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
