@@ -2098,6 +2098,7 @@ const SettingRow = ({ label, desc, checked, onChange }) => (
 
 // ✅ COMPONENTE DE GESTIÓN DE CONEXIÓN
 function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode = false }) {
+    const { t } = useLanguage();
     const [status, setStatus] = useState({ connected: false, myNumber: null });
     const [qr, setQr] = useState(null);
     const [loading, setLoading] = useState(false);
