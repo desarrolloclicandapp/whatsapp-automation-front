@@ -88,7 +88,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Error solicitando OTP");
 
-            toast.success("Código enviado a WhatsApp 📱");
+            toast.success(data.message || "Código enviado");
             setStep('PHONE_CODE');
             setPhoneCooldown(60); // 🕒 Iniciar cooldown 60s
         } catch (err) { toast.error(err.message); }
@@ -340,7 +340,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                 <div className="space-y-8 animate-in fade-in slide-in-from-right-8">
                                     <div className="text-center">
                                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Código de Seguridad</h2>
-                                        <p className="text-gray-500 mt-2">Enviado a <span className="font-mono font-bold">+{phone}</span></p>
+                                        <p className="text-gray-500 mt-2">Enviado a <span className="font-mono font-bold">+{phone}</span> por WhatsApp y/o SMS</p>
                                     </div>
                                     <form onSubmit={verifyPhoneOtp} className="space-y-6">
                                         <input type="text" maxLength={6} placeholder="000000" className="w-full text-center text-4xl font-bold tracking-[0.5em] p-4 rounded-xl border-2 dark:bg-gray-800 dark:text-white outline-none focus:ring-4 transition-all" style={{ borderColor: branding.primaryColor }} value={phoneCode} onChange={e => setPhoneCode(e.target.value)} required />
