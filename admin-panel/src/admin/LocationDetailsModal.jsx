@@ -49,13 +49,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [chatwootInboxes, setChatwootInboxes] = useState([]);
     const [loadingChatwootInboxes, setLoadingChatwootInboxes] = useState(false);
     const [chatwootInboxesLoaded, setChatwootInboxesLoaded] = useState(false);
+    const [chatwootAccessInfo, setChatwootAccessInfo] = useState(null);
+    const [loadingChatwootAccess, setLoadingChatwootAccess] = useState(false);
+    const [chatwootAccessShareUrl, setChatwootAccessShareUrl] = useState("");
+    const [generatingChatwootAccessShare, setGeneratingChatwootAccessShare] = useState(false);
     const [customProxyBySlot, setCustomProxyBySlot] = useState({});
     const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
     const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
     const isChatwootMode = crmType === "chatwoot";
-    const supportsSmsAndKeywords = isGhlMode; // Solo GHL soporta keywords y SMS locales
+    const supportsSmsAndKeywords = isGhlMode || isChatwootMode;
     const isExpandedChatwootLoaded = Boolean(
         expandedSlotId && chatwootConfigBySlot[expandedSlotId]?.loaded
     );
@@ -189,6 +193,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 if (data.name) setLocationName(data.name);
                 setWhiteLabelEnabled(data.settings?.white_label ?? true);
                 setTenantSettings(data.settings || {});
+                const nextCrmType = String(data.settings?.crm_type || data.crmType || location?.crm_type || "ghl").toLowerCase();
+                if (nextCrmType === "chatwoot") {
+                    loadChatwootAccessInfo();
+                } else {
+                    setChatwootAccessInfo(null);
+                    setChatwootAccessShareUrl("");
+                }
             }
 
             if (usersRes && usersRes.ok) {
@@ -708,6 +719,46 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             toast.success(successMessage || t('common.copied') || "Copiado");
         } catch (_) {
             toast.error(t('slots.chatwoot.copy_error') || "No se pudo copiar");
+        }
+    };
+
+    const generateChatwootAccessShareLink = async () => {
+        setGeneratingChatwootAccessShare(true);
+        try {
+            const res = await authFetch(`/agency/locations/${location.location_id}/chatwoot-access-link`, {
+                method: 'POST',
+                body: JSON.stringify({})
+            });
+            if (!res) return;
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data?.success) {
+                throw new Error(data?.error || "No se pudo generar la guía de acceso");
+            }
+            setChatwootAccessShareUrl(data.shareUrl || "");
+            toast.success("Guía de acceso generada");
+        } catch (e) {
+            toast.error("Error generando guía", { description: e.message });
+        } finally {
+            setGeneratingChatwootAccessShare(false);
+        }
+    };
+
+    const loadChatwootAccessInfo = async () => {
+        if (!location?.location_id) return;
+        setLoadingChatwootAccess(true);
+        try {
+            const res = await authFetch(`/agency/chatwoot/access-info?locationId=${location.location_id}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar el acceso Chatwoot");
+            }
+            const data = await res.json();
+            setChatwootAccessInfo(data?.chatwoot || null);
+        } catch (e) {
+            setChatwootAccessInfo(null);
+        } finally {
+            setLoadingChatwootAccess(false);
         }
     };
 
@@ -1637,10 +1688,118 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 const mappedInboxId = slot.chatwoot_inbox_id || chatwoot.inboxId || null;
                                                                 const showAdvancedChatwootDetails = !!chatwoot.showAdvancedDetails;
                                                                 const isReadOnlyChatwootView = !showAdvancedChatwootDetails;
+                                                                const showClientAccessCard = slot.slot_id === 1;
+                                                                const clientAccessReady = !!chatwootAccessInfo?.clientConfigured;
+                                                                const chatwootLoginUrl = String(
+                                                                    chatwootAccessInfo?.loginUrl ||
+                                                                    (tenantSettings?.chatwoot_url ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/login` : "")
+                                                                ).trim();
+                                                                const clientAccessEmail = String(
+                                                                    chatwootAccessInfo?.clientEmail ||
+                                                                    tenantSettings?.chatwoot_client_email ||
+                                                                    ""
+                                                                ).trim();
+                                                                const clientAccessName = String(
+                                                                    chatwootAccessInfo?.clientName ||
+                                                                    tenantSettings?.chatwoot_client_name ||
+                                                                    ""
+                                                                ).trim();
+
+                                                                const chatwootAccessCard = showClientAccessCard ? (
+                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+                                                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">Acceso del cliente a Chatwoot</h4>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                                    Comparte una guía simple para que el cliente entre directo a su cuenta.
+                                                                                </p>
+                                                                            </div>
+                                                                            <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${clientAccessReady ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                                                                                {loadingChatwootAccess ? "Cargando" : clientAccessReady ? "Listo" : "Pendiente"}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        <div className="grid gap-3 md:grid-cols-2">
+                                                                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                                                                                <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Email</p>
+                                                                                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                                                                    {clientAccessEmail || "No configurado"}
+                                                                                </p>
+                                                                                {clientAccessName && (
+                                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{clientAccessName}</p>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                                                                                <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Login</p>
+                                                                                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                                                                    {chatwootLoginUrl || "No disponible"}
+                                                                                </p>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                                    Si olvidó la contraseña, debe recuperarla desde el login.
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="flex flex-wrap items-center gap-2">
+                                                                            {chatwootLoginUrl && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => window.open(chatwootLoginUrl, '_blank', 'noopener,noreferrer')}
+                                                                                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition"
+                                                                                >
+                                                                                    Abrir login
+                                                                                </button>
+                                                                            )}
+                                                                            {chatwootLoginUrl && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => copyToClipboard(chatwootLoginUrl, "Login copiado")}
+                                                                                    className="px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/40 transition"
+                                                                                >
+                                                                                    Copiar login
+                                                                                </button>
+                                                                            )}
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={generateChatwootAccessShareLink}
+                                                                                disabled={generatingChatwootAccessShare || loadingChatwootAccess}
+                                                                                className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                            >
+                                                                                {generatingChatwootAccessShare ? <Loader2 className="animate-spin" size={16} /> : <Link2 size={16} />}
+                                                                                Generar guía
+                                                                            </button>
+                                                                        </div>
+
+                                                                        {chatwootAccessShareUrl && (
+                                                                            <div className="rounded-xl border border-dashed border-sky-300 dark:border-sky-700 p-4 bg-sky-50/60 dark:bg-sky-900/10">
+                                                                                <p className="text-[11px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300 mb-2">Guía compartible</p>
+                                                                                <p className="text-sm text-sky-900 dark:text-sky-100 break-all">{chatwootAccessShareUrl}</p>
+                                                                                <div className="flex flex-wrap gap-2 mt-3">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => copyToClipboard(chatwootAccessShareUrl, "Guía copiada")}
+                                                                                        className="px-3 py-2 rounded-lg bg-white text-sky-700 border border-sky-200 hover:bg-sky-100 transition"
+                                                                                    >
+                                                                                        Copiar enlace
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => window.open(chatwootAccessShareUrl, '_blank', 'noopener,noreferrer')}
+                                                                                        className="px-3 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition"
+                                                                                    >
+                                                                                        Abrir guía
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : null;
 
                                                                 if (isReadOnlyChatwootView) {
                                                                     return (
-                                                                        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-3">
+                                                                        <div className="space-y-4">
+                                                                            {chatwootAccessCard}
+                                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-3">
                                                                             <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 rounded-lg border border-emerald-100 dark:border-emerald-800 text-sm flex items-start gap-3">
                                                                                 <CheckCircle2 className="shrink-0 mt-0.5" size={18} />
                                                                                 <div>
@@ -1659,6 +1818,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                         {t('slots.chatwoot.show_debug') || "Ver detalles técnicos"}
                                                                                     </button>
                                                                                 </div>
+                                                                            </div>
                                                                         </div>
                                                                     );
                                                                 }
@@ -1683,7 +1843,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 const stepWebhookReady = hasAnySecret;
 
                                                                 return (
-                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
+                                                                    <div className="space-y-4">
+                                                                        {chatwootAccessCard}
+                                                                        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
                                                                         <div className="flex flex-wrap items-start justify-between gap-4">
                                                                             <div>
                                                                                 <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.chatwoot.title')}</h4>
@@ -1886,6 +2048,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                             >
                                                                                 <RefreshCw size={16} className={isLoadingChatwoot ? "animate-spin" : ""} />
                                                                             </button>
+                                                                        </div>
                                                                         </div>
                                                                     </div>
                                                                 );
