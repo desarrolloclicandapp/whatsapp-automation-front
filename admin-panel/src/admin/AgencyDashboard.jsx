@@ -226,6 +226,16 @@ export default function AgencyDashboard({ token, onLogout }) {
         return res;
     };
 
+    const parseApiResponse = async (res) => {
+        const rawText = await res.text();
+        if (!rawText) return null;
+        try {
+            return JSON.parse(rawText);
+        } catch (_) {
+            return { rawText };
+        }
+    };
+
     const resetOnboardingSubaccountForm = () => {
         setOnboardingSubaccountName('');
         setOnboardingSubaccountEmail('');
@@ -2855,8 +2865,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         phoneOtpCode: onboardingSubaccountPhoneCode.trim()
                                                     })
                                                 });
-                                                const data = await resp.json();
-                                                if (!resp.ok) throw new Error(data.error || 'Error creando subcuenta');
+                                                const data = await parseApiResponse(resp);
+                                                if (!resp.ok) {
+                                                    throw new Error(
+                                                        data?.error ||
+                                                        data?.rawText ||
+                                                        `Error creando subcuenta (HTTP ${resp.status})`
+                                                    );
+                                                }
                                                 toast.success(t('agency.onboarding.subaccount_created') || `Subcuenta "${data.name}" creada exitosamente`);
                                                 setShowOnboarding(false);
                                                 resetOnboardingSubaccountForm();
