@@ -191,7 +191,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [onboardingStep, setOnboardingStep] = useState(0);
     const [onboardingCrmType, setOnboardingCrmType] = useState(null); // "ghl" | "chatwoot"
     const [onboardingConnectionType, setOnboardingConnectionType] = useState(null);
-    // "ghl_existing" | "ghl_create_subaccount" | "chatwoot_existing" | "chatwoot_selfhosted"
+    // "ghl_create_subaccount" | "chatwoot_existing" | "chatwoot_selfhosted"
     const [onboardingSubaccountName, setOnboardingSubaccountName] = useState("");
     const [onboardingSubaccountEmail, setOnboardingSubaccountEmail] = useState("");
     const [onboardingSubaccountPhone, setOnboardingSubaccountPhone] = useState("");
@@ -790,8 +790,12 @@ export default function AgencyDashboard({ token, onLogout }) {
         const resolvedInstallUrl =
             normalizeInstallLink(opts.installUrl || "") ||
             normalizeInstallLink(installUrlPreview || "");
+        const popupWindow = opts.popupWindow || null;
 
         if (!resolvedInstallUrl) {
+            if (popupWindow && !popupWindow.closed) {
+                popupWindow.close();
+            }
             toast.error(t('agency.crm.invalid_domain') || "Ingresa un dominio válido de GHL");
             return false;
         }
@@ -805,17 +809,45 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             if (data.allowed) {
                 console.log("Redirigiendo a:", resolvedInstallUrl);
-                window.location.href = resolvedInstallUrl;
+                if (popupWindow && !popupWindow.closed) {
+                    try {
+                        popupWindow.opener = null;
+                    } catch (_) { }
+                    popupWindow.location.href = resolvedInstallUrl;
+                } else if (opts.newTab) {
+                    window.open(resolvedInstallUrl, "_blank", "noopener");
+                } else {
+                    window.location.href = resolvedInstallUrl;
+                }
                 return true;
             } else {
+                if (popupWindow && !popupWindow.closed) {
+                    popupWindow.close();
+                }
                 toast.error(t('agency.install.limit_reached'), { description: data.reason });
                 setShowUpgradeModal(true);
                 return false;
             }
         } catch (e) {
+            if (popupWindow && !popupWindow.closed) {
+                popupWindow.close();
+            }
             toast.dismiss(tId);
             toast.error(t('agency.install.limit_error'));
             return false;
+        }
+    };
+
+    const handleInstallExistingGhlAccount = async () => {
+        const popupWindow = window.open("about:blank", "_blank");
+        const installed = await handleInstallApp({
+            installUrl: ENV_INSTALL_APP_URL,
+            popupWindow
+        });
+
+        if (installed) {
+            setShowOnboarding(false);
+            setOnboardingConnectionType(null);
         }
     };
 
@@ -2680,7 +2712,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 {t('agency.onboarding.connection_type') || '¿Cómo deseas conectar tu cuenta?'}
                                             </p>
                                             <button
-                                                onClick={() => setOnboardingConnectionType('ghl_existing')}
+                                                onClick={handleInstallExistingGhlAccount}
                                                 className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all group text-left flex items-center gap-4"
                                             >
                                                 <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
@@ -2714,61 +2746,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-500 ml-auto shrink-0 transition" />
                                             </button>
                                         </div>
-                                    )}
-
-                                    {/* Step 1 GHL: Existing account install setup */}
-                                    {onboardingStep === 1 && onboardingCrmType === 'ghl' && onboardingConnectionType === 'ghl_existing' && (
-                                        <form
-                                            onSubmit={async (e) => {
-                                                e.preventDefault();
-                                                const savedInstallUrl = await handleSaveCrmDomain({ silentSuccess: true });
-                                                if (!savedInstallUrl) return;
-                                                setShowOnboarding(false);
-                                                setOnboardingConnectionType(null);
-                                                await handleInstallApp({ installUrl: savedInstallUrl });
-                                            }}
-                                            className="space-y-4"
-                                        >
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                {t('agency.onboarding.ghl_existing_form') || 'Configura el dominio de tu CRM para instalar la app de Waflow en tu location existente.'}
-                                            </p>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    {t('agency.crm.install_domain') || 'Dominio de instalación'}
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={crmInstallDomain}
-                                                    onChange={(e) => setCrmInstallDomain(e.target.value)}
-                                                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                                                    placeholder={t('agency.crm.domain_placeholder') || 'https://app.gohighlevel.com'}
-                                                />
-                                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 break-all">
-                                                    {t('agency.crm.install_suffix_locked') || "Sufijo fijo:"}{" "}
-                                                    <span className="font-mono text-gray-700 dark:text-gray-200">{lockedInstallPath}</span>
-                                                </p>
-                                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 break-all">
-                                                    {t('agency.crm.install_link')}{" "}
-                                                    <span className="font-mono text-indigo-600 dark:text-indigo-300">{installUrlPreview}</span>
-                                                </p>
-                                            </div>
-                                            <div className="flex justify-end gap-2 pt-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setOnboardingConnectionType(null)}
-                                                    className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition"
-                                                >
-                                                    {t('agency.onboarding.back') || 'Volver'}
-                                                </button>
-                                                <button
-                                                    type="submit"
-                                                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 transition"
-                                                >
-                                                    <Save size={16} />
-                                                    {t('agency.onboarding.ghl_save_and_install') || 'Guardar e instalar app'}
-                                                </button>
-                                            </div>
-                                        </form>
                                     )}
 
                                     {/* Step 1 GHL: Create sub-account form */}
