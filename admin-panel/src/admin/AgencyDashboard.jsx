@@ -2026,18 +2026,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                     )}
 
                     {activeTab === 'settings' && (
-                        <div className="max-w-7xl mx-auto space-y-5 animate-in fade-in slide-in-from-right-4">
-                            <div className="px-1">
-                                <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-gray-500 dark:text-gray-400">
-                                    {t('agency.settings_nav.system') || "System Settings"}
-                                </p>
-                                <h2 className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-                                    {t('dash.header.settings') || "Configuración"}
-                                </h2>
-                            </div>
-                            <div className="bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm overflow-hidden">
-                                <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] min-h-[720px]">
-                                    <aside className="border-r-2 border-gray-300 dark:border-gray-700 bg-gray-50/90 dark:bg-gray-950/50 p-5 xl:p-6">
+                        <div className="max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-right-4">
+                            <div className="grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)] gap-6 items-start">
+                                    <aside className="xl:sticky xl:top-6 bg-white dark:bg-gray-900/90 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 xl:p-6">
                                     <div className="space-y-5">
                                         {settingsMenuGroups.map((group) => (
                                             <div key={group.key}>
@@ -2052,10 +2043,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             <button
                                                                 key={item.id}
                                                                 onClick={() => setSettingsSection(item.id)}
-                                                                className={`w-full text-left rounded-lg border-2 px-3 py-2.5 transition-all duration-150 flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
+                                                                className={`w-full text-left rounded-xl border px-3.5 py-3 transition-all duration-150 flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
                                                                     isActive
-                                                                        ? "bg-indigo-600 border-indigo-700 text-white shadow-[0_10px_24px_-14px_rgba(79,70,229,0.8)]"
-                                                                        : "bg-white dark:bg-gray-900/80 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:border-indigo-300 dark:hover:border-indigo-500"
+                                                                        ? "bg-indigo-600 border-indigo-600 text-white shadow-[0_12px_24px_-18px_rgba(79,70,229,0.75)]"
+                                                                        : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:border-indigo-300 dark:hover:border-indigo-500"
                                                                 }`}
                                                             >
                                                                 <Icon size={15} className={isActive ? "text-white" : "text-gray-500 dark:text-gray-400"} />
@@ -2068,20 +2059,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         ))}
                                     </div>
                                 </aside>
-                                <div className="p-5 md:p-7 space-y-6">
-                                    <div className="bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm p-6 md:p-7">
-                                        <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-gray-500 dark:text-gray-400">
-                                            {t('agency.settings_nav.template') || "Template Settings"}
-                                        </p>
-                                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
-                                            {activeSettingsSectionTitle}
-                                        </h3>
-                                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                                            {t('agency.settings_nav.section_helper') || "Selecciona una sección del panel izquierdo para configurar tu agencia."}
-                                        </p>
-                                    </div>
+                                <div className="space-y-6">
                             {currentSettingsSectionId === 'guide' && (
-                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm">
+                            <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -2180,7 +2160,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                             )}
 
                             {currentSettingsSectionId === 'account' && (
-                            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm">
+                            <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2"><User size={20} /> {t('agency.account.title')}</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                                     <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
@@ -2244,7 +2224,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                             {currentSettingsSectionId === 'developer' && (
                             <RestrictedFeatureWrapper isRestricted={isRestricted} title={t('dash.settings.dev_title')}>
-                                <div className={`bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm animate-in fade-in slide-in-from-right-4`}>
+                                <div className={`bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4`}>
                                     <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
                                         <div>
                                             <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -2338,14 +2318,24 @@ export default function AgencyDashboard({ token, onLogout }) {
                             {showNewWebhookModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900 dark:text-white">{t('dash.settings.new_webhook') || "Nuevo Webhook"}</h3><button onClick={() => setShowNewWebhookModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button></div><form onSubmit={handleCreateWebhook} className="space-y-6"><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('common.name') || "Nombre"}</label><input name="hookName" placeholder="Ej: n8n Producción" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL</label><input name="hookUrl" type="url" placeholder="https://..." required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">{t('common.events') || "Eventos"}</label><div className="grid grid-cols-1 gap-3"><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp inbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Inbound Message</div></div></label><label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer"><input type="checkbox" name="events" value="whatsapp outbound message" defaultChecked className="w-5 h-5 rounded text-blue-600" /><div className="flex-1"><div className="text-sm font-bold dark:text-white">Outbound Message</div></div></label></div></div><div className="flex gap-3"><button type="button" onClick={() => setShowNewWebhookModal(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 dark:text-white rounded-xl font-bold">{t('common.cancel') || "Cancelar"}</button><button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">{t('common.create') || "Crear"}</button></div></form></div></div>)}
 
                             {currentSettingsSectionId === 'appearance' && (
-                                <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border-2 border-gray-300 dark:border-gray-700 shadow-sm flex items-center justify-between">
-                                    <div><h4 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.theme.dark_mode')}</h4><p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('agency.theme.toggle')}</p></div>
+                                <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">{activeSettingsSectionTitle}</h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('agency.theme.toggle')}</p>
+                                        <div className="mt-4">
+                                            <h4 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.theme.dark_mode')}</h4>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                {theme === 'light'
+                                                    ? (t('agency.theme.light_enabled') || "Tema claro activo.")
+                                                    : (t('agency.theme.dark_enabled') || "Tema oscuro activo.")}
+                                            </p>
+                                        </div>
+                                    </div>
                                     <button onClick={toggleTheme} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition text-gray-600 dark:text-yellow-400">{theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}</button>
                                 </div>
                             )}
                                 </div>
                             </div>
-                        </div>
                         </div>
                     )}
 
