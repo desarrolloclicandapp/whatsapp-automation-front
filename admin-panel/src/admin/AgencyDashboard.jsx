@@ -417,7 +417,10 @@ export default function AgencyDashboard({ token, onLogout }) {
         const oauthCode = queryParams.get("code");
         console.log(`🔎 Parsed Params -> Location: ${targetLocationId}, Code: ${oauthCode ? 'PRESENT' : 'MISSING'}`);
         
-        if (isGhlAgency && (targetLocationId || oauthCode) && !isAutoSyncing) {
+        // GHL install callbacks may arrive before accountInfo loads or while the UI
+        // is still pinned to another CRM in localStorage. The callback itself is the
+        // source of truth here, so do not gate auto-sync by current CRM mode.
+        if ((targetLocationId || oauthCode) && !isAutoSyncing) {
             // Con OAuth code directo (marketplace), no bloqueamos esperando webhook.
             const skipInstallPolling = Boolean(oauthCode) || Boolean(legacyInstallParam && !locationIdParam) || !targetLocationId;
             autoSyncAgency(targetLocationId, oauthCode, { skipInstallPolling });
