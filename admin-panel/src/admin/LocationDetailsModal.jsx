@@ -49,6 +49,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [chatwootInboxes, setChatwootInboxes] = useState([]);
     const [loadingChatwootInboxes, setLoadingChatwootInboxes] = useState(false);
     const [chatwootInboxesLoaded, setChatwootInboxesLoaded] = useState(false);
+    const [ghlAccessInfo, setGhlAccessInfo] = useState(null);
+    const [loadingGhlAccess, setLoadingGhlAccess] = useState(false);
+    const [showGhlAccessModal, setShowGhlAccessModal] = useState(false);
     const [chatwootAccessInfo, setChatwootAccessInfo] = useState(null);
     const [loadingChatwootAccess, setLoadingChatwootAccess] = useState(false);
     const [showChatwootAccessModal, setShowChatwootAccessModal] = useState(false);
@@ -194,9 +197,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 setTenantSettings(data.settings || {});
                 const nextCrmType = String(data.settings?.crm_type || data.crmType || location?.crm_type || "ghl").toLowerCase();
                 if (nextCrmType === "chatwoot") {
+                    setGhlAccessInfo(null);
                     loadChatwootAccessInfo();
                 } else {
                     setChatwootAccessInfo(null);
+                    loadGhlAccessInfo();
                 }
             }
 
@@ -739,6 +744,25 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }
     };
 
+    const loadGhlAccessInfo = async () => {
+        if (!location?.location_id) return;
+        setLoadingGhlAccess(true);
+        try {
+            const res = await authFetch(`/agency/ghl/access-info?locationId=${location.location_id}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar el acceso GoHighLevel");
+            }
+            const data = await res.json();
+            setGhlAccessInfo(data?.ghl || null);
+        } catch (e) {
+            setGhlAccessInfo(null);
+        } finally {
+            setLoadingGhlAccess(false);
+        }
+    };
+
     const generateChatwootSecret = (slotId) => {
         const secret = generateRandomSecret(32);
         updateChatwootField(slotId, "webhookSecret", secret);
@@ -1143,6 +1167,33 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         ""
     ).trim();
     const chatwootHeaderPassword = String(chatwootAccessInfo?.clientPassword || "").trim();
+    const ghlHeaderOpenUrl = String(
+        ghlAccessInfo?.dashboardUrl ||
+        ghlAccessInfo?.loginUrl ||
+        "https://app.gohighlevel.com"
+    ).trim();
+    const ghlHeaderPortalUrl = String(
+        ghlAccessInfo?.loginUrl ||
+        "https://app.gohighlevel.com"
+    ).trim();
+    const ghlHeaderBusinessEmail = String(
+        ghlAccessInfo?.businessEmail ||
+        tenantSettings?.ghl_subaccount_email ||
+        ""
+    ).trim();
+    const ghlHeaderBusinessPhone = String(
+        ghlAccessInfo?.businessPhone ||
+        tenantSettings?.ghl_subaccount_phone ||
+        ""
+    ).trim();
+    const ghlHeaderLocationId = String(
+        ghlAccessInfo?.locationId ||
+        location?.location_id ||
+        ""
+    ).trim();
+    const ghlHeaderCompanyId = String(ghlAccessInfo?.companyId || "").trim();
+    const ghlHeaderDashboardUrl = String(ghlAccessInfo?.dashboardUrl || "").trim();
+    const ghlOAuthConnected = Boolean(ghlAccessInfo?.oauthConnected);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
@@ -1220,6 +1271,85 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     </div>
                 )}
 
+                {isGhlMode && showGhlAccessModal && (
+                    <div
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        onClick={() => setShowGhlAccessModal(false)}
+                    >
+                        <div
+                            className="w-full max-w-lg rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Info de acceso GoHighLevel</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                        Datos de referencia para abrir la subcuenta desde el portal de GHL.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowGhlAccessModal(false)}
+                                    className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-400 hover:text-gray-600"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-4">
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Email del negocio</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderBusinessEmail || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Teléfono</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderBusinessPhone || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Location ID</p>
+                                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                            {loadingGhlAccess ? "Cargando..." : (ghlHeaderLocationId || "No disponible")}
+                                        </p>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Company ID</p>
+                                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                            {loadingGhlAccess ? "Cargando..." : (ghlHeaderCompanyId || "No disponible")}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Portal</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderPortalUrl || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Acceso directo</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderDashboardUrl || "No disponible")}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                        {ghlOAuthConnected
+                                            ? "La subcuenta tiene tokens OAuth guardados en Waflow."
+                                            : "Waflow no guarda contraseñas de GHL; el acceso depende del usuario con permisos en esa subcuenta."}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* BODY */}
                 <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50 dark:bg-black/20">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
@@ -1228,6 +1358,27 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-[0.18em] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                                     {isGhlMode ? "GOHIGHLEVEL" : "CHATWOOT"}
                                 </span>
+                                {isGhlMode && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => window.open(ghlHeaderOpenUrl, '_blank', 'noopener,noreferrer')}
+                                            disabled={!ghlHeaderOpenUrl}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition"
+                                        >
+                                            <Link2 size={16} />
+                                            Abrir Login
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowGhlAccessModal(true)}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                                        >
+                                            <User size={16} />
+                                            Info
+                                        </button>
+                                    </>
+                                )}
                                 {isChatwootMode && (
                                     <>
                                         <button
