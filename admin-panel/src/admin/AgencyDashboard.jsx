@@ -2916,7 +2916,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         >
                                             <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/20 p-4">
                                                 <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
-                                                    {t('agency.onboarding.chatwoot_master_step_desc') || 'Este usuario se reutiliza para aprovisionar nuevas cuentas Chatwoot hospedadas por nosotros.'}
+                                                    {t('agency.onboarding.chatwoot_master_step_desc') || 'Este usuario se reutiliza para aprovisionar nuevas cuentas Chatwoot hospedadas por WaFlow.ai.'}
                                                 </p>
                                                 {chatwootMasterDisplayEmail && (
                                                     <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-2">
@@ -3090,7 +3090,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 </div>
                                                 <div>
                                                     <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                                                        {t('agency.onboarding.selfhosted_account') || 'Cuenta hospedada por nosotros'}
+                                                        {t('agency.onboarding.selfhosted_account') || 'Cuenta hospedada por WaFlow.ai'}
                                                     </h4>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                                         {t('agency.onboarding.chatwoot_selfhosted_form') || 'Creamos y administramos tu cuenta de Chatwoot'}
