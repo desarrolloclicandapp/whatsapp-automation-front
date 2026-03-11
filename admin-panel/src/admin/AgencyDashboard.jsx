@@ -1785,7 +1785,17 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex flex-col z-30`}>
                 <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden" style={{ backgroundColor: branding.primaryColor }}><img src={branding.logoUrl} alt="Logo" className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} /></div>
+                    <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden"
+                        style={{ backgroundColor: branding.logoUrl ? 'transparent' : branding.primaryColor }}
+                    >
+                        <img
+                            src={branding.logoUrl}
+                            alt="Logo"
+                            className="w-full h-full object-contain"
+                            onError={(e) => e.target.style.display = 'none'}
+                        />
+                    </div>
                     {sidebarOpen && <span className="ml-3 font-bold text-gray-900 dark:text-white tracking-tight truncate">{branding.name}</span>}
                 </div>
                 <div className="flex-1 p-4 overflow-y-auto">
