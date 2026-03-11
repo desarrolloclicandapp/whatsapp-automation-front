@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Smartphone, ArrowRight, CheckCircle2, User, Mail, Lock, Loader2, ShieldCheck, ArrowLeft, ExternalLink, LifeBuoy } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBranding } from '../context/BrandingContext';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageSelector from '../components/LanguageSelector';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || "34611770270";
@@ -9,7 +11,9 @@ const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || "34611770270";
 export default function WelcomeAuth({ onLoginSuccess }) {
     // ✅ Usamos systemBranding: La configuración global definida por el Super Admin
     const { systemBranding } = useBranding();
+    const { t } = useLanguage();
     const branding = systemBranding;
+    const supportPrefill = encodeURIComponent(t('auth.support_prefill'));
 
     const [authMode, setAuthMode] = useState('USER');
     const [step, setStep] = useState('EMAIL');
@@ -50,7 +54,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
         const params = new URLSearchParams(window.location.search);
         if (params.get("secure_entry") === "7xR9y2Pz4Wq1Lk3Mn5Jv8B6Dc") {
             setAuthMode('ADMIN');
-            toast.success("Modo Super Admin Detectado 🛡️");
+            toast.success(t('auth.admin_mode_detected'));
         }
 
         const checkExistingGHL = async () => {
@@ -76,8 +80,8 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
     const requestPhoneOtp = async (e) => {
         if(e) e.preventDefault();
-        if (phone.length < 8) return toast.error("Número muy corto");
-        if (phoneCooldown > 0) return toast.warning(`Espera ${phoneCooldown}s para reenviar.`);
+        if (phone.length < 8) return toast.error(t('auth.phone_too_short'));
+        if (phoneCooldown > 0) return toast.warning(t('auth.wait_to_resend').replace('{seconds}', phoneCooldown));
 
         setLoading(true);
         try {
@@ -86,9 +90,9 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                 body: JSON.stringify({ phone })
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Error solicitando OTP");
+            if (!res.ok) throw new Error(data.error || t('auth.otp_request_error'));
 
-            toast.success(data.message || "Código enviado");
+            toast.success(data.message || t('auth.code_sent'));
             setStep('PHONE_CODE');
             setPhoneCooldown(60); // 🕒 Iniciar cooldown 60s
         } catch (err) { toast.error(err.message); }
@@ -104,7 +108,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                 body: JSON.stringify({ phone, code: phoneCode, email }) // Pasamos el email para vincular
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Código incorrecto");
+            if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
 
             if (data.token) {
                 setTempToken(data.token);
@@ -117,8 +121,8 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
     const requestEmailOtp = async (e) => {
         if(e) e.preventDefault();
-        if (!email.includes('@') || !email.includes('.')) return toast.error("Email inválido");
-        if (emailCooldown > 0) return toast.warning(`Espera ${emailCooldown}s para reenviar.`);
+        if (!email.includes('@') || !email.includes('.')) return toast.error(t('auth.invalid_email'));
+        if (emailCooldown > 0) return toast.warning(t('auth.wait_to_resend').replace('{seconds}', emailCooldown));
 
         setLoading(true);
         try {
@@ -127,9 +131,9 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                 body: JSON.stringify({ email, name })
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Error enviando email");
+            if (!res.ok) throw new Error(data.error || t('auth.email_send_error'));
 
-            toast.success(`Código enviado a ${email} 📧`);
+            toast.success(t('auth.code_sent_to_email').replace('{email}', email));
             setStep('EMAIL_CODE');
             setEmailCooldown(60); // 🕒 Iniciar cooldown 60s
         } catch (err) { toast.error(err.message); }
@@ -138,7 +142,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
     const submitName = (e) => {
         e.preventDefault();
-        if (name.trim().length < 2) return toast.error("Nombre muy corto");
+        if (name.trim().length < 2) return toast.error(t('auth.name_too_short'));
         // setStep('EMAIL'); // Eliminar esto, el nombre ahora va al final
     };
 
@@ -151,11 +155,11 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                 body: JSON.stringify({ email, code: emailCode })
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Código incorrecto");
+            if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
 
             if (data.token) {
                 // ✅ USUARIO EXISTE -> Entrar directamente
-                toast.success("¡Bienvenido de nuevo! 👋");
+                toast.success(t('auth.welcome_back'));
                 onLoginSuccess({
                     token: data.token,
                     role: 'agency',
@@ -163,7 +167,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                 });
             } else {
                 // 🆕 USUARIO NUEVO -> Pedir teléfono
-                toast.info("Verificación exitosa. Vamos a configurar tu WhatsApp.");
+                toast.info(t('auth.verification_success_whatsapp'));
                 setStep('PHONE');
             }
         } catch (err) { toast.error(err.message); }
@@ -172,7 +176,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
     const finishRegistration = async (e) => {
         e.preventDefault();
-        if (name.trim().length < 2) return toast.error("Nombre muy corto");
+        if (name.trim().length < 2) return toast.error(t('auth.name_too_short'));
 
         setLoading(true);
         try {
@@ -185,9 +189,9 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                 body: JSON.stringify({ email, agencyName: name })
             });
 
-            if (!updateRes.ok) throw new Error("Error guardando perfil");
+            if (!updateRes.ok) throw new Error(t('auth.save_profile_error'));
 
-            toast.success("¡Cuenta configurada! 🚀");
+            toast.success(t('auth.account_ready'));
             onLoginSuccess({
                 token: tempToken,
                 role: 'agency',
@@ -208,7 +212,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
             });
             const data = await res.json();
             if (res.ok) {
-                toast.success("Modo Admin Activado ⚡");
+                toast.success(t('auth.admin_mode_enabled'));
                 onLoginSuccess(data);
             } else throw new Error(data.error);
         } catch (err) { toast.error(err.message); }
@@ -243,14 +247,14 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
                     {/* Slogan Dinámico */}
                     <h1 className="text-5xl font-extrabold mb-6 tracking-tight leading-tight drop-shadow-xl font-sans">
-                        {authMode === 'ADMIN' ? "Centro de Comando" : (branding.slogan || "Automatiza. Conecta. Fluye.")}
+                        {authMode === 'ADMIN' ? t('auth.command_center') : (branding.slogan || t('auth.default_slogan'))}
                     </h1>
 
                     {/* Descripción Dinámica */}
                     <p className="text-lg text-white/90 max-w-lg leading-relaxed font-light mb-10">
                         {authMode === 'ADMIN'
-                            ? "Gestión global de infraestructura y clientes."
-                            : (branding.description || "Tecnología humana para flujos inteligentes. Estabilidad, velocidad y escalabilidad para tu WhatsApp.")}
+                            ? t('auth.admin_description')
+                            : (branding.description || t('auth.default_description'))}
                     </p>
 
                     {/* 🔥 BOTÓN CTA (Reemplaza badges si está activo) */}
@@ -278,7 +282,9 @@ export default function WelcomeAuth({ onLoginSuccess }) {
             {/* --- PANEL DERECHO (FORMULARIO) --- */}
             <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-[#0B0D12] relative transition-colors duration-300">
 
-
+                <div className="absolute top-6 right-6 z-20">
+                    <LanguageSelector />
+                </div>
 
                 <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
 
@@ -289,8 +295,8 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg" style={{ backgroundColor: branding.backgroundColor || '#001F3F' }}>
                                     <ShieldCheck size={32} style={{ color: branding.accentColor }} />
                                 </div>
-                                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Panel</h2>
-                                <p className="text-gray-500 mt-2">Credenciales maestras de {branding.name}.</p>
+                                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{t('auth.admin_panel')}</h2>
+                                <p className="text-gray-500 mt-2">{t('auth.admin_credentials_of').replace('{name}', branding.name || 'Waflow')}</p>
                             </div>
                             <form onSubmit={handleAdminLogin} className="space-y-5">
                                 <div className="space-y-4">
@@ -298,7 +304,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                     <input type="password" placeholder="••••••" className="w-full p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white outline-none focus:ring-2 transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={adminPass} onChange={e => setAdminPass(e.target.value)} required />
                                 </div>
                                 <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg hover:shadow-xl active:scale-95" style={{ backgroundColor: branding.backgroundColor || '#001F3F' }}>
-                                    {loading ? <Loader2 className="animate-spin mx-auto" /> : "Iniciar Sesión"}
+                                    {loading ? <Loader2 className="animate-spin mx-auto" /> : t('auth.sign_in')}
                                 </button>
                             </form>
                         </div>
@@ -314,8 +320,8 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                             <img src={branding.logoUrl} alt="Logo" className="h-10 object-contain" onError={(e) => e.target.style.display = 'none'} />
                                         </div>
                                         {/* TEXTOS DINÁMICOS DE FORMULARIO */}
-                                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{branding.loginTitle || "Empieza Ahora"}</h2>
-                                        <p className="text-gray-500 mt-2">{branding.loginSubtitle || "Ingresa a la nueva era de la automatización."}</p>
+                                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{branding.loginTitle || t('auth.start_now')}</h2>
+                                        <p className="text-gray-500 mt-2">{branding.loginSubtitle || t('auth.enter_new_era')}</p>
                                     </div>
                                     <form onSubmit={requestPhoneOtp} className="space-y-6">
                                         <div className="relative group">
@@ -327,10 +333,10 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                                 background: `linear-gradient(to right, ${branding.primaryColor}, ${branding.accentColor})`,
                                                 textShadow: '0 1px 2px rgba(0,0,0,0.1)'
                                             }}>
-                                            {loading ? <Loader2 className="animate-spin" /> : <>Enviar Código <ArrowRight size={20} /></>}
+                                            {loading ? <Loader2 className="animate-spin" /> : <>{t('auth.send_code')} <ArrowRight size={20} /></>}
                                         </button>
                                         <button type="button" onClick={() => setStep('EMAIL')} className="w-full text-sm text-gray-400 hover:text-gray-600 flex items-center justify-center gap-2">
-                                            <ArrowLeft size={14} /> Usar otro email
+                                            <ArrowLeft size={14} /> {t('auth.use_other_email')}
                                         </button>
                                     </form>
                                 </div>
@@ -339,29 +345,29 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                             {step === 'PHONE_CODE' && (
                                 <div className="space-y-8 animate-in fade-in slide-in-from-right-8">
                                     <div className="text-center">
-                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Código de Seguridad</h2>
-                                        <p className="text-gray-500 mt-2">Enviado a <span className="font-mono font-bold">+{phone}</span> por WhatsApp y/o SMS</p>
+                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('auth.security_code')}</h2>
+                                        <p className="text-gray-500 mt-2">{t('auth.code_sent_to_phone').replace('{phone}', `+${phone}`)}</p>
                                     </div>
                                     <form onSubmit={verifyPhoneOtp} className="space-y-6">
                                         <input type="text" maxLength={6} placeholder="000000" className="w-full text-center text-4xl font-bold tracking-[0.5em] p-4 rounded-xl border-2 dark:bg-gray-800 dark:text-white outline-none focus:ring-4 transition-all" style={{ borderColor: branding.primaryColor }} value={phoneCode} onChange={e => setPhoneCode(e.target.value)} required />
                                         <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg" style={{ backgroundColor: branding.primaryColor }}>
-                                            {loading ? <Loader2 className="animate-spin mx-auto" /> : "Verificar"}
+                                            {loading ? <Loader2 className="animate-spin mx-auto" /> : t('auth.verify')}
                                         </button>
                                         <button type="button" onClick={() => setStep('PHONE')} className="w-full text-sm text-gray-400 hover:text-opacity-80 transition" style={{ color: branding.primaryColor }}>
-                                            ¿Número incorrecto? Cambiar
+                                            {t('auth.wrong_phone')}
                                         </button>
                                         
                                         {/* ✅ RESEND OTP BUTTON */}
                                         <div className="text-center pt-2">
                                             {phoneCooldown > 0 ? (
-                                                <p className="text-sm text-gray-400">Podrás reenviar en <span className="font-bold">{phoneCooldown}s</span></p>
+                                                <p className="text-sm text-gray-400">{t('auth.resend_in').replace('{seconds}', phoneCooldown)}</p>
                                             ) : (
                                                 <button 
                                                     type="button" 
                                                     onClick={() => requestPhoneOtp(null)}
                                                     className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white transition hover:underline"
                                                 >
-                                                    ¿No recibiste el mensaje? <span className="font-bold">Reenviar aquí</span>
+                                                    {t('auth.not_received_message')} <span className="font-bold">{t('auth.resend_here')}</span>
                                                 </button>
                                             )}
                                         </div>
@@ -372,13 +378,13 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                             {step === 'NAME' && (
                                 <div className="space-y-8 animate-in fade-in slide-in-from-right-8">
                                     <div className="text-center">
-                                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">¡Hola!</h2>
-                                        <p className="text-gray-500 mt-2">¿Cómo se llama tu agencia?</p>
+                                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{t('auth.hello')}</h2>
+                                        <p className="text-gray-500 mt-2">{t('auth.agency_name_question')}</p>
                                     </div>
                                     <form onSubmit={finishRegistration} className="space-y-6">
-                                        <input type="text" placeholder="Agencia Pro..." autoFocus className="w-full p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white text-lg outline-none focus:ring-2 transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={name} onChange={e => setName(e.target.value)} required />
+                                        <input type="text" placeholder={t('auth.agency_name_placeholder')} autoFocus className="w-full p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white text-lg outline-none focus:ring-2 transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={name} onChange={e => setName(e.target.value)} required />
                                         <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg flex justify-center items-center gap-2" style={{ backgroundColor: branding.primaryColor }}>
-                                            {loading ? <Loader2 className="animate-spin" /> : <>Finalizar <CheckCircle2 size={20} /></>}
+                                            {loading ? <Loader2 className="animate-spin" /> : <>{t('auth.finish')} <CheckCircle2 size={20} /></>}
                                         </button>
                                     </form>
                                 </div>
@@ -388,12 +394,12 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                 <div className="space-y-8 animate-in fade-in slide-in-from-right-8">
                                     <div className="text-center">
                                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                                            {ghlExists ? "Unirse a Agencia ✨" : "Bienvenido ✨"}
+                                            {ghlExists ? t('auth.join_agency') : t('auth.welcome')}
                                         </h2>
                                         <p className="text-gray-500 mt-2">
                                             {ghlExists 
-                                                ? "Esta agencia ya está registrada. Vincula tu cuenta." 
-                                                : "Validemos tu email corporativo."}
+                                                ? t('auth.agency_exists_link')
+                                                : t('auth.validate_corporate_email')}
                                         </p>
                                     </div>
                                     <form onSubmit={requestEmailOtp} className="space-y-6">
@@ -402,7 +408,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                             <input type="email" placeholder="nombre@empresa.com" className="w-full pl-12 p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white text-lg outline-none focus:ring-2 transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={email} onChange={e => setEmail(e.target.value)} required />
                                         </div>
                                         <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg flex justify-center items-center gap-2" style={{ backgroundColor: branding.primaryColor }}>
-                                            {loading ? <Loader2 className="animate-spin" /> : <>Enviar Código <Mail size={18} /></>}
+                                            {loading ? <Loader2 className="animate-spin" /> : <>{t('auth.send_code')} <Mail size={18} /></>}
                                         </button>
                                     </form>
                                 </div>
@@ -411,29 +417,29 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                             {step === 'EMAIL_CODE' && (
                                 <div className="space-y-8 animate-in fade-in slide-in-from-right-8">
                                     <div className="text-center">
-                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Revisa tu Email 📧</h2>
-                                        <p className="text-gray-500 mt-2">Código enviado a <span className="font-bold">{email}</span></p>
+                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('auth.check_email')}</h2>
+                                        <p className="text-gray-500 mt-2">{t('auth.code_sent_to_email_plain').replace('{email}', email)}</p>
                                     </div>
                                     <form onSubmit={verifyEmailOtp} className="space-y-6">
                                         <input type="text" maxLength={6} placeholder="000000" className="w-full text-center text-4xl font-bold tracking-[0.5em] p-4 rounded-xl border-2 dark:bg-gray-800 dark:text-white outline-none focus:ring-4 transition-all" style={{ borderColor: branding.primaryColor }} value={emailCode} onChange={e => setEmailCode(e.target.value)} required />
                                         <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg flex justify-center items-center gap-2" style={{ backgroundColor: branding.primaryColor }}>
-                                            {loading ? <Loader2 className="animate-spin" /> : <>Verificar <ArrowRight size={18} /></>}
+                                            {loading ? <Loader2 className="animate-spin" /> : <>{t('auth.verify')} <ArrowRight size={18} /></>}
                                         </button>
                                         <button type="button" onClick={() => setStep('EMAIL')} className="w-full text-sm text-gray-400 hover:text-opacity-80 transition" style={{ color: branding.primaryColor }}>
-                                            ¿Email incorrecto? Corregir
+                                            {t('auth.wrong_email')}
                                         </button>
 
                                         {/* ✅ RESEND EMAIL OTP BUTTON */}
                                         <div className="text-center pt-2">
                                             {emailCooldown > 0 ? (
-                                                <p className="text-sm text-gray-400">Podrás reenviar en <span className="font-bold">{emailCooldown}s</span></p>
+                                                <p className="text-sm text-gray-400">{t('auth.resend_in').replace('{seconds}', emailCooldown)}</p>
                                             ) : (
                                                 <button 
                                                     type="button" 
                                                     onClick={() => requestEmailOtp(null)}
                                                     className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white transition hover:underline"
                                                 >
-                                                    ¿No recibiste el mensaje? <span className="font-bold">Reenviar aquí</span>
+                                                    {t('auth.not_received_message')} <span className="font-bold">{t('auth.resend_here')}</span>
                                                 </button>
                                             )}
                                         </div>
@@ -446,17 +452,17 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                     {authMode === 'USER' && (
                         <div className="mt-10 pt-6 border-t border-gray-100 dark:border-gray-800 text-center animate-in fade-in">
                             <p className="text-sm text-gray-400 dark:text-gray-500 mb-2">
-                                ¿Tienes problemas para registrarte?
+                                {t('auth.registration_problem')}
                             </p>
                             <a
-                                href={`https://wa.me/${SUPPORT_PHONE}?text=Hola,%20tengo%20problemas%20para%20registrarme%20en%20la%20plataforma`}
+                                href={`https://wa.me/${SUPPORT_PHONE}?text=${supportPrefill}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="inline-flex items-center gap-2 text-sm font-medium transition-all hover:gap-3"
                                 style={{ color: branding.primaryColor }}
                             >
                                 <LifeBuoy size={16} />
-                                Contactar con Soporte
+                                {t('auth.contact_support')}
                                 <ArrowRight size={14} />
                             </a>
                         </div>
