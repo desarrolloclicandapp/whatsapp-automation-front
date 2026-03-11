@@ -1437,7 +1437,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         <div className="space-y-6">
                             {slots.map(slot => {
                                 const isExpanded = expandedSlotId === slot.slot_id;
-                                const isConnected = !!slot.phone_number;
+                                const isConnected = slot.is_connected === true;
+                                const connectedPhone = isConnected ? (slot.phone_number || "") : "";
                                 const currentPrio = slot.priority || 99;
                                 const settings = slot.settings || {};
 
@@ -1470,7 +1471,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     </div>
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1 flex items-center gap-2">
-                                                        {isConnected ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{slot.phone_number}</span> : t('slots.card.disconnected')}
+                                                        {isConnected && connectedPhone
+                                                            ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{connectedPhone}</span>
+                                                            : t('slots.card.disconnected')}
                                                         {isGhlMode && (
                                                             <>
                                                                 <span className="text-gray-300 dark:text-gray-600">•</span>
