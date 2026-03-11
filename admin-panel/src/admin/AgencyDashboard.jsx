@@ -1275,44 +1275,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                            <div className="rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-                                <div className="mb-3">
-                                    <h5 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.crm.title')}</h5>
-                                </div>
-                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                                    {t('agency.crm.install_domain')}
-                                </label>
-                                <input
-                                    type="text"
-                                    className="w-full p-2.5 text-sm border border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                    value={crmInstallDomain}
-                                    onChange={(e) => setCrmInstallDomain(e.target.value)}
-                                    placeholder={t('agency.crm.domain_placeholder')}
-                                />
-                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 break-all">
-                                    {t('agency.crm.install_suffix_locked') || "Sufijo fijo:"}{" "}
-                                    <span className="font-mono text-gray-700 dark:text-gray-200">{lockedInstallPath}</span>
-                                </p>
-                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 break-all">
-                                    {t('agency.crm.install_link')} <span className="font-mono text-indigo-600 dark:text-indigo-300">{installUrlPreview}</span>
-                                </p>
-                                <div className="flex flex-wrap gap-2 mt-3">
-                                    <button
-                                        onClick={handleSaveCrmDomain}
-                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition"
-                                    >
-                                        <Save size={14} /> {t('agency.crm.save_btn')}
-                                    </button>
-                                    <button
-                                        onClick={openGhlPortal}
-                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-700 dark:hover:border-indigo-500 transition"
-                                    >
-                                        <ExternalLink size={13} /> {t('agency.integrations.open')}
-                                    </button>
-                                </div>
-                            </div>
-
+                        <div className="grid grid-cols-1 gap-4">
                             <div className="rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
                                 <div className="mb-3">
                                     <h5 className="text-sm font-bold text-gray-900 dark:text-white">{t('agency.voice.title')}</h5>
@@ -1599,6 +1562,17 @@ export default function AgencyDashboard({ token, onLogout }) {
     const accountProfilePhone =
         String(accountInfo?.phone || "").trim() ||
         (t('agency.account.not_available') || "No disponible");
+    const activeIntegrationLabels = Array.from(
+        new Set(
+            (locations || [])
+                .map((loc) => resolveTenantCrmType(loc))
+                .filter(Boolean)
+                .map((crm) => crmLabelMap[crm] || String(crm || "").toUpperCase())
+        )
+    );
+    if (activeIntegrationLabels.length === 0 && activeCrmLabel) {
+        activeIntegrationLabels.push(activeCrmLabel);
+    }
     const accountCreatedAtLabel =
         formatDateTime(accountInfo?.created_at) ||
         (t('agency.account.not_available') || "No disponible");
@@ -2256,8 +2230,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         </span>
                                     </div>
                                     <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.crm') || "CRM principal"}</label>
-                                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{activeCrmLabel}</div>
+                                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.integrations') || "Integraciones activas"}</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {activeIntegrationLabels.map((label) => (
+                                                <span
+                                                    key={label}
+                                                    className="inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-bold uppercase tracking-wide bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700"
+                                                >
+                                                    {label}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </div>
                                     <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
                                         <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{t('agency.account.created_at') || "Fecha de registro"}</label>

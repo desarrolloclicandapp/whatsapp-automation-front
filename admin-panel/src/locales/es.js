@@ -717,6 +717,7 @@ export const es = {
     "agency.account.plan": "Plan activo",
     "agency.account.status": "Estado de cuenta",
     "agency.account.crm": "CRM principal",
+    "agency.account.integrations": "Integraciones activas",
     "agency.account.created_at": "Fecha de registro",
     "agency.account.subaccounts_limit": "Subcuentas usadas / límite",
     "agency.account.slots_limit": "Conexiones usadas / límite",
@@ -750,6 +751,8 @@ export const es = {
     // Agency Dashboard - Theme
     "agency.theme.dark_mode": "Modo Oscuro",
     "agency.theme.toggle": "Alternar tema.",
+    "agency.theme.light_enabled": "Tema claro activo.",
+    "agency.theme.dark_enabled": "Tema oscuro activo.",
 
     // Agency Dashboard - Settings Guide
     "agency.settings_guide.title": "Guía rápida de configuración",
