@@ -61,7 +61,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
     const isChatwootMode = crmType === "chatwoot";
-    const supportsSmsAndKeywords = isGhlMode || isChatwootMode;
+    const supportsSmsTab = isGhlMode || isChatwootMode;
+    const supportsKeywordsTab = isGhlMode;
     const isExpandedChatwootLoaded = Boolean(
         expandedSlotId && chatwootConfigBySlot[expandedSlotId]?.loaded
     );
@@ -183,6 +184,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if (isExpandedChatwootLoaded) return;
         loadChatwootConfig(expandedSlotId);
     }, [activeSlotTab, expandedSlotId, isChatwootMode, isExpandedChatwootLoaded]);
+
+    useEffect(() => {
+        if (!supportsKeywordsTab && activeSlotTab === 'keywords') {
+            setActiveSlotTab('general');
+        }
+    }, [supportsKeywordsTab, activeSlotTab]);
 
     useEffect(() => {
         return () => {
@@ -1516,10 +1523,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 <div className="flex border-b border-gray-200 dark:border-gray-800 px-6 bg-white dark:bg-gray-900/50">
                                                     <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />
                                                     <TabButton active={activeSlotTab === 'integration'} onClick={() => setActiveSlotTab('integration')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
-                                                    {supportsSmsAndKeywords && (
+                                                    {supportsSmsTab && (
                                                         <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label={t('slots.tab.sms')} />
                                                     )}
-                                                    {supportsSmsAndKeywords && (
+                                                    {supportsKeywordsTab && (
                                                         <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
                                                     )}
                                                     <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
@@ -2182,7 +2189,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             )}
                                                         </div>
                                                     )}
-                                                    {supportsSmsAndKeywords && activeSlotTab === 'sms' && (
+                                                    {supportsSmsTab && activeSlotTab === 'sms' && (
                                                         <div className="max-w-2xl space-y-6">
                                                             {(() => {
                                                                 const twilio = twilioConfigBySlot[slot.slot_id] || {
@@ -2286,7 +2293,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                    {supportsSmsAndKeywords && activeSlotTab === 'keywords' && (
+                                                    {supportsKeywordsTab && activeSlotTab === 'keywords' && (
                                                         <div className="max-w-2xl">
                                                             <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
                                                                 <input name="keyword" required placeholder={t('slots.kw.input')} className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
