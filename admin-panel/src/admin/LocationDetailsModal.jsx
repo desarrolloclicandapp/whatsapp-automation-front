@@ -96,6 +96,20 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         return res;
     };
 
+    const confirmToast = (title, description, action, isDestructive = false) => {
+        toast(title, {
+            description,
+            icon: <AlertTriangle className={isDestructive ? "text-red-500" : "text-amber-500"} />,
+            action: {
+                label: isDestructive ? 'Confirmar' : 'Aceptar',
+                onClick: action
+            },
+            cancel: {
+                label: 'Cancelar'
+            }
+        });
+    };
+
     // ✅ LÓGICA DE TIEMPO REAL + ROOMS
     useEffect(() => {
         loadData(); // Carga inicial
@@ -659,7 +673,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }
     };
 
-    const clearCustomProxyConfig = async (slotId) => {
+    const clearCustomProxyConfig = async (slotId, { skipConfirm = false } = {}) => {
         if (!confirm("¿Quitar proxy personalizado de este numero?")) return;
 
         const loadingId = toast.loading("Quitando proxy custom...");
@@ -2512,8 +2526,16 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         }
     };
 
-    const handleSoftDisconnect = async () => {
-        if (!confirm('Pausar este dispositivo sin borrar la sesion?')) return;
+    const handleSoftDisconnect = async (skipConfirm = false) => {
+        if (!skipConfirm) {
+            confirmToast(
+                'Pausar dispositivo',
+                'Pausar este dispositivo sin borrar la sesion?',
+                () => handleSoftDisconnect(true)
+            );
+            return;
+        }
+        if (!skipConfirm && !confirm('Pausar este dispositivo sin borrar la sesion?')) return;
         setLoading(true);
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/soft-disconnect`, { method: 'POST' });
@@ -2590,8 +2612,17 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         }
     };
 
-    const handleDisconnect = async () => {
-        if (!confirm('Desconectar este dispositivo?')) return;
+    const handleDisconnect = async (skipConfirm = false) => {
+        if (!skipConfirm) {
+            confirmToast(
+                'Desconectar dispositivo',
+                'Desconectar este dispositivo?',
+                () => handleDisconnect(true),
+                true
+            );
+            return;
+        }
+        if (!skipConfirm && !confirm('Desconectar este dispositivo?')) return;
         setLoading(true);
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/disconnect`, { method: 'DELETE' });
