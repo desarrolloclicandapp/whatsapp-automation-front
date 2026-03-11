@@ -718,6 +718,32 @@ export default function AgencyDashboard({ token, onLogout }) {
                     );
                     return;
                 }
+
+                try {
+                    const emailCheck = await checkChatwootEmailAvailability({
+                        email: safeClientEmail,
+                        password: safeClientPassword
+                    });
+
+                    if (emailCheck?.exists && !safeClientPassword) {
+                        toast.error(
+                            t('dash.chatwoot_accounts.client_email_exists_password_required') ||
+                            "Ese email ya existe en Chatwoot. Debes indicar su contraseña actual o usar otro email."
+                        );
+                        return;
+                    }
+
+                    if (emailCheck?.exists && emailCheck?.credentials?.checked && emailCheck.credentials.valid === false) {
+                        toast.error(
+                            t('dash.chatwoot_accounts.client_email_exists_invalid_password') ||
+                            "Ese email ya existe en Chatwoot y la contraseña indicada no coincide."
+                        );
+                        return;
+                    }
+                } catch (precheckErr) {
+                    toast.error(precheckErr.message || "No se pudo verificar el email en Chatwoot");
+                    return;
+                }
             }
         }
 
@@ -949,6 +975,26 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
+    const checkChatwootEmailAvailability = async ({ email, password = "" } = {}) => {
+        const safeEmail = String(email || "").trim().toLowerCase();
+        if (!safeEmail) {
+            return { exists: false, credentials: { checked: false, valid: null } };
+        }
+
+        const res = await authFetch('/agency/chatwoot/check-email', {
+            method: 'POST',
+            body: JSON.stringify({
+                email: safeEmail,
+                password: String(password || "")
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data?.success === false) {
+            throw new Error(data?.error || "No se pudo verificar el email en Chatwoot");
+        }
+        return data;
+    };
+
     const handleSaveChatwootMasterUser = async (e) => {
         if (e?.preventDefault) e.preventDefault();
 
@@ -973,6 +1019,27 @@ export default function AgencyDashboard({ token, onLogout }) {
                 { description: t('dash.chatwoot_accounts.password_rules') || "Debe tener mínimo 6 caracteres, incluyendo mayúscula, minúscula, número y símbolo." }
             );
             return false;
+        }
+
+        const previousMasterEmail = String(chatwootMasterEmail || "").trim().toLowerCase();
+        const shouldPrecheckMasterEmail = !chatwootMasterConfigured || safeEmail !== previousMasterEmail;
+        if (shouldPrecheckMasterEmail) {
+            try {
+                const emailCheck = await checkChatwootEmailAvailability({
+                    email: safeEmail,
+                    password: safePassword
+                });
+                if (emailCheck?.exists && emailCheck?.credentials?.checked && emailCheck.credentials.valid === false) {
+                    toast.error(
+                        t('dash.chatwoot_master.email_exists_invalid_password') ||
+                        "Ese email ya existe en Chatwoot y la contraseña indicada no coincide."
+                    );
+                    return false;
+                }
+            } catch (precheckErr) {
+                toast.error(precheckErr.message || "No se pudo verificar el email en Chatwoot");
+                return false;
+            }
         }
 
         setIsSavingChatwootMaster(true);
