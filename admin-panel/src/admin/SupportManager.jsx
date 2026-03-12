@@ -80,7 +80,7 @@ export default function SupportManager({
         const handleEvent = (payload) => {
             if (payload.locationId === socketRoom) {
                 if (payload.type === 'qr') {
-                    setQr(payload.data);
+                    setQr(payload.qr || payload.data);
                     setLoading(false);
                 }
                 if (payload.type === 'connection') {
