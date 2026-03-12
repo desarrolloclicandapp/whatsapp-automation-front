@@ -34,7 +34,13 @@ export function BrandingProvider({ children }) {
                 if (res.ok) {
                     const data = await res.json();
                     if (Object.keys(data).length > 0) {
-                        setSystemBranding({ ...DEFAULT_BRANDING, ...data });
+                        // Filtrar valores vacíos para no sobrescribir defaults
+                        const filteredData = Object.fromEntries(
+                            Object.entries(data).filter(([_, v]) => v !== '' && v !== null && v !== undefined)
+                        );
+                        if (Object.keys(filteredData).length > 0) {
+                            setSystemBranding({ ...DEFAULT_BRANDING, ...filteredData });
+                        }
                     }
                 }
             } catch (e) { console.error("Error cargando branding desde el servidor"); }

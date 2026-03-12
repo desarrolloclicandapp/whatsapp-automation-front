@@ -242,7 +242,21 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
                     {/* Logo con Efecto Glass */}
                     <div className="mb-8 p-4 bg-white/10 backdrop-blur-md rounded-3xl border border-white/20 shadow-2xl animate-in zoom-in duration-500">
-                        <img src={branding.logoUrl} alt="Logo" className="w-16 h-16 object-contain filter drop-shadow-lg" onError={(e) => e.target.style.display = 'none'} />
+                        {branding.logoUrl ? (
+                            <img 
+                                src={branding.logoUrl} 
+                                alt="Logo" 
+                                className="w-16 h-16 object-contain filter drop-shadow-lg"
+                                onError={(e) => {
+                                    console.error("❌ Error cargando logo:", branding.logoUrl);
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling && (e.target.nextSibling.style.display = 'flex');
+                                }} 
+                            />
+                        ) : null}
+                        <div className="w-16 h-16 hidden items-center justify-center text-2xl font-bold text-white">
+                            {(branding.name || 'W').charAt(0).toUpperCase()}
+                        </div>
                     </div>
 
                     {/* Slogan Dinámico */}
@@ -317,7 +331,21 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                 <div className="space-y-8">
                                     <div className="text-center">
                                         <div className="inline-block p-3 rounded-2xl mb-6 shadow-md" style={{ backgroundColor: (branding.primaryColor || '#0055FF') + '15' }}>
-                                            <img src={branding.logoUrl} alt="Logo" className="h-10 object-contain" onError={(e) => e.target.style.display = 'none'} />
+                                            {branding.logoUrl ? (
+                                                <img 
+                                                    src={branding.logoUrl} 
+                                                    alt="Logo" 
+                                                    className="h-10 object-contain"
+                                                    onError={(e) => {
+                                                        console.error("❌ Error cargando logo:", branding.logoUrl);
+                                                        e.target.style.display = 'none';
+                                                        e.target.nextSibling && (e.target.nextSibling.style.display = 'flex');
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <div className="h-10 hidden items-center justify-center text-xl font-bold" style={{ color: branding.primaryColor }}>
+                                                {(branding.name || 'W').charAt(0).toUpperCase()}
+                                            </div>
                                         </div>
                                         {/* TEXTOS DINÁMICOS DE FORMULARIO */}
                                         <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{branding.loginTitle || t('auth.start_now')}</h2>
