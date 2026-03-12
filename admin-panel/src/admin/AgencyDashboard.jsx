@@ -2149,7 +2149,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             {isGhlAgency && (
                                                 <li className="flex gap-2">
                                                     <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                                                    <span>{t('agency.settings_guide.required_ghl_install') || "Revisar el link de instalación GHL solo si usas dominio/app personalizada."}</span>
+                                                    {/* <span>{t('agency.settings_guide.required_ghl_install') || "Revisar el link de instalación GHL solo si usas dominio/app personalizada."}</span> */}
                                                 </li>
                                             )}
                                         </ul>

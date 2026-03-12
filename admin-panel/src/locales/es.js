@@ -671,7 +671,7 @@ export const es = {
     "agency.integrations.step_three": "Paso 3",
     "agency.integrations.step_three_desc": "Listo: verás el panel específico y sus planes.",
     "agency.integrations.config_for": "Configuración de {crm}",
-    "agency.integrations.ghl_config_desc": "Configura el link de instalación y las notas de voz para dejar el onboarding listo en un solo paso.",
+    "agency.integrations.ghl_config_desc": "Configura las notas de voz para dejar el onboarding listo en un solo paso.",
     "agency.integrations.chatwoot_config_desc": "Define el Usuario Maestro para aprovisionar cuentas Chatwoot hospedadas automáticamente.",
     "agency.integrations.open_full": "Abrir panel completo",
     "agency.integrations.voice_copy_script": "Copiar script",
