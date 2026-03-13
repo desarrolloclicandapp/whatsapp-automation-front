@@ -428,14 +428,25 @@ export default function AgencyDashboard({ token, onLogout }) {
         console.log("📍 URL Search Params:", window.location.search);
         const locationIdParam = queryParams.get("location_id");
         const legacyInstallParam = queryParams.get("new_install");
-        const targetLocationId = locationIdParam || legacyInstallParam;
         const oauthCode = queryParams.get("code");
+        const hasLegacyCompanyOnlyCallback = Boolean(legacyInstallParam && !locationIdParam && !oauthCode);
+        const targetLocationId = locationIdParam || (oauthCode ? legacyInstallParam : "");
+        const legacyRefreshTimers = [];
         console.log(`🔎 Parsed Params -> Location: ${targetLocationId}, Code: ${oauthCode ? 'PRESENT' : 'MISSING'}`);
         
         // GHL install callbacks may arrive before accountInfo loads or while the UI
         // is still pinned to another CRM in localStorage. The callback itself is the
         // source of truth here, so do not gate auto-sync by current CRM mode.
-        if ((targetLocationId || oauthCode) && !isAutoSyncing) {
+        if (hasLegacyCompanyOnlyCallback && !isAutoSyncing) {
+            console.warn("[Install] Legacy callback with new_install only detected. Waiting for webhook instead of calling sync-ghl.");
+            [1500, 5000, 10000].forEach((delayMs) => {
+                const timerId = window.setTimeout(() => {
+                    refreshData();
+                }, delayMs);
+                legacyRefreshTimers.push(timerId);
+            });
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if ((targetLocationId || oauthCode) && !isAutoSyncing) {
             // Con OAuth code directo (marketplace), no bloqueamos esperando webhook.
             const skipInstallPolling = Boolean(oauthCode) || Boolean(legacyInstallParam && !locationIdParam) || !targetLocationId;
             autoSyncAgency(targetLocationId, oauthCode, { skipInstallPolling });
@@ -458,6 +469,10 @@ export default function AgencyDashboard({ token, onLogout }) {
             // Limpiar URL
             window.history.replaceState({}, document.title, window.location.pathname);
         }
+
+        return () => {
+            legacyRefreshTimers.forEach((timerId) => window.clearTimeout(timerId));
+        };
     }, []);
 
     useEffect(() => {
