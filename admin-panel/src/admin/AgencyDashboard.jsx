@@ -312,6 +312,94 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
+    const fetchAgencyLocationsSnapshot = async () => {
+        let effectiveAgencyId = accountInfo?.agencyId || storedAgencyId || AGENCY_ID || null;
+
+        if (!effectiveAgencyId) {
+            const accRes = await authFetch('/agency/info');
+            if (accRes?.ok) {
+                const data = await accRes.json();
+                effectiveAgencyId = data?.agencyId || null;
+                if (effectiveAgencyId) {
+                    localStorage.setItem("agencyId", effectiveAgencyId);
+                    setStoredAgencyId(effectiveAgencyId);
+                }
+            }
+        }
+
+        if (!effectiveAgencyId) return [];
+
+        const locRes = await authFetch(`/agency/locations?agencyId=${encodeURIComponent(effectiveAgencyId)}`);
+        if (!locRes?.ok) return [];
+
+        const locData = await locRes.json().catch(() => []);
+        return Array.isArray(locData) ? locData : [];
+    };
+
+    const findLegacyInstalledLocation = (snapshot, baselineIds, watchStartedAt) => {
+        const recentThresholdMs = watchStartedAt - 15000;
+
+        return snapshot.find((loc) => {
+            const locationId = String(loc?.location_id || "").trim();
+            if (!locationId) return false;
+            if (!baselineIds.has(locationId)) return true;
+
+            const createdAtMs = loc?.created_at ? new Date(loc.created_at).getTime() : Number.NaN;
+            return Number.isFinite(createdAtMs) && createdAtMs >= recentThresholdMs;
+        }) || null;
+    };
+
+    const waitForLegacyInstallCompletion = async (options = {}) => {
+        const { isCancelled = () => false } = options;
+        const watchStartedAt = Date.now();
+        setIsAutoSyncing(true);
+
+        try {
+            const baselineSnapshot = await fetchAgencyLocationsSnapshot();
+            const baselineIds = new Set(
+                baselineSnapshot
+                    .map((loc) => String(loc?.location_id || "").trim())
+                    .filter(Boolean)
+            );
+
+            for (let attempt = 0; attempt < 20; attempt++) {
+                if (isCancelled()) return;
+
+                const snapshot = attempt === 0
+                    ? baselineSnapshot
+                    : await fetchAgencyLocationsSnapshot();
+                const installedLocation = findLegacyInstalledLocation(snapshot, baselineIds, watchStartedAt);
+
+                if (installedLocation) {
+                    if (isCancelled()) return;
+                    setLocations(snapshot);
+                    await refreshData();
+                    toast.success(t('agency.install.completed'), {
+                        description: installedLocation?.name
+                            ? `${installedLocation.name}`
+                            : undefined
+                    });
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    return;
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+
+            if (isCancelled()) return;
+            await refreshData();
+            toast.info(t('agency.install.waiting_webhook'));
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } catch (error) {
+            if (isCancelled()) return;
+            toast.error(error.message || t('agency.install.error'));
+        } finally {
+            if (!isCancelled()) {
+                setIsAutoSyncing(false);
+            }
+        }
+    };
+
     const autoSyncAgency = async (locationId, code, options = {}) => {
         const { skipInstallPolling = false } = options;
         const resolvedLocationId = locationId ? String(locationId).trim() : "";
@@ -425,13 +513,13 @@ export default function AgencyDashboard({ token, onLogout }) {
 
 
     useEffect(() => {
+        let cancelled = false;
         console.log("📍 URL Search Params:", window.location.search);
         const locationIdParam = queryParams.get("location_id");
         const legacyInstallParam = queryParams.get("new_install");
         const oauthCode = queryParams.get("code");
         const hasLegacyCompanyOnlyCallback = Boolean(legacyInstallParam && !locationIdParam && !oauthCode);
         const targetLocationId = locationIdParam || (oauthCode ? legacyInstallParam : "");
-        const legacyRefreshTimers = [];
         console.log(`🔎 Parsed Params -> Location: ${targetLocationId}, Code: ${oauthCode ? 'PRESENT' : 'MISSING'}`);
         
         // GHL install callbacks may arrive before accountInfo loads or while the UI
@@ -439,13 +527,8 @@ export default function AgencyDashboard({ token, onLogout }) {
         // source of truth here, so do not gate auto-sync by current CRM mode.
         if (hasLegacyCompanyOnlyCallback && !isAutoSyncing) {
             console.warn("[Install] Legacy callback with new_install only detected. Waiting for webhook instead of calling sync-ghl.");
-            [1500, 5000, 10000].forEach((delayMs) => {
-                const timerId = window.setTimeout(() => {
-                    refreshData();
-                }, delayMs);
-                legacyRefreshTimers.push(timerId);
-            });
             window.history.replaceState({}, document.title, window.location.pathname);
+            waitForLegacyInstallCompletion({ isCancelled: () => cancelled });
         } else if ((targetLocationId || oauthCode) && !isAutoSyncing) {
             // Con OAuth code directo (marketplace), no bloqueamos esperando webhook.
             const skipInstallPolling = Boolean(oauthCode) || Boolean(legacyInstallParam && !locationIdParam) || !targetLocationId;
@@ -471,7 +554,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
 
         return () => {
-            legacyRefreshTimers.forEach((timerId) => window.clearTimeout(timerId));
+            cancelled = true;
         };
     }, []);
 
