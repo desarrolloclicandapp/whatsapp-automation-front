@@ -362,6 +362,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             let data;
             let syncAttempts = 0;
             const maxSyncAttempts = 5;
+            let lastSyncError = null;
 
             while (syncAttempts < maxSyncAttempts) {
                 try {
@@ -370,7 +371,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         body: JSON.stringify({
                             locationIdToVerify: resolvedLocationId || null,
                             code: code || null,
-                            expectedAgencyId: accountInfo?.agencyId || AGENCY_ID || null
+                            expectedAgencyId: accountInfo?.agencyId || null
                         })
                     });
 
@@ -378,27 +379,41 @@ export default function AgencyDashboard({ token, onLogout }) {
                         data = await res.json();
                         break;
                     }
+
+                    const errData = await res.json().catch(() => ({}));
+                    const syncError = new Error(errData.error || t('agency.server_error'));
+
                     if ((res.status === 404 || res.status === 409) && !installed) {
-                        // Still not installed, wait more
+                        lastSyncError = syncError;
                         syncAttempts++;
                         await new Promise(r => setTimeout(r, 2000));
-                    } else {
-                        const errData = await res.json().catch(() => ({}));
-                        throw new Error(errData.error || t('agency.server_error'));
+                        continue;
                     }
+
+                    syncError.nonRetryable = true;
+                    throw syncError;
                 } catch (e) { 
-                    syncAttempts++; 
-                    await new Promise(r => setTimeout(r, 2000));
+                    if (e?.nonRetryable) throw e;
+                    lastSyncError = e;
+                    syncAttempts++;
+                    if (syncAttempts < maxSyncAttempts) {
+                        await new Promise(r => setTimeout(r, 2000));
+                    }
                 }
             }
 
-            if (!data || !data.success) throw new Error(t('agency.install.sync_failed'));
+            if (!data || !data.success) {
+                throw (lastSyncError || new Error(t('agency.install.sync_failed')));
+            }
 
-            localStorage.setItem("agencyId", data.newAgencyId);
-            setStoredAgencyId(data.newAgencyId);
+            const syncedAgencyId = data.agencyId || data.newAgencyId || accountInfo?.agencyId || null;
+            if (syncedAgencyId) {
+                localStorage.setItem("agencyId", syncedAgencyId);
+                setStoredAgencyId(syncedAgencyId);
+            }
 
             refreshData();
-            toast.success(t('agency.install.completed'));
+            toast.success(data.message || t('agency.install.completed'));
             window.history.replaceState({}, document.title, window.location.pathname);
 
         } catch (error) {
