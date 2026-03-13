@@ -125,8 +125,8 @@ export default function SupportManager({
                     const qrRes = await authFetch(`${apiPrefix}/qr`, { signal: controller.signal });
                     if (qrRes.ok) {
                         const data = await qrRes.json();
+                        setQr(data.qr || null);
                         if (data.qr) {
-                            setQr(data.qr);
                             setLoading(false);
                             // No detenemos el polling aún
                         }

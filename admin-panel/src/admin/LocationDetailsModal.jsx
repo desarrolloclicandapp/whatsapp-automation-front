@@ -2600,6 +2600,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
     const { t } = useLanguage();
     const [status, setStatus] = useState({ connected: false, myNumber: null });
     const [qr, setQr] = useState(null);
+    const [qrUpdatedAt, setQrUpdatedAt] = useState(null);
     const [loading, setLoading] = useState(false);
     const [accountSuspensionState, setAccountSuspensionState] = useState(null);
     const [slotSuspendedBy, setSlotSuspendedBy] = useState(slot?.suspended_by || null);
@@ -2654,6 +2655,13 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         }
     };
 
+    const isFreshQrTimestamp = (rawTimestamp) => {
+        if (!rawTimestamp) return false;
+        const parsed = new Date(rawTimestamp).getTime();
+        if (!Number.isFinite(parsed)) return true;
+        return (Date.now() - parsed) <= 25000;
+    };
+
     const applyAccessError = (accessError) => {
         if (!accessError) return false;
 
@@ -2668,6 +2676,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
 
         setLoading(false);
         setQr(null);
+        setQrUpdatedAt(null);
         stopPolling();
         return true;
     };
@@ -2687,6 +2696,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
 
                 if (data.connected) {
                     setQr(null);
+                    setQrUpdatedAt(null);
                     setLoading(false);
                     stopPolling();
                     onUpdate();
@@ -2713,6 +2723,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
 
         setLoading(true);
         setQr(null);
+        setQrUpdatedAt(null);
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, { method: 'POST' });
             const accessError = await readAccessError(res);
@@ -2731,7 +2742,12 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
 
                     if (qrRes.ok) {
                         const data = await qrRes.json();
-                        if (data.qr) setQr(data.qr);
+                        const nextQrUpdatedAt = data.qrUpdatedAt || null;
+                        const nextQr = data.qr && isFreshQrTimestamp(nextQrUpdatedAt)
+                            ? data.qr
+                            : null;
+                        setQrUpdatedAt(nextQrUpdatedAt);
+                        setQr(nextQr);
                         if (data.connected) {
                             checkStatus();
                             return; // Stop polling, checkStatus will clear the rest
@@ -2780,6 +2796,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                 ? 'Pausado por administracion. Solo admin puede reactivar.'
                 : 'Pausado por ti. Puedes reconectar sin escanear QR.');
             setQr(null);
+            setQrUpdatedAt(null);
             stopPolling();
             onUpdate();
             toast.success('Slot pausado');
@@ -2815,6 +2832,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setSlotLockMessage(null);
             setAccountSuspensionState(null);
             setQr(null);
+            setQrUpdatedAt(null);
             toast.success('Reconectando...');
 
             stopPolling();
@@ -2859,6 +2877,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setSlotSuspendedBy(null);
             setSlotLockMessage(null);
             setQr(null);
+            setQrUpdatedAt(null);
             stopPolling();
             onUpdate();
             toast.success('Desconectado');
@@ -3036,7 +3055,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                                     : (slotSuspendedBy ? '🔄 Reconectando automáticamente...' : '⏳ Consiguiendo QR seguro...')
                                 }
                             </p>
-                            <button onClick={() => { setQr(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-red-500 underline text-sm transition">Cancelar</button>
+                            <button onClick={() => { setQr(null); setQrUpdatedAt(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-red-500 underline text-sm transition">Cancelar</button>
                         </div>
                     )}
 
