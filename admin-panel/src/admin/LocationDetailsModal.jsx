@@ -540,10 +540,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     // --- GRUPOS ---
     const loadGroups = async (slotId) => {
         setLoadingGroups(true);
+        setGroups([]);
         try {
             const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/groups`);
-            if (res.ok) setGroups(await res.json());
-        } catch (e) { }
+            if (res.ok) {
+                const data = await res.json();
+                setGroups(Array.isArray(data) ? data : []);
+            } else {
+                const errorData = await res.json().catch(() => ({}));
+                toast.error(errorData?.error || t('agency.server_error'));
+            }
+        } catch (e) {
+            toast.error(t('agency.server_error'));
+        }
         setLoadingGroups(false);
     };
 
@@ -2534,23 +2543,30 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 <button onClick={() => loadGroups(slot.slot_id)} className="text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 p-2 rounded-lg transition"><RefreshCw size={18} /></button>
                                                             </div>
                                                             {loadingGroups ? <div className="text-center py-10"><RefreshCw className="animate-spin mx-auto text-indigo-500" /></div> :
-                                                                <div className="space-y-3">
-                                                                    {groups.map(g => {
-                                                                        const isActive = settings.groups?.[g.id]?.active;
-                                                                        return (
-                                                                            <div key={g.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                                <div><h5 className="font-bold text-gray-800 dark:text-white">{g.subject}</h5><p className="text-xs text-gray-500 dark:text-gray-400">{g.participants} {t('slots.groups.participants')}</p></div>
-                                                                                <div className="flex items-center gap-4">
-                                                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                                                        <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, settings)} />
-                                                                                        <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                                                                                    </label>
-                                                                                    <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg" title={t('slots.groups.sync')}><Users size={18} /></button>
+                                                                groups.length === 0 ? (
+                                                                    <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-8 text-center">
+                                                                        <p className="font-semibold text-gray-700 dark:text-gray-200">{t('slots.groups.empty')}</p>
+                                                                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('slots.groups.empty_help')}</p>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="space-y-3">
+                                                                        {groups.map(g => {
+                                                                            const isActive = settings.groups?.[g.id]?.active;
+                                                                            return (
+                                                                                <div key={g.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                                    <div><h5 className="font-bold text-gray-800 dark:text-white">{g.subject}</h5><p className="text-xs text-gray-500 dark:text-gray-400">{g.participants} {t('slots.groups.participants')}</p></div>
+                                                                                    <div className="flex items-center gap-4">
+                                                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                                                            <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, settings)} />
+                                                                                            <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                                                                                        </label>
+                                                                                        <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg" title={t('slots.groups.sync')}><Users size={18} /></button>
+                                                                                    </div>
                                                                                 </div>
-                                                                            </div>
-                                                                        )
-                                                                    })}
-                                                                </div>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                )
                                                             }
                                                         </div>
                                                     )}

@@ -513,6 +513,8 @@ export const es = {
     "slots.groups.participants": "participantes",
     "slots.groups.sync": "Sincronizar Miembros",
     "slots.groups.connect_first": "Conecta WhatsApp primero.",
+    "slots.groups.empty": "Sin grupos",
+    "slots.groups.empty_help": "Este slot no tiene grupos detectados.",
 
     // Agency Dashboard - General
     "agency.session_expired": "Sesión expirada",
