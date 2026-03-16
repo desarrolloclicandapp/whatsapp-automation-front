@@ -1017,6 +1017,14 @@ export default function AgencyDashboard({ token, onLogout }) {
             toast.dismiss(tId);
 
             if (data.allowed) {
+                const pendingRes = await authFetch('/agency/ghl-install-pending', {
+                    method: 'POST'
+                });
+                const pendingData = await pendingRes.json().catch(() => ({}));
+                if (!pendingRes.ok || !pendingData?.success) {
+                    throw new Error(pendingData.error || t('agency.install.error'));
+                }
+
                 console.log("Redirigiendo a:", resolvedInstallUrl);
                 if (popupWindow && !popupWindow.closed) {
                     try {
