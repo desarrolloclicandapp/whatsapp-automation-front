@@ -1188,6 +1188,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }
     };
     const chatwootHeaderLoginUrl = String(
+        chatwootAccessInfo?.directLoginUrl ||
         chatwootAccessInfo?.loginUrl ||
         (tenantSettings?.chatwoot_url ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/login` : "")
     ).trim();
