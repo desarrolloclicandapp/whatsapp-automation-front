@@ -350,12 +350,22 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     const waitForLegacyInstallCompletion = async (options = {}) => {
-        const { isCancelled = () => false } = options;
-        const watchStartedAt = Date.now();
-        setIsAutoSyncing(true);
+        const {
+            isCancelled = () => false,
+            baselineSnapshot: providedBaselineSnapshot = null,
+            watchStartedAt: providedWatchStartedAt = null,
+            manageLoading = true,
+            showCompletionToast = true
+        } = options;
+        const watchStartedAt = Number.isFinite(providedWatchStartedAt) ? providedWatchStartedAt : Date.now();
+        if (manageLoading) {
+            setIsAutoSyncing(true);
+        }
 
         try {
-            const baselineSnapshot = await fetchAgencyLocationsSnapshot();
+            const baselineSnapshot = Array.isArray(providedBaselineSnapshot)
+                ? providedBaselineSnapshot
+                : await fetchAgencyLocationsSnapshot();
             const baselineIds = new Set(
                 baselineSnapshot
                     .map((loc) => String(loc?.location_id || "").trim())
@@ -374,13 +384,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                     if (isCancelled()) return;
                     setLocations(snapshot);
                     await refreshData();
-                    toast.success(t('agency.install.completed'), {
-                        description: installedLocation?.name
-                            ? `${installedLocation.name}`
-                            : undefined
-                    });
+                    if (showCompletionToast) {
+                        toast.success(t('agency.install.completed'), {
+                            description: installedLocation?.name
+                                ? `${installedLocation.name}`
+                                : undefined
+                        });
+                    }
                     window.history.replaceState({}, document.title, window.location.pathname);
-                    return;
+                    return installedLocation;
                 }
 
                 await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -390,11 +402,13 @@ export default function AgencyDashboard({ token, onLogout }) {
             await refreshData();
             toast.info(t('agency.install.waiting_webhook'));
             window.history.replaceState({}, document.title, window.location.pathname);
+            return null;
         } catch (error) {
             if (isCancelled()) return;
             toast.error(error.message || t('agency.install.error'));
+            return null;
         } finally {
-            if (!isCancelled()) {
+            if (manageLoading && !isCancelled()) {
                 setIsAutoSyncing(false);
             }
         }
@@ -404,11 +418,17 @@ export default function AgencyDashboard({ token, onLogout }) {
         const { skipInstallPolling = false } = options;
         const resolvedLocationId = locationId ? String(locationId).trim() : "";
         setIsAutoSyncing(true);
+        const installWatchStartedAt = Date.now();
+        let installBaselineSnapshot = null;
         // const toastId = toast.loading(t('agency.install.waiting')); // Removido por overlay visual
 
         try {
             if (!resolvedLocationId && !code) {
                 throw new Error("No se recibió location_id ni code OAuth");
+            }
+
+            if (code) {
+                installBaselineSnapshot = await fetchAgencyLocationsSnapshot().catch(() => []);
             }
 
             // 🔥 STEP 1: Wait for GHL webhook to complete installation
@@ -498,6 +518,35 @@ export default function AgencyDashboard({ token, onLogout }) {
             if (syncedAgencyId) {
                 localStorage.setItem("agencyId", syncedAgencyId);
                 setStoredAgencyId(syncedAgencyId);
+            }
+
+            if (data?.scope === "company" || data?.pendingLocationInstall) {
+                const installedLocation = await waitForLegacyInstallCompletion({
+                    baselineSnapshot: installBaselineSnapshot,
+                    watchStartedAt: installWatchStartedAt,
+                    manageLoading: false,
+                    showCompletionToast: false
+                });
+
+                if (!installedLocation?.location_id) {
+                    throw new Error(t('agency.install.waiting_webhook'));
+                }
+
+                const finalizeRes = await authFetch(`/agency/sync-ghl`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        locationIdToVerify: installedLocation.location_id,
+                        code: null,
+                        expectedAgencyId: syncedAgencyId || null
+                    })
+                });
+
+                if (!finalizeRes.ok) {
+                    const finalizeErr = await finalizeRes.json().catch(() => ({}));
+                    throw new Error(finalizeErr.error || t('agency.install.sync_failed'));
+                }
+
+                data = await finalizeRes.json();
             }
 
             refreshData();
