@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import SupportManager from './SupportManager';
 import LocationDetailsModal from './LocationDetailsModal';
 import ThemeToggle from '../components/ThemeToggle';
 import { useBranding } from '../context/BrandingContext';
-import { useLanguage } from '../context/LanguageContext'; // ✅ Added import
+import { useLanguage } from '../context/LanguageContext'; // Added import
 import { toast } from 'sonner'; 
 import {
     Settings, Search, Palette, Upload,
@@ -15,7 +15,7 @@ import {
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
 export default function AdminDashboard({ token, onLogout }) {
-    const { t } = useLanguage(); // ✅ Initialize hook
+    const { t } = useLanguage(); // Initialize hook
     const { systemBranding, updateSystemBranding, DEFAULT_BRANDING } = useBranding();
     const [view, setView] = useState('agencies'); 
     const [selectedAgency, setSelectedAgency] = useState(null);
@@ -30,15 +30,15 @@ export default function AdminDashboard({ token, onLogout }) {
     const [masterOtpTick, setMasterOtpTick] = useState(Date.now());
     const [manualUserModal, setManualUserModal] = useState({ show: false, name: "", email: "", phone: "" });
 
-    // ✅ ESTADO PARA MODAL DE TRIAL
+    // Estado para modal de trial
     const [trialModal, setTrialModal] = useState({ show: false, userId: null, userName: '', currentEnd: null });
     const [trialDaysInput, setTrialDaysInput] = useState(0);
 
-    // ✅ ESTADO PARA MODAL DE BONUS SUBCUENTAS
+    // Estado para modal de bonus subcuentas
     const [bonusModal, setBonusModal] = useState({ show: false, userId: null, userName: '', currentBonus: 0, maxSubs: 0 });
     const [bonusInput, setBonusInput] = useState(0);
 
-    // ✅ NUEVO: ESTADO PARA MODAL DE CONFIRMACIÓN (Reemplaza window.confirm)
+    // Nuevo: estado para modal de confirmacion (reemplaza window.confirm)
     const [confirmModal, setConfirmModal] = useState({ 
         show: false, 
         title: "", 
@@ -47,7 +47,7 @@ export default function AdminDashboard({ token, onLogout }) {
         isDestructive: false 
     });
 
-    // ✅ FIX FAVICON
+    // Fix favicon
     useEffect(() => {
         const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
         link.type = 'image/x-icon';
@@ -139,7 +139,7 @@ export default function AdminDashboard({ token, onLogout }) {
                 fetchUsers();
             } else {
                 const data = await res.json();
-                // ⚠️ Protección de Planes
+                // Proteccion de planes
                 if (data.error && data.error.includes("plan activo")) {
                     toast.error(t('dash.users.protected_plan'));
                 } else {
@@ -172,14 +172,74 @@ export default function AdminDashboard({ token, onLogout }) {
     const executeReactivateUser = async (userId) => {
         try {
             const res = await authFetch(`/admin/users/${userId}/reactivate`, { method: 'PUT' });
+            const data = await res.json().catch(() => ({}));
             if (res.ok) {
-                toast.success(t('dash.users.reactivate_success'));
+                const status = data.plan_status ? String(data.plan_status).toUpperCase() : null;
+                const trialEnds = data.trial_ends_at ? new Date(data.trial_ends_at).toLocaleDateString() : null;
+                const suffix = status === 'TRIAL' && trialEnds ? ` (TRIAL hasta ${trialEnds})` : status ? ` (${status})` : '';
+                toast.success(`${t('dash.users.reactivate_success')}${suffix}`);
                 fetchUsers();
             } else {
-                const data = await res.json();
                 toast.error(data.error || t('common.error'));
             }
         } catch (error) { toast.error(t('sub.toast.error_connection')); }
+        setConfirmModal({ ...confirmModal, show: false });
+    };
+
+    const executeSoftDisconnectUser = async (userId) => {
+        try {
+            const res = await authFetch(`/admin/users/${userId}/soft-disconnect`, { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                const disconnected = Number(data.disconnected_slots || 0);
+                const total = Number(data.total_slots || 0);
+                toast.success(`Usuario inactivado en modo suave. Slots desconectados: ${disconnected}/${total}`);
+                fetchUsers();
+            } else {
+                toast.error(data.error || 'No se pudo inactivar en modo suave');
+            }
+        } catch (error) {
+            toast.error(t('sub.toast.error_connection'));
+        }
+        setConfirmModal({ ...confirmModal, show: false });
+    };
+    const executeSuspendUser = async (userId, reason = 'Manual admin action') => {
+        try {
+            const res = await authFetch(`/admin/users/${userId}/suspend`, {
+                method: 'POST',
+                body: JSON.stringify({ reason })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                const affected = Number(data.disconnected_slots || 0);
+                toast.success("Usuario suspendido. Slots pausados: " + affected);
+                fetchUsers();
+            } else {
+                toast.error(data.error || 'No se pudo suspender');
+            }
+        } catch (error) {
+            toast.error(t('sub.toast.error_connection'));
+        }
+        setConfirmModal({ ...confirmModal, show: false });
+    };
+
+    const executeReactivateSuspension = async (userId) => {
+        try {
+            const res = await authFetch(`/admin/users/${userId}/reactivate`, { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                const attempts = Number(data.reconnect_attempts || 0);
+                const status = data.plan_status ? String(data.plan_status).toUpperCase() : null;
+                const trialEnds = data.trial_ends_at ? new Date(data.trial_ends_at).toLocaleDateString() : null;
+                const statusSuffix = status === 'TRIAL' && trialEnds ? ` | Plan: TRIAL hasta ${trialEnds}` : status ? ` | Plan: ${status}` : '';
+                toast.success(`Usuario reactivado. Reconexiones iniciadas: ${attempts}${statusSuffix}`);
+                fetchUsers();
+            } else {
+                toast.error(data.error || 'No se pudo reactivar');
+            }
+        } catch (error) {
+            toast.error(t('sub.toast.error_connection'));
+        }
         setConfirmModal({ ...confirmModal, show: false });
     };
 
@@ -273,7 +333,7 @@ export default function AdminDashboard({ token, onLogout }) {
                 toast.error(data.error || "Error al crear usuario", { id: tId });
             }
         } catch (error) {
-            toast.error("Error de conexi�n", { id: tId });
+            toast.error("Error de conexión", { id: tId });
         }
     };
 const handleDeleteUser = (user, type = 'soft') => {
@@ -320,13 +380,13 @@ const handleDeleteUser = (user, type = 'soft') => {
         e.stopPropagation();
         openConfirm(
             "Eliminar Agencia",
-            `🚨 PELIGRO: ¿Eliminar la agencia "${agencyName || agencyId}"?\n\nEsto borrará TODAS sus subcuentas, desconectará los números de WhatsApp y desvinculará a los usuarios.`,
+            `PELIGRO: Eliminar la agencia "${agencyName || agencyId}"?\n\nEsto borrara TODAS sus subcuentas, desconectara los numeros de WhatsApp y desvinculara a los usuarios.`,
             () => executeDeleteAgency(agencyId),
             true
         );
     };
 
-    // ✅ Guardar cambios del Trial
+    // Guardar cambios del trial
     const handleSaveTrial = async () => {
         const { userId } = trialModal;
         const days = parseInt(trialDaysInput);
@@ -364,7 +424,7 @@ const handleDeleteUser = (user, type = 'soft') => {
         return preview.toLocaleDateString();
     };
 
-    // ✅ Guardar cambios del Bonus Subcuentas
+    // Guardar cambios del bonus subcuentas
     const handleSaveBonus = async () => {
         const { userId } = bonusModal;
         const bonus = parseInt(bonusInput);
@@ -381,7 +441,7 @@ const handleDeleteUser = (user, type = 'soft') => {
             const data = await res.json();
             
             if (res.ok) {
-                toast.success(`Bonus actualizado a ${bonus} subcuentas extra 🎁`);
+                toast.success(`Bonus actualizado a ${bonus} subcuentas extra.`);
                 setBonusModal({ show: false, userId: null, userName: '', currentBonus: 0, maxSubs: 0 });
                 fetchUsers(); 
             } else {
@@ -392,7 +452,7 @@ const handleDeleteUser = (user, type = 'soft') => {
         }
     };
 
-    // ✅ NUEVO: Lógica para Dar Plan Admin
+    // Nuevo: logica para dar plan admin
     const executeGrantAdmin = async (userId) => {
         const tId = toast.loading("Aplicando Plan Admin...");
         try {
@@ -400,7 +460,7 @@ const handleDeleteUser = (user, type = 'soft') => {
             const data = await res.json();
             
             if (res.ok) {
-                toast.success("¡Usuario actualizado a Admin Service! 👑", { id: tId });
+                toast.success("Usuario actualizado a Admin Service.", { id: tId });
                 fetchUsers();
             } else {
                 toast.error(data.error || "Error al actualizar", { id: tId });
@@ -414,13 +474,13 @@ const handleDeleteUser = (user, type = 'soft') => {
     const handleGrantAdmin = (userId, userName) => {
         openConfirm(
             "Otorgar Servicio Admin",
-            `¿Deseas convertir a "${userName}" en Admin Service?\n\nBeneficios:\n• Tiempo ilimitado (Sin expiración)\n• 50 Agencias permitidas\n• 99 Números WhatsApp`,
+            `Deseas convertir a "${userName}" en Admin Service?\n\nBeneficios:\n- Tiempo ilimitado (Sin expiracion)\n- 50 Agencias permitidas\n- 99 Numeros WhatsApp`,
             () => executeGrantAdmin(userId),
             false // No es destructivo
         );
     };
 
-    // ✅ NUEVO: Eliminar Subcuenta (Tenant)
+    // Nuevo: eliminar subcuenta (tenant)
     const executeDeleteTenant = async (locationId) => {
         const tId = toast.loading("Eliminando subcuenta y desconectando...");
         try {
@@ -439,7 +499,7 @@ const handleDeleteUser = (user, type = 'soft') => {
     const handleDeleteTenant = (locationId, name) => {
         openConfirm(
             "Eliminar Subcuenta",
-            `🚨 ¿Eliminar la subcuenta "${name || locationId}"?\n\nEsto desconectará TODOS los números de WhatsApp asociados y eliminará la configuración permanentemente.`,
+            `PELIGRO: Eliminar la subcuenta "${name || locationId}"?\n\nEsto desconectara TODOS los numeros de WhatsApp asociados y eliminara la configuracion permanentemente.`,
             () => executeDeleteTenant(locationId),
             true
         );
@@ -529,7 +589,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                 const data = await res.json();
                 if (res.ok) {
                     setForm(prev => ({ ...prev, [field]: data.url }));
-                    toast.success("Imagen subida correctamente 🚀");
+                    toast.success("Imagen subida correctamente.");
                     fetchGallery();
                 } else throw new Error(data.error);
             } catch (err) { toast.error("Error al subir imagen"); } finally { setUploading(false); }
@@ -545,7 +605,7 @@ const handleDeleteUser = (user, type = 'soft') => {
 
         const handleSave = () => {
             updateSystemBranding(form, token);
-            toast.success("Marca Global Actualizada 🌎");
+            toast.success("Marca Global actualizada.");
         };
 
         return (
@@ -614,7 +674,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                             </button>
                         )}
                         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-indigo-500/20">CA</div>
-                        <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'users' ? 'Gestión de Usuarios' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} subcuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}</div>
+                        <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'users' ? 'Gestión de Usuarios' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} cuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}</div>
                         {masterOtp && (
                             <div className="hidden lg:flex items-center gap-2 bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1.5 rounded-lg text-xs font-bold">
                                 <span>Master OTP:</span>
@@ -667,7 +727,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                             <tr>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Usuario / Email</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Plan & Estado</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Subcuentas</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cuentas Límite</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vencimiento Trial</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
                                             </tr>
@@ -675,6 +735,9 @@ const handleDeleteUser = (user, type = 'soft') => {
                                         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                             {filteredUsers.map(user => {
                                                 const canManageTrial = user.role !== 'admin' && (user.plan_status === 'trial' || user.plan_status === 'suspended');
+                                                const suspensionStatus = user.suspension_status || null;
+                                                const isSuspended = ['grace', 'suspended', 'pending_deletion', 'permanently_deleted'].includes(suspensionStatus);
+                                                const graceDaysLeft = user.grace_ends_at ? Math.max(0, Math.ceil((new Date(user.grace_ends_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000))) : null;
                                                 return (
                                                     <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
                                                         <td className="px-6 py-4">
@@ -698,6 +761,23 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${user.plan_status === 'active' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : user.plan_status === 'trial' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
                                                                     {user.plan_status ? user.plan_status.toUpperCase() : 'TRIAL'}
                                                                 </span>
+                                                                                                                        )}
+                                                            {suspensionStatus && (
+                                                                <div className="mt-2 flex flex-col gap-1 items-start">
+                                                                    {suspensionStatus === 'grace' && (
+                                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border bg-amber-100 text-amber-700 border-amber-200">
+                                                                            GRACE {graceDaysLeft !== null ? `(${graceDaysLeft}d)` : ''}
+                                                                        </span>
+                                                                    )}
+                                                                    {['suspended', 'pending_deletion', 'permanently_deleted'].includes(suspensionStatus) && (
+                                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border bg-red-100 text-red-700 border-red-200">
+                                                                            {suspensionStatus.toUpperCase()}
+                                                                        </span>
+                                                                    )}
+                                                                    {user.suspension_reason && (
+                                                                        <span className="text-[10px] text-gray-500">{user.suspension_reason}</span>
+                                                                    )}
+                                                                </div>
                                                             )}
                                                         </td>
                                                         <td className="px-6 py-4">
@@ -731,6 +811,32 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                         </td>
                                                         <td className="px-6 py-4 text-right">
                                                             <div className="flex justify-end items-center gap-2">
+                                                                {user.role !== 'admin' && (isSuspended || user.is_active === false) && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (isSuspended) {
+                                                                                openConfirm(
+                                                                                    'Reactivar suspension',
+                                                                                    `Quieres reactivar la cuenta de ${user.name || user.email}?`,
+                                                                                    () => executeReactivateSuspension(user.id),
+                                                                                    false
+                                                                                );
+                                                                                return;
+                                                                            }
+
+                                                                            openConfirm(
+                                                                                t('dash.users.reactivate_title'),
+                                                                                t('dash.users.reactivate_msg').replace('{name}', user.name || user.email),
+                                                                                () => executeReactivateUser(user.id),
+                                                                                false
+                                                                            );
+                                                                        }}
+                                                                        className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-lg hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 transition"
+                                                                        title={t('dash.users.reactivate_tooltip')}
+                                                                    >
+                                                                        {t('dash.users.reactivate_button')}
+                                                                    </button>
+                                                                )}
                                                                 {canManageTrial && (
                                                                     <button 
                                                                         onClick={() => {
@@ -744,6 +850,50 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                     </button>
                                                                 )}
                                                                 
+                                                                {user.role !== 'admin' && user.is_active !== false && !isSuspended && (
+                                                                    <button
+                                                                        onClick={() => openConfirm(
+                                                                            'Inactivar suave',
+                                                                            `Quieres inactivar en modo suave a ${user.name || user.email}?\n\nEsto desconecta todos sus slots sin borrar credenciales.`,
+                                                                            () => executeSoftDisconnectUser(user.id),
+                                                                            true
+                                                                        )}
+                                                                        className="p-2 text-sky-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition"
+                                                                        title="Inactivar suave (preserva credenciales)"
+                                                                    >
+                                                                        <RotateCcw size={18} />
+                                                                    </button>
+                                                                )}
+                                                                {user.role !== 'admin' && !isSuspended && (
+                                                                    <button
+                                                                        onClick={() => openConfirm(
+                                                                            'Suspender usuario',
+                                                                            `Quieres suspender temporalmente a ${user.name || user.email}?`,
+                                                                            () => executeSuspendUser(user.id, 'Manual admin action'),
+                                                                            true
+                                                                        )}
+                                                                        className="p-2 text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition"
+                                                                        title="Suspender temporalmente"
+                                                                    >
+                                                                        <AlertCircle size={18} />
+                                                                    </button>
+                                                                )}
+
+                                                                {user.role !== 'admin' && isSuspended && (
+                                                                    <button
+                                                                        onClick={() => openConfirm(
+                                                                            'Reactivar suspension',
+                                                                            `Quieres reactivar la cuenta de ${user.name || user.email}?`,
+                                                                            () => executeReactivateSuspension(user.id),
+                                                                            false
+                                                                        )}
+                                                                        className="p-2 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition"
+                                                                        title="Reactivar suspension"
+                                                                    >
+                                                                        <CheckCircle2 size={18} />
+                                                                    </button>
+                                                                )}
+
                                                                 {user.role !== 'admin' && (
                                                                     <button
                                                                         onClick={() => handleImpersonateUser(user)}
@@ -753,7 +903,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                         <span className="text-[11px] font-bold">IMP</span>
                                                                     </button>
                                                                 )}
-                                                                {/* ✅ Botón Crown: Dar Plan Admin */}
+                                                                {/* Crown button: dar plan admin */}
                                                                 <button
                                                                     onClick={() => handleGrantAdmin(user.id, user.name || user.email)}
                                                                     className="p-2 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition"
@@ -768,7 +918,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                     {user.is_active === false ? <RefreshCw size={18} /> : <Trash2 size={18} />}
                                                                 </button>
                                                                 
-                                                                {/* 💀 BOTÓN HARD DELETE */}
+                                                                {/* HARD DELETE BUTTON */}
                                                                 <button onClick={() => handleDeleteUser(user, 'hard')} className="p-2 text-gray-300 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition" title={t('dash.users.hard_delete_tooltip')}>
                                                                      <AlertTriangle size={18} />
                                                                 </button>
@@ -806,7 +956,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                         {filteredAgencies.map((agency) => (
                                             <div key={agency.agency_id} onClick={() => handleAgencyClick(agency)} className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-sm hover:border-indigo-500 cursor-pointer group relative overflow-hidden transition-all hover:shadow-lg">
                                                 
-                                                {/* ✅ BOTÓN DE BORRAR AGENCIA */}
+                                                {/* Boton de borrar agencia */}
                                                 <button 
                                                     onClick={(e) => handleDeleteAgency(e, agency.agency_id, agency.agency_name)}
                                                     className="absolute top-4 right-4 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100 z-20"
@@ -831,7 +981,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                 {loading ? (
                                     <div className="text-center py-24"><RefreshCw className="animate-spin mx-auto text-indigo-600 mb-4" size={40} /><p className="text-gray-500">Cargando subcuentas...</p></div>
                                 ) : filteredSubaccounts.length === 0 ? (
-                                    <div className="text-center py-20 bg-white dark:bg-gray-900 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700"><Smartphone className="mx-auto text-gray-300 mb-4" size={56} /><p className="text-gray-500 text-lg">Esta agencia no tiene subcuentas vinculadas.</p></div>
+                                    <div className="text-center py-20 bg-white dark:bg-gray-900 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700"><Smartphone className="mx-auto text-gray-300 mb-4" size={56} /><p className="text-gray-500 text-lg">Esta agencia no tiene cuentas vinculadas.</p></div>
                                 ) : (
                                     <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-sm overflow-hidden animate-in fade-in">
                                         <div className="overflow-x-auto">
@@ -916,7 +1066,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                         </div>
                     </div>
                 )}
-{/* MODAL DE GESTIÓN DE TRIAL CON INPUT */}
+{/* MODAL DE GESTIÁ“N DE TRIAL CON INPUT */}
 {trialModal.show && (
                     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6">
@@ -954,7 +1104,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                     </div>
                 )}
 
-                {/* ✅ MODAL DE GESTIÓN DE BONUS SUBCUENTAS */}
+                {/* Modal de gestion de bonus subcuentas */}
                 {bonusModal.show && (
                     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6">
@@ -993,7 +1143,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                     </div>
                 )}
 
-                {/* ✅ MODAL DE CONFIRMACIÓN PERSONALIZADO (REEMPLAZA ALERTAS NATIVAS) */}
+                {/* Modal de confirmacion personalizado (reemplaza alertas nativas) */}
                 {confirmModal.show && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 p-8 transform transition-all scale-100">
@@ -1038,6 +1188,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                         token={token}
                         onLogout={onLogout}
                         onClose={() => setSelectedLocation(null)}
+                        isAdminMode={true}
                     />
                 )}
             </main>

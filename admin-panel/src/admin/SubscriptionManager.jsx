@@ -24,7 +24,7 @@ import {
     PLAN_DETAILS
 } from './constants/plans';
 
-export default function SubscriptionManager({ token, accountInfo, onDataChange }) {
+export default function SubscriptionManager({ token, accountInfo, onDataChange, isChatwootAgency }) {
     const { t } = useLanguage();
     const [activeTab, setActiveTab] = useState('services');
     const [loading, setLoading] = useState(false);
@@ -88,6 +88,20 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
         fetchSubscriptions();
         fetchPaymentMethods(); // ✅ NUEVO: Cargar métodos de pago
     }, []);
+
+    const chatwootFeatureMap = {
+        'sub.feat.1_sub': 'sub.feat.cw_1_sub',
+        'sub.feat.3_subs': 'sub.feat.cw_3_subs',
+        'sub.feat.10_subs': 'sub.feat.cw_10_subs',
+        'sub.feat.1_extra_sub': 'sub.feat.cw_1_extra_sub',
+        'sub.feat.3_extra_subs': 'sub.feat.cw_3_extra_subs',
+        'sub.feat.10_extra_subs': 'sub.feat.cw_10_extra_subs',
+        'sub.feat.99_numbers': 'sub.feat.cw_inbox',
+        'sub.feat.infinite_numbers': 'sub.feat.cw_multi',
+        'sub.feat.15_numbers': 'sub.feat.cw_qr',
+        'sub.feat.50_numbers': 'sub.feat.cw_sync',
+        'sub.feat.5_numbers': 'sub.feat.cw_qr'
+    };
 
     const fetchSubscriptions = async () => {
         setFetching(true);
@@ -377,7 +391,12 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                                     </div>
                                                     {savings && <p className="text-xs font-bold text-green-600 mt-1">{savings}</p>}
                                                 </div>
-                                                <ul className="space-y-3 mb-8 flex-1">{plan.featureKeys.map((featKey, i) => <li key={i} className="flex gap-2 text-sm text-gray-600 dark:text-gray-300"><Check size={16} className="text-emerald-500 shrink-0" /> {t(featKey)}</li>)}</ul>
+                                                <ul className="space-y-3 mb-8 flex-1">
+                                                    {plan.featureKeys.map((featKey, i) => {
+                                                        const keyToUse = isChatwootAgency && chatwootFeatureMap[featKey] ? chatwootFeatureMap[featKey] : featKey;
+                                                        return <li key={i} className="flex gap-2 text-sm text-gray-600 dark:text-gray-300"><Check size={16} className="text-emerald-500 shrink-0" /> {t(keyToUse)}</li>
+                                                    })}
+                                                </ul>
                                                 <button onClick={() => handlePurchase(effectiveId, planName, effectivePrice)} className={`w-full py-3 rounded-xl font-bold text-white transition shadow-lg ${plan.color} hover:opacity-90`}>{loading ? t('sub.plan.processing') : t('sub.plan.contract')}</button>
                                             </div>
                                         );
@@ -393,11 +412,14 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                                 <h4 className="text-2xl font-bold text-white flex items-center gap-2 mb-2">{t('sub.lifetime.title')} <Crown size={24} className="text-yellow-400" /></h4>
                                                 <p className="text-gray-300 mb-4 max-w-xl">{t('sub.lifetime.desc')}</p>
                                                 <div className="flex flex-wrap gap-3">
-                                                    {PLAN_LIFETIME.featureKeys.map((featKey, i) => (
-                                                        <span key={i} className="flex items-center gap-2 text-sm text-gray-300 bg-white/10 px-3 py-1 rounded-full">
-                                                            <Check size={14} className="text-yellow-400 shrink-0" /> {t(featKey)}
-                                                        </span>
-                                                    ))}
+                                                    {PLAN_LIFETIME.featureKeys.map((featKey, i) => {
+                                                        const keyToUse = isChatwootAgency && chatwootFeatureMap[featKey] ? chatwootFeatureMap[featKey] : featKey;
+                                                        return (
+                                                            <span key={i} className="flex items-center gap-2 text-sm text-gray-300 bg-white/10 px-3 py-1 rounded-full">
+                                                                <Check size={14} className="text-yellow-400 shrink-0" /> {t(keyToUse)}
+                                                            </span>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                             <div className="flex flex-col items-center md:items-end gap-3 z-10 min-w-[200px]">
@@ -584,10 +606,10 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         {/* SUBAGENCIA EXTRA */}
                                         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl flex items-center justify-between hover:border-indigo-300 transition group">
-                                            <div className="flex items-center gap-4"><div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl"><Building2 size={24} /></div><div><h4 className="font-bold text-gray-900 dark:text-white">{t('sub.extras.subagency')}</h4><p className="text-xs text-gray-500">{t('sub.extras.subagency_desc')} {hasVolumeDiscount ? '(VIP Pack)' : '(Regular)'}</p></div></div>
+                                            <div className="flex items-center gap-4"><div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl"><Building2 size={24} /></div><div><h4 className="font-bold text-gray-900 dark:text-white">{isChatwootAgency ? (t('sub.extras.cw_account') || "Cuenta Chatwoot Extra") : t('sub.extras.subagency')}</h4><p className="text-xs text-gray-500">{isChatwootAgency ? (t('sub.extras.cw_account_desc') || "Añade una instancia independiente de Chatwoot") : t('sub.extras.subagency_desc')} {hasVolumeDiscount ? '(VIP Pack)' : '(Regular)'}</p></div></div>
                                             <div className="text-right">
                                                 {/* Precio tachado si hay descuento */}
-                                                {hasVolumeDiscount && <span className="block text-xs text-gray-400 line-through">20€</span>}
+                                                {hasVolumeDiscount && <span className="block text-xs text-gray-400 line-through">20$</span>}
                                                 <p className="text-xl font-bold text-gray-900 dark:text-white">{subDisplayPrice}</p>
                                                 <button onClick={() => handlePurchase(subPriceId)} className="text-sm font-bold text-indigo-600 hover:underline">{t('sub.extras.add')}</button>
                                             </div>
@@ -595,9 +617,9 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
 
                                         {/* SLOT EXTRA */}
                                         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl flex items-center justify-between hover:border-emerald-300 transition group">
-                                            <div className="flex items-center gap-4"><div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-xl"><Smartphone size={24} /></div><div><h4 className="font-bold text-gray-900 dark:text-white">{t('sub.extras.slot')}</h4><p className="text-xs text-gray-500">{t('sub.extras.slot_desc')}</p></div></div>
+                                            <div className="flex items-center gap-4"><div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-xl"><Smartphone size={24} /></div><div><h4 className="font-bold text-gray-900 dark:text-white">{isChatwootAgency ? (t('sub.extras.cw_slot') || "Canal Extra") : t('sub.extras.slot')}</h4><p className="text-xs text-gray-500">{isChatwootAgency ? (t('sub.extras.cw_slot_desc') || "Añade un número de teléfono a tu cuenta") : t('sub.extras.slot_desc')}</p></div></div>
                                             <div className="text-right">
-                                                {hasVolumeDiscount && <span className="block text-xs text-gray-400 line-through">5€</span>}
+                                                {hasVolumeDiscount && <span className="block text-xs text-gray-400 line-through">5$</span>}
                                                 <p className="text-xl font-bold text-gray-900 dark:text-white">{slotDisplayPrice}</p>
                                                 <button onClick={() => handlePurchase(slotPriceId)} className="text-sm font-bold text-emerald-600 hover:underline">{t('sub.extras.add')}</button>
                                             </div>

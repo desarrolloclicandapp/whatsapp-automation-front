@@ -3,20 +3,21 @@ import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
-export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange }) {
+export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange, isAdminMode = false }) {
     const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
     const [keywords, setKeywords] = useState([]);
-    const [ghlUsers, setGhlUsers] = useState([]);
+    const [crmUsers, setCrmUsers] = useState([]);
     const [locationName, setLocationName] = useState(location.name || "");
     const [whiteLabelEnabled, setWhiteLabelEnabled] = useState(true);
+    const [tenantSettings, setTenantSettings] = useState(location.settings || {});
     const [maxSubagencies, setMaxSubagencies] = useState(null);
     const [loading, setLoading] = useState(true);
     const rawFeatures = localStorage.getItem("agencyFeatures");
@@ -42,6 +43,29 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [twilioConfigBySlot, setTwilioConfigBySlot] = useState({});
     const [loadingTwilioBySlot, setLoadingTwilioBySlot] = useState({});
     const [savingTwilioBySlot, setSavingTwilioBySlot] = useState({});
+    const [chatwootConfigBySlot, setChatwootConfigBySlot] = useState({});
+    const [loadingChatwootBySlot, setLoadingChatwootBySlot] = useState({});
+    const [savingChatwootBySlot, setSavingChatwootBySlot] = useState({});
+    const [chatwootInboxes, setChatwootInboxes] = useState([]);
+    const [loadingChatwootInboxes, setLoadingChatwootInboxes] = useState(false);
+    const [chatwootInboxesLoaded, setChatwootInboxesLoaded] = useState(false);
+    const [ghlAccessInfo, setGhlAccessInfo] = useState(null);
+    const [loadingGhlAccess, setLoadingGhlAccess] = useState(false);
+    const [showGhlAccessModal, setShowGhlAccessModal] = useState(false);
+    const [chatwootAccessInfo, setChatwootAccessInfo] = useState(null);
+    const [loadingChatwootAccess, setLoadingChatwootAccess] = useState(false);
+    const [showChatwootAccessModal, setShowChatwootAccessModal] = useState(false);
+    const [customProxyBySlot, setCustomProxyBySlot] = useState({});
+    const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
+    const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
+    const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
+    const isGhlMode = crmType === "ghl";
+    const isChatwootMode = crmType === "chatwoot";
+    const supportsSmsTab = isGhlMode || isChatwootMode;
+    const supportsKeywordsTab = isGhlMode;
+    const isExpandedChatwootLoaded = Boolean(
+        expandedSlotId && chatwootConfigBySlot[expandedSlotId]?.loaded
+    );
 
     // ✅ Obtener instancia del socket
     const socket = useSocket();
@@ -56,12 +80,35 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             }
         });
 
-        if (res.status === 401 || res.status === 403) {
+        if (res.status === 401) {
             onLogout();
             onClose();
             return null;
         }
+
+        if (res.status === 403) {
+            const body = await res.clone().json().catch(() => null);
+            if (body?.error !== "account_suspended") {
+                onLogout();
+                onClose();
+                return null;
+            }
+        }
         return res;
+    };
+
+    const confirmToast = (title, description, action, isDestructive = false) => {
+        toast(title, {
+            description,
+            icon: <AlertTriangle className={isDestructive ? "text-red-500" : "text-amber-500"} />,
+            action: {
+                label: isDestructive ? 'Confirmar' : 'Aceptar',
+                onClick: action
+            },
+            cancel: {
+                label: 'Cancelar'
+            }
+        });
     };
 
     // ✅ LÓGICA DE TIEMPO REAL + ROOMS
@@ -80,7 +127,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             // Doble verificación: aunque el backend filtre, aseguramos que sea para nosotros
             if (payload.locationId === location.location_id) {
                 // 🔥 FIX: No recargar todo el modal por eventos de QR (lo maneja el componente hijo)
-                if (payload.type === 'connection') {
+                if (payload.type === 'connection' && payload.status === 'open') {
                     loadData();
                 }
             }
@@ -113,7 +160,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     }, []);
 
     useEffect(() => {
-        if (activeSlotTab !== 'ghl' || !expandedSlotId) return;
+        if (activeSlotTab !== 'integration' || !expandedSlotId) return;
         const slot = slots.find(s => s.slot_id === expandedSlotId);
         if (!slot?.elevenlabs_api_key) return;
         if (elevenVoicesBySlot[slot.slot_id]) return;
@@ -125,6 +172,24 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if (twilioConfigBySlot[expandedSlotId]) return;
         loadTwilioConfig(expandedSlotId);
     }, [activeSlotTab, expandedSlotId, twilioConfigBySlot]);
+
+    useEffect(() => {
+        if (activeSlotTab !== 'integration' || !expandedSlotId || !isGhlMode) return;
+        if (customProxyBySlot[expandedSlotId]?.loaded) return;
+        loadCustomProxyConfig(expandedSlotId);
+    }, [activeSlotTab, expandedSlotId, customProxyBySlot, isGhlMode]);
+
+    useEffect(() => {
+        if (activeSlotTab !== 'integration' || !expandedSlotId || !isChatwootMode) return;
+        if (isExpandedChatwootLoaded) return;
+        loadChatwootConfig(expandedSlotId);
+    }, [activeSlotTab, expandedSlotId, isChatwootMode, isExpandedChatwootLoaded]);
+
+    useEffect(() => {
+        if (!supportsKeywordsTab && activeSlotTab === 'keywords') {
+            setActiveSlotTab('general');
+        }
+    }, [supportsKeywordsTab, activeSlotTab]);
 
     useEffect(() => {
         return () => {
@@ -140,7 +205,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         try {
             const [detailsRes, usersRes] = await Promise.all([
                 authFetch(`/agency/location-details/${location.location_id}`),
-                authFetch(`/agency/ghl-users/${location.location_id}`)
+                authFetch(`/agency/crm-users/${location.location_id}`)
             ]);
 
             if (detailsRes && detailsRes.ok) {
@@ -150,11 +215,20 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
                 if (data.name) setLocationName(data.name);
                 setWhiteLabelEnabled(data.settings?.white_label ?? true);
+                setTenantSettings(data.settings || {});
+                const nextCrmType = String(data.settings?.crm_type || data.crmType || location?.crm_type || "ghl").toLowerCase();
+                if (nextCrmType === "chatwoot") {
+                    setGhlAccessInfo(null);
+                    loadChatwootAccessInfo();
+                } else {
+                    setChatwootAccessInfo(null);
+                    loadGhlAccessInfo();
+                }
             }
 
             if (usersRes && usersRes.ok) {
                 const users = await usersRes.json();
-                setGhlUsers(users || []);
+                setCrmUsers(users || []);
             }
         } catch (e) {
             console.error("Error cargando datos:", e);
@@ -271,7 +345,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     // --- ACCIONES PRINCIPALES ---
 
     const handleAddSlot = async () => {
-        const loadingId = toast.loading("Creando dispositivo...");
+        const loadingId = toast.loading(isChatwootMode ? (t('slots.chatwoot_inbox.creating') || "Creando inbox...") : "Creando dispositivo...");
         try {
             const res = await authFetch(`/agency/add-slot`, {
                 method: "POST",
@@ -286,7 +360,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
             // 🔥 NUEVA LÓGICA: Verificar 'data.success' aunque el status sea 200
             if (data.success) {
-                toast.success("Dispositivo agregado", { description: "Listo para vincular." });
+                const successDescription = isChatwootMode
+                    ? (tenantSettings?.is_auto_provisioned
+                        ? (t('slots.chatwoot.auto_provisioned_ready') || "Configurado automáticamente en Chatwoot.")
+                        : "Listo para vincular.")
+                    : "Listo para vincular.";
+                toast.success(isChatwootMode ? (t('slots.chatwoot_inbox.added') || "Inbox agregado") : "Dispositivo agregado", { description: successDescription });
                 loadData();
                 if (onDataChange) onDataChange();
             } else {
@@ -305,7 +384,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         }
                     });
                 } else {
-                    toast.error("Error", { description: data.error || "No se pudo agregar el dispositivo." });
+                    toast.error("Error", { description: data.error || (isChatwootMode ? "No se pudo agregar el inbox." : "No se pudo agregar el dispositivo.") });
                 }
             }
         } catch (e) {
@@ -332,7 +411,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const handleDeleteSlot = (slotId) => {
-        toast("¿Eliminar dispositivo?", {
+        toast(isChatwootMode ? "¿Eliminar inbox?" : "¿Eliminar dispositivo?", {
             description: "Esta acción desconectará el número y borrará su configuración.",
             action: {
                 label: 'Eliminar',
@@ -341,7 +420,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}`, { method: "DELETE" });
                     setDeletingSlotId(null);
                     if (res && res.ok) {
-                        toast.success("Dispositivo eliminado");
+                        toast.success(isChatwootMode ? "Inbox eliminado" : "Dispositivo eliminado");
                         loadData();
                     } else {
                         toast.error("No se pudo eliminar");
@@ -461,10 +540,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     // --- GRUPOS ---
     const loadGroups = async (slotId) => {
         setLoadingGroups(true);
+        setGroups([]);
         try {
             const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/groups`);
-            if (res.ok) setGroups(await res.json());
-        } catch (e) { }
+            if (res.ok) {
+                const data = await res.json();
+                setGroups(Array.isArray(data) ? data : []);
+            } else {
+                const errorData = await res.json().catch(() => ({}));
+                toast.error(errorData?.error || t('agency.server_error'));
+            }
+        } catch (e) {
+            toast.error(t('agency.server_error'));
+        }
         setLoadingGroups(false);
     };
 
@@ -491,6 +579,450 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 error: 'Error al iniciar sincronización.'
             }
         );
+    };
+
+
+
+    const createEmptyCustomProxyState = () => ({
+        loaded: false,
+        configured: false,
+        host: "",
+        port: "",
+        username: "",
+        password: "",
+        passwordMasked: "",
+        hasPassword: false,
+        protocol: "http",
+        invalidConfig: false
+    });
+
+    const loadCustomProxyConfig = async (slotId, forceRefresh = false) => {
+        if (!slotId || !location?.location_id) return;
+        if (!forceRefresh && customProxyBySlot[slotId]?.loaded) return;
+
+        setLoadingCustomProxyBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/proxy`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar proxy custom");
+            }
+
+            const data = await res.json();
+            const proxy = data.proxy || null;
+            setCustomProxyBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    loaded: true,
+                    configured: !!data.configured,
+                    host: proxy?.host || "",
+                    port: proxy?.port ? String(proxy.port) : "",
+                    username: proxy?.username || "",
+                    password: "",
+                    passwordMasked: proxy?.passwordMasked || "",
+                    hasPassword: !!proxy?.hasPassword,
+                    protocol: proxy?.protocol || "http",
+                    invalidConfig: !!data.invalidConfig
+                }
+            }));
+        } catch (e) {
+            toast.error("Error cargando proxy", { description: e.message });
+        } finally {
+            setLoadingCustomProxyBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateCustomProxyField = (slotId, key, value) => {
+        setCustomProxyBySlot(prev => {
+            const current = prev[slotId] || createEmptyCustomProxyState();
+            return {
+                ...prev,
+                [slotId]: {
+                    ...current,
+                    loaded: true,
+                    [key]: value
+                }
+            };
+        });
+    };
+
+    const saveCustomProxyConfig = async (slotId) => {
+        const current = customProxyBySlot[slotId] || createEmptyCustomProxyState();
+        const host = (current.host || "").trim();
+        const port = Number(current.port);
+        const username = (current.username || "").trim();
+        const password = (current.password || "").trim();
+        const protocol = String(current.protocol || "http").toLowerCase();
+
+        if (!host || !Number.isFinite(port) || port <= 0) {
+            toast.error("Completa host y puerto validos");
+            return;
+        }
+
+        const payload = {
+            host,
+            port,
+            username: username || null,
+            protocol
+        };
+        if (password) payload.password = password;
+
+        setSavingCustomProxyBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/proxy`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo guardar proxy custom");
+            }
+
+            toast.success("Proxy custom guardado");
+            await loadCustomProxyConfig(slotId, true);
+        } catch (e) {
+            toast.error("Error guardando proxy", { description: e.message });
+        } finally {
+            setSavingCustomProxyBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const clearCustomProxyConfig = async (slotId, { skipConfirm = false } = {}) => {
+        if (!confirm("¿Quitar proxy personalizado de este numero?")) return;
+
+        const loadingId = toast.loading("Quitando proxy custom...");
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/proxy`, {
+                method: 'DELETE',
+                body: JSON.stringify({})
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo limpiar proxy custom");
+            }
+
+            setCustomProxyBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    ...createEmptyCustomProxyState(),
+                    loaded: true
+                }
+            }));
+            toast.success("Proxy custom eliminado");
+        } catch (e) {
+            toast.error("Error limpiando proxy", { description: e.message });
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const chatwootWebhookBaseUrl = `${API_URL}/chatwoot/webhook`;
+
+    const buildChatwootWebhookUrl = (secretValue = "") => {
+        const safeSecret = String(secretValue || "").trim();
+        if (!safeSecret) return chatwootWebhookBaseUrl;
+        return `${chatwootWebhookBaseUrl}?secret=${encodeURIComponent(safeSecret)}`;
+    };
+
+    const generateRandomSecret = (length = 32) => {
+        const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let result = "";
+        if (window?.crypto?.getRandomValues) {
+            const bytes = new Uint8Array(length);
+            window.crypto.getRandomValues(bytes);
+            for (let i = 0; i < length; i++) {
+                result += alphabet[bytes[i] % alphabet.length];
+            }
+            return result;
+        }
+        for (let i = 0; i < length; i++) {
+            result += alphabet[Math.floor(Math.random() * alphabet.length)];
+        }
+        return result;
+    };
+
+    const copyToClipboard = async (value, successMessage) => {
+        const safeValue = String(value || "");
+        if (!safeValue.trim()) return;
+        try {
+            await navigator.clipboard.writeText(safeValue);
+            toast.success(successMessage || t('common.copied') || "Copiado");
+        } catch (_) {
+            toast.error(t('slots.chatwoot.copy_error') || "No se pudo copiar");
+        }
+    };
+
+    const loadChatwootAccessInfo = async () => {
+        if (!location?.location_id) return;
+        setLoadingChatwootAccess(true);
+        try {
+            const res = await authFetch(`/agency/chatwoot/access-info?locationId=${location.location_id}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar el acceso Chatwoot");
+            }
+            const data = await res.json();
+            setChatwootAccessInfo(data?.chatwoot || null);
+        } catch (e) {
+            setChatwootAccessInfo(null);
+        } finally {
+            setLoadingChatwootAccess(false);
+        }
+    };
+
+    const loadGhlAccessInfo = async () => {
+        if (!location?.location_id) return;
+        setLoadingGhlAccess(true);
+        try {
+            const res = await authFetch(`/agency/ghl/access-info?locationId=${location.location_id}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar el acceso GoHighLevel");
+            }
+            const data = await res.json();
+            setGhlAccessInfo(data?.ghl || null);
+        } catch (e) {
+            setGhlAccessInfo(null);
+        } finally {
+            setLoadingGhlAccess(false);
+        }
+    };
+
+    const generateChatwootSecret = (slotId) => {
+        const secret = generateRandomSecret(32);
+        updateChatwootField(slotId, "webhookSecret", secret);
+        toast.success(t('slots.chatwoot.secret_generated') || "Webhook secret generado");
+    };
+
+    const loadChatwootInboxes = async (forceRefresh = false) => {
+        if (!location?.location_id) return;
+        if (!forceRefresh && chatwootInboxesLoaded) return;
+
+        setLoadingChatwootInboxes(true);
+        try {
+            const res = await authFetch(`/agency/chatwoot/inboxes?locationId=${location.location_id}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudieron cargar inboxes");
+            }
+            const data = await res.json();
+            const inboxes = Array.isArray(data?.inboxes) ? data.inboxes : [];
+            setChatwootInboxes(inboxes);
+            setChatwootInboxesLoaded(true);
+        } catch (e) {
+            setChatwootInboxes([]);
+            setChatwootInboxesLoaded(false);
+            toast.error(t('slots.chatwoot.inboxes_error') || "Error cargando inboxes", {
+                description: e.message
+            });
+        } finally {
+            setLoadingChatwootInboxes(false);
+        }
+    };
+
+    const createEmptyChatwootState = () => ({
+        loaded: false,
+        configured: false,
+        hasGlobalConfig: false,
+        chatwootUrl: "",
+        apiToken: "",
+        accountId: "",
+        inboxId: "",
+        webhookSecret: "",
+        chatwootUrlMasked: "",
+        apiTokenMasked: "",
+        hasApiToken: false,
+        hasWebhookSecret: false,
+        showAdvancedDetails: false
+    });
+
+    const loadChatwootConfig = async (slotId, forceRefresh = false) => {
+        if (!slotId || !location?.location_id) return;
+        if (!forceRefresh && chatwootConfigBySlot[slotId]?.loaded) return;
+
+        setLoadingChatwootBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/chatwoot/config?locationId=${location.location_id}&slotId=${slotId}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar Chatwoot");
+            }
+            const data = await res.json();
+            setChatwootConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    loaded: true,
+                    configured: !!data.configured,
+                    hasGlobalConfig: !!data.hasGlobalConfig,
+                    chatwootUrl: "",
+                    apiToken: "",
+                    accountId: data.accountId ? String(data.accountId) : "",
+                    inboxId: data.inboxId ? String(data.inboxId) : "",
+                    webhookSecret: "",
+                    chatwootUrlMasked: data.chatwootUrlMasked || "",
+                    apiTokenMasked: data.apiTokenMasked || "",
+                    hasApiToken: !!data.hasApiToken,
+                    hasWebhookSecret: !!data.hasWebhookSecret,
+                    showAdvancedDetails: !!prev[slotId]?.showAdvancedDetails
+                }
+            }));
+            if (data.hasGlobalConfig) {
+                await loadChatwootInboxes(forceRefresh);
+            }
+        } catch (e) {
+            toast.error(t('slots.chatwoot.load_error') || "Error cargando Chatwoot", { description: e.message });
+        } finally {
+            setLoadingChatwootBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateChatwootField = (slotId, key, value) => {
+        setChatwootConfigBySlot(prev => {
+            const current = prev[slotId] || createEmptyChatwootState();
+            return {
+                ...prev,
+                [slotId]: {
+                    ...current,
+                    loaded: true,
+                    [key]: value
+                }
+            };
+        });
+    };
+
+    const validateChatwootConfigSlot = async (slotId) => {
+        const current = chatwootConfigBySlot[slotId] || createEmptyChatwootState();
+        const payload = { locationId: location.location_id };
+
+        const chatwootUrl = (current.chatwootUrl || "").trim();
+        const apiToken = (current.apiToken || "").trim();
+        const accountIdRaw = String(current.accountId || "").trim();
+
+        if (chatwootUrl) payload.chatwootUrl = chatwootUrl;
+        if (apiToken) payload.apiToken = apiToken;
+        if (accountIdRaw) {
+            const parsedAccount = Number.parseInt(accountIdRaw, 10);
+            if (!Number.isFinite(parsedAccount) || parsedAccount <= 0) {
+                toast.error(t('slots.chatwoot.invalid_account') || "Account ID inválido");
+                return false;
+            }
+            payload.accountId = parsedAccount;
+        }
+
+        const loadingId = toast.loading(t('slots.chatwoot.validating') || "Validando Chatwoot...");
+        try {
+            const res = await authFetch(`/agency/chatwoot/test`, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return false;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo validar Chatwoot");
+            }
+            const data = await res.json().catch(() => ({}));
+            const description = Number.isFinite(data?.agentsCount)
+                ? `${t('slots.chatwoot.agents') || "Agentes encontrados"}: ${data.agentsCount}`
+                : undefined;
+            toast.success(t('slots.chatwoot.valid') || "Chatwoot validado", { description });
+            return true;
+        } catch (e) {
+            toast.error(t('slots.chatwoot.invalid') || "Validación Chatwoot falló", { description: e.message });
+            return false;
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const saveChatwootConfig = async (slotId) => {
+        const current = chatwootConfigBySlot[slotId] || createEmptyChatwootState();
+        const chatwootUrl = (current.chatwootUrl || "").trim();
+        const apiToken = (current.apiToken || "").trim();
+        const webhookSecret = (current.webhookSecret || "").trim();
+        const accountIdRaw = String(current.accountId || "").trim();
+        const inboxIdRaw = String(current.inboxId || "").trim();
+
+        const hasUrl = chatwootUrl || current.chatwootUrlMasked;
+        const hasToken = apiToken || current.apiTokenMasked || current.hasApiToken;
+        if (!hasUrl || !hasToken || !accountIdRaw || !inboxIdRaw) {
+            toast.error(t('slots.chatwoot.required') || "Completa URL, API Token, Account ID e Inbox ID");
+            return;
+        }
+
+        const parsedAccount = Number.parseInt(accountIdRaw, 10);
+        if (!Number.isFinite(parsedAccount) || parsedAccount <= 0) {
+            toast.error(t('slots.chatwoot.invalid_account') || "Account ID inválido");
+            return;
+        }
+
+        const parsedInbox = Number.parseInt(inboxIdRaw, 10);
+        if (!Number.isFinite(parsedInbox) || parsedInbox <= 0) {
+            toast.error(t('slots.chatwoot.invalid_inbox') || "Inbox ID inválido");
+            return;
+        }
+
+        const payload = {
+            locationId: location.location_id,
+            slotId,
+            accountId: parsedAccount,
+            inboxId: parsedInbox
+        };
+        if (chatwootUrl) payload.chatwootUrl = chatwootUrl;
+        if (apiToken) payload.apiToken = apiToken;
+        if (webhookSecret) payload.webhookSecret = webhookSecret;
+
+        setSavingChatwootBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/chatwoot/config`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo guardar Chatwoot");
+            }
+            toast.success(t('slots.chatwoot.saved') || "Configuración Chatwoot guardada");
+            await loadChatwootConfig(slotId, true);
+        } catch (e) {
+            toast.error(t('slots.chatwoot.save_error') || "Error guardando Chatwoot", { description: e.message });
+        } finally {
+            setSavingChatwootBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const clearChatwootSlotConfig = async (slotId) => {
+        if (!confirm(t('slots.chatwoot.confirm_clear_slot') || "¿Quitar el Inbox ID de este número?")) return;
+
+        const loadingId = toast.loading(t('slots.chatwoot.clearing') || "Limpiando Chatwoot...");
+        try {
+            const res = await authFetch(`/agency/chatwoot/config`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    clearSlot: true
+                })
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo limpiar Chatwoot");
+            }
+            toast.success(t('slots.chatwoot.cleared') || "Inbox de Chatwoot limpiado");
+            await loadChatwootConfig(slotId, true);
+        } catch (e) {
+            toast.error(t('slots.chatwoot.clear_error') || "Error limpiando Chatwoot", { description: e.message });
+        } finally {
+            toast.dismiss(loadingId);
+        }
     };
 
     const loadTwilioConfig = async (slotId, forceRefresh = false) => {
@@ -566,12 +1098,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res) return false;
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "Credenciales inválidas");
+                throw new Error(err.error || "Credenciales inv�lidas");
             }
             toast.success("Twilio validado correctamente");
             return true;
         } catch (e) {
-            toast.error("Validación Twilio falló", { description: e.message });
+            toast.error("Validaci�n Twilio fall�", { description: e.message });
             return false;
         } finally {
             toast.dismiss(loadingId);
@@ -588,7 +1120,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const tokenReady = tokenInput || current.authTokenMasked || current.hasAuthToken;
 
         if (!sidReady || !tokenReady || !fromNumber) {
-            toast.error("Completa SID, Auth Token y número Twilio");
+            toast.error("Completa SID, Auth Token y n�mero Twilio");
             return;
         }
 
@@ -611,7 +1143,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 const err = await res.json().catch(() => ({}));
                 throw new Error(err.error || "No se pudo guardar");
             }
-            toast.success("Configuración Twilio guardada");
+            toast.success("Configuraci�n Twilio guardada");
             await loadTwilioConfig(slotId, true);
         } catch (e) {
             toast.error("Error guardando Twilio", { description: e.message });
@@ -655,6 +1187,44 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             toast.dismiss(loadingId);
         }
     };
+    const chatwootHeaderLoginUrl = String(
+        chatwootAccessInfo?.directLoginUrl ||
+        chatwootAccessInfo?.loginUrl ||
+        (tenantSettings?.chatwoot_url ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/login` : "")
+    ).trim();
+    const chatwootHeaderEmail = String(
+        chatwootAccessInfo?.clientEmail ||
+        tenantSettings?.chatwoot_client_email ||
+        ""
+    ).trim();
+    const chatwootHeaderPassword = String(chatwootAccessInfo?.clientPassword || "").trim();
+    const ghlHeaderOpenUrl = String(
+        ghlAccessInfo?.dashboardUrl ||
+        ghlAccessInfo?.loginUrl ||
+        "https://app.gohighlevel.com"
+    ).trim();
+    const ghlHeaderPortalUrl = String(
+        ghlAccessInfo?.loginUrl ||
+        "https://app.gohighlevel.com"
+    ).trim();
+    const ghlHeaderBusinessEmail = String(
+        ghlAccessInfo?.businessEmail ||
+        tenantSettings?.ghl_subaccount_email ||
+        ""
+    ).trim();
+    const ghlHeaderBusinessPhone = String(
+        ghlAccessInfo?.businessPhone ||
+        tenantSettings?.ghl_subaccount_phone ||
+        ""
+    ).trim();
+    const ghlHeaderLocationId = String(
+        ghlAccessInfo?.locationId ||
+        location?.location_id ||
+        ""
+    ).trim();
+    const ghlHeaderCompanyId = String(ghlAccessInfo?.companyId || "").trim();
+    const ghlHeaderDashboardUrl = String(ghlAccessInfo?.dashboardUrl || "").trim();
+    const ghlOAuthConnected = Boolean(ghlAccessInfo?.oauthConnected);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
@@ -676,27 +1246,213 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     </button>
                 </div>
 
+                {isChatwootMode && showChatwootAccessModal && (
+                    <div
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        onClick={() => setShowChatwootAccessModal(false)}
+                    >
+                        <div
+                            className="w-full max-w-lg rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Info de acceso Chatwoot</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                        Datos del usuario para compartir con el cliente final.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowChatwootAccessModal(false)}
+                                    className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-400 hover:text-gray-600"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-4">
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Email</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderEmail || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Contraseña inicial</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderPassword || "No disponible")}
+                                    </p>
+                                    {!chatwootHeaderPassword && !loadingChatwootAccess && (
+                                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                                            Solo aparece si Waflow pudo guardar la contraseña al aprovisionar la cuenta.
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Login</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderLoginUrl || "No disponible")}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isGhlMode && showGhlAccessModal && (
+                    <div
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        onClick={() => setShowGhlAccessModal(false)}
+                    >
+                        <div
+                            className="w-full max-w-lg rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Info de acceso GoHighLevel</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                        Datos de referencia para abrir la subcuenta desde el portal de GHL.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowGhlAccessModal(false)}
+                                    className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-400 hover:text-gray-600"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-4">
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Email del negocio</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderBusinessEmail || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Teléfono</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderBusinessPhone || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Location ID</p>
+                                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                            {loadingGhlAccess ? "Cargando..." : (ghlHeaderLocationId || "No disponible")}
+                                        </p>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Company ID</p>
+                                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                            {loadingGhlAccess ? "Cargando..." : (ghlHeaderCompanyId || "No disponible")}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Portal</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderPortalUrl || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Acceso directo</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderDashboardUrl || "No disponible")}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                        {ghlOAuthConnected
+                                            ? "La subcuenta tiene tokens OAuth guardados en Waflow."
+                                            : "Waflow no guarda contraseñas de GHL; el acceso depende del usuario con permisos en esa subcuenta."}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* BODY */}
                 <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50 dark:bg-black/20">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-                        {canWhiteLabel && (
-                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-4 shadow-sm">
-                                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
-                                    <Settings size={18} />
-                                </div>
-                                <div>
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">White Label</p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300">Usar branding de la agencia</p>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer ml-2">
-                                    <input type="checkbox" className="sr-only peer" checked={whiteLabelEnabled} onChange={toggleWhiteLabel} />
-                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
-                                </label>
+                        <div className="flex flex-col md:flex-row md:items-center gap-4">
+                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
+                                <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-[0.18em] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                    {isGhlMode ? "GOHIGHLEVEL" : "CHATWOOT"}
+                                </span>
+                                {isGhlMode && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => window.open(ghlHeaderOpenUrl, '_blank', 'noopener,noreferrer')}
+                                            disabled={!ghlHeaderOpenUrl}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition"
+                                        >
+                                            <Link2 size={16} />
+                                            Abrir Login
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowGhlAccessModal(true)}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                                        >
+                                            <User size={16} />
+                                            Info
+                                        </button>
+                                    </>
+                                )}
+                                {isChatwootMode && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => window.open(chatwootHeaderLoginUrl, '_blank', 'noopener,noreferrer')}
+                                            disabled={!chatwootHeaderLoginUrl}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition"
+                                        >
+                                            <Link2 size={16} />
+                                            Abrir Login
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowChatwootAccessModal(true)}
+                                            disabled={loadingChatwootAccess}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 transition"
+                                        >
+                                            <User size={16} />
+                                            Info
+                                        </button>
+                                    </>
+                                )}
                             </div>
-                        )}
-                        <div className="flex justify-end">
+
+                            {canWhiteLabel && (
+                                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-4 shadow-sm">
+                                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
+                                        <Settings size={18} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">White Label</p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-300">Usar branding de la agencia</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer ml-2">
+                                        <input type="checkbox" className="sr-only peer" checked={whiteLabelEnabled} onChange={toggleWhiteLabel} />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                                    </label>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex justify-end gap-3 flex-wrap">
                             <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
-                                <Plus size={18} /> {t('slots.new')}
+                                <Plus size={18} /> {isChatwootMode ? (t('slots.chatwoot_inbox.new') || "Nuevo Inbox") : t('slots.new')}
                             </button>
                         </div>
                     </div>
@@ -712,7 +1468,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         <div className="space-y-6">
                             {slots.map(slot => {
                                 const isExpanded = expandedSlotId === slot.slot_id;
-                                const isConnected = !!slot.phone_number;
+                                const isConnected = slot.is_connected === true;
+                                const connectedPhone = isConnected ? (slot.phone_number || "") : "";
                                 const currentPrio = slot.priority || 99;
                                 const settings = slot.settings || {};
 
@@ -725,15 +1482,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
                                                 <div>
                                                     <div className="flex items-center gap-3">
-                                                        <h3 className="font-bold text-gray-900 dark:text-white text-xl">{slot.slot_name || `Dispositivo ${slot.slot_id}`}</h3>
+                                                        <h3 className="font-bold text-gray-900 dark:text-white text-xl">{slot.slot_name || (isChatwootMode ? `Inbox ${slot.slot_id}` : `Dispositivo ${slot.slot_id}`)}</h3>
                                                         <div className="flex gap-1">
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
-                                                                className={`p-1.5 rounded-lg transition ${slot.is_favorite ? 'text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
-                                                                title="Favorito"
-                                                            >
-                                                                <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
-                                                            </button>
+                                                            {isGhlMode && (
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
+                                                                    className={`p-1.5 rounded-lg transition ${slot.is_favorite ? 'text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                                                                    title="Favorito"
+                                                                >
+                                                                    <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
+                                                                </button>
+                                                            )}
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); editSlotName(slot.slot_id, slot.slot_name); }}
                                                                 className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition"
@@ -743,9 +1502,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     </div>
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1 flex items-center gap-2">
-                                                        {isConnected ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{slot.phone_number}</span> : t('slots.card.disconnected')}
-                                                        <span className="text-gray-300 dark:text-gray-600">•</span>
-                                                        <span>{t('slots.card.priority')}: {currentPrio}</span>
+                                                        {isConnected && connectedPhone
+                                                            ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{connectedPhone}</span>
+                                                            : t('slots.card.disconnected')}
+                                                        {isGhlMode && (
+                                                            <>
+                                                                <span className="text-gray-300 dark:text-gray-600">•</span>
+                                                                <span>{t('slots.card.priority')}: {currentPrio}</span>
+                                                            </>
+                                                        )}
                                                     </p>
                                                 </div>
                                             </div>
@@ -767,9 +1532,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 {/* TABS */}
                                                 <div className="flex border-b border-gray-200 dark:border-gray-800 px-6 bg-white dark:bg-gray-900/50">
                                                     <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />
-                                                    <TabButton active={activeSlotTab === 'ghl'} onClick={() => setActiveSlotTab('ghl')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
-                                                    <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label={t('slots.tab.sms')} />
-                                                    <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
+                                                    <TabButton active={activeSlotTab === 'integration'} onClick={() => setActiveSlotTab('integration')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
+                                                    {supportsSmsTab && (
+                                                        <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label={t('slots.tab.sms')} />
+                                                    )}
+                                                    {supportsKeywordsTab && (
+                                                        <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
+                                                    )}
                                                     <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
                                                     <TabButton active={activeSlotTab === 'qr'} onClick={() => setActiveSlotTab('qr')} icon={<QrCode size={16} />} label={t('slots.tab.connection') || "Conexión"} />
                                                 </div>
@@ -778,16 +1547,18 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     {/* CONFIG PANELS */}
                                                     {activeSlotTab === 'general' && (
                                                         <div className="max-w-2xl">
-                                                            <div className="mb-8">
-                                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{t('slots.settings.order')}</h4>
-                                                                <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.settings.priority_level')}:</label>
-                                                                    <select className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none" value={currentPrio} onChange={(e) => changePriority(slot.slot_id, e.target.value)}>
-                                                                        {Array.from({ length: slots.length }, (_, k) => k + 1).map(p => <option key={p} value={p}>{p} {p === 1 ? '(Alta)' : ''}</option>)}
-                                                                        {currentPrio > slots.length && <option value={currentPrio}>{currentPrio}</option>}
-                                                                    </select>
+                                                            {isGhlMode && (
+                                                                <div className="mb-8">
+                                                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{t('slots.settings.order')}</h4>
+                                                                    <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                                                        <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.settings.priority_level')}:</label>
+                                                                        <select className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none" value={currentPrio} onChange={(e) => changePriority(slot.slot_id, e.target.value)}>
+                                                                            {Array.from({ length: slots.length }, (_, k) => k + 1).map(p => <option key={p} value={p}>{p} {p === 1 ? '(Alta)' : ''}</option>)}
+                                                                            {currentPrio > slots.length && <option value={currentPrio}>{currentPrio}</option>}
+                                                                        </select>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
+                                                            )}
                                                             <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{t('slots.settings.behavior')}</h4>
                                                             <div className="space-y-3 bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700">
                                                                 <SettingRow label={t('slots.settings.source_label')} desc={t('slots.settings.source_desc')} checked={settings.show_source_label ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'show_source_label', settings)} />
@@ -814,247 +1585,838 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     )}
 
                                                     {/* OTHER PANELS (GHL, Keywords, Groups) same as before... */}
-                                                    {activeSlotTab === 'ghl' && (
+                                                    {activeSlotTab === 'integration' && (
                                                         <div className="max-w-2xl space-y-6">
-                                                            
-                                                            {/* 🔥 NUEVO: OpenAI Key para este Slot */}
-                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <div className="flex justify-between items-start mb-4">
-                                                                    <div>
-                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                                                            <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
-                                                                                <Zap size={14} />
+                                                            {isGhlMode && (
+                                                                <>
+                                                                    {/* 🔥 NUEVO: OpenAI Key para este Slot */}
+                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                        <div className="flex justify-between items-start mb-4">
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                                    <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
+                                                                                        <Zap size={14} />
+                                                                                    </div>
+                                                                                    OpenAI API Key (Transcripción)
+                                                                                </label>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                                    Configura una key única para este número. Dejar vacío para desactivar.
+                                                                                </p>
                                                                             </div>
-                                                                            OpenAI API Key (Transcripción)
-                                                                        </label>
-                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                            Configura una key única para este número. Dejar vacío para desactivar.
-                                                                        </p>
+                                                                            {slot.openai_api_key && (
+                                                                                <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                                                                    Conectado
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="flex gap-2">
+                                                                            <input
+                                                                                type="password"
+                                                                                name={`openai_key_${slot.slot_id}`}
+                                                                                autoComplete="new-password"
+                                                                                placeholder={slot.openai_api_key ? "•••••••••••••••• (Oculto)" : "sk-..."}
+                                                                                className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter') {
+                                                                                        const val = e.target.value.trim();
+                                                                                        if (val) {
+                                                                                            authFetch(`/agency/update-slot-config`, {
+                                                                                                method: 'POST',
+                                                                                                body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                            }).then(() => { toast.success("API Key guardada"); e.target.value = ""; loadData(); });
+                                                                                        }
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    // Buscamos el input hermano anterior
+                                                                                    const input = e.currentTarget.previousElementSibling;
+                                                                                    const val = input.value.trim();
+                                                                                    if (val) {
+                                                                                        authFetch(`/agency/update-slot-config`, {
+                                                                                            method: 'POST',
+                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                        }).then(() => { toast.success("API Key guardada"); input.value = ""; loadData(); });
+                                                                                    } else {
+                                                                                        toast.error("Ingresa una Key válida");
+                                                                                    }
+                                                                                }}
+                                                                                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
+                                                                            >
+                                                                                <Save size={18} /> Guardar
+                                                                            </button>
+
+                                                                            {slot.openai_api_key && (
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        if (confirm("¿Borrar API Key de este número?")) {
+                                                                                            authFetch(`/agency/update-slot-config`, {
+                                                                                                method: 'POST',
+                                                                                                body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: "" }) // Send empty string to clear
+                                                                                            }).then(() => { toast.success("API Key eliminada"); loadData(); });
+                                                                                        }
+                                                                                    }}
+                                                                                    className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                                    title="Borrar Key"
+                                                                                >
+                                                                                    <Trash2 size={18} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
                                                                     </div>
-                                                                    {slot.openai_api_key && (
-                                                                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
-                                                                            Conectado
-                                                                        </span>
+
+                                                                    {!isChatwootMode && (
+                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                        <div className="flex justify-between items-start mb-4">
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                                    <div className="w-6 h-6 bg-sky-100 dark:bg-sky-900/30 text-sky-600 rounded flex items-center justify-center">
+                                                                                        <Mic size={14} />
+                                                                                    </div>
+                                                                                    ElevenLabs API Key (Voces)
+                                                                                </label>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                                    Configura una key única para este número. Dejar vacío para desactivar.
+                                                                                </p>
+                                                                            </div>
+                                                                            {slot.elevenlabs_api_key && (
+                                                                                <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                                                                    Conectado
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="flex gap-2">
+                                                                            <input
+                                                                                type="password"
+                                                                                name={`elevenlabs_key_${slot.slot_id}`}
+                                                                                autoComplete="new-password"
+                                                                                placeholder={slot.elevenlabs_api_key ? "•••••••••••••••• (Oculto)" : "sk_..."}
+                                                                                className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition font-mono text-sm"
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter') {
+                                                                                        const val = e.target.value;
+                                                                                        saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                            if (ok) e.target.value = "";
+                                                                                        });
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    const input = e.currentTarget.previousElementSibling;
+                                                                                    const val = input.value;
+                                                                                    saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                        if (ok) input.value = "";
+                                                                                    });
+                                                                                }}
+                                                                                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
+                                                                            >
+                                                                                <Save size={18} /> Guardar
+                                                                            </button>
+
+                                                                            {slot.elevenlabs_api_key && (
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        if (confirm("¿Borrar API Key de este número?")) {
+                                                                                            authFetch(`/agency/update-slot-config`, {
+                                                                                                method: 'POST',
+                                                                                                body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_api_key: "", elevenlabs_voice_id: "" })
+                                                                                            }).then(() => {
+                                                                                                toast.success("API Key eliminada");
+                                                                                                loadData();
+                                                                                                setElevenVoicesBySlot(prev => ({ ...prev, [slot.slot_id]: [] }));
+                                                                                            });
+                                                                                        }
+                                                                                    }}
+                                                                                    className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                                    title="Borrar Key"
+                                                                                >
+                                                                                    <Trash2 size={18} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="mt-4">
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                                                Voz por defecto
+                                                                            </label>
+                                                                            <div className="mb-2">
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={previewTextBySlot[slot.slot_id] || ""}
+                                                                                    onChange={(e) => setPreviewTextBySlot(prev => ({ ...prev, [slot.slot_id]: e.target.value }))}
+                                                                                    placeholder="Texto para preview (opcional)"
+                                                                                    className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition text-sm"
+                                                                                />
+                                                                            </div>
+                                                                            <div className="flex gap-2 items-center">
+                                                                                <select
+                                                                                    className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none"
+                                                                                    value={slot.elevenlabs_voice_id || ""}
+                                                                                    disabled={!slot.elevenlabs_api_key}
+                                                                                    onChange={(e) => {
+                                                                                        const val = e.target.value;
+                                                                                        authFetch(`/agency/update-slot-config`, {
+                                                                                            method: 'POST',
+                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_voice_id: val })
+                                                                                        }).then(() => {
+                                                                                            toast.success("Voz por defecto guardada");
+                                                                                            loadData();
+                                                                                        });
+                                                                                    }}
+                                                                                >
+                                                                                    <option value="">{slot.elevenlabs_api_key ? "Sin voz por defecto" : "Configura la API Key primero"}</option>
+                                                                                    {slot.elevenlabs_voice_id && !(elevenVoicesBySlot[slot.slot_id] || []).some(v => v.id === slot.elevenlabs_voice_id) && (
+                                                                                        <option value={slot.elevenlabs_voice_id}>Voz actual ({slot.elevenlabs_voice_id})</option>
+                                                                                    )}
+                                                                                    {(elevenVoicesBySlot[slot.slot_id] || []).map(v => (
+                                                                                        <option key={v.id} value={v.id}>{v.name}</option>
+                                                                                    ))}
+                                                                                </select>
+                                                                                <button
+                                                                                    onClick={() => loadElevenVoices(slot.slot_id, true)}
+                                                                                    disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                                    className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                                    title="Actualizar voces"
+                                                                                >
+                                                                                    <RefreshCw size={18} className={loadingElevenVoices[slot.slot_id] ? "animate-spin" : ""} />
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        const fallbackVoice = (elevenVoicesBySlot[slot.slot_id] || [])[0]?.id || "";
+                                                                                        const previewVoice = slot.elevenlabs_voice_id || fallbackVoice;
+                                                                                        playVoicePreview(slot.slot_id, previewVoice);
+                                                                                    }}
+                                                                                    disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                                    className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                                    title="Preview"
+                                                                                >
+                                                                                    <Play size={18} />
+                                                                                </button>
+                                                                            </div>
+                                                                            {slot.elevenlabs_api_key && (elevenVoicesBySlot[slot.slot_id] || []).length === 0 && !loadingElevenVoices[slot.slot_id] && (
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                                                    No hay voces cargadas o no se pudieron obtener.
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
                                                                     )}
-                                                                </div>
-                                                                
-                                                                <div className="flex gap-2">
-                                                                     <input 
-                                                                        type="password" 
-                                                                        name={`openai_key_${slot.slot_id}`}
-                                                                        autoComplete="new-password"
-                                                                        placeholder={slot.openai_api_key ? "•••••••••••••••• (Oculto)" : "sk-..."}
-                                                                        className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') {
-                                                                                const val = e.target.value.trim();
+                                                                    {(() => {
+                                                                        const customProxy = customProxyBySlot[slot.slot_id] || createEmptyCustomProxyState();
+                                                                        const isLoadingCustomProxy = !!loadingCustomProxyBySlot[slot.slot_id];
+                                                                        const isSavingCustomProxy = !!savingCustomProxyBySlot[slot.slot_id];
+
+                                                                        return (
+                                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
+                                                                                <div className="flex flex-wrap items-start justify-between gap-4">
+                                                                                    <div>
+                                                                                        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.proxy.title')}</h4>
+                                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('slots.proxy.desc')}</p>
+                                                                                    </div>
+                                                                                    <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${customProxy.configured ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                                                                                        {customProxy.configured ? t('slots.proxy.configured') : t('slots.proxy.not_configured')}
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.host')}</label>
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            value={customProxy.host || ""}
+                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "host", e.target.value)}
+                                                                                            placeholder={t('slots.proxy.ph_host')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.port')}</label>
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            value={customProxy.port || ""}
+                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "port", e.target.value)}
+                                                                                            placeholder={t('slots.proxy.ph_port')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.username')}</label>
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            value={customProxy.username || ""}
+                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "username", e.target.value)}
+                                                                                            placeholder={t('slots.proxy.ph_username')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.password')}</label>
+                                                                                        <input
+                                                                                            type="password"
+                                                                                            value={customProxy.password || ""}
+                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "password", e.target.value)}
+                                                                                            placeholder={customProxy.passwordMasked || t('slots.proxy.ph_password')}
+                                                                                            autoComplete="new-password"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                        />
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div>
+                                                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.protocol')}</label>
+                                                                                    <select
+                                                                                        value={customProxy.protocol || "http"}
+                                                                                        onChange={(e) => updateCustomProxyField(slot.slot_id, "protocol", e.target.value)}
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                    >
+                                                                                        <option value="http">http</option>
+                                                                                        <option value="socks5">socks5</option>
+                                                                                    </select>
+                                                                                </div>
+
+                                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                                    <button
+                                                                                        onClick={() => saveCustomProxyConfig(slot.slot_id)}
+                                                                                        disabled={isLoadingCustomProxy || isSavingCustomProxy}
+                                                                                        className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                                    >
+                                                                                        {isSavingCustomProxy ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                                                        {t('slots.proxy.save')}
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => clearCustomProxyConfig(slot.slot_id)}
+                                                                                        disabled={isLoadingCustomProxy || isSavingCustomProxy || !customProxy.configured}
+                                                                                        className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
+                                                                                    >
+                                                                                        {t('slots.proxy.clear')}
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => loadCustomProxyConfig(slot.slot_id, true)}
+                                                                                        disabled={isLoadingCustomProxy || isSavingCustomProxy}
+                                                                                        className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
+                                                                                        title={t('slots.proxy.reload')}
+                                                                                    >
+                                                                                        <RefreshCw size={16} className={isLoadingCustomProxy ? "animate-spin" : ""} />
+                                                                                    </button>
+                                                                                </div>
+
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400">{t('slots.proxy.apply_note')}</p>
+                                                                                {customProxy.invalidConfig && (
+                                                                                    <p className="text-xs text-amber-600 dark:text-amber-400">{t('slots.proxy.invalid')}</p>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                </>
+                                                            )}
+                                                            {isChatwootMode && (() => {
+                                                                const chatwoot = chatwootConfigBySlot[slot.slot_id] || createEmptyChatwootState();
+                                                                const isLoadingChatwoot = !!loadingChatwootBySlot[slot.slot_id];
+                                                                const isSavingChatwoot = !!savingChatwootBySlot[slot.slot_id];
+                                                                const mappedInboxId = slot.chatwoot_inbox_id || chatwoot.inboxId || null;
+                                                                const showAdvancedChatwootDetails = !!chatwoot.showAdvancedDetails;
+                                                                const isReadOnlyChatwootView = !showAdvancedChatwootDetails;
+                                                                const chatwootAccessCard = null;
+
+                                                                if (isReadOnlyChatwootView) {
+                                                                    return (
+                                                                        <div className="space-y-4">
+                                                                            {chatwootAccessCard}
+                                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-3">
+                                                                            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 rounded-lg border border-emerald-100 dark:border-emerald-800 text-sm flex items-start gap-3">
+                                                                                <CheckCircle2 className="shrink-0 mt-0.5" size={18} />
+                                                                                <div>
+                                                                                    <p className="font-bold">{t('slots.chatwoot.auto_provision_title') || "Aprovisionamiento Automático"}</p>
+                                                                                    <p className="text-xs opacity-90 mt-1">
+                                                                                        {t('slots.chatwoot.auto_provision_desc') || "Las credenciales de Chatwoot (URL, Token, Account ID y Webhooks) están gestionadas internamente por Waflow."}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="pt-1">
+                                                                                <button
+                                                                                    type="button"
+                                                                                        onClick={() => updateChatwootField(slot.slot_id, "showAdvancedDetails", true)}
+                                                                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/40 transition"
+                                                                                    >
+                                                                                        {t('slots.chatwoot.show_debug') || "Ver detalles técnicos"}
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                const statusLabel = chatwoot.configured
+                                                                    ? t('slots.chatwoot.configured')
+                                                                    : chatwoot.hasGlobalConfig
+                                                                        ? t('slots.chatwoot.global_only')
+                                                                        : t('slots.chatwoot.not_configured');
+                                                                const statusClass = chatwoot.configured
+                                                                    ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30'
+                                                                    : chatwoot.hasGlobalConfig
+                                                                        ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30'
+                                                                        : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300';
+                                                                const inboxIdNumber = Number.parseInt(String(chatwoot.inboxId || ""), 10);
+                                                                const hasInboxMapping = Number.isFinite(inboxIdNumber) && inboxIdNumber > 0;
+                                                                const hasTypedSecret = Boolean((chatwoot.webhookSecret || "").trim());
+                                                                const hasAnySecret = hasTypedSecret || chatwoot.hasWebhookSecret;
+                                                                const webhookUrl = buildChatwootWebhookUrl(chatwoot.webhookSecret || "");
+                                                                const stepGlobalReady = chatwoot.hasGlobalConfig;
+                                                                const stepInboxReady = hasInboxMapping;
+                                                                const stepWebhookReady = hasAnySecret;
+
+                                                                return (
+                                                                    <div className="space-y-4">
+                                                                        {chatwootAccessCard}
+                                                                        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
+                                                                        <div className="flex flex-wrap items-start justify-between gap-4">
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.chatwoot.title')}</h4>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('slots.chatwoot.desc')}</p>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => updateChatwootField(slot.slot_id, "showAdvancedDetails", false)}
+                                                                                    className="px-2 py-1 text-[10px] font-bold rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition"
+                                                                                >
+                                                                                    {t('slots.chatwoot.hide_debug') || "Ocultar debug"}
+                                                                                </button>
+                                                                                <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${statusClass}`}>
+                                                                                    {statusLabel}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                                                            <div className={`rounded-lg border px-3 py-2 ${stepGlobalReady ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40'}`}>
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step1')}</p>
+                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step1_desc')}</p>
+                                                                            </div>
+                                                                            <div className={`rounded-lg border px-3 py-2 ${stepInboxReady ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40'}`}>
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step2')}</p>
+                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step2_desc')}</p>
+                                                                            </div>
+                                                                            <div className={`rounded-lg border px-3 py-2 ${stepWebhookReady ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40'}`}>
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step3')}</p>
+                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step3_desc')}</p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                            {tenantSettings.is_auto_provisioned ? (
+                                                                                <div className="md:col-span-2 p-4 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-lg border border-indigo-100 dark:border-indigo-800 text-sm flex items-center gap-3">
+                                                                                    <CheckCircle2 className="shrink-0" size={18} />
+                                                                                    <div>
+                                                                                        <p className="font-bold">Aprovisionamiento Automático</p>
+                                                                                        <p className="text-xs opacity-90">Las credenciales de Chatwoot (URL, Token, Account ID) están gestionadas internamente por Waflow.</p>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <div className="md:col-span-2">
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.url')}</label>
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            value={chatwoot.chatwootUrl || ""}
+                                                                                            onChange={(e) => updateChatwootField(slot.slot_id, "chatwootUrl", e.target.value)}
+                                                                                            placeholder={chatwoot.chatwootUrlMasked || t('slots.chatwoot.ph_url')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                        />
+                                                                                    </div>
+
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.api_token')}</label>
+                                                                                        <input
+                                                                                            type="password"
+                                                                                            value={chatwoot.apiToken || ""}
+                                                                                            onChange={(e) => updateChatwootField(slot.slot_id, "apiToken", e.target.value)}
+                                                                                            placeholder={chatwoot.apiTokenMasked || t('slots.chatwoot.ph_token')}
+                                                                                            autoComplete="new-password"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                        />
+                                                                                    </div>
+
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.account_id')}</label>
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            min="1"
+                                                                                            value={chatwoot.accountId || ""}
+                                                                                            onChange={(e) => updateChatwootField(slot.slot_id, "accountId", e.target.value)}
+                                                                                            placeholder={t('slots.chatwoot.ph_account_id')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                        />
+                                                                                    </div>
+                                                                                </>
+                                                                            )}
+
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.inbox_id')}</label>
+                                                                                {chatwootInboxes.length > 0 ? (
+                                                                                    <select
+                                                                                        value={chatwoot.inboxId || ""}
+                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "inboxId", e.target.value)}
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
+                                                                                    >
+                                                                                        <option value="">{t('slots.chatwoot.select_inbox')}</option>
+                                                                                        {chatwootInboxes.map((inbox) => (
+                                                                                            <option key={inbox.id} value={String(inbox.id)}>
+                                                                                                {inbox.name} (#{inbox.id}{inbox.phoneNumber ? ` - ${inbox.phoneNumber}` : ""})
+                                                                                            </option>
+                                                                                        ))}
+                                                                                    </select>
+                                                                                ) : (
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        min="1"
+                                                                                        value={chatwoot.inboxId || ""}
+                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "inboxId", e.target.value)}
+                                                                                        placeholder={t('slots.chatwoot.ph_inbox_id')}
+                                                                                        autoComplete="off"
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                    />
+                                                                                )}
+                                                                                <div className="mt-2">
+                                                                                    <button
+                                                                                        onClick={() => loadChatwootInboxes(true)}
+                                                                                        disabled={isLoadingChatwoot || isSavingChatwoot || loadingChatwootInboxes}
+                                                                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition disabled:opacity-60"
+                                                                                    >
+                                                                                        {loadingChatwootInboxes ? (t('slots.chatwoot.loading_inboxes')) : t('slots.chatwoot.load_inboxes')}
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="md:col-span-2">
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.webhook_secret')}</label>
+                                                                                <div className="flex flex-col md:flex-row gap-2">
+                                                                                    <input
+                                                                                        type="password"
+                                                                                        value={chatwoot.webhookSecret || ""}
+                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "webhookSecret", e.target.value)}
+                                                                                        placeholder={chatwoot.hasWebhookSecret ? "********" : t('slots.chatwoot.ph_webhook_secret')}
+                                                                                        autoComplete="new-password"
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                    />
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => generateChatwootSecret(slot.slot_id)}
+                                                                                        disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                        className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 transition disabled:opacity-60 text-sm font-semibold whitespace-nowrap"
+                                                                                    >
+                                                                                        {t('slots.chatwoot.generate_secret')}
+                                                                                    </button>
+                                                                                </div>
+                                                                                {chatwoot.hasWebhookSecret && !hasTypedSecret && (
+                                                                                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">{t('slots.chatwoot.secret_masked_hint')}</p>
+                                                                                )}
+                                                                            </div>
+
+                                                                            <div className="md:col-span-2">
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.webhook_url')}</label>
+                                                                                <div className="flex flex-col md:flex-row gap-2">
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        value={webhookUrl}
+                                                                                        readOnly
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/60 dark:text-white outline-none transition font-mono text-xs"
+                                                                                    />
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => copyToClipboard(webhookUrl, t('slots.chatwoot.webhook_copied'))}
+                                                                                        className="px-3 py-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition text-sm font-semibold flex items-center justify-center gap-1 whitespace-nowrap"
+                                                                                    >
+                                                                                        <Copy size={14} />
+                                                                                        {t('slots.chatwoot.copy_webhook')}
+                                                                                    </button>
+                                                                                </div>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{t('slots.chatwoot.webhook_hint')}</p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('slots.chatwoot.scope_note')}</p>
+
+                                                                        <div className="flex flex-wrap items-center gap-2">
+                                                                            <button
+                                                                                onClick={() => validateChatwootConfigSlot(slot.slot_id)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                            >
+                                                                                <CheckCircle2 size={16} />
+                                                                                {t('slots.chatwoot.validate')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => saveChatwootConfig(slot.slot_id)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                            >
+                                                                                {isSavingChatwoot ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                                                {t('slots.chatwoot.save')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => clearChatwootSlotConfig(slot.slot_id)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot || (!chatwoot.inboxId && !chatwoot.configured)}
+                                                                                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
+                                                                            >
+                                                                                {t('slots.chatwoot.clear_slot')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => loadChatwootConfig(slot.slot_id, true)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
+                                                                                title={t('slots.chatwoot.reload')}
+                                                                            >
+                                                                                <RefreshCw size={16} className={isLoadingChatwoot ? "animate-spin" : ""} />
+                                                                            </button>
+                                                                        </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                            {isGhlMode && (
+                                                                <>
+                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.integration.tag_auto')}</label>
+                                                                        <input type="text" placeholder={t('slots.integration.tag_auto_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.crm_contact_tag ?? settings.ghl_contact_tag ?? ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'crm_contact_tag', e.target.value, settings)} />
+                                                                    </div>
+                                                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{isChatwootMode ? "Agente Asignado" : t('slots.integration.user')}</label>
+                                                                        <select className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={settings.crm_assigned_user ?? settings.ghl_assigned_user ?? ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'crm_assigned_user', e.target.value, settings)}>
+                                                                            <option value="">{t('slots.integration.user_none')}</option>
+                                                                            {crmUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                                                        </select>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            {isChatwootMode && (
+                                                                <>
+                                                                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                    <div className="flex justify-between items-start mb-4">
+                                                                        <div>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                                <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
+                                                                                    <Zap size={14} />
+                                                                                </div>
+                                                                                OpenAI API Key (Transcripción)
+                                                                            </label>
+                                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                                Configura una key única para este inbox. Dejar vacío para desactivar.
+                                                                            </p>
+                                                                        </div>
+                                                                        {slot.openai_api_key && (
+                                                                            <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                                                                Conectado
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="flex gap-2">
+                                                                        <input
+                                                                            type="password"
+                                                                            name={`openai_key_chatwoot_${slot.slot_id}`}
+                                                                            autoComplete="new-password"
+                                                                            placeholder={slot.openai_api_key ? "•••••••••••••••• (Oculto)" : "sk-..."}
+                                                                            className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter') {
+                                                                                    const val = e.target.value.trim();
+                                                                                    if (val) {
+                                                                                        authFetch(`/agency/update-slot-config`, {
+                                                                                            method: 'POST',
+                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                        }).then(() => { toast.success("API Key guardada"); e.target.value = ""; loadData(); });
+                                                                                    }
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                const input = e.currentTarget.previousElementSibling;
+                                                                                const val = input.value.trim();
                                                                                 if (val) {
                                                                                     authFetch(`/agency/update-slot-config`, {
                                                                                         method: 'POST',
                                                                                         body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
-                                                                                    }).then(() => { toast.success("API Key guardada"); e.target.value = ""; loadData(); });
-                                                                                }
-                                                                            }
-                                                                        }}
-                                                                     />
-                                                                     <button 
-                                                                        onClick={(e) => {
-                                                                             // Buscamos el input hermano anterior
-                                                                             const input = e.currentTarget.previousElementSibling;
-                                                                             const val = input.value.trim();
-                                                                             if (val) {
-                                                                                 authFetch(`/agency/update-slot-config`, {
-                                                                                     method: 'POST',
-                                                                                     body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
-                                                                                 }).then(() => { toast.success("API Key guardada"); input.value = ""; loadData(); });
-                                                                             } else {
-                                                                                 toast.error("Ingresa una Key válida");
-                                                                             }
-                                                                        }}
-                                                                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
-                                                                     >
-                                                                         <Save size={18} /> Guardar
-                                                                     </button>
-                                                                     
-                                                                     {slot.openai_api_key && (
-                                                                         <button 
-                                                                            onClick={() => {
-                                                                                if(confirm("¿Borrar API Key de este número?")) {
-                                                                                    authFetch(`/agency/update-slot-config`, {
-                                                                                        method: 'POST',
-                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: "" }) // Send empty string to clear
-                                                                                    }).then(() => { toast.success("API Key eliminada"); loadData(); });
+                                                                                    }).then(() => { toast.success("API Key guardada"); input.value = ""; loadData(); });
+                                                                                } else {
+                                                                                    toast.error("Ingresa una Key válida");
                                                                                 }
                                                                             }}
-                                                                            className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
-                                                                            title="Borrar Key"
-                                                                         >
-                                                                             <Trash2 size={18} />
-                                                                         </button>
-                                                                     )}
-                                                                </div>
-                                                            </div>
+                                                                            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
+                                                                        >
+                                                                            <Save size={18} /> Guardar
+                                                                        </button>
 
-                                                            {/* 🔥 NUEVO: ElevenLabs Key + Voz por defecto */}
-                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <div className="flex justify-between items-start mb-4">
-                                                                    <div>
-                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                                                            <div className="w-6 h-6 bg-sky-100 dark:bg-sky-900/30 text-sky-600 rounded flex items-center justify-center">
-                                                                                <Mic size={14} />
-                                                                            </div>
-                                                                            ElevenLabs API Key (Voces)
-                                                                        </label>
-                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                            Configura una key única para este número. Dejar vacío para desactivar.
-                                                                        </p>
+                                                                        {slot.openai_api_key && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (confirm("¿Borrar API Key de este inbox?")) {
+                                                                                        authFetch(`/agency/update-slot-config`, {
+                                                                                            method: 'POST',
+                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: "" })
+                                                                                        }).then(() => { toast.success("API Key eliminada"); loadData(); });
+                                                                                    }
+                                                                                }}
+                                                                                className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                                title="Borrar Key"
+                                                                            >
+                                                                                <Trash2 size={18} />
+                                                                            </button>
+                                                                        )}
                                                                     </div>
-                                                                    {slot.elevenlabs_api_key && (
-                                                                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
-                                                                            Conectado
-                                                                        </span>
-                                                                    )}
                                                                 </div>
 
-                                                                <div className="flex gap-2">
-                                                                    <input
-                                                                        type="password"
-                                                                        name={`elevenlabs_key_${slot.slot_id}`}
-                                                                        autoComplete="new-password"
-                                                                        placeholder={slot.elevenlabs_api_key ? "•••••••••••••••• (Oculto)" : "sk_..."}
-                                                                        className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition font-mono text-sm"
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') {
-                                                                                const val = e.target.value;
-                                                                                saveElevenApiKey(slot.slot_id, val).then((ok) => {
-                                                                                    if (ok) e.target.value = "";
-                                                                                });
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            const input = e.currentTarget.previousElementSibling;
-                                                                            const val = input.value;
-                                                                            saveElevenApiKey(slot.slot_id, val).then((ok) => {
-                                                                                if (ok) input.value = "";
-                                                                            });
-                                                                        }}
-                                                                        className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
-                                                                    >
-                                                                        <Save size={18} /> Guardar
-                                                                    </button>
+                                                                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                    <div className="flex justify-between items-start mb-4">
+                                                                        <div>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                                <div className="w-6 h-6 bg-sky-100 dark:bg-sky-900/30 text-sky-600 rounded flex items-center justify-center">
+                                                                                    <Mic size={14} />
+                                                                                </div>
+                                                                                ElevenLabs API Key (Voces)
+                                                                            </label>
+                                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                                Configura una key única para este inbox. Dejar vacío para desactivar.
+                                                                            </p>
+                                                                        </div>
+                                                                        {slot.elevenlabs_api_key && (
+                                                                            <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                                                                Conectado
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
 
-                                                                    {slot.elevenlabs_api_key && (
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (confirm("¿Borrar API Key de este número?")) {
-                                                                                    authFetch(`/agency/update-slot-config`, {
-                                                                                        method: 'POST',
-                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_api_key: "", elevenlabs_voice_id: "" })
-                                                                                    }).then(() => {
-                                                                                        toast.success("API Key eliminada");
-                                                                                        loadData();
-                                                                                        setElevenVoicesBySlot(prev => ({ ...prev, [slot.slot_id]: [] }));
+                                                                    <div className="flex gap-2">
+                                                                        <input
+                                                                            type="password"
+                                                                            name={`elevenlabs_key_chatwoot_${slot.slot_id}`}
+                                                                            autoComplete="new-password"
+                                                                            placeholder={slot.elevenlabs_api_key ? "•••••••••••••••• (Oculto)" : "sk_..."}
+                                                                            className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition font-mono text-sm"
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter') {
+                                                                                    const val = e.target.value;
+                                                                                    saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                        if (ok) e.target.value = "";
                                                                                     });
                                                                                 }
                                                                             }}
-                                                                            className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
-                                                                            title="Borrar Key"
-                                                                        >
-                                                                            <Trash2 size={18} />
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-
-                                                                <div className="mt-4">
-                                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                                        Voz por defecto
-                                                                    </label>
-                                                                    <div className="mb-2">
-                                                                        <input
-                                                                            type="text"
-                                                                            value={previewTextBySlot[slot.slot_id] || ""}
-                                                                            onChange={(e) => setPreviewTextBySlot(prev => ({ ...prev, [slot.slot_id]: e.target.value }))}
-                                                                            placeholder="Texto para preview (opcional)"
-                                                                            className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition text-sm"
                                                                         />
-                                                                    </div>
-                                                                    <div className="flex gap-2 items-center">
-                                                                        <select
-                                                                            className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none"
-                                                                            value={slot.elevenlabs_voice_id || ""}
-                                                                            disabled={!slot.elevenlabs_api_key}
-                                                                            onChange={(e) => {
-                                                                                const val = e.target.value;
-                                                                                authFetch(`/agency/update-slot-config`, {
-                                                                                    method: 'POST',
-                                                                                    body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_voice_id: val })
-                                                                                }).then(() => {
-                                                                                    toast.success("Voz por defecto guardada");
-                                                                                    loadData();
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                const input = e.currentTarget.previousElementSibling;
+                                                                                const val = input.value;
+                                                                                saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                    if (ok) input.value = "";
                                                                                 });
                                                                             }}
+                                                                            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
                                                                         >
-                                                                            <option value="">{slot.elevenlabs_api_key ? "Sin voz por defecto" : "Configura la API Key primero"}</option>
-                                                                            {slot.elevenlabs_voice_id && !(elevenVoicesBySlot[slot.slot_id] || []).some(v => v.id === slot.elevenlabs_voice_id) && (
-                                                                                <option value={slot.elevenlabs_voice_id}>Voz actual ({slot.elevenlabs_voice_id})</option>
-                                                                            )}
-                                                                            {(elevenVoicesBySlot[slot.slot_id] || []).map(v => (
-                                                                                <option key={v.id} value={v.id}>{v.name}</option>
-                                                                            ))}
-                                                                        </select>
-                                                                        <button
-                                                                            onClick={() => loadElevenVoices(slot.slot_id, true)}
-                                                                            disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
-                                                                            className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
-                                                                            title="Actualizar voces"
-                                                                        >
-                                                                            <RefreshCw size={18} className={loadingElevenVoices[slot.slot_id] ? "animate-spin" : ""} />
+                                                                            <Save size={18} /> Guardar
                                                                         </button>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                const fallbackVoice = (elevenVoicesBySlot[slot.slot_id] || [])[0]?.id || "";
-                                                                                const previewVoice = slot.elevenlabs_voice_id || fallbackVoice;
-                                                                                playVoicePreview(slot.slot_id, previewVoice);
-                                                                            }}
-                                                                            disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
-                                                                            className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
-                                                                            title="Preview"
-                                                                        >
-                                                                            <Play size={18} />
-                                                                        </button>
-                                                                    </div>
-                                                                    {slot.elevenlabs_api_key && (elevenVoicesBySlot[slot.slot_id] || []).length === 0 && !loadingElevenVoices[slot.slot_id] && (
-                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                                                            No hay voces cargadas o no se pudieron obtener.
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-                                                            </div>
 
-                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.ghl.tag_auto')}</label>
-                                                                <input type="text" placeholder={t('slots.ghl.tag_auto_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.ghl_contact_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_contact_tag', e.target.value, settings)} />
-                                                            </div>
-                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.ghl.user')}</label>
-                                                                <select className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={settings.ghl_assigned_user || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_assigned_user', e.target.value, settings)}>
-                                                                    <option value="">{t('slots.ghl.user_none')}</option>
-                                                                    {ghlUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                                                                </select>
-                                                            </div>
-                                                            {/* 
-                                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.ghl.routing')}</label>
-                                                                <input type="text" placeholder={t('slots.ghl.routing_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.routing_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, settings)} />
-                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usará este número.</p>
-                                                            </div> 
-                                                            */}
+                                                                        {slot.elevenlabs_api_key && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (confirm("¿Borrar API Key de este número?")) {
+                                                                                        authFetch(`/agency/update-slot-config`, {
+                                                                                            method: 'POST',
+                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_api_key: "", elevenlabs_voice_id: "" })
+                                                                                        }).then(() => {
+                                                                                            toast.success("API Key eliminada");
+                                                                                            loadData();
+                                                                                            setElevenVoicesBySlot(prev => ({ ...prev, [slot.slot_id]: [] }));
+                                                                                        });
+                                                                                    }
+                                                                                }}
+                                                                                className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                                title="Borrar Key"
+                                                                            >
+                                                                                <Trash2 size={18} />
+                                                                            </button>
+                                                                            )}
+                                                                        </div>
+
+                                                                    <div className="mt-4">
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                                            Voz por defecto
+                                                                        </label>
+                                                                        <div className="mb-2">
+                                                                            <input
+                                                                                type="text"
+                                                                                value={previewTextBySlot[slot.slot_id] || ""}
+                                                                                onChange={(e) => setPreviewTextBySlot(prev => ({ ...prev, [slot.slot_id]: e.target.value }))}
+                                                                                placeholder="Texto para preview (opcional)"
+                                                                                className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition text-sm"
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex gap-2 items-center">
+                                                                            <select
+                                                                                className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none"
+                                                                                value={slot.elevenlabs_voice_id || ""}
+                                                                                disabled={!slot.elevenlabs_api_key}
+                                                                                onChange={(e) => {
+                                                                                    const val = e.target.value;
+                                                                                    authFetch(`/agency/update-slot-config`, {
+                                                                                        method: 'POST',
+                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_voice_id: val })
+                                                                                    }).then(() => {
+                                                                                        toast.success("Voz por defecto guardada");
+                                                                                        loadData();
+                                                                                    });
+                                                                                }}
+                                                                            >
+                                                                                <option value="">{slot.elevenlabs_api_key ? "Sin voz por defecto" : "Configura la API Key primero"}</option>
+                                                                                {slot.elevenlabs_voice_id && !(elevenVoicesBySlot[slot.slot_id] || []).some(v => v.id === slot.elevenlabs_voice_id) && (
+                                                                                    <option value={slot.elevenlabs_voice_id}>Voz actual ({slot.elevenlabs_voice_id})</option>
+                                                                                )}
+                                                                                {(elevenVoicesBySlot[slot.slot_id] || []).map(v => (
+                                                                                    <option key={v.id} value={v.id}>{v.name}</option>
+                                                                                ))}
+                                                                            </select>
+                                                                            <button
+                                                                                onClick={() => loadElevenVoices(slot.slot_id, true)}
+                                                                                disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                                className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                                title="Actualizar voces"
+                                                                            >
+                                                                                <RefreshCw size={18} className={loadingElevenVoices[slot.slot_id] ? "animate-spin" : ""} />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    const fallbackVoice = (elevenVoicesBySlot[slot.slot_id] || [])[0]?.id || "";
+                                                                                    const previewVoice = slot.elevenlabs_voice_id || fallbackVoice;
+                                                                                    playVoicePreview(slot.slot_id, previewVoice);
+                                                                                }}
+                                                                                disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                                className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                                title="Preview"
+                                                                            >
+                                                                                <Play size={18} />
+                                                                            </button>
+                                                                        </div>
+                                                                        {slot.elevenlabs_api_key && (elevenVoicesBySlot[slot.slot_id] || []).length === 0 && !loadingElevenVoices[slot.slot_id] && (
+                                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                                                No hay voces cargadas o no se pudieron obtener.
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     )}
-
-                                                    {activeSlotTab === 'sms' && (
+                                                    {supportsSmsTab && activeSlotTab === 'sms' && (
                                                         <div className="max-w-2xl space-y-6">
                                                             {(() => {
                                                                 const twilio = twilioConfigBySlot[slot.slot_id] || {
@@ -1158,7 +2520,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                    {activeSlotTab === 'keywords' && (
+                                                    {supportsKeywordsTab && activeSlotTab === 'keywords' && (
                                                         <div className="max-w-2xl">
                                                             <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
                                                                 <input name="keyword" required placeholder={t('slots.kw.input')} className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
@@ -1168,14 +2530,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             <div className="space-y-2">
                                                                 {keywords.filter(k => k.slot_id === slot.slot_id).map(k => (
                                                                     <div key={k.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                        <div className="flex gap-2 items-center"><span className="font-bold text-gray-800 dark:text-white">"{k.keyword}"</span> <span className="text-gray-400">→</span> <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-bold">{k.tag}</span></div>
+                                                                        <div className="flex gap-2 items-center"><span className="font-bold text-gray-800 dark:text-white">"{k.keyword}"</span> <span className="text-gray-400">&rarr;</span> <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-bold">{k.tag}</span></div>
                                                                         <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
                                                                     </div>
                                                                 ))}
                                                             </div>
                                                         </div>
                                                     )}
-
                                                     {activeSlotTab === 'groups' && (
                                                         <div className="max-w-2xl">
                                                             <div className="flex justify-between items-center mb-6">
@@ -1183,33 +2544,40 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 <button onClick={() => loadGroups(slot.slot_id)} className="text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 p-2 rounded-lg transition"><RefreshCw size={18} /></button>
                                                             </div>
                                                             {loadingGroups ? <div className="text-center py-10"><RefreshCw className="animate-spin mx-auto text-indigo-500" /></div> :
-                                                                <div className="space-y-3">
-                                                                    {groups.map(g => {
-                                                                        const isActive = settings.groups?.[g.id]?.active;
-                                                                        return (
-                                                                            <div key={g.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                                <div><h5 className="font-bold text-gray-800 dark:text-white">{g.subject}</h5><p className="text-xs text-gray-500 dark:text-gray-400">{g.participants} {t('slots.groups.participants')}</p></div>
-                                                                                <div className="flex items-center gap-4">
-                                                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                                                        <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, settings)} />
-                                                                                        <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                                                                                    </label>
-                                                                                    <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg" title={t('slots.groups.sync')}><Users size={18} /></button>
+                                                                groups.length === 0 ? (
+                                                                    <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-8 text-center">
+                                                                        <p className="font-semibold text-gray-700 dark:text-gray-200">{t('slots.groups.empty')}</p>
+                                                                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('slots.groups.empty_help')}</p>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="space-y-3">
+                                                                        {groups.map(g => {
+                                                                            const isActive = settings.groups?.[g.id]?.active;
+                                                                            return (
+                                                                                <div key={g.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                                    <div><h5 className="font-bold text-gray-800 dark:text-white">{g.subject}</h5><p className="text-xs text-gray-500 dark:text-gray-400">{g.participants} {t('slots.groups.participants')}</p></div>
+                                                                                    <div className="flex items-center gap-4">
+                                                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                                                            <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, settings)} />
+                                                                                            <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                                                                                        </label>
+                                                                                        <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg" title={t('slots.groups.sync')}><Users size={18} /></button>
+                                                                                    </div>
                                                                                 </div>
-                                                                            </div>
-                                                                        )
-                                                                    })}
-                                                                </div>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                )
                                                             }
                                                         </div>
                                                     )}
-
                                                     {activeSlotTab === 'qr' && (
-                                                        <SlotConnectionManager 
-                                                            slot={slot} 
-                                                            locationId={location.location_id} 
-                                                            token={token} 
-                                                            onUpdate={loadData} 
+                                                        <SlotConnectionManager
+                                                            slot={slot}
+                                                            locationId={location.location_id}
+                                                            token={token}
+                                                            onUpdate={loadData}
+                                                            isAdminMode={isAdminMode}
                                                         />
                                                     )}
                                                 </div>
@@ -1245,10 +2613,17 @@ const SettingRow = ({ label, desc, checked, onChange }) => (
 );
 
 // ✅ COMPONENTE DE GESTIÓN DE CONEXIÓN
-function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
+function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode = false }) {
+    const { t } = useLanguage();
     const [status, setStatus] = useState({ connected: false, myNumber: null });
     const [qr, setQr] = useState(null);
+    const [qrUpdatedAt, setQrUpdatedAt] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [accountSuspensionState, setAccountSuspensionState] = useState(null);
+    const [slotSuspendedBy, setSlotSuspendedBy] = useState(slot?.suspended_by || null);
+    const [slotLockMessage, setSlotLockMessage] = useState(null);
+    const [shareUrl, setShareUrl] = useState("");
+    const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
     const pollInterval = useRef(null);
 
     const authFetch = async (endpoint, options = {}) => {
@@ -1258,14 +2633,87 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
         });
     };
 
+    const readAccessError = async (res) => {
+        if (!res || res.status !== 403) return null;
+        const data = await res.clone().json().catch(() => null);
+        if (!data?.error) return null;
+
+        if (data.error === 'account_suspended') {
+            return {
+                kind: 'account',
+                status: data.suspension_status || 'suspended',
+                message: data.message || 'Tu cuenta esta suspendida. No puedes vincular numeros en este momento.'
+            };
+        }
+
+        if (data.error === 'slot_suspended') {
+            return {
+                kind: 'slot',
+                status: data.suspended_by || 'system',
+                message: data.message || 'Este slot esta temporalmente suspendido.'
+            };
+        }
+
+        if (data.error === 'admin_lock') {
+            return {
+                kind: 'admin_lock',
+                status: 'admin',
+                message: data.message || 'Este slot fue suspendido por administracion y no puede reconectarse.'
+            };
+        }
+
+        return null;
+    };
+
+    const stopPolling = () => {
+        if (pollInterval.current) {
+            clearTimeout(pollInterval.current);
+            pollInterval.current = null;
+        }
+    };
+
+    const isFreshQrTimestamp = (rawTimestamp) => {
+        if (!rawTimestamp) return false;
+        const parsed = new Date(rawTimestamp).getTime();
+        if (!Number.isFinite(parsed)) return true;
+        return (Date.now() - parsed) <= 25000;
+    };
+
+    const applyAccessError = (accessError) => {
+        if (!accessError) return false;
+
+        if (accessError.kind === 'account') {
+            setAccountSuspensionState(accessError);
+        }
+
+        if (accessError.kind === 'slot' || accessError.kind === 'admin_lock') {
+            setSlotSuspendedBy(accessError.status || 'system');
+            setSlotLockMessage(accessError.message || null);
+        }
+
+        setLoading(false);
+        setQr(null);
+        setQrUpdatedAt(null);
+        stopPolling();
+        return true;
+    };
+
     const checkStatus = async () => {
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/status`);
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+
             if (res.ok) {
                 const data = await res.json();
+                setAccountSuspensionState(null);
                 setStatus({ connected: data.connected, myNumber: data.myNumber });
+                setSlotSuspendedBy(data.suspended_by || null);
+                if (!data.suspended_by) setSlotLockMessage(null);
+
                 if (data.connected) {
                     setQr(null);
+                    setQrUpdatedAt(null);
                     setLoading(false);
                     stopPolling();
                     onUpdate();
@@ -1274,98 +2722,383 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate }) {
         } catch (e) { }
     };
 
-    const stopPolling = () => {
-        if (pollInterval.current) {
-            clearInterval(pollInterval.current);
-            pollInterval.current = null;
-        }
-    };
-
     useEffect(() => {
         checkStatus();
         return () => stopPolling();
     }, []);
 
+    useEffect(() => {
+        setShareUrl("");
+        setIsGeneratingShareUrl(false);
+    }, [locationId, slot?.slot_id]);
+
     const handleConnect = async () => {
+        if (!isAdminMode && (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system')) {
+            toast.error('Este slot esta bloqueado temporalmente');
+            return;
+        }
+
         setLoading(true);
         setQr(null);
+        setQrUpdatedAt(null);
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, { method: 'POST' });
-            if (!res.ok) throw new Error("Fallo al iniciar");
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
 
-            // Polling QR
+            if (!res.ok) throw new Error('Fallo al iniciar');
+
+            setAccountSuspensionState(null);
             stopPolling();
-            pollInterval.current = setInterval(async () => {
+
+            const pollStep = async () => {
                 try {
                     const qrRes = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr`);
+                    const qrError = await readAccessError(qrRes);
+                    if (applyAccessError(qrError)) return;
+
                     if (qrRes.ok) {
                         const data = await qrRes.json();
-                        if (data.qr) setQr(data.qr);
-                        if (data.connected) { checkStatus(); }
+                        const nextQrUpdatedAt = data.qrUpdatedAt || null;
+                        const nextQr = data.qr && isFreshQrTimestamp(nextQrUpdatedAt)
+                            ? data.qr
+                            : null;
+                        setQrUpdatedAt(nextQrUpdatedAt);
+                        setQr(nextQr);
+                        if (data.connected) {
+                            checkStatus();
+                            return; // Stop polling, checkStatus will clear the rest
+                        }
                     }
                 } catch (e) { }
-            }, 2000);
 
+                // Adaptive delay: 3s
+                pollInterval.current = setTimeout(pollStep, 3000);
+            };
+
+            pollStep();
         } catch (e) {
-            toast.error("Error iniciando conexión");
+            toast.error('Error iniciando conexion');
             setLoading(false);
         }
     };
 
-    const handleDisconnect = async () => {
-        if (!confirm("¿Desconectar este dispositivo?")) return;
+    const handleSoftDisconnect = async (skipConfirm = false) => {
+        if (!skipConfirm) {
+            confirmToast(
+                'Pausar dispositivo',
+                'Pausar este dispositivo sin borrar la sesion?',
+                () => handleSoftDisconnect(true)
+            );
+            return;
+        }
+        if (!skipConfirm && !confirm('Pausar este dispositivo sin borrar la sesion?')) return;
         setLoading(true);
         try {
-            await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/disconnect`, { method: 'DELETE' });
-            setStatus({ connected: false, myNumber: null });
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/soft-disconnect`, { method: 'POST' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || 'No se pudo pausar');
+            }
+
+            const data = await res.json().catch(() => ({}));
+            const newLock = data.suspended_by || (isAdminMode ? 'admin' : 'agency');
+
+            setStatus({ connected: false, myNumber: status.myNumber || slot.phone_number || null });
+            setSlotSuspendedBy(newLock);
+            setSlotLockMessage(newLock === 'admin'
+                ? 'Pausado por administracion. Solo admin puede reactivar.'
+                : 'Pausado por ti. Puedes reconectar sin escanear QR.');
             setQr(null);
+            setQrUpdatedAt(null);
             stopPolling();
             onUpdate();
-            toast.success("Desconectado");
-        } catch (e) { toast.error("Error desconectando"); }
+            toast.success('Slot pausado');
+        } catch (e) {
+            toast.error(e.message || 'Error pausando slot');
+        }
         setLoading(false);
     };
 
+    const handleReconnect = async () => {
+        if (!isAdminMode && (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system')) {
+            toast.error('Este slot esta bloqueado temporalmente');
+            return;
+        }
+
+        if (accountSuspensionState) {
+            toast.error('No puedes reconectar mientras tu cuenta este en gracia o suspendida');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/reconnect`, { method: 'POST' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || 'No se pudo reconectar');
+            }
+
+            setSlotSuspendedBy(null);
+            setSlotLockMessage(null);
+            setAccountSuspensionState(null);
+            setQr(null);
+            setQrUpdatedAt(null);
+            toast.success('Reconectando...');
+
+            stopPolling();
+
+            const reconnectPollStep = async () => {
+                await checkStatus();
+                // If it successfully connected, checkStatus handles stopPolling.
+                // Otherwise, keep checking status every 4 seconds.
+                if (pollInterval.current) {
+                    pollInterval.current = setTimeout(reconnectPollStep, 4000);
+                }
+            };
+
+            pollInterval.current = setTimeout(reconnectPollStep, 4000);
+            setLoading(false);
+        } catch (e) {
+            toast.error(e.message || 'Error reconectando slot');
+            setLoading(false);
+        }
+    };
+
+    const handleDisconnect = async (skipConfirm = false) => {
+        if (!skipConfirm) {
+            confirmToast(
+                'Desconectar dispositivo',
+                'Desconectar este dispositivo?',
+                () => handleDisconnect(true),
+                true
+            );
+            return;
+        }
+        if (!skipConfirm && !confirm('Desconectar este dispositivo?')) return;
+        setLoading(true);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/disconnect`, { method: 'DELETE' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+
+            if (!res.ok) throw new Error('Error desconectando');
+
+            setStatus({ connected: false, myNumber: null });
+            setSlotSuspendedBy(null);
+            setSlotLockMessage(null);
+            setQr(null);
+            setQrUpdatedAt(null);
+            stopPolling();
+            onUpdate();
+            toast.success('Desconectado');
+        } catch (e) {
+            toast.error('Error desconectando');
+        }
+        setLoading(false);
+    };
+
+    const handleGenerateShareUrl = async () => {
+        setIsGeneratingShareUrl(true);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr-share-link`, { method: 'POST' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+            if (!res?.ok) {
+                const err = await res?.json().catch(() => ({}));
+                throw new Error(err?.error || 'No se pudo generar la URL QR');
+            }
+
+            const data = await res.json().catch(() => ({}));
+            if (!data?.shareUrl) throw new Error('No se pudo generar la URL QR');
+
+            setShareUrl(data.shareUrl);
+            try {
+                await navigator.clipboard.writeText(data.shareUrl);
+                toast.success(t('slots.share.link_ready') || 'URL QR generada', {
+                    description: t('slots.share.link_ready_slot_desc') || 'Tu cliente podrá abrirla y el QR de este slot se generará automáticamente.'
+                });
+            } catch (_) {
+                toast.success(t('slots.share.link_ready') || 'URL QR generada', {
+                    description: t('slots.share.copy_hint') || 'Copia la URL desde el campo para compartirla con tu cliente.'
+                });
+            }
+        } catch (e) {
+            toast.error(t('slots.share.error') || 'No se pudo generar el enlace QR', {
+                description: e.message || undefined
+            });
+        } finally {
+            setIsGeneratingShareUrl(false);
+        }
+    };
+
+    const headerTitle = slotSuspendedBy === 'admin'
+        ? 'Suspendido por Admin'
+        : slotSuspendedBy === 'system'
+            ? 'Suspendido por Sistema'
+            : slotSuspendedBy === 'agency'
+                ? 'Slot Pausado'
+                : status.connected
+                    ? 'Dispositivo Conectado'
+                    : 'Vincular WhatsApp';
+
+    const headerDescription = slotSuspendedBy === 'admin'
+        ? 'Este slot esta bloqueado por administracion.'
+        : slotSuspendedBy === 'system'
+            ? 'Este slot esta bloqueado temporalmente por el sistema.'
+            : slotSuspendedBy === 'agency'
+                ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
+                : status.connected
+                    ? `Numero: +${status.myNumber}`
+                    : 'Escanea el codigo QR para conectar.';
+
     return (
         <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
-            
             <div className="flex items-center gap-4 mb-6">
-                 <div className={`p-4 rounded-full ${status.connected ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'}`}>
+                <div className={`p-4 rounded-full ${status.connected ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'}`}>
                     {status.connected ? <Smartphone size={32} /> : <QrCode size={32} />}
-                 </div>
-                 <div className="text-center md:text-left">
-                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                         {status.connected ? "Dispositivo Conectado" : "Vincular WhatsApp"}
-                     </h3>
-                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                         {status.connected ? `Número: +${status.myNumber}` : "Escanea el código QR para conectar."}
-                     </p>
-                 </div>
+                </div>
+                <div className="text-center md:text-left">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">{headerTitle}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{headerDescription}</p>
+                </div>
             </div>
 
-            {!status.connected ? (
-                <div className="w-full flex flex-col items-center">
-                    {!qr && !loading && (
-                         <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
-                             <QrCode size={20} /> Generar Código QR
-                         </button>
-                    )}
-
-                    {(qr || loading) && (
-                        <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
-                             <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
-                                 {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
-                             </div>
-                             <p className="text-sm text-gray-500 mb-4">{qr ? "Escanea con tu teléfono" : "Iniciando sesión..."}</p>
-                             <button onClick={() => { setQr(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-gray-600 underline text-sm">Cancelar</button>
+            {accountSuspensionState && (
+                <div className="w-full mb-5 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-4">
+                    <div className="flex items-start gap-2">
+                        <AlertTriangle size={18} className="text-amber-600 mt-0.5" />
+                        <div>
+                            <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                                Cuenta en suspension ({accountSuspensionState.status})
+                            </p>
+                            <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
+                                {accountSuspensionState.message}
+                            </p>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {slotSuspendedBy === 'admin' && (
+                <div className="w-full mb-5 rounded-xl border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-700 p-4">
+                    <p className="text-sm font-semibold text-red-800 dark:text-red-300">Bloqueado por administracion</p>
+                    <p className="text-xs text-red-700 dark:text-red-400 mt-1">{slotLockMessage || 'Contacta soporte para habilitar este slot.'}</p>
+                </div>
+            )}
+
+            {slotSuspendedBy === 'agency' && (
+                <div className="w-full mb-5 rounded-xl border border-blue-300 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700 p-4">
+                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Pausado por ti</p>
+                    <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">{slotLockMessage || 'Puedes reconectar sin QR.'}</p>
+                </div>
+            )}
+
+            {slotSuspendedBy === 'system' && (
+                <div className="w-full mb-5 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-4">
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Bloqueado por sistema</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">{slotLockMessage || 'Debes regularizar el estado de la cuenta para reactivar este slot.'}</p>
+                </div>
+            )}
+
+            {accountSuspensionState ? (
+                <div className="w-full flex justify-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Reconexion bloqueada mientras la cuenta este en gracia o suspendida.
+                    </p>
+                </div>
+            ) : status.connected ? (
+                <div className="w-full flex flex-col sm:flex-row gap-3 justify-center">
+                    <button onClick={handleSoftDisconnect} disabled={loading} className="bg-amber-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-700 transition flex items-center justify-center gap-2 disabled:opacity-60">
+                        <Power size={18} /> Pausar
+                    </button>
+                    <button onClick={handleDisconnect} disabled={loading} className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60">
+                        <Power size={18} /> Desconectar
+                    </button>
+                </div>
+            ) : slotSuspendedBy === 'agency' ? (
+                <div className="w-full flex flex-col sm:flex-row gap-3 justify-center">
+                    <button onClick={handleReconnect} disabled={loading} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center justify-center gap-2 disabled:opacity-60">
+                        <Play size={18} /> Reconectar
+                    </button>
+                    <button onClick={handleDisconnect} disabled={loading} className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60">
+                        <Power size={18} /> Desconectar
+                    </button>
+                </div>
+            ) : (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system') ? (
+                <div className="w-full flex justify-center">
+                    {isAdminMode ? (
+                        <button onClick={handleReconnect} disabled={loading} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center justify-center gap-2 disabled:opacity-60">
+                            <Play size={18} /> Reactivar como Admin
+                        </button>
+                    ) : (
+                        <p className="text-sm text-red-600 dark:text-red-400 font-semibold">
+                            {slotSuspendedBy === 'admin' ? 'Reconectar bloqueado por Admin' : 'Reconectar bloqueado por Sistema'}
+                        </p>
                     )}
                 </div>
             ) : (
-                <button onClick={handleDisconnect} disabled={loading} className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2">
-                    <Power size={20} /> Desconectar
-                </button>
+                <div className="w-full flex flex-col items-center">
+                    {!qr && !loading && !accountSuspensionState && (
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                            <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
+                                <QrCode size={20} /> Generar Codigo QR
+                            </button>
+                            <button
+                                onClick={handleGenerateShareUrl}
+                                disabled={isGeneratingShareUrl}
+                                className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 disabled:opacity-60"
+                            >
+                                {isGeneratingShareUrl ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+                                {t('slots.share.generate_link') || "Generar URL QR"}
+                            </button>
+                        </div>
+                    )}
+
+                    {!accountSuspensionState && (qr || loading) && (
+                        <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
+                            <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
+                                {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
+                            </div>
+                            <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">
+                                {qr
+                                    ? '📷 Escanea con WhatsApp (Expira pronto)'
+                                    : (slotSuspendedBy ? '🔄 Reconectando automáticamente...' : '⏳ Consiguiendo QR seguro...')
+                                }
+                            </p>
+                            <button onClick={() => { setQr(null); setQrUpdatedAt(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-red-500 underline text-sm transition">Cancelar</button>
+                        </div>
+                    )}
+
+                    {!qr && shareUrl && (
+                        <div className="w-full mt-5 max-w-xl">
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <input
+                                    type="text"
+                                    readOnly
+                                    value={shareUrl}
+                                    className="flex-1 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 dark:text-white outline-none text-sm font-mono"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => navigator.clipboard.writeText(shareUrl).then(() => toast.success(t('slots.share.copied') || 'URL QR copiada')).catch(() => toast.error(t('slots.chatwoot.copy_error') || 'No se pudo copiar'))}
+                                    className="px-4 py-3 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 transition font-semibold flex items-center justify-center gap-2"
+                                >
+                                    <Copy size={16} />
+                                    {t('slots.share.copy_link') || "Copiar URL"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
             )}
+
         </div>
     );
 }
