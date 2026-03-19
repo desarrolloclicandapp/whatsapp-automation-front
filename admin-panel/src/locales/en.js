@@ -931,6 +931,27 @@ export const en = {
     "auth.wrong_email": "Wrong email? Correct it",
     "auth.registration_problem": "Having trouble registering?",
     "auth.contact_support": "Contact support",
-    "auth.support_prefill": "Hello, I am having trouble registering on the platform"
+    "auth.support_prefill": "Hello, I am having trouble registering on the platform",
+    "agency.reliability.title": "Message activity",
+    "agency.reliability.subtitle_short": "See how many messages went out, how many could not be sent, and which accounts had the most movement.",
+    "agency.reliability.reconnections_24h": "Sent 24h",
+    "agency.reliability.activity_24h": "Messages in the last 24 hours",
+    "agency.reliability.activity_24h_desc": "The blue line shows sent messages. The amber line shows messages that could not be sent.",
+    "agency.reliability.coverage_by_account": "Accounts with the most movement",
+    "agency.reliability.no_activity": "No recent message activity in this period.",
+    "agency.reliability.empty_desc": "Adjust the filters or wait for activity to start seeing channel metrics.",
+    "agency.reliability.alerts_24h": "not sent 24h",
+    "agency.reliability.reconnects_short": "sent",
+    "agency.reliability.alerts_short": "not sent",
+    "agency.reliability.chart_axes": "Hour vs message count",
+    "agency.reliability.account_bars_help": "Higher bar = more messages in that account",
+    "agency.reliability.all_good_desc": "There are no accounts with movement in this filter yet.",
+    "agency.reliability.recent_movement": "Each bar compares where more sends or failures happened today.",
+    "agency.reliability.sent_24h": "Sent 24h",
+    "agency.reliability.failed_24h": "Not sent 24h",
+    "agency.reliability.sent_label": "Sent messages",
+    "agency.reliability.failed_label": "Not sent",
+    "agency.reliability.sent_short": "sent",
+    "agency.reliability.failed_short": "not sent"
 };
 

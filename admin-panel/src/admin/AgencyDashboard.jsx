@@ -22,7 +22,7 @@ import {
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
     Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Hammer,
     Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare, Loader2, X,
-    Activity, AlertTriangle // ✅ Iconos
+    Activity, AlertTriangle, Send // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -190,7 +190,8 @@ export default function AgencyDashboard({ token, onLogout }) {
         activeAccounts: 0,
         periodHours: 24,
         timeline: [],
-        recentSignals: []
+        totals: {},
+        accountActivity: []
     });
     const [reliabilityLoading, setReliabilityLoading] = useState(false);
     const [reliabilityLastUpdated, setReliabilityLastUpdated] = useState(null);
@@ -328,7 +329,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         silent = false
     } = {}) => {
         if (!agencyId) {
-            setReliabilityOverview({ activeAccounts: 0, periodHours: 24, timeline: [], recentSignals: [] });
+            setReliabilityOverview({ activeAccounts: 0, periodHours: 24, timeline: [], totals: {}, accountActivity: [] });
             setReliabilityLastUpdated(null);
             return;
         }
@@ -347,12 +348,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                 activeAccounts: Number.parseInt(data?.active_accounts, 10) || 0,
                 periodHours: Number.parseInt(data?.period_hours, 10) || 24,
                 timeline: Array.isArray(data?.timeline) ? data.timeline : [],
-                recentSignals: Array.isArray(data?.recent_signals) ? data.recent_signals : []
+                totals: (data?.totals && typeof data.totals === 'object') ? data.totals : {},
+                accountActivity: Array.isArray(data?.account_activity) ? data.account_activity : []
             });
             setReliabilityLastUpdated(new Date().toISOString());
         } catch (error) {
             console.error("Error cargando resumen de confiabilidad", error);
-            setReliabilityOverview({ activeAccounts: 0, periodHours: 24, timeline: [], recentSignals: [] });
+            setReliabilityOverview({ activeAccounts: 0, periodHours: 24, timeline: [], totals: {}, accountActivity: [] });
         } finally {
             if (!silent) setReliabilityLoading(false);
         }
@@ -1887,48 +1889,14 @@ export default function AgencyDashboard({ token, onLogout }) {
         { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: activeLocationRows.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
     ];
     const reliabilityBaseCards = filteredLocationCards.filter((entry) => entry.connectedSlotCount > 0);
-    const reliabilityLocationCards = [...reliabilityBaseCards].sort((a, b) => {
-        const statusDiff = getHealthPriority(a.healthStatus) - getHealthPriority(b.healthStatus);
-        if (statusDiff !== 0) return statusDiff;
-        if (b.reconnects24h !== a.reconnects24h) return b.reconnects24h - a.reconnects24h;
-
-        const aIncidentMs = a.lastIncident?.created_at ? new Date(a.lastIncident.created_at).getTime() : 0;
-        const bIncidentMs = b.lastIncident?.created_at ? new Date(b.lastIncident.created_at).getTime() : 0;
-        if (bIncidentMs !== aIncidentMs) return bIncidentMs - aIncidentMs;
-
-        return String(a.loc?.name || "").localeCompare(String(b.loc?.name || ""));
-    });
     const reliabilitySummary = reliabilityBaseCards.reduce((acc, entry) => {
-        acc.totalReconnects24h += entry.reconnects24h;
         acc.connectedSlots += entry.connectedSlotCount;
         acc.totalSlots += entry.totalSlots;
 
-        if (entry.healthStatus === 'healthy') {
-            acc.healthy += 1;
-        } else if (entry.healthStatus === 'attention') {
-            acc.attention += 1;
-        } else {
-            acc.critical += 1;
-        }
-
-        const incidentMs = entry.lastIncident?.created_at ? new Date(entry.lastIncident.created_at).getTime() : Number.NaN;
-        if (Number.isFinite(incidentMs) && (!acc.lastIncidentMs || incidentMs > acc.lastIncidentMs)) {
-            acc.lastIncidentMs = incidentMs;
-            acc.lastIncident = entry.lastIncident;
-            acc.lastIncidentLocation = entry.loc;
-        }
-
         return acc;
     }, {
-        healthy: 0,
-        attention: 0,
-        critical: 0,
-        totalReconnects24h: 0,
         connectedSlots: 0,
-        totalSlots: 0,
-        lastIncident: null,
-        lastIncidentLocation: null,
-        lastIncidentMs: 0
+        totalSlots: 0
     });
     const accountFilterOptions = [
         { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: locations.length },
@@ -1937,52 +1905,38 @@ export default function AgencyDashboard({ token, onLogout }) {
     ];
     const reliabilityTotalAccounts = reliabilityBaseCards.length;
     const reliabilityTimeline = Array.isArray(reliabilityOverview?.timeline) ? reliabilityOverview.timeline : [];
-    const reliabilityRecentSignals = Array.isArray(reliabilityOverview?.recentSignals) ? reliabilityOverview.recentSignals : [];
+    const reliabilityTotals = reliabilityOverview?.totals || {};
+    const accountActivity = Array.isArray(reliabilityOverview?.account_activity)
+        ? reliabilityOverview.account_activity
+        : (Array.isArray(reliabilityOverview?.accountActivity) ? reliabilityOverview.accountActivity : []);
     const timelineSummary = reliabilityTimeline.reduce((acc, item) => {
-        const reconnects = Number(item?.reconnects) || 0;
-        const warnings = Number(item?.warnings) || 0;
-        const logouts = Number(item?.logouts) || 0;
+        const sent = Number(item?.sent) || 0;
+        const failed = Number(item?.failed) || 0;
         const total = Number(item?.total) || 0;
-        acc.reconnects += reconnects;
-        acc.warnings += warnings;
-        acc.logouts += logouts;
+        acc.sent += sent;
+        acc.failed += failed;
         if (total > 0) acc.activeHours += 1;
         return acc;
-    }, { reconnects: 0, warnings: 0, logouts: 0, activeHours: 0 });
+    }, { sent: 0, failed: 0, activeHours: 0 });
     const reliabilityPeriodHours = Number.parseInt(reliabilityOverview?.periodHours, 10) || 24;
-    const recentSignalsByLocation = reliabilityRecentSignals.reduce((acc, signal) => {
-        const locationId = String(signal?.location_id || "").trim();
-        if (locationId && !acc[locationId]) {
-            acc[locationId] = signal;
-        }
-        return acc;
-    }, {});
-    const incidents24h = timelineSummary.warnings + timelineSummary.logouts;
     const reliabilityTrendPoints = reliabilityTimeline.map((point) => ({
         bucketStart: point?.bucket_start,
-        reconnects: Number(point?.reconnects) || 0,
-        incidents: (Number(point?.warnings) || 0) + (Number(point?.logouts) || 0)
+        sent: Number(point?.sent) || 0,
+        failed: Number(point?.failed) || 0
     }));
     const reliabilityTrendMax = reliabilityTrendPoints.reduce(
-        (max, point) => Math.max(max, point.reconnects, point.incidents),
+        (max, point) => Math.max(max, point.sent, point.failed),
         0
     );
-    const accountEventBars = reliabilityLocationCards
-        .map((entry) => {
-            const recentSignal = recentSignalsByLocation[entry.loc.location_id];
-            const incidentWeight = entry.healthStatus === 'critical' ? 2 : entry.healthStatus === 'attention' ? 1 : 0;
-            const totalEvents = entry.reconnects24h + incidentWeight + (recentSignal ? 1 : 0);
-
-            return {
-                locationId: entry.loc.location_id,
-                name: entry.loc?.name || t('agency.location.no_name'),
-                reconnects: entry.reconnects24h,
-                incidents: incidentWeight + (recentSignal ? 1 : 0),
-                totalEvents
-            };
-        })
+    const accountEventBars = accountActivity
+        .map((entry) => ({
+            locationId: entry.location_id,
+            name: entry.location_name || t('agency.location.no_name'),
+            sent: Number(entry.sent) || 0,
+            failed: Number(entry.failed) || 0,
+            totalEvents: Number(entry.total) || ((Number(entry.sent) || 0) + (Number(entry.failed) || 0))
+        }))
         .filter((entry) => entry.totalEvents > 0)
-        .sort((a, b) => b.totalEvents - a.totalEvents || a.name.localeCompare(b.name))
         .slice(0, 8);
     const modalCrmType = String(
         addModalCrmType || onboardingCrmType || agencyCrmType || "ghl"
@@ -2615,7 +2569,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                             {loading && locations.length === 0 ? (
                                 <div className="py-14 text-center text-gray-400">{t('agency.loading_data')}</div>
-                            ) : reliabilityLocationCards.length === 0 ? (
+                            ) : reliabilityTotalAccounts === 0 ? (
                                 <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm py-14 px-6 text-center">
                                     <div className="w-14 h-14 mx-auto rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-400 flex items-center justify-center mb-4">
                                         <Activity size={24} />
@@ -2624,23 +2578,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         {t('agency.reliability.empty_title') || 'No hay cuentas para mostrar'}
                                     </h5>
                                     <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                        {t('agency.reliability.empty_desc') || 'Ajusta los filtros o crea una cuenta para comenzar a monitorizar la salud operativa.'}
+                                        {t('agency.reliability.empty_desc') || 'Ajusta los filtros o espera actividad para empezar a ver métricas del canal.'}
                                     </p>
                                 </div>
                             ) : (
                                 <>
                                     <div className="flex flex-wrap items-center gap-2 text-sm">
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
-                                            <RefreshCw size={14} className="text-blue-500" />
-                                            {timelineSummary.reconnects} {t('agency.reliability.reconnections_24h') || 'Reconexiones 24h'}
+                                            <Send size={14} className="text-blue-500" />
+                                            {Number(reliabilityTotals?.sent_24h) || timelineSummary.sent} {t('agency.reliability.sent_24h') || 'Enviados 24h'}
                                         </span>
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
                                             <AlertTriangle size={14} className="text-amber-500" />
-                                            {incidents24h} {t('agency.reliability.alerts_24h') || 'alertas 24h'}
+                                            {Number(reliabilityTotals?.failed_24h) || timelineSummary.failed} {t('agency.reliability.failed_24h') || 'No enviados 24h'}
                                         </span>
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
                                             <Smartphone size={14} className="text-emerald-500" />
-                                            {reliabilitySummary.connectedSlots}/{reliabilitySummary.totalSlots || 0} {t('agency.reliability.online_slots') || 'slots en línea'}
+                                            {(Number(reliabilityTotals?.connected_slots) || reliabilitySummary.connectedSlots)}/{(Number(reliabilityTotals?.total_slots) || reliabilitySummary.totalSlots || 0)} {t('agency.reliability.online_slots') || 'slots en línea'}
                                         </span>
                                     </div>
 
@@ -2648,14 +2602,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                                             <div>
                                                 <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                    {t('agency.reliability.activity_24h') || 'Estabilidad en las últimas 24 horas'}
+                                                    {t('agency.reliability.activity_24h') || 'Mensajes en las últimas 24 horas'}
                                                 </h4>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    {t('agency.reliability.activity_24h_desc') || 'La línea azul muestra reconexiones automáticas. La línea ámbar muestra alertas o cierres de sesión.'}
+                                                    {t('agency.reliability.activity_24h_desc') || 'La línea azul muestra mensajes enviados. La línea ámbar muestra mensajes que no pudieron salir.'}
                                                 </p>
                                             </div>
                                             <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                {t('agency.reliability.chart_axes') || 'Hora vs cantidad de eventos'}
+                                                {t('agency.reliability.chart_axes') || 'Hora vs cantidad de mensajes'}
                                             </p>
                                         </div>
 
@@ -2663,9 +2617,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <ReliabilityLineChart
                                                 data={reliabilityTrendPoints}
                                                 maxValue={reliabilityTrendMax}
-                                                emptyLabel={t('agency.reliability.no_activity') || 'Sin actividad operativa reciente.'}
-                                                reconnectLabel={t('agency.reliability.signal_reconnect_title') || 'Reconexión automática'}
-                                                incidentLabel={t('agency.reliability.alerts_24h') || 'Alertas 24h'}
+                                                emptyLabel={t('agency.reliability.no_activity') || 'Sin mensajes recientes en este periodo.'}
+                                                reconnectLabel={t('agency.reliability.sent_label') || 'Mensajes enviados'}
+                                                incidentLabel={t('agency.reliability.failed_label') || 'No enviados'}
                                             />
                                         </div>
                                     </div>
@@ -2674,15 +2628,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                                             <div>
                                                 <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                    {t('agency.reliability.coverage_by_account') || 'Cuentas con más eventos'}
+                                                    {t('agency.reliability.coverage_by_account') || 'Cuentas con más movimiento'}
                                                 </h4>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    {t('agency.reliability.recent_movement') || 'Cada barra compara en qué cuenta se concentraron más eventos hoy.'}
+                                                    {t('agency.reliability.recent_movement') || 'Cada barra compara dónde hubo más envíos o fallos hoy.'}
                                                 </p>
                                             </div>
                                             {accountEventBars.length > 0 && (
                                                 <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                    {t('agency.reliability.account_bars_help') || 'Más alto = más eventos en esa cuenta'}
+                                                    {t('agency.reliability.account_bars_help') || 'Más alto = más mensajes en esa cuenta'}
                                                 </p>
                                             )}
                                         </div>
@@ -2690,9 +2644,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <div className="mt-5">
                                             <ReliabilityAccountBars
                                                 data={accountEventBars}
-                                                emptyLabel={t('agency.reliability.all_good_desc') || 'No hay cuentas que requieran revisión en este filtro.'}
-                                                reconnectText={t('agency.reliability.reconnects_short') || 'reconexiones'}
-                                                alertText={t('agency.reliability.alerts_short') || 'alertas'}
+                                                emptyLabel={t('agency.reliability.all_good_desc') || 'Aún no hay cuentas con movimiento en este filtro.'}
+                                                reconnectText={t('agency.reliability.sent_short') || 'enviados'}
+                                                alertText={t('agency.reliability.failed_short') || 'no enviados'}
                                             />
                                         </div>
                                     </div>
@@ -3821,7 +3775,7 @@ const SidebarItem = ({ id, icon: Icon, label, activeTab, setActiveTab, branding,
 );
 
 const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, incidentLabel }) => {
-    if (!Array.isArray(data) || data.length === 0 || !data.some((item) => Number(item?.reconnects) > 0 || Number(item?.incidents) > 0)) {
+    if (!Array.isArray(data) || data.length === 0 || !data.some((item) => Number(item?.sent) > 0 || Number(item?.failed) > 0)) {
         return (
             <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-5 text-sm text-gray-500 dark:text-gray-400">
                 {emptyLabel}
@@ -3836,6 +3790,15 @@ const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, inci
     const chartHeight = height - padding.top - padding.bottom;
     const safeMax = Math.max(1, Number(maxValue) || 1);
     const stepX = data.length > 1 ? chartWidth / (data.length - 1) : chartWidth;
+    const yTickStep = safeMax <= 6 ? 1 : Math.ceil(safeMax / 5);
+    const yTickValues = [];
+
+    for (let tick = safeMax; tick >= 0; tick -= yTickStep) {
+        yTickValues.push(tick);
+    }
+    if (yTickValues[yTickValues.length - 1] !== 0) {
+        yTickValues.push(0);
+    }
 
     const buildPath = (selector) => data.map((point, index) => {
         const rawValue = Number(selector(point)) || 0;
@@ -3844,19 +3807,18 @@ const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, inci
         return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
     }).join(' ');
 
-    const reconnectPath = buildPath((point) => point?.reconnects);
-    const incidentPath = buildPath((point) => point?.incidents);
+    const reconnectPath = buildPath((point) => point?.sent);
+    const incidentPath = buildPath((point) => point?.failed);
 
     return (
         <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
             <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
-                {[0, 1, 2, 3, 4].map((step) => {
-                    const y = padding.top + ((chartHeight / 4) * step);
-                    const labelValue = Math.round(safeMax - ((safeMax / 4) * step));
+                {yTickValues.map((tickValue) => {
+                    const y = padding.top + chartHeight - ((tickValue / safeMax) * chartHeight);
                     return (
-                        <g key={`grid-${step}`}>
+                        <g key={`grid-${tickValue}`}>
                             <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="currentColor" className="text-gray-200 dark:text-gray-800" strokeDasharray="3 5" />
-                            <text x={padding.left - 10} y={y + 4} textAnchor="end" className="fill-gray-400 text-[10px]">{labelValue}</text>
+                            <text x={padding.left - 10} y={y + 4} textAnchor="end" className="fill-gray-400 text-[10px]">{tickValue}</text>
                         </g>
                     );
                 })}
@@ -3866,8 +3828,8 @@ const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, inci
 
                 {data.map((point, index) => {
                     const x = padding.left + (index * stepX);
-                    const reconnectY = padding.top + chartHeight - (((Number(point?.reconnects) || 0) / safeMax) * chartHeight);
-                    const incidentY = padding.top + chartHeight - (((Number(point?.incidents) || 0) / safeMax) * chartHeight);
+                    const reconnectY = padding.top + chartHeight - (((Number(point?.sent) || 0) / safeMax) * chartHeight);
+                    const incidentY = padding.top + chartHeight - (((Number(point?.failed) || 0) / safeMax) * chartHeight);
                     const showTick = index % 6 === 0 || index === data.length - 1;
 
                     return (
@@ -3912,7 +3874,7 @@ const ReliabilityAccountBars = ({ data, emptyLabel, reconnectText, alertText }) 
                         <div className="min-w-0">
                             <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{item.name}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {item.reconnects} {reconnectText} · {item.incidents} {alertText}
+                                {item.sent} {reconnectText} · {item.failed} {alertText}
                             </p>
                         </div>
                         <div className="h-3 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
