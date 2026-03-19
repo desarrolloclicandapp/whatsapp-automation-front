@@ -1782,7 +1782,14 @@ export default function AgencyDashboard({ token, onLogout }) {
         loc,
         ...getLocationRuntimeMeta(loc)
     }));
-    const reliabilityLocationCards = [...filteredLocationCards].sort((a, b) => {
+    const activeLocationRows = locations.filter((loc) => (Number.parseInt(loc?.connected_slot_count, 10) || 0) > 0);
+    const reliabilityFilterOptions = [
+        { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: activeLocationRows.length },
+        { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: activeLocationRows.filter(l => resolveTenantCrmType(l) === 'ghl').length },
+        { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: activeLocationRows.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
+    ];
+    const reliabilityBaseCards = filteredLocationCards.filter((entry) => entry.connectedSlotCount > 0);
+    const reliabilityLocationCards = [...reliabilityBaseCards].sort((a, b) => {
         const statusDiff = getHealthPriority(a.healthStatus) - getHealthPriority(b.healthStatus);
         if (statusDiff !== 0) return statusDiff;
         if (b.reconnects24h !== a.reconnects24h) return b.reconnects24h - a.reconnects24h;
@@ -1793,7 +1800,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
         return String(a.loc?.name || "").localeCompare(String(b.loc?.name || ""));
     });
-    const reliabilitySummary = filteredLocationCards.reduce((acc, entry) => {
+    const reliabilitySummary = reliabilityBaseCards.reduce((acc, entry) => {
         acc.totalReconnects24h += entry.reconnects24h;
         acc.connectedSlots += entry.connectedSlotCount;
         acc.totalSlots += entry.totalSlots;
@@ -1830,9 +1837,9 @@ export default function AgencyDashboard({ token, onLogout }) {
         { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: locations.filter(l => resolveTenantCrmType(l) === 'ghl').length },
         { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
     ];
-    const reliabilityTotalAccounts = filteredLocationCards.length;
+    const reliabilityTotalAccounts = reliabilityBaseCards.length;
     const reliabilityHealthScore = reliabilityTotalAccounts
-        ? Math.round(((reliabilitySummary.healthy * 100) + (reliabilitySummary.attention * 55) + (reliabilitySummary.critical * 20)) / reliabilityTotalAccounts)
+        ? Math.round((reliabilitySummary.healthy / reliabilityTotalAccounts) * 100)
         : 0;
     const slotCoveragePercent = reliabilitySummary.totalSlots
         ? Math.round((reliabilitySummary.connectedSlots / reliabilitySummary.totalSlots) * 100)
@@ -2436,19 +2443,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <div className="relative p-6 md:p-7">
                                     <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                                         <div className="max-w-2xl">
-                                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 text-xs font-semibold border border-indigo-100 dark:border-indigo-800/50">
-                                                <Activity size={14} />
-                                                {t('dash.nav.reliability') || 'Confiabilidad'}
-                                            </div>
-                                            <h3 className="mt-4 text-2xl font-bold text-gray-900 dark:text-white">
-                                                {t('agency.reliability.title') || 'Confiabilidad'}
-                                            </h3>
+                                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                                {t('agency.reliability.active_only_note') || 'Solo se muestran cuentas con números activos.'}
+                                            </p>
                                             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                                {t('agency.reliability.subtitle') || 'Consulta aqui la salud operativa de cada cuenta sin recargar el panel principal del cliente.'}
+                                                {t('agency.reliability.subtitle_short') || 'Monitorea salud, cobertura e incidentes recientes desde un solo lugar.'}
                                             </p>
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2">
-                                            {accountFilterOptions.map(tab => (
+                                            {reliabilityFilterOptions.map(tab => (
                                                 <button
                                                     key={`reliability-hero-${tab.id}`}
                                                     onClick={() => setAccountsFilter(tab.id)}
@@ -2484,7 +2487,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold text-gray-600 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-600 transition disabled:opacity-50"
                                             >
                                                 <RefreshCw size={16} className={loading || isAutoSyncing ? "animate-spin" : ""} />
-                                                {t('agency.refresh') || 'Actualizar'}
+                                                {t('agency.refresh')}
                                             </button>
                                         </div>
                                     </div>

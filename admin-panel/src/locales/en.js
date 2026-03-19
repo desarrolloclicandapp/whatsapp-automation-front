@@ -761,6 +761,8 @@ export const en = {
     "agency.reliability.blocked": "Blocked",
     "agency.reliability.title": "Reliability",
     "agency.reliability.subtitle": "Review each account's operational health here without cluttering the main client dashboard.",
+    "agency.reliability.subtitle_short": "Monitor health, coverage and recent incidents from a single place.",
+    "agency.reliability.active_only_note": "Only accounts with active numbers are shown here.",
     "agency.reliability.online_slots": "Online slots",
     "agency.reliability.reconnections_24h": "Reconnects 24h",
     "agency.reliability.last_incident": "Last incident",
@@ -785,6 +787,7 @@ export const en = {
     "agency.reliability.no_stable": "There are no fully stable accounts yet in this filter.",
     "agency.reliability.empty_title": "No accounts to display",
     "agency.reliability.empty_desc": "Adjust the filters or create an account to start monitoring operational health.",
+    "agency.refresh": "Refresh",
     "agency.location.empty_title": "Available Slot",
     "agency.location.empty_desc": "You have a license to connect a new subaccount.",
 

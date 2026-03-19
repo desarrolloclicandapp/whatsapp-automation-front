@@ -759,6 +759,8 @@ export const es = {
     "agency.reliability.blocked": "Bloqueada",
     "agency.reliability.title": "Confiabilidad",
     "agency.reliability.subtitle": "Consulta aqui la salud operativa de cada cuenta sin recargar el panel principal del cliente.",
+    "agency.reliability.subtitle_short": "Monitorea salud, cobertura e incidentes recientes desde un solo lugar.",
+    "agency.reliability.active_only_note": "Solo se muestran cuentas con números activos.",
     "agency.reliability.online_slots": "Slots en línea",
     "agency.reliability.reconnections_24h": "Reconexiones 24h",
     "agency.reliability.last_incident": "Último incidente",
@@ -783,6 +785,7 @@ export const es = {
     "agency.reliability.no_stable": "Aún no hay cuentas completamente estables en este filtro.",
     "agency.reliability.empty_title": "No hay cuentas para mostrar",
     "agency.reliability.empty_desc": "Ajusta los filtros o crea una cuenta para comenzar a monitorizar la salud operativa.",
+    "agency.refresh": "Actualizar",
     "agency.location.empty_title": "Espacio Disponible",
     "agency.location.empty_desc": "Tienes licencia para conectar una nueva subagencia.",
 
