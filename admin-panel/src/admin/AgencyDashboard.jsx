@@ -169,37 +169,6 @@ function formatTimelineHour(value) {
     return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function getSignalCopy(signal, t) {
-    const kind = String(signal?.kind || "").toLowerCase();
-    switch (kind) {
-        case "reconnect":
-            return {
-                title: t('agency.reliability.signal_reconnect_title') || 'Reconexión automática',
-                detail: t('agency.reliability.signal_reconnect_detail') || 'El sistema detectó inestabilidad y restableció la conexión.'
-            };
-        case "logout":
-            return {
-                title: t('agency.reliability.signal_logout_title') || 'Sesión cerrada',
-                detail: t('agency.reliability.signal_logout_detail') || 'La sesión se cerró y puede requerir revisión.'
-            };
-        case "stability":
-            return {
-                title: t('agency.reliability.signal_stability_title') || 'Alerta de estabilidad',
-                detail: t('agency.reliability.signal_stability_detail') || 'Se detectó una señal de inestabilidad en la operación.'
-            };
-        case "connectivity":
-            return {
-                title: t('agency.reliability.signal_connectivity_title') || 'Inestabilidad de conexión',
-                detail: t('agency.reliability.signal_connectivity_detail') || 'Hubo una pérdida temporal de conexión y el sistema respondió.'
-            };
-        default:
-            return {
-                title: t('agency.reliability.signal_operational_title') || 'Evento operativo',
-                detail: t('agency.reliability.signal_operational_detail') || 'Se registró un evento operativo relevante para seguimiento.'
-            };
-    }
-}
-
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
     // ✅ Agregamos loadAgencyBranding para cargar desde server
@@ -1967,22 +1936,8 @@ export default function AgencyDashboard({ token, onLogout }) {
         { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
     ];
     const reliabilityTotalAccounts = reliabilityBaseCards.length;
-    const reliabilityHealthScore = reliabilityTotalAccounts
-        ? Math.round((reliabilitySummary.healthy / reliabilityTotalAccounts) * 100)
-        : 0;
-    const slotCoveragePercent = reliabilitySummary.totalSlots
-        ? Math.round((reliabilitySummary.connectedSlots / reliabilitySummary.totalSlots) * 100)
-        : 0;
-    const watchlistCards = reliabilityLocationCards
-        .filter((entry) => entry.healthStatus !== 'healthy' || entry.reconnects24h > 0)
-        .slice(0, 5);
     const reliabilityTimeline = Array.isArray(reliabilityOverview?.timeline) ? reliabilityOverview.timeline : [];
     const reliabilityRecentSignals = Array.isArray(reliabilityOverview?.recentSignals) ? reliabilityOverview.recentSignals : [];
-    const timelineMaxTotal = reliabilityTimeline.reduce((max, item) => Math.max(max, Number(item?.total) || 0), 0);
-    const accountsToReviewCount = watchlistCards.length;
-    const reviewSharePercent = reliabilityTotalAccounts
-        ? Math.round((accountsToReviewCount / reliabilityTotalAccounts) * 100)
-        : 0;
     const timelineSummary = reliabilityTimeline.reduce((acc, item) => {
         const reconnects = Number(item?.reconnects) || 0;
         const warnings = Number(item?.warnings) || 0;
@@ -1995,7 +1950,6 @@ export default function AgencyDashboard({ token, onLogout }) {
         return acc;
     }, { reconnects: 0, warnings: 0, logouts: 0, activeHours: 0 });
     const reliabilityPeriodHours = Number.parseInt(reliabilityOverview?.periodHours, 10) || 24;
-    const quietHours = Math.max(0, reliabilityPeriodHours - timelineSummary.activeHours);
     const recentSignalsByLocation = reliabilityRecentSignals.reduce((acc, signal) => {
         const locationId = String(signal?.location_id || "").trim();
         if (locationId && !acc[locationId]) {
@@ -2003,6 +1957,33 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
         return acc;
     }, {});
+    const incidents24h = timelineSummary.warnings + timelineSummary.logouts;
+    const reliabilityTrendPoints = reliabilityTimeline.map((point) => ({
+        bucketStart: point?.bucket_start,
+        reconnects: Number(point?.reconnects) || 0,
+        incidents: (Number(point?.warnings) || 0) + (Number(point?.logouts) || 0)
+    }));
+    const reliabilityTrendMax = reliabilityTrendPoints.reduce(
+        (max, point) => Math.max(max, point.reconnects, point.incidents),
+        0
+    );
+    const accountEventBars = reliabilityLocationCards
+        .map((entry) => {
+            const recentSignal = recentSignalsByLocation[entry.loc.location_id];
+            const incidentWeight = entry.healthStatus === 'critical' ? 2 : entry.healthStatus === 'attention' ? 1 : 0;
+            const totalEvents = entry.reconnects24h + incidentWeight + (recentSignal ? 1 : 0);
+
+            return {
+                locationId: entry.loc.location_id,
+                name: entry.loc?.name || t('agency.location.no_name'),
+                reconnects: entry.reconnects24h,
+                incidents: incidentWeight + (recentSignal ? 1 : 0),
+                totalEvents
+            };
+        })
+        .filter((entry) => entry.totalEvents > 0)
+        .sort((a, b) => b.totalEvents - a.totalEvents || a.name.localeCompare(b.name))
+        .slice(0, 8);
     const modalCrmType = String(
         addModalCrmType || onboardingCrmType || agencyCrmType || "ghl"
     ).toLowerCase();
@@ -2648,193 +2629,71 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             ) : (
                                 <>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                        <ReliabilityMetricCard
-                                            title={t('agency.reliability.health_score') || 'Estado general'}
-                                            value={`${reliabilityHealthScore}%`}
-                                            subtitle={`${reliabilitySummary.healthy}/${reliabilityTotalAccounts || 0} ${t('agency.reliability.accounts_healthy') || 'cuentas estables'}`}
-                                            progress={reliabilityHealthScore}
-                                            icon={ShieldCheck}
-                                            accent="emerald"
-                                        />
-                                        <ReliabilityMetricCard
-                                            title={t('agency.reliability.slot_coverage') || 'Cobertura'}
-                                            value={`${reliabilitySummary.connectedSlots}/${reliabilitySummary.totalSlots || 0}`}
-                                            subtitle={`${slotCoveragePercent}% ${t('agency.reliability.online_slots') || 'slots en línea'}`}
-                                            progress={slotCoveragePercent}
-                                            icon={Smartphone}
-                                            accent="indigo"
-                                        />
-                                        <ReliabilityMetricCard
-                                            title={t('agency.reliability.accounts_watchlist') || 'Qué revisar ahora'}
-                                            value={`${accountsToReviewCount}`}
-                                            subtitle={accountsToReviewCount > 0
-                                                ? `${reviewSharePercent}% ${t('agency.reliability.accounts_under_watch') || 'cuentas bajo seguimiento'}`
-                                                : (t('agency.reliability.all_good_desc') || 'No hay cuentas que requieran revisión en este filtro.')}
-                                            progress={reviewSharePercent}
-                                            icon={AlertTriangle}
-                                            accent={accountsToReviewCount > 0 ? 'amber' : 'emerald'}
-                                        />
+                                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                                        <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
+                                            <RefreshCw size={14} className="text-blue-500" />
+                                            {timelineSummary.reconnects} {t('agency.reliability.reconnections_24h') || 'Reconexiones 24h'}
+                                        </span>
+                                        <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
+                                            <AlertTriangle size={14} className="text-amber-500" />
+                                            {incidents24h} {t('agency.reliability.alerts_24h') || 'alertas 24h'}
+                                        </span>
+                                        <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
+                                            <Smartphone size={14} className="text-emerald-500" />
+                                            {reliabilitySummary.connectedSlots}/{reliabilitySummary.totalSlots || 0} {t('agency.reliability.online_slots') || 'slots en línea'}
+                                        </span>
                                     </div>
 
-                                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_360px] gap-6">
-                                        <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
-                                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                                <div>
-                                                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                        {t('agency.reliability.activity_24h') || 'Actividad de las últimas 24 horas'}
-                                                    </h4>
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                        {t('agency.reliability.activity_24h_desc') || 'Cada barra muestra cuándo hubo reconexiones o cierres. Si no hay barras, tu operación estuvo tranquila.'}
-                                                    </p>
-                                                </div>
-                                                <div className="grid grid-cols-3 gap-2 text-center">
-                                                    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 px-3 py-2">
-                                                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{t('agency.reliability.quiet_hours') || 'Horas tranquilas'}</p>
-                                                        <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{quietHours}</p>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 px-3 py-2">
-                                                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{t('agency.reliability.active_hours') || 'Horas con movimiento'}</p>
-                                                        <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{timelineSummary.activeHours}</p>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 px-3 py-2">
-                                                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{t('agency.reliability.session_closures') || 'Cierres de sesión'}</p>
-                                                        <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{timelineSummary.logouts}</p>
-                                                    </div>
-                                                </div>
+                                    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
+                                        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                                            <div>
+                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                    {t('agency.reliability.activity_24h') || 'Actividad de las últimas 24 horas'}
+                                                </h4>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                    {t('agency.reliability.activity_24h_desc') || 'Cada barra muestra cuándo hubo reconexiones o cierres. Si no hay barras, tu operación estuvo tranquila.'}
+                                                </p>
                                             </div>
-
-                                            <div className="mt-5">
-                                                <TimelineBarsChart
-                                                    data={reliabilityTimeline}
-                                                    maxTotal={timelineMaxTotal}
-                                                    emptyLabel={t('agency.reliability.no_activity') || 'Sin actividad operativa reciente.'}
-                                                    legendReconnect={t('agency.reliability.signal_reconnect_title') || 'Reconexión automática'}
-                                                    legendInstability={t('agency.reliability.signal_connectivity_title') || 'Inestabilidad de conexión'}
-                                                    legendLogout={t('agency.reliability.signal_logout_title') || 'Sesión cerrada'}
-                                                />
-                                            </div>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                X = hora · Y = eventos
+                                            </p>
                                         </div>
 
-                                        <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
-                                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                {t('agency.reliability.accounts_watchlist') || 'Qué revisar ahora'}
-                                            </h4>
-                                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                                {t('agency.reliability.recent_signals') || 'Cuentas que hoy merecen seguimiento.'}
-                                            </p>
-                                            <div className="mt-4 space-y-3">
-                                                {watchlistCards.length === 0 ? (
-                                                    <div className="rounded-2xl border border-dashed border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-900/10 p-4">
-                                                        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                                                            {t('agency.reliability.all_good_title') || 'Todo estable'}
-                                                        </p>
-                                                        <p className="mt-1 text-sm text-emerald-600/90 dark:text-emerald-200/80">
-                                                            {t('agency.reliability.all_good_desc') || 'No hay cuentas que requieran revisión en este filtro.'}
-                                                        </p>
-                                                    </div>
-                                                ) : watchlistCards.map(({ loc, reconnects24h, healthStatus, connectedSlotCount, totalSlots, lastIncident }) => {
-                                                    const recentSignal = recentSignalsByLocation[loc.location_id];
-                                                    const signalCopy = recentSignal ? getSignalCopy(recentSignal, t) : null;
-                                                    return (
-                                                        <div key={`watch-${loc.location_id}`} className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
-                                                            <div className="flex items-start justify-between gap-3">
-                                                                <div className="min-w-0">
-                                                                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{loc.name || t('agency.location.no_name')}</p>
-                                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                                        {connectedSlotCount}/{totalSlots || 0} {t('agency.reliability.online_slots') || 'slots en línea'} · {reconnects24h} {t('agency.reliability.reconnections_24h') || 'reconexiones 24h'}
-                                                                    </p>
-                                                                    <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-                                                                        {signalCopy?.title || (t('agency.reliability.last_incident') || 'Último incidente')} · {recentSignal?.created_at
-                                                                            ? formatRelativeTime(recentSignal.created_at)
-                                                                            : lastIncident?.created_at
-                                                                                ? formatRelativeTime(lastIncident.created_at)
-                                                                                : (t('agency.reliability.none_short') || 'Sin incidentes')}
-                                                                    </p>
-                                                                </div>
-                                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border shrink-0 ${getHealthTone(healthStatus)}`}>
-                                                                    {t(`agency.reliability.${healthStatus}`) || healthStatus}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
+                                        <div className="mt-5">
+                                            <ReliabilityLineChart
+                                                data={reliabilityTrendPoints}
+                                                maxValue={reliabilityTrendMax}
+                                                emptyLabel={t('agency.reliability.no_activity') || 'Sin actividad operativa reciente.'}
+                                                reconnectLabel={t('agency.reliability.signal_reconnect_title') || 'Reconexión automática'}
+                                                incidentLabel={t('agency.reliability.alerts_24h') || 'Alertas 24h'}
+                                            />
                                         </div>
                                     </div>
 
                                     <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
-                                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                                             <div>
                                                 <h4 className="text-lg font-bold text-gray-900 dark:text-white">
                                                     {t('agency.reliability.coverage_by_account') || 'Resumen por cuenta'}
                                                 </h4>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    {t('agency.reliability.monitor_only_note') || 'Vista de monitoreo. La configuración de cada cuenta sigue estando en el panel principal.'}
+                                                    {t('agency.reliability.recent_movement') || 'Dónde se concentraron más eventos hoy.'}
                                                 </p>
                                             </div>
+                                            {accountEventBars.length > 0 && (
+                                                <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                    Más alto = más eventos hoy
+                                                </p>
+                                            )}
                                         </div>
 
-                                        <div className="mt-5 space-y-4">
-                                            {reliabilityLocationCards.map(({ loc, totalSlots, connectedSlotCount, reconnects24h, connectedNumbers, healthStatus, lastIncident, connectedPreview, remainingConnected }) => {
-                                                const coveragePercent = totalSlots ? Math.round((connectedSlotCount / totalSlots) * 100) : 0;
-                                                const recentSignal = recentSignalsByLocation[loc.location_id];
-                                                const signalCopy = recentSignal ? getSignalCopy(recentSignal, t) : null;
-
-                                                return (
-                                                    <div key={`coverage-${loc.location_id}`} className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
-                                                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                                            <div className="min-w-0 flex-1">
-                                                                <div className="flex flex-wrap items-center gap-2">
-                                                                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{loc.name || t('agency.location.no_name')}</p>
-                                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${getHealthTone(healthStatus)}`}>
-                                                                        {t(`agency.reliability.${healthStatus}`) || healthStatus}
-                                                                    </span>
-                                                                </div>
-                                                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                                                    {(t('agency.location.online_numbers') || 'Números en línea')}:{" "}
-                                                                    {connectedNumbers.length > 0
-                                                                        ? connectedPreview.join(' · ') + (remainingConnected > 0 ? ` +${remainingConnected}` : '')
-                                                                        : (t('agency.location.none_online') || 'Sin números en línea')}
-                                                                </p>
-                                                                <div className="mt-4">
-                                                                    <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 mb-2">
-                                                                        <span>{t('agency.reliability.slot_coverage') || 'Cobertura'}</span>
-                                                                        <span className="font-semibold text-gray-700 dark:text-gray-200">{coveragePercent}%</span>
-                                                                    </div>
-                                                                    <div className="h-2.5 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                                                                        <div
-                                                                            className={`h-full rounded-full ${healthStatus === 'healthy' ? 'bg-emerald-500' : healthStatus === 'attention' || healthStatus === 'paused' ? 'bg-amber-500' : 'bg-red-500'}`}
-                                                                            style={{ width: `${coveragePercent}%` }}
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:min-w-[360px]">
-                                                                <div className="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
-                                                                    <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{t('agency.reliability.online_now') || 'En línea ahora'}</p>
-                                                                    <p className="text-sm font-bold text-gray-900 dark:text-white">{connectedSlotCount}/{totalSlots || 0}</p>
-                                                                </div>
-                                                                <div className="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
-                                                                    <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{t('agency.reliability.reconnections_24h') || 'Reconexiones 24h'}</p>
-                                                                    <p className="text-sm font-bold text-gray-900 dark:text-white">{reconnects24h}</p>
-                                                                </div>
-                                                                <div className="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
-                                                                    <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{t('agency.reliability.recent_movement') || 'Último movimiento'}</p>
-                                                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate" title={signalCopy?.detail || lastIncident?.error_message || ''}>
-                                                                        {recentSignal?.created_at
-                                                                            ? `${signalCopy?.title || ''} · ${formatRelativeTime(recentSignal.created_at)}`
-                                                                            : lastIncident?.created_at
-                                                                                ? `${formatRelativeTime(lastIncident.created_at)}`
-                                                                                : (t('agency.reliability.none_short') || 'Sin incidentes')}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                        <div className="mt-5">
+                                            <ReliabilityAccountBars
+                                                data={accountEventBars}
+                                                emptyLabel={t('agency.reliability.all_good_desc') || 'No hay cuentas que requieran revisión en este filtro.'}
+                                                reconnectText={t('agency.reliability.reconnects_short') || 'reconexiones'}
+                                                alertText={t('agency.reliability.alerts_short') || 'alertas'}
+                                            />
                                         </div>
                                     </div>
                                 </>
@@ -3961,45 +3820,8 @@ const SidebarItem = ({ id, icon: Icon, label, activeTab, setActiveTab, branding,
     </button>
 );
 
-const ReliabilityMetricCard = ({ title, value, subtitle, progress = 0, icon: Icon, accent = 'indigo' }) => {
-    const safeProgress = Math.max(0, Math.min(100, Number(progress) || 0));
-    const toneMap = {
-        emerald: {
-            iconWrap: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-            progress: 'bg-emerald-500'
-        },
-        amber: {
-            iconWrap: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-            progress: 'bg-amber-500'
-        },
-        indigo: {
-            iconWrap: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
-            progress: 'bg-indigo-500'
-        }
-    };
-    const tone = toneMap[accent] || toneMap.indigo;
-
-    return (
-        <div className="bg-white dark:bg-gray-900 p-5 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-                <div>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{title}</p>
-                    <p className="mt-3 text-3xl font-extrabold text-gray-900 dark:text-white">{value}</p>
-                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{subtitle}</p>
-                </div>
-                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${tone.iconWrap}`}>
-                    <Icon size={20} />
-                </div>
-            </div>
-            <div className="mt-4 h-2.5 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                <div className={`h-full rounded-full ${tone.progress}`} style={{ width: `${safeProgress}%` }} />
-            </div>
-        </div>
-    );
-};
-
-const TimelineBarsChart = ({ data, maxTotal, emptyLabel, legendReconnect, legendInstability, legendLogout }) => {
-    if (!Array.isArray(data) || data.length === 0 || !data.some((item) => Number(item?.total) > 0)) {
+const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, incidentLabel }) => {
+    if (!Array.isArray(data) || data.length === 0 || !data.some((item) => Number(item?.reconnects) > 0 || Number(item?.incidents) > 0)) {
         return (
             <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-5 text-sm text-gray-500 dark:text-gray-400">
                 {emptyLabel}
@@ -4007,46 +3829,99 @@ const TimelineBarsChart = ({ data, maxTotal, emptyLabel, legendReconnect, legend
         );
     }
 
-    const safeMax = Math.max(1, Number(maxTotal) || 1);
+    const width = 720;
+    const height = 240;
+    const padding = { top: 20, right: 16, bottom: 36, left: 34 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+    const safeMax = Math.max(1, Number(maxValue) || 1);
+    const stepX = data.length > 1 ? chartWidth / (data.length - 1) : chartWidth;
+
+    const buildPath = (selector) => data.map((point, index) => {
+        const rawValue = Number(selector(point)) || 0;
+        const x = padding.left + (index * stepX);
+        const y = padding.top + chartHeight - ((rawValue / safeMax) * chartHeight);
+        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+    }).join(' ');
+
+    const reconnectPath = buildPath((point) => point?.reconnects);
+    const incidentPath = buildPath((point) => point?.incidents);
 
     return (
         <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
-            <div className="h-40 flex items-end gap-1.5">
+            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+                {[0, 1, 2, 3, 4].map((step) => {
+                    const y = padding.top + ((chartHeight / 4) * step);
+                    const labelValue = Math.round(safeMax - ((safeMax / 4) * step));
+                    return (
+                        <g key={`grid-${step}`}>
+                            <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="currentColor" className="text-gray-200 dark:text-gray-800" strokeDasharray="3 5" />
+                            <text x={padding.left - 10} y={y + 4} textAnchor="end" className="fill-gray-400 text-[10px]">{labelValue}</text>
+                        </g>
+                    );
+                })}
+
+                <path d={reconnectPath} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={incidentPath} fill="none" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+
                 {data.map((point, index) => {
-                    const reconnects = Number(point?.reconnects) || 0;
-                    const warnings = Number(point?.warnings) || 0;
-                    const logouts = Number(point?.logouts) || 0;
-                    const total = Number(point?.total) || 0;
-                    const totalHeight = total > 0 ? Math.max(8, Math.round((total / safeMax) * 120)) : 6;
-                    const reconnectHeight = total > 0 ? Math.max(0, Math.round((reconnects / total) * totalHeight)) : 0;
-                    const logoutHeight = total > 0 ? Math.max(0, Math.round((logouts / total) * totalHeight)) : 0;
-                    const warningHeight = Math.max(0, totalHeight - reconnectHeight - logoutHeight);
+                    const x = padding.left + (index * stepX);
+                    const reconnectY = padding.top + chartHeight - (((Number(point?.reconnects) || 0) / safeMax) * chartHeight);
+                    const incidentY = padding.top + chartHeight - (((Number(point?.incidents) || 0) / safeMax) * chartHeight);
                     const showTick = index % 6 === 0 || index === data.length - 1;
 
                     return (
-                        <div key={`${point?.bucket_start || index}`} className="flex-1 min-w-0 flex flex-col items-center gap-2">
-                            <div
-                                className="w-full max-w-[18px] rounded-t-xl overflow-hidden bg-gray-200/70 dark:bg-gray-800/70"
-                                style={{ height: `${totalHeight}px` }}
-                                title={`${formatTimelineHour(point?.bucket_start)} · ${total} evento(s)`}
-                            >
-                                <div className="w-full bg-blue-500/90" style={{ height: `${reconnectHeight}px` }} />
-                                <div className="w-full bg-amber-500/90" style={{ height: `${warningHeight}px` }} />
-                                <div className="w-full bg-red-500/90" style={{ height: `${logoutHeight}px` }} />
-                            </div>
-                            <span className={`text-[10px] ${showTick ? 'text-gray-500 dark:text-gray-400' : 'text-transparent select-none'}`}>
-                                {formatTimelineHour(point?.bucket_start)}
-                            </span>
-                        </div>
+                        <g key={`point-${point?.bucketStart || index}`}>
+                            <circle cx={x} cy={reconnectY} r="3.5" fill="#3b82f6" />
+                            <circle cx={x} cy={incidentY} r="3.5" fill="#f59e0b" />
+                            {showTick && (
+                                <text x={x} y={height - 10} textAnchor="middle" className="fill-gray-400 text-[10px]">
+                                    {formatTimelineHour(point?.bucketStart)}
+                                </text>
+                            )}
+                        </g>
                     );
                 })}
-            </div>
+            </svg>
 
             <div className="mt-4 flex flex-wrap items-center gap-4 text-[11px] text-gray-500 dark:text-gray-400">
-                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> {legendReconnect}</span>
-                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> {legendInstability}</span>
-                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> {legendLogout}</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> {reconnectLabel}</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> {incidentLabel}</span>
             </div>
+        </div>
+    );
+};
+
+const ReliabilityAccountBars = ({ data, emptyLabel, reconnectText, alertText }) => {
+    if (!Array.isArray(data) || data.length === 0) {
+        return (
+            <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-5 text-sm text-gray-500 dark:text-gray-400">
+                {emptyLabel}
+            </div>
+        );
+    }
+
+    const maxValue = Math.max(1, ...data.map((item) => Number(item?.totalEvents) || 0));
+
+    return (
+        <div className="space-y-4">
+            {data.map((item) => {
+                const percent = Math.max(6, Math.round(((Number(item?.totalEvents) || 0) / maxValue) * 100));
+                return (
+                    <div key={item.locationId} className="grid grid-cols-[minmax(0,220px)_1fr_auto] gap-3 items-center">
+                        <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{item.name}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {item.reconnects} {reconnectText} · {item.incidents} {alertText}
+                            </p>
+                        </div>
+                        <div className="h-3 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
+                            <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-amber-500" style={{ width: `${percent}%` }} />
+                        </div>
+                        <span className="text-sm font-bold text-gray-900 dark:text-white">{item.totalEvents}</span>
+                    </div>
+                );
+            })}
         </div>
     );
 };
