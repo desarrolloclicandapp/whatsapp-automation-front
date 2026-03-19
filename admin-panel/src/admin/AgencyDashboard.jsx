@@ -1830,6 +1830,48 @@ export default function AgencyDashboard({ token, onLogout }) {
         { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: locations.filter(l => resolveTenantCrmType(l) === 'ghl').length },
         { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
     ];
+    const reliabilityTotalAccounts = filteredLocationCards.length;
+    const reliabilityHealthScore = reliabilityTotalAccounts
+        ? Math.round(((reliabilitySummary.healthy * 100) + (reliabilitySummary.attention * 55) + (reliabilitySummary.critical * 20)) / reliabilityTotalAccounts)
+        : 0;
+    const slotCoveragePercent = reliabilitySummary.totalSlots
+        ? Math.round((reliabilitySummary.connectedSlots / reliabilitySummary.totalSlots) * 100)
+        : 0;
+    const monitoredSharePercent = reliabilityTotalAccounts
+        ? Math.round(((reliabilitySummary.attention + reliabilitySummary.critical) / reliabilityTotalAccounts) * 100)
+        : 0;
+    const recentIncidentCards = reliabilityLocationCards
+        .filter((entry) => entry.lastIncident?.created_at)
+        .slice(0, 5);
+    const watchlistCards = reliabilityLocationCards
+        .filter((entry) => entry.healthStatus !== 'healthy' || entry.reconnects24h > 0)
+        .slice(0, 5);
+    const stableCards = reliabilityLocationCards
+        .filter((entry) => entry.healthStatus === 'healthy' && entry.reconnects24h === 0)
+        .slice(0, 4);
+    const reliabilitySegments = [
+        {
+            key: 'healthy',
+            label: t('agency.reliability.healthy') || 'Sana',
+            count: reliabilitySummary.healthy,
+            percentage: reliabilityTotalAccounts ? Math.round((reliabilitySummary.healthy / reliabilityTotalAccounts) * 100) : 0,
+            barClass: 'bg-emerald-500'
+        },
+        {
+            key: 'attention',
+            label: t('agency.reliability.attention') || 'Con atención',
+            count: reliabilitySummary.attention,
+            percentage: reliabilityTotalAccounts ? Math.round((reliabilitySummary.attention / reliabilityTotalAccounts) * 100) : 0,
+            barClass: 'bg-amber-500'
+        },
+        {
+            key: 'critical',
+            label: t('agency.reliability.critical') || 'Crítica',
+            count: reliabilitySummary.critical,
+            percentage: reliabilityTotalAccounts ? Math.round((reliabilitySummary.critical / reliabilityTotalAccounts) * 100) : 0,
+            barClass: 'bg-red-500'
+        }
+    ];
     const modalCrmType = String(
         addModalCrmType || onboardingCrmType || agencyCrmType || "ghl"
     ).toLowerCase();
@@ -2388,6 +2430,302 @@ export default function AgencyDashboard({ token, onLogout }) {
                     )}
 
                     {activeTab === 'reliability' && (
+                        <div className="max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-right-4 space-y-6">
+                            <div className="relative overflow-hidden rounded-3xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
+                                <div className="absolute inset-y-0 right-0 w-56 bg-gradient-to-l from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
+                                <div className="relative p-6 md:p-7">
+                                    <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                                        <div className="max-w-2xl">
+                                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 text-xs font-semibold border border-indigo-100 dark:border-indigo-800/50">
+                                                <Activity size={14} />
+                                                {t('dash.nav.reliability') || 'Confiabilidad'}
+                                            </div>
+                                            <h3 className="mt-4 text-2xl font-bold text-gray-900 dark:text-white">
+                                                {t('agency.reliability.title') || 'Confiabilidad'}
+                                            </h3>
+                                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                                {t('agency.reliability.subtitle') || 'Consulta aqui la salud operativa de cada cuenta sin recargar el panel principal del cliente.'}
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {accountFilterOptions.map(tab => (
+                                                <button
+                                                    key={`reliability-hero-${tab.id}`}
+                                                    onClick={() => setAccountsFilter(tab.id)}
+                                                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                                                        accountsFilter === tab.id
+                                                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800 shadow-sm'
+                                                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800 dark:hover:border-gray-700'
+                                                    }`}
+                                                >
+                                                    {tab.icon && <tab.icon size={13} />}
+                                                    {tab.label}
+                                                    <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                                                        accountsFilter === tab.id
+                                                            ? 'bg-indigo-200/60 text-indigo-800 dark:bg-indigo-800/40 dark:text-indigo-200'
+                                                            : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
+                                                    }`}>{tab.count}</span>
+                                                </button>
+                                            ))}
+                                            <div className="relative">
+                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                                <input
+                                                    type="text"
+                                                    autoComplete="off"
+                                                    placeholder={t('agency.onboarding.search_accounts') || 'Buscar cuentas...'}
+                                                    className="pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white w-44 focus:w-56 transition-all"
+                                                    value={searchTerm}
+                                                    onChange={e => setSearchTerm(e.target.value)}
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={refreshData}
+                                                disabled={isAutoSyncing}
+                                                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold text-gray-600 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-600 transition disabled:opacity-50"
+                                            >
+                                                <RefreshCw size={16} className={loading || isAutoSyncing ? "animate-spin" : ""} />
+                                                {t('agency.refresh') || 'Actualizar'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                        <CircularGaugeCard
+                                            title={t('agency.reliability.health_score') || 'Salud global'}
+                                            value={reliabilityHealthScore}
+                                            displayValue={`${reliabilityHealthScore}%`}
+                                            subtitle={`${reliabilitySummary.healthy}/${reliabilityTotalAccounts || 0} ${t('agency.reliability.accounts_healthy') || 'cuentas sanas'}`}
+                                            accent="#10b981"
+                                        />
+                                        <CircularGaugeCard
+                                            title={t('agency.reliability.slot_coverage') || 'Cobertura de slots'}
+                                            value={slotCoveragePercent}
+                                            displayValue={`${slotCoveragePercent}%`}
+                                            subtitle={`${reliabilitySummary.connectedSlots}/${reliabilitySummary.totalSlots || 0} ${t('agency.reliability.online_slots') || 'slots en línea'}`}
+                                            accent="#4f46e5"
+                                        />
+                                        <CircularGaugeCard
+                                            title={t('agency.reliability.accounts_under_watch') || 'Cuentas bajo observación'}
+                                            value={monitoredSharePercent}
+                                            displayValue={`${monitoredSharePercent}%`}
+                                            subtitle={`${reliabilitySummary.attention + reliabilitySummary.critical} ${t('agency.reliability.observed_accounts') || 'cuentas observadas'}`}
+                                            accent="#f59e0b"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {loading && locations.length === 0 ? (
+                                <div className="py-14 text-center text-gray-400">{t('agency.loading_data')}</div>
+                            ) : reliabilityLocationCards.length === 0 ? (
+                                <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm py-14 px-6 text-center">
+                                    <div className="w-14 h-14 mx-auto rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-400 flex items-center justify-center mb-4">
+                                        <Activity size={24} />
+                                    </div>
+                                    <h5 className="text-base font-bold text-gray-900 dark:text-white">
+                                        {t('agency.reliability.empty_title') || 'No hay cuentas para mostrar'}
+                                    </h5>
+                                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                        {t('agency.reliability.empty_desc') || 'Ajusta los filtros o crea una cuenta para comenzar a monitorizar la salud operativa.'}
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_360px] gap-6">
+                                        <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
+                                            <div className="flex items-start justify-between gap-4 mb-5">
+                                                <div>
+                                                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                        {t('agency.reliability.operational_distribution') || 'Distribución operativa'}
+                                                    </h4>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                        {t('agency.reliability.total_accounts') || 'Total de cuentas'}: {reliabilityTotalAccounts}
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-xs uppercase tracking-wider text-gray-400">{t('agency.reliability.reconnections_24h') || 'Reconexiones 24h'}</p>
+                                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{reliabilitySummary.totalReconnects24h}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="h-4 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 flex">
+                                                {reliabilitySegments.map((segment) => (
+                                                    <div
+                                                        key={segment.key}
+                                                        className={segment.barClass}
+                                                        style={{ width: `${segment.percentage}%` }}
+                                                        title={`${segment.label}: ${segment.count}`}
+                                                    />
+                                                ))}
+                                            </div>
+
+                                            <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                {reliabilitySegments.map((segment) => (
+                                                    <div key={`segment-${segment.key}`} className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/40 p-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`w-2.5 h-2.5 rounded-full ${segment.barClass}`} />
+                                                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{segment.label}</p>
+                                                        </div>
+                                                        <p className="mt-3 text-2xl font-bold text-gray-900 dark:text-white">{segment.count}</p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{segment.percentage}%</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
+                                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                {t('agency.reliability.recent_signals') || 'Señales recientes'}
+                                            </h4>
+                                            <div className="mt-5 space-y-3">
+                                                {recentIncidentCards.length === 0 ? (
+                                                    <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-5 text-sm text-gray-500 dark:text-gray-400">
+                                                        {t('agency.reliability.no_signals') || 'No hay incidentes recientes en las cuentas filtradas.'}
+                                                    </div>
+                                                ) : recentIncidentCards.map(({ loc, lastIncident, healthStatus }) => (
+                                                    <div key={`incident-${loc.location_id}`} className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{loc.name || t('agency.location.no_name')}</p>
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                    {lastIncident?.error_code ? `${lastIncident.error_code} · ` : ''}{formatRelativeTime(lastIncident?.created_at)}
+                                                                </p>
+                                                            </div>
+                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border shrink-0 ${getHealthTone(healthStatus)}`}>
+                                                                {t(`agency.reliability.${healthStatus}`) || healthStatus}
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                                                            {lastIncident?.error_message || t('agency.reliability.none_short') || 'Sin incidentes'}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_360px] gap-6">
+                                        <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
+                                            <div className="flex items-start justify-between gap-4 mb-5">
+                                                <div>
+                                                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                        {t('agency.reliability.coverage_by_account') || 'Cobertura por cuenta'}
+                                                    </h4>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                        {t('agency.reliability.monitor_only_note') || 'Vista de monitoreo. La configuración de cada cuenta sigue estando en el panel principal.'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                {reliabilityLocationCards.map(({ loc, totalSlots, connectedSlotCount, reconnects24h, connectedNumbers, healthStatus, lastIncident, connectedPreview, remainingConnected }) => {
+                                                    const coveragePercent = totalSlots ? Math.round((connectedSlotCount / totalSlots) * 100) : 0;
+                                                    return (
+                                                        <div key={`coverage-${loc.location_id}`} className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
+                                                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                                                <div className="min-w-0">
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{loc.name || t('agency.location.no_name')}</p>
+                                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${getHealthTone(healthStatus)}`}>
+                                                                            {t(`agency.reliability.${healthStatus}`) || healthStatus}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                                        {(t('agency.location.online_numbers') || 'Números en línea')}:{" "}
+                                                                        {connectedNumbers.length > 0
+                                                                            ? connectedPreview.join(' · ') + (remainingConnected > 0 ? ` +${remainingConnected}` : '')
+                                                                            : (t('agency.location.none_online') || 'Sin números en línea')}
+                                                                    </p>
+                                                                    <div className="mt-4">
+                                                                        <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 mb-2">
+                                                                            <span>{t('agency.reliability.slot_coverage') || 'Cobertura de slots'}</span>
+                                                                            <span className="font-semibold text-gray-700 dark:text-gray-200">{coveragePercent}%</span>
+                                                                        </div>
+                                                                        <div className="h-2.5 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
+                                                                            <div
+                                                                                className={`h-full rounded-full ${healthStatus === 'healthy' ? 'bg-emerald-500' : healthStatus === 'attention' || healthStatus === 'paused' ? 'bg-amber-500' : 'bg-red-500'}`}
+                                                                                style={{ width: `${coveragePercent}%` }}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 lg:min-w-[310px]">
+                                                                    <div className="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
+                                                                        <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{t('agency.reliability.online_slots') || 'Slots en línea'}</p>
+                                                                        <p className="text-sm font-bold text-gray-900 dark:text-white">{connectedSlotCount}/{totalSlots || 0}</p>
+                                                                    </div>
+                                                                    <div className="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
+                                                                        <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{t('agency.reliability.reconnections_24h') || 'Reconexiones 24h'}</p>
+                                                                        <p className="text-sm font-bold text-gray-900 dark:text-white">{reconnects24h}</p>
+                                                                    </div>
+                                                                    <div className="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 col-span-2 sm:col-span-1">
+                                                                        <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{t('agency.reliability.last_incident') || 'Último incidente'}</p>
+                                                                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate" title={lastIncident?.error_message || ''}>
+                                                                            {lastIncident?.created_at
+                                                                                ? `${lastIncident?.error_code ? `${lastIncident.error_code} · ` : ''}${formatRelativeTime(lastIncident.created_at)}`
+                                                                                : (t('agency.reliability.none_short') || 'Sin incidentes')}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
+                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                    {t('agency.reliability.accounts_watchlist') || 'Cuentas bajo observación'}
+                                                </h4>
+                                                <div className="mt-4 space-y-3">
+                                                    {watchlistCards.length === 0 ? (
+                                                        <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4 text-sm text-gray-500 dark:text-gray-400">
+                                                            {t('agency.reliability.no_watchlist') || 'No hay cuentas bajo observación en este filtro.'}
+                                                        </div>
+                                                    ) : watchlistCards.map(({ loc, reconnects24h, healthStatus }) => (
+                                                        <div key={`watch-${loc.location_id}`} className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <div className="min-w-0">
+                                                                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{loc.name || t('agency.location.no_name')}</p>
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{reconnects24h} {t('agency.reliability.reconnections_24h') || 'Reconexiones 24h'}</p>
+                                                                </div>
+                                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border shrink-0 ${getHealthTone(healthStatus)}`}>
+                                                                    {t(`agency.reliability.${healthStatus}`) || healthStatus}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
+                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                    {t('agency.reliability.stable_now') || 'Estables ahora'}
+                                                </h4>
+                                                <div className="mt-4 space-y-3">
+                                                    {stableCards.length === 0 ? (
+                                                        <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4 text-sm text-gray-500 dark:text-gray-400">
+                                                            {t('agency.reliability.no_stable') || 'Aún no hay cuentas completamente estables en este filtro.'}
+                                                        </div>
+                                                    ) : stableCards.map(({ loc, connectedSlotCount, totalSlots }) => (
+                                                        <div key={`stable-${loc.location_id}`} className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
+                                                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{loc.name || t('agency.location.no_name')}</p>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{connectedSlotCount}/{totalSlots || 0} {t('agency.reliability.online_slots') || 'slots en línea'}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {false && (
                         <div className="max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-right-4 space-y-6">
                             <div className="relative overflow-hidden rounded-3xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
                                 <div className="absolute inset-y-0 right-0 w-48 bg-gradient-to-l from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
@@ -3690,6 +4028,30 @@ const SidebarItem = ({ id, icon: Icon, label, activeTab, setActiveTab, branding,
         {sidebarOpen && <span>{label}</span>}
     </button>
 );
+
+const CircularGaugeCard = ({ title, value, displayValue, subtitle, accent = '#4f46e5' }) => {
+    const safeValue = Math.max(0, Math.min(100, Number(value) || 0));
+    const gaugeStyle = {
+        background: `conic-gradient(${accent} 0deg ${safeValue * 3.6}deg, rgba(148, 163, 184, 0.18) ${safeValue * 3.6}deg 360deg)`
+    };
+
+    return (
+        <div className="bg-white dark:bg-gray-900 p-5 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{title}</p>
+            <div className="mt-4 flex items-center gap-4">
+                <div className="relative w-20 h-20 shrink-0 rounded-full p-[7px]" style={gaugeStyle}>
+                    <div className="w-full h-full rounded-full bg-white dark:bg-gray-900 flex items-center justify-center border border-gray-100 dark:border-gray-800">
+                        <span className="text-lg font-extrabold text-gray-900 dark:text-white">{displayValue}</span>
+                    </div>
+                </div>
+                <div>
+                    <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{displayValue}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{subtitle}</p>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
     <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-start justify-between">
