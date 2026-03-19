@@ -749,6 +749,9 @@ export const en = {
     // Agency Dashboard - Location Cards
     "agency.location.no_name": "No Name",
     "agency.location.connections": "Connections",
+    "agency.location.online": "online",
+    "agency.location.none_online": "No numbers online",
+    "agency.location.online_numbers": "Connected numbers",
     "agency.location.empty_title": "Available Slot",
     "agency.location.empty_desc": "You have a license to connect a new subaccount.",
 

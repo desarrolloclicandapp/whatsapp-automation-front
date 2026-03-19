@@ -2181,7 +2181,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <div className="py-12 text-center text-gray-400">{t('agency.loading_data')}</div>
                                         ) : (
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                {filteredLocations.map(loc => (
+                                                {filteredLocations.map(loc => {
+                                                    const totalSlots = Number.parseInt(loc.total_slots, 10) || 0;
+                                                    const connectedSlotCount = Number.parseInt(loc.connected_slot_count, 10) || 0;
+                                                    const connectedNumbers = Array.isArray(loc.connected_numbers)
+                                                        ? loc.connected_numbers.filter(Boolean)
+                                                        : [];
+                                                    const hasConnectedSlots = connectedSlotCount > 0;
+                                                    const connectedPreview = connectedNumbers.slice(0, 2);
+                                                    const remainingConnected = Math.max(0, connectedNumbers.length - connectedPreview.length);
+
+                                                    return (
                                                     <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer">
                                                         <div className="flex items-start justify-between mb-3">
                                                             <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center">
@@ -2204,14 +2214,34 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             </div>
                                                         </div>
                                                         <h4 className="font-semibold text-gray-900 dark:text-white mb-1 truncate text-sm">{loc.name || t('agency.location.no_name')}</h4>
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                                                                hasConnectedSlots
+                                                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                                                                    : 'bg-gray-50 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                                                            }`}>
+                                                                <span className={`w-1.5 h-1.5 rounded-full ${hasConnectedSlots ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                                                                {hasConnectedSlots
+                                                                    ? `${connectedSlotCount}/${totalSlots || connectedSlotCount} ${t('agency.location.online') || 'en línea'}`
+                                                                    : (t('agency.location.none_online') || 'Sin números en línea')}
+                                                            </span>
+                                                        </div>
+                                                        {connectedNumbers.length > 0 && (
+                                                            <p
+                                                                className="text-[11px] text-emerald-600 dark:text-emerald-400 mb-2 truncate"
+                                                                title={connectedNumbers.join(' · ')}
+                                                            >
+                                                                {(t('agency.location.online_numbers') || 'Números en línea')}: {connectedPreview.join(' · ')}{remainingConnected > 0 ? ` +${remainingConnected}` : ''}
+                                                            </p>
+                                                        )}
                                                         <div className="flex items-center justify-between">
                                                             <span className="text-xs text-gray-500 flex items-center gap-1">
-                                                                <Smartphone size={12} /> {loc.total_slots || 0}
+                                                                <Smartphone size={12} /> {totalSlots}
                                                             </span>
                                                             <ChevronRight size={16} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
                                                         </div>
                                                     </div>
-                                                ))}
+                                                )})}
 
                                                 {!searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
                                                     <div key={`empty-${idx}`} onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setOnboardingHoveredCard(null); setShowOnboarding(true); }} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">

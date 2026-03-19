@@ -747,6 +747,9 @@ export const es = {
     // Agency Dashboard - Location Cards
     "agency.location.no_name": "Sin Nombre",
     "agency.location.connections": "Conexiones",
+    "agency.location.online": "en línea",
+    "agency.location.none_online": "Sin números en línea",
+    "agency.location.online_numbers": "Números en línea",
     "agency.location.empty_title": "Espacio Disponible",
     "agency.location.empty_desc": "Tienes licencia para conectar una nueva subagencia.",
 
