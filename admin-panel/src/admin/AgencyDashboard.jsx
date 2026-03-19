@@ -21,7 +21,8 @@ import {
     TrendingUp, ShieldCheck, Settings, Trash2,
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
     Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Hammer,
-    Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare, Loader2, X // ✅ Iconos
+    Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare, Loader2, X,
+    Activity, AlertTriangle // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -109,13 +110,56 @@ function formatRelativeTime(value) {
 
 function getHealthTone(status) {
     switch (String(status || "").toLowerCase()) {
+        case "blocked":
         case "critical":
             return "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800";
         case "attention":
             return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800";
+        case "paused":
+            return "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-300 dark:border-slate-700";
         default:
             return "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800";
     }
+}
+
+function getHealthPriority(status) {
+    switch (String(status || "").toLowerCase()) {
+        case "blocked":
+        case "critical":
+            return 0;
+        case "attention":
+            return 1;
+        case "paused":
+            return 2;
+        default:
+            return 3;
+    }
+}
+
+function getLocationRuntimeMeta(loc) {
+    const totalSlots = Number.parseInt(loc?.total_slots, 10) || 0;
+    const connectedSlotCount = Number.parseInt(loc?.connected_slot_count, 10) || 0;
+    const reconnects24h = Number.parseInt(loc?.reconnects_24h, 10) || 0;
+    const connectedNumbers = Array.isArray(loc?.connected_numbers)
+        ? loc.connected_numbers.filter(Boolean)
+        : [];
+    const hasConnectedSlots = connectedSlotCount > 0;
+    const healthStatus = String(loc?.health_status || (hasConnectedSlots ? 'healthy' : 'critical')).toLowerCase();
+    const lastIncident = loc?.last_incident || null;
+    const connectedPreview = connectedNumbers.slice(0, 2);
+    const remainingConnected = Math.max(0, connectedNumbers.length - connectedPreview.length);
+
+    return {
+        totalSlots,
+        connectedSlotCount,
+        reconnects24h,
+        connectedNumbers,
+        hasConnectedSlots,
+        healthStatus,
+        lastIncident,
+        connectedPreview,
+        remainingConnected
+    };
 }
 
 export default function AgencyDashboard({ token, onLogout }) {
@@ -1734,6 +1778,58 @@ export default function AgencyDashboard({ token, onLogout }) {
         (loc.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
         (loc.location_id || '').toLowerCase().includes((searchTerm || '').toLowerCase())
     );
+    const filteredLocationCards = filteredLocations.map((loc) => ({
+        loc,
+        ...getLocationRuntimeMeta(loc)
+    }));
+    const reliabilityLocationCards = [...filteredLocationCards].sort((a, b) => {
+        const statusDiff = getHealthPriority(a.healthStatus) - getHealthPriority(b.healthStatus);
+        if (statusDiff !== 0) return statusDiff;
+        if (b.reconnects24h !== a.reconnects24h) return b.reconnects24h - a.reconnects24h;
+
+        const aIncidentMs = a.lastIncident?.created_at ? new Date(a.lastIncident.created_at).getTime() : 0;
+        const bIncidentMs = b.lastIncident?.created_at ? new Date(b.lastIncident.created_at).getTime() : 0;
+        if (bIncidentMs !== aIncidentMs) return bIncidentMs - aIncidentMs;
+
+        return String(a.loc?.name || "").localeCompare(String(b.loc?.name || ""));
+    });
+    const reliabilitySummary = filteredLocationCards.reduce((acc, entry) => {
+        acc.totalReconnects24h += entry.reconnects24h;
+        acc.connectedSlots += entry.connectedSlotCount;
+        acc.totalSlots += entry.totalSlots;
+
+        if (entry.healthStatus === 'healthy') {
+            acc.healthy += 1;
+        } else if (entry.healthStatus === 'attention') {
+            acc.attention += 1;
+        } else {
+            acc.critical += 1;
+        }
+
+        const incidentMs = entry.lastIncident?.created_at ? new Date(entry.lastIncident.created_at).getTime() : Number.NaN;
+        if (Number.isFinite(incidentMs) && (!acc.lastIncidentMs || incidentMs > acc.lastIncidentMs)) {
+            acc.lastIncidentMs = incidentMs;
+            acc.lastIncident = entry.lastIncident;
+            acc.lastIncidentLocation = entry.loc;
+        }
+
+        return acc;
+    }, {
+        healthy: 0,
+        attention: 0,
+        critical: 0,
+        totalReconnects24h: 0,
+        connectedSlots: 0,
+        totalSlots: 0,
+        lastIncident: null,
+        lastIncidentLocation: null,
+        lastIncidentMs: 0
+    });
+    const accountFilterOptions = [
+        { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: locations.length },
+        { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: locations.filter(l => resolveTenantCrmType(l) === 'ghl').length },
+        { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
+    ];
     const modalCrmType = String(
         addModalCrmType || onboardingCrmType || agencyCrmType || "ghl"
     ).toLowerCase();
@@ -1997,6 +2093,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     <p className={`text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>{t('dash.nav.management')}</p>
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="overview" icon={LayoutGrid} label={t('dash.nav.overview')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="billing" icon={CreditCard} label={t('dash.nav.billing')} branding={branding} sidebarOpen={sidebarOpen} />
+                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="reliability" icon={Activity} label={t('dash.nav.reliability') || 'Confiabilidad'} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="settings" icon={Settings} label={t('dash.nav.settings')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="builder" icon={Hammer} label={t('dash.nav.builder') || "Constructor"} branding={branding} sidebarOpen={sidebarOpen} />
                     <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
@@ -2010,7 +2107,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F8FAFC] dark:bg-[#0f1117]">
                 <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 z-20">
-                    <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : activeTab === 'builder' ? (t('dash.header.builder') || "Constructor") : t('dash.header.settings')}</h2></div>
+                    <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : activeTab === 'reliability' ? (t('dash.header.reliability') || 'Confiabilidad operativa') : activeTab === 'builder' ? (t('dash.header.builder') || "Constructor") : t('dash.header.settings')}</h2></div>
                     <div className="flex items-center gap-4"><LanguageSelector /><ThemeToggle /><div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div></div>
                 </header>
 
@@ -2154,11 +2251,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </h3>
                                             <div className="flex flex-wrap items-center justify-end gap-2">
                                                 <div className="flex items-center gap-2">
-                                                    {[
-                                                        { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: locations.length },
-                                                        { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: locations.filter(l => resolveTenantCrmType(l) === 'ghl').length },
-                                                        { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
-                                                    ].map(tab => (
+                                                    {accountFilterOptions.map(tab => (
                                                         <button
                                                             key={tab.id}
                                                             onClick={() => setAccountsFilter(tab.id)}
@@ -2206,20 +2299,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <div className="py-12 text-center text-gray-400">{t('agency.loading_data')}</div>
                                         ) : (
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                {filteredLocations.map(loc => {
-                                                    const totalSlots = Number.parseInt(loc.total_slots, 10) || 0;
-                                                    const connectedSlotCount = Number.parseInt(loc.connected_slot_count, 10) || 0;
-                                                    const reconnects24h = Number.parseInt(loc.reconnects_24h, 10) || 0;
-                                                    const connectedNumbers = Array.isArray(loc.connected_numbers)
-                                                        ? loc.connected_numbers.filter(Boolean)
-                                                        : [];
-                                                    const hasConnectedSlots = connectedSlotCount > 0;
-                                                    const healthStatus = String(loc.health_status || (hasConnectedSlots ? 'healthy' : 'critical')).toLowerCase();
-                                                    const lastIncident = loc.last_incident || null;
-                                                    const connectedPreview = connectedNumbers.slice(0, 2);
-                                                    const remainingConnected = Math.max(0, connectedNumbers.length - connectedPreview.length);
-
-                                                    return (
+                                                {filteredLocationCards.map(({ loc, totalSlots, connectedSlotCount, connectedNumbers, hasConnectedSlots, connectedPreview, remainingConnected }) => (
                                                     <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer">
                                                         <div className="flex items-start justify-between mb-3">
                                                             <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center">
@@ -2253,29 +2333,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                                     ? `${connectedSlotCount}/${totalSlots || connectedSlotCount} ${t('agency.location.online') || 'en línea'}`
                                                                     : (t('agency.location.none_online') || 'Sin números en línea')}
                                                             </span>
-                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${getHealthTone(healthStatus)}`}>
-                                                                {t(`agency.reliability.${healthStatus}`) || healthStatus}
-                                                            </span>
                                                         </div>
                                                         {connectedNumbers.length > 0 && (
                                                             <p
-                                                                className="text-[11px] text-emerald-600 dark:text-emerald-400 mb-2 truncate"
+                                                                className="text-[11px] text-emerald-600 dark:text-emerald-400 mb-3 truncate"
                                                                 title={connectedNumbers.join(' · ')}
                                                             >
                                                                 {(t('agency.location.online_numbers') || 'Números en línea')}: {connectedPreview.join(' · ')}{remainingConnected > 0 ? ` +${remainingConnected}` : ''}
                                                             </p>
                                                         )}
-                                                        <div className="space-y-1.5 mb-2">
-                                                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                                                                {(t('agency.reliability.reconnections_24h') || 'Reconexiones 24h')}: <span className="font-semibold text-gray-700 dark:text-gray-200">{reconnects24h}</span>
-                                                            </p>
-                                                            <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate" title={lastIncident?.error_message || ''}>
-                                                                {(t('agency.reliability.last_incident') || 'Último incidente')}:{" "}
-                                                                {lastIncident?.created_at
-                                                                    ? <span className="font-semibold text-gray-700 dark:text-gray-200">{lastIncident?.error_code ? `${lastIncident.error_code} · ` : ''}{formatRelativeTime(lastIncident.created_at)}</span>
-                                                                    : <span className="font-semibold text-gray-700 dark:text-gray-200">{t('agency.reliability.none') || 'Sin incidentes recientes'}</span>}
-                                                            </p>
-                                                        </div>
                                                         <div className="flex items-center justify-between">
                                                             <span className="text-xs text-gray-500 flex items-center gap-1">
                                                                 <Smartphone size={12} /> {totalSlots}
@@ -2283,7 +2349,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             <ChevronRight size={16} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
                                                         </div>
                                                     </div>
-                                                )})}
+                                                ))}
 
                                                 {!searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
                                                     <div key={`empty-${idx}`} onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setOnboardingHoveredCard(null); setShowOnboarding(true); }} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
@@ -2319,6 +2385,192 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </>
                             </div>
                         )
+                    )}
+
+                    {activeTab === 'reliability' && (
+                        <div className="max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-right-4 space-y-6">
+                            <div className="relative overflow-hidden rounded-3xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
+                                <div className="absolute inset-y-0 right-0 w-48 bg-gradient-to-l from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
+                                <div className="relative p-6 md:p-7">
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                        <div className="max-w-2xl">
+                                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 text-xs font-semibold border border-indigo-100 dark:border-indigo-800/50">
+                                                <Activity size={14} />
+                                                {t('dash.nav.reliability') || 'Confiabilidad'}
+                                            </div>
+                                            <h3 className="mt-4 text-2xl font-bold text-gray-900 dark:text-white">
+                                                {t('agency.reliability.title') || 'Confiabilidad'}
+                                            </h3>
+                                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                                {t('agency.reliability.subtitle') || 'Consulta aqui la salud operativa de cada cuenta sin recargar el panel principal del cliente.'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={refreshData}
+                                            disabled={isAutoSyncing}
+                                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold text-gray-600 dark:text-gray-200 hover:border-indigo-300 hover:text-indigo-600 transition disabled:opacity-50"
+                                        >
+                                            <RefreshCw size={16} className={loading || isAutoSyncing ? "animate-spin" : ""} />
+                                            {t('agency.refresh') || 'Actualizar'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                                <StatCard
+                                    title={t('agency.reliability.accounts_healthy') || 'Cuentas sanas'}
+                                    value={reliabilitySummary.healthy}
+                                    subtext={t('agency.reliability.none_short') || 'Sin incidentes'}
+                                    icon={ShieldCheck}
+                                    color="bg-emerald-500"
+                                />
+                                <StatCard
+                                    title={t('agency.reliability.accounts_attention') || 'Con atencion'}
+                                    value={reliabilitySummary.attention}
+                                    subtext={t('agency.reliability.reconnections_24h') || 'Reconexiones 24h'}
+                                    icon={AlertTriangle}
+                                    color="bg-amber-500"
+                                />
+                                <StatCard
+                                    title={t('agency.reliability.accounts_critical') || 'Criticas'}
+                                    value={reliabilitySummary.critical}
+                                    subtext={t('agency.reliability.last_incident') || 'Ultimo incidente'}
+                                    icon={Activity}
+                                    color="bg-red-500"
+                                />
+                                <StatCard
+                                    title={t('agency.reliability.online_slots') || 'Slots en linea'}
+                                    value={`${reliabilitySummary.connectedSlots}/${reliabilitySummary.totalSlots || 0}`}
+                                    subtext={t('agency.reliability.reconnections_24h') || 'Reconexiones 24h'}
+                                    icon={Smartphone}
+                                    color="bg-indigo-500"
+                                />
+                            </div>
+
+                            <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                                <div className="p-5 md:p-6 border-b border-gray-100 dark:border-gray-800 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                    <div>
+                                        <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                            {t('agency.reliability.title') || 'Confiabilidad'}
+                                        </h4>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                            {reliabilitySummary.lastIncident?.created_at
+                                                ? `${t('agency.reliability.last_incident') || 'Ultimo incidente'}: ${reliabilitySummary.lastIncident?.error_code ? `${reliabilitySummary.lastIncident.error_code} · ` : ''}${formatRelativeTime(reliabilitySummary.lastIncident.created_at)}`
+                                                : (t('agency.reliability.none') || 'Sin incidentes recientes')}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <div className="flex items-center gap-2">
+                                            {accountFilterOptions.map(tab => (
+                                                <button
+                                                    key={`reliability-${tab.id}`}
+                                                    onClick={() => setAccountsFilter(tab.id)}
+                                                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                                                        accountsFilter === tab.id
+                                                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800 shadow-sm'
+                                                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800 dark:hover:border-gray-700'
+                                                    }`}
+                                                >
+                                                    {tab.icon && <tab.icon size={13} />}
+                                                    {tab.label}
+                                                    <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                                                        accountsFilter === tab.id
+                                                            ? 'bg-indigo-200/60 text-indigo-800 dark:bg-indigo-800/40 dark:text-indigo-200'
+                                                            : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
+                                                    }`}>{tab.count}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                            <input
+                                                type="text"
+                                                autoComplete="off"
+                                                placeholder={t('agency.onboarding.search_accounts') || 'Buscar cuentas...'}
+                                                className="pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white w-44 focus:w-56 transition-all"
+                                                value={searchTerm}
+                                                onChange={e => setSearchTerm(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {loading && locations.length === 0 ? (
+                                    <div className="py-14 text-center text-gray-400">{t('agency.loading_data')}</div>
+                                ) : reliabilityLocationCards.length === 0 ? (
+                                    <div className="py-14 px-6 text-center">
+                                        <div className="w-14 h-14 mx-auto rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-400 flex items-center justify-center mb-4">
+                                            <Activity size={24} />
+                                        </div>
+                                        <h5 className="text-base font-bold text-gray-900 dark:text-white">
+                                            {t('agency.reliability.empty_title') || 'No hay cuentas para mostrar'}
+                                        </h5>
+                                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                            {t('agency.reliability.empty_desc') || 'Ajusta los filtros o crea una cuenta para comenzar a monitorizar la salud operativa.'}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="p-4 md:p-6 space-y-3">
+                                        {reliabilityLocationCards.map(({ loc, totalSlots, connectedSlotCount, reconnects24h, connectedNumbers, healthStatus, lastIncident, connectedPreview, remainingConnected }) => (
+                                            <button
+                                                key={`reliability-row-${loc.location_id}`}
+                                                onClick={() => setSelectedLocation(loc)}
+                                                className="w-full text-left rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/40 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-white dark:hover:bg-gray-900 transition p-4 md:p-5"
+                                            >
+                                                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                                    <div className="min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <h5 className="text-sm md:text-base font-bold text-gray-900 dark:text-white truncate">
+                                                                {loc.name || t('agency.location.no_name')}
+                                                            </h5>
+                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${getHealthTone(healthStatus)}`}>
+                                                                {t(`agency.reliability.${healthStatus}`) || healthStatus}
+                                                            </span>
+                                                            <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-full border ${
+                                                                resolveTenantCrmType(loc) === 'chatwoot'
+                                                                    ? 'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-800'
+                                                                    : 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+                                                            }`}>
+                                                                {resolveTenantCrmType(loc) === 'chatwoot' ? 'Chatwoot' : 'GHL'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                            {loc.location_id}
+                                                        </p>
+                                                        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                                                            {(t('agency.location.online_numbers') || 'Numeros en linea')}:{" "}
+                                                            {connectedNumbers.length > 0
+                                                                ? <span className="font-semibold text-gray-700 dark:text-gray-200">{connectedPreview.join(' · ')}{remainingConnected > 0 ? ` +${remainingConnected}` : ''}</span>
+                                                                : <span className="font-semibold text-gray-700 dark:text-gray-200">{t('agency.location.none_online') || 'Sin numeros en linea'}</span>}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 xl:min-w-[420px]">
+                                                        <div className="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
+                                                            <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{t('agency.reliability.online_slots') || 'Slots en linea'}</p>
+                                                            <p className="text-sm font-bold text-gray-900 dark:text-white">{connectedSlotCount}/{totalSlots || 0}</p>
+                                                        </div>
+                                                        <div className="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
+                                                            <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{t('agency.reliability.reconnections_24h') || 'Reconexiones 24h'}</p>
+                                                            <p className="text-sm font-bold text-gray-900 dark:text-white">{reconnects24h}</p>
+                                                        </div>
+                                                        <div className="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
+                                                            <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{t('agency.reliability.last_incident') || 'Ultimo incidente'}</p>
+                                                            <p className="text-sm font-bold text-gray-900 dark:text-white truncate" title={lastIncident?.error_message || ''}>
+                                                                {lastIncident?.created_at
+                                                                    ? `${lastIncident?.error_code ? `${lastIncident.error_code} · ` : ''}${formatRelativeTime(lastIncident.created_at)}`
+                                                                    : (t('agency.reliability.none_short') || 'Sin incidentes')}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     )}
 
                     {activeTab === 'settings' && (
