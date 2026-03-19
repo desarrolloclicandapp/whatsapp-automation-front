@@ -162,6 +162,44 @@ function getLocationRuntimeMeta(loc) {
     };
 }
 
+function formatTimelineHour(value) {
+    if (!value) return "";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function getSignalCopy(signal, t) {
+    const kind = String(signal?.kind || "").toLowerCase();
+    switch (kind) {
+        case "reconnect":
+            return {
+                title: t('agency.reliability.signal_reconnect_title') || 'Reconexión automática',
+                detail: t('agency.reliability.signal_reconnect_detail') || 'El sistema detectó inestabilidad y restableció la conexión.'
+            };
+        case "logout":
+            return {
+                title: t('agency.reliability.signal_logout_title') || 'Sesión cerrada',
+                detail: t('agency.reliability.signal_logout_detail') || 'La sesión se cerró y puede requerir revisión.'
+            };
+        case "stability":
+            return {
+                title: t('agency.reliability.signal_stability_title') || 'Alerta de estabilidad',
+                detail: t('agency.reliability.signal_stability_detail') || 'Se detectó una señal de inestabilidad en la operación.'
+            };
+        case "connectivity":
+            return {
+                title: t('agency.reliability.signal_connectivity_title') || 'Inestabilidad de conexión',
+                detail: t('agency.reliability.signal_connectivity_detail') || 'Hubo una pérdida temporal de conexión y el sistema respondió.'
+            };
+        default:
+            return {
+                title: t('agency.reliability.signal_operational_title') || 'Evento operativo',
+                detail: t('agency.reliability.signal_operational_detail') || 'Se registró un evento operativo relevante para seguimiento.'
+            };
+    }
+}
+
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
     // ✅ Agregamos loadAgencyBranding para cargar desde server
@@ -179,6 +217,13 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isAutoSyncing, setIsAutoSyncing] = useState(false);
+    const [reliabilityOverview, setReliabilityOverview] = useState({
+        activeAccounts: 0,
+        periodHours: 24,
+        timeline: [],
+        recentSignals: []
+    });
+    const [reliabilityLoading, setReliabilityLoading] = useState(false);
 
     const [accountInfo, setAccountInfo] = useState(null);
     const isRestricted = (accountInfo?.plan || '').toLowerCase().includes('starter');
@@ -306,6 +351,41 @@ export default function AgencyDashboard({ token, onLogout }) {
         setOnboardingSubaccountNotes('');
     };
 
+    const fetchReliabilityOverview = async ({
+        agencyId,
+        crmType = accountsFilter,
+        search = searchTerm,
+        silent = false
+    } = {}) => {
+        if (!agencyId) {
+            setReliabilityOverview({ activeAccounts: 0, periodHours: 24, timeline: [], recentSignals: [] });
+            return;
+        }
+
+        if (!silent) setReliabilityLoading(true);
+        try {
+            const params = new URLSearchParams({
+                agencyId,
+                crmType: crmType || "all",
+                search: search || ""
+            });
+            const res = await authFetch(`/agency/reliability/overview?${params.toString()}`);
+            if (!res?.ok) throw new Error(`HTTP ${res?.status || 500}`);
+            const data = await res.json();
+            setReliabilityOverview({
+                activeAccounts: Number.parseInt(data?.active_accounts, 10) || 0,
+                periodHours: Number.parseInt(data?.period_hours, 10) || 24,
+                timeline: Array.isArray(data?.timeline) ? data.timeline : [],
+                recentSignals: Array.isArray(data?.recent_signals) ? data.recent_signals : []
+            });
+        } catch (error) {
+            console.error("Error cargando resumen de confiabilidad", error);
+            setReliabilityOverview({ activeAccounts: 0, periodHours: 24, timeline: [], recentSignals: [] });
+        } finally {
+            if (!silent) setReliabilityLoading(false);
+        }
+    };
+
     const refreshData = async () => {
         try {
             const [accRes, suspensionRes] = await Promise.all([
@@ -354,6 +434,12 @@ export default function AgencyDashboard({ token, onLogout }) {
                     if (locRes && locRes.ok) {
                         const locData = await locRes.json();
                         if (Array.isArray(locData)) setLocations(locData);
+                    }
+                    if (activeTab === 'reliability') {
+                        await fetchReliabilityOverview({
+                            agencyId: effectiveAgencyId,
+                            silent: true
+                        });
                     }
                 }
 
@@ -685,6 +771,23 @@ export default function AgencyDashboard({ token, onLogout }) {
             return () => clearInterval(interval);
         }
     }, [AGENCY_ID]);
+
+    useEffect(() => {
+        if (activeTab !== 'reliability') return;
+
+        const effectiveAgencyId = accountInfo?.agencyId || storedAgencyId || AGENCY_ID || null;
+        if (!effectiveAgencyId) return;
+
+        const timer = setTimeout(() => {
+            fetchReliabilityOverview({
+                agencyId: effectiveAgencyId,
+                crmType: accountsFilter,
+                search: searchTerm
+            });
+        }, 250);
+
+        return () => clearTimeout(timer);
+    }, [activeTab, accountInfo?.agencyId, storedAgencyId, AGENCY_ID, accountsFilter, searchTerm]);
 
     const fetchWebhooks = async () => {
         try {
@@ -1847,9 +1950,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     const monitoredSharePercent = reliabilityTotalAccounts
         ? Math.round(((reliabilitySummary.attention + reliabilitySummary.critical) / reliabilityTotalAccounts) * 100)
         : 0;
-    const recentIncidentCards = reliabilityLocationCards
-        .filter((entry) => entry.lastIncident?.created_at)
-        .slice(0, 5);
     const watchlistCards = reliabilityLocationCards
         .filter((entry) => entry.healthStatus !== 'healthy' || entry.reconnects24h > 0)
         .slice(0, 5);
@@ -1879,6 +1979,9 @@ export default function AgencyDashboard({ token, onLogout }) {
             barClass: 'bg-red-500'
         }
     ];
+    const reliabilityTimeline = Array.isArray(reliabilityOverview?.timeline) ? reliabilityOverview.timeline : [];
+    const reliabilityRecentSignals = Array.isArray(reliabilityOverview?.recentSignals) ? reliabilityOverview.recentSignals : [];
+    const timelineMaxTotal = reliabilityTimeline.reduce((max, item) => Math.max(max, Number(item?.total) || 0), 0);
     const modalCrmType = String(
         addModalCrmType || onboardingCrmType || agencyCrmType || "ghl"
     ).toLowerCase();
@@ -2577,32 +2680,59 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         </div>
 
                                         <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
-                                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                {t('agency.reliability.recent_signals') || 'Señales recientes'}
-                                            </h4>
-                                            <div className="mt-5 space-y-3">
-                                                {recentIncidentCards.length === 0 ? (
-                                                    <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-5 text-sm text-gray-500 dark:text-gray-400">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                        {t('agency.reliability.activity_24h') || 'Actividad 24h'}
+                                                    </h4>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                        {t('agency.reliability.activity_24h_desc') || 'Eventos operativos por hora para las cuentas activas.'}
+                                                    </p>
+                                                </div>
+                                                {reliabilityLoading && (
+                                                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                                                        {t('agency.refresh') || 'Actualizar'}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="mt-5">
+                                                <TimelineBarsChart
+                                                    data={reliabilityTimeline}
+                                                    maxTotal={timelineMaxTotal}
+                                                    emptyLabel={t('agency.reliability.no_activity') || 'Sin actividad operativa reciente.'}
+                                                    legendReconnect={t('agency.reliability.signal_reconnect_title') || 'Reconexión automática'}
+                                                    legendInstability={t('agency.reliability.signal_connectivity_title') || 'Inestabilidad de conexión'}
+                                                    legendLogout={t('agency.reliability.signal_logout_title') || 'Sesión cerrada'}
+                                                />
+                                            </div>
+
+                                            <div className="mt-6 space-y-3">
+                                                {reliabilityRecentSignals.length === 0 ? (
+                                                    <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4 text-sm text-gray-500 dark:text-gray-400">
                                                         {t('agency.reliability.no_signals') || 'No hay incidentes recientes en las cuentas filtradas.'}
                                                     </div>
-                                                ) : recentIncidentCards.map(({ loc, lastIncident, healthStatus }) => (
-                                                    <div key={`incident-${loc.location_id}`} className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
-                                                        <div className="flex items-start justify-between gap-3">
-                                                            <div className="min-w-0">
-                                                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{loc.name || t('agency.location.no_name')}</p>
-                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                    {lastIncident?.error_code ? `${lastIncident.error_code} · ` : ''}{formatRelativeTime(lastIncident?.created_at)}
-                                                                </p>
+                                                ) : reliabilityRecentSignals.slice(0, 4).map((signal, index) => {
+                                                    const copy = getSignalCopy(signal, t);
+                                                    return (
+                                                        <div key={`signal-${signal.location_id}-${signal.created_at || index}`} className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
+                                                            <div className="flex items-start justify-between gap-3">
+                                                                <div className="min-w-0">
+                                                                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{signal.location_name || t('agency.location.no_name')}</p>
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                        {copy.title} · {formatRelativeTime(signal.created_at)}
+                                                                    </p>
+                                                                </div>
+                                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border shrink-0 ${getHealthTone(signal.severity)}`}>
+                                                                    {t(`agency.reliability.${signal.severity}`) || signal.severity}
+                                                                </span>
                                                             </div>
-                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border shrink-0 ${getHealthTone(healthStatus)}`}>
-                                                                {t(`agency.reliability.${healthStatus}`) || healthStatus}
-                                                            </span>
+                                                            <p className="mt-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                                                                {copy.detail}
+                                                            </p>
                                                         </div>
-                                                        <p className="mt-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-                                                            {lastIncident?.error_message || t('agency.reliability.none_short') || 'Sin incidentes'}
-                                                        </p>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     </div>
@@ -2666,7 +2796,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                                         <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{t('agency.reliability.last_incident') || 'Último incidente'}</p>
                                                                         <p className="text-sm font-bold text-gray-900 dark:text-white truncate" title={lastIncident?.error_message || ''}>
                                                                             {lastIncident?.created_at
-                                                                                ? `${lastIncident?.error_code ? `${lastIncident.error_code} · ` : ''}${formatRelativeTime(lastIncident.created_at)}`
+                                                                                ? `${formatRelativeTime(lastIncident.created_at)}`
                                                                                 : (t('agency.reliability.none_short') || 'Sin incidentes')}
                                                                         </p>
                                                                     </div>
@@ -2797,7 +2927,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         </h4>
                                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                                             {reliabilitySummary.lastIncident?.created_at
-                                                ? `${t('agency.reliability.last_incident') || 'Ultimo incidente'}: ${reliabilitySummary.lastIncident?.error_code ? `${reliabilitySummary.lastIncident.error_code} · ` : ''}${formatRelativeTime(reliabilitySummary.lastIncident.created_at)}`
+                                                ? `${t('agency.reliability.last_incident') || 'Ultimo incidente'}: ${formatRelativeTime(reliabilitySummary.lastIncident.created_at)}`
                                                 : (t('agency.reliability.none') || 'Sin incidentes recientes')}
                                         </p>
                                     </div>
@@ -2900,7 +3030,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{t('agency.reliability.last_incident') || 'Ultimo incidente'}</p>
                                                             <p className="text-sm font-bold text-gray-900 dark:text-white truncate" title={lastIncident?.error_message || ''}>
                                                                 {lastIncident?.created_at
-                                                                    ? `${lastIncident?.error_code ? `${lastIncident.error_code} · ` : ''}${formatRelativeTime(lastIncident.created_at)}`
+                                                                    ? `${formatRelativeTime(lastIncident.created_at)}`
                                                                     : (t('agency.reliability.none_short') || 'Sin incidentes')}
                                                             </p>
                                                         </div>
@@ -4051,6 +4181,59 @@ const CircularGaugeCard = ({ title, value, displayValue, subtitle, accent = '#4f
                     <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{displayValue}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{subtitle}</p>
                 </div>
+            </div>
+        </div>
+    );
+};
+
+const TimelineBarsChart = ({ data, maxTotal, emptyLabel, legendReconnect, legendInstability, legendLogout }) => {
+    if (!Array.isArray(data) || data.length === 0 || !data.some((item) => Number(item?.total) > 0)) {
+        return (
+            <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-5 text-sm text-gray-500 dark:text-gray-400">
+                {emptyLabel}
+            </div>
+        );
+    }
+
+    const safeMax = Math.max(1, Number(maxTotal) || 1);
+
+    return (
+        <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
+            <div className="h-40 flex items-end gap-1.5">
+                {data.map((point, index) => {
+                    const reconnects = Number(point?.reconnects) || 0;
+                    const warnings = Number(point?.warnings) || 0;
+                    const logouts = Number(point?.logouts) || 0;
+                    const total = Number(point?.total) || 0;
+                    const totalHeight = total > 0 ? Math.max(8, Math.round((total / safeMax) * 120)) : 6;
+                    const reconnectHeight = total > 0 ? Math.max(0, Math.round((reconnects / total) * totalHeight)) : 0;
+                    const logoutHeight = total > 0 ? Math.max(0, Math.round((logouts / total) * totalHeight)) : 0;
+                    const warningHeight = Math.max(0, totalHeight - reconnectHeight - logoutHeight);
+                    const showTick = index % 6 === 0 || index === data.length - 1;
+
+                    return (
+                        <div key={`${point?.bucket_start || index}`} className="flex-1 min-w-0 flex flex-col items-center gap-2">
+                            <div
+                                className="w-full max-w-[18px] rounded-t-xl overflow-hidden bg-gray-200/70 dark:bg-gray-800/70"
+                                style={{ height: `${totalHeight}px` }}
+                                title={`${formatTimelineHour(point?.bucket_start)} · ${total} evento(s)`}
+                            >
+                                <div className="w-full bg-blue-500/90" style={{ height: `${reconnectHeight}px` }} />
+                                <div className="w-full bg-amber-500/90" style={{ height: `${warningHeight}px` }} />
+                                <div className="w-full bg-red-500/90" style={{ height: `${logoutHeight}px` }} />
+                            </div>
+                            <span className={`text-[10px] ${showTick ? 'text-gray-500 dark:text-gray-400' : 'text-transparent select-none'}`}>
+                                {formatTimelineHour(point?.bucket_start)}
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-4 text-[11px] text-gray-500 dark:text-gray-400">
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> {legendReconnect}</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> {legendInstability}</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> {legendLogout}</span>
             </div>
         </div>
     );
