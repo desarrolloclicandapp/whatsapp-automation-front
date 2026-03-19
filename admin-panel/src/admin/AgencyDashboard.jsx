@@ -3843,7 +3843,6 @@ const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, inci
                     const reconnectY = padding.top + chartHeight - (((Number(point?.sent) || 0) / safeMax) * chartHeight);
                     const incidentY = padding.top + chartHeight - (((Number(point?.failed) || 0) / safeMax) * chartHeight);
                     const showTick = index % 6 === 0 || index === data.length - 1;
-                    const hoverWidth = data.length > 1 ? Math.max(18, stepX) : 24;
                     const tooltipText = [
                         formatTimelineTooltip(point?.bucketStart),
                         `${reconnectLabel}: ${Number(point?.sent) || 0}`,
@@ -3852,18 +3851,14 @@ const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, inci
 
                     return (
                         <g key={`point-${point?.bucketStart || index}`}>
-                            <rect
-                                x={x - (hoverWidth / 2)}
-                                y={padding.top}
-                                width={hoverWidth}
-                                height={chartHeight}
-                                fill="transparent"
-                                className="cursor-help"
-                            >
+                            <circle cx={x} cy={reconnectY} r="7" fill="transparent" className="cursor-help">
                                 <title>{tooltipText}</title>
-                            </rect>
-                            <circle cx={x} cy={reconnectY} r="3.5" fill="#3b82f6" />
-                            <circle cx={x} cy={incidentY} r="3.5" fill="#f59e0b" />
+                            </circle>
+                            <circle cx={x} cy={incidentY} r="7" fill="transparent" className="cursor-help">
+                                <title>{tooltipText}</title>
+                            </circle>
+                            <circle cx={x} cy={reconnectY} r="3.5" fill="#3b82f6" pointerEvents="none" />
+                            <circle cx={x} cy={incidentY} r="3.5" fill="#f59e0b" pointerEvents="none" />
                             {showTick && (
                                 <text x={x} y={height - 10} textAnchor="middle" className="fill-gray-400 text-[10px]">
                                     {formatTimelineHour(point?.bucketStart)}
