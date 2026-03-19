@@ -93,6 +93,31 @@ const ENV_INSTALL_APP_URL = normalizeInstallLink(
 ) || DEFAULT_INSTALL_APP_URL;
 const ENV_GHL_INSTALL_PATH = extractInstallPath(ENV_INSTALL_APP_URL, DEFAULT_GHL_INSTALL_PATH);
 
+function formatRelativeTime(value) {
+    if (!value) return "";
+    const ms = new Date(value).getTime();
+    if (!Number.isFinite(ms)) return "";
+    const diffMs = Date.now() - ms;
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "0m";
+    if (diffMin < 60) return `${diffMin}m`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d`;
+}
+
+function getHealthTone(status) {
+    switch (String(status || "").toLowerCase()) {
+        case "critical":
+            return "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800";
+        case "attention":
+            return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800";
+        default:
+            return "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800";
+    }
+}
+
 export default function AgencyDashboard({ token, onLogout }) {
     const { t } = useLanguage();
     // ✅ Agregamos loadAgencyBranding para cargar desde server
@@ -2184,10 +2209,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 {filteredLocations.map(loc => {
                                                     const totalSlots = Number.parseInt(loc.total_slots, 10) || 0;
                                                     const connectedSlotCount = Number.parseInt(loc.connected_slot_count, 10) || 0;
+                                                    const reconnects24h = Number.parseInt(loc.reconnects_24h, 10) || 0;
                                                     const connectedNumbers = Array.isArray(loc.connected_numbers)
                                                         ? loc.connected_numbers.filter(Boolean)
                                                         : [];
                                                     const hasConnectedSlots = connectedSlotCount > 0;
+                                                    const healthStatus = String(loc.health_status || (hasConnectedSlots ? 'healthy' : 'critical')).toLowerCase();
+                                                    const lastIncident = loc.last_incident || null;
                                                     const connectedPreview = connectedNumbers.slice(0, 2);
                                                     const remainingConnected = Math.max(0, connectedNumbers.length - connectedPreview.length);
 
@@ -2225,6 +2253,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                                     ? `${connectedSlotCount}/${totalSlots || connectedSlotCount} ${t('agency.location.online') || 'en línea'}`
                                                                     : (t('agency.location.none_online') || 'Sin números en línea')}
                                                             </span>
+                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${getHealthTone(healthStatus)}`}>
+                                                                {t(`agency.reliability.${healthStatus}`) || healthStatus}
+                                                            </span>
                                                         </div>
                                                         {connectedNumbers.length > 0 && (
                                                             <p
@@ -2234,6 +2265,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                                 {(t('agency.location.online_numbers') || 'Números en línea')}: {connectedPreview.join(' · ')}{remainingConnected > 0 ? ` +${remainingConnected}` : ''}
                                                             </p>
                                                         )}
+                                                        <div className="space-y-1.5 mb-2">
+                                                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                                {(t('agency.reliability.reconnections_24h') || 'Reconexiones 24h')}: <span className="font-semibold text-gray-700 dark:text-gray-200">{reconnects24h}</span>
+                                                            </p>
+                                                            <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate" title={lastIncident?.error_message || ''}>
+                                                                {(t('agency.reliability.last_incident') || 'Último incidente')}:{" "}
+                                                                {lastIncident?.created_at
+                                                                    ? <span className="font-semibold text-gray-700 dark:text-gray-200">{lastIncident?.error_code ? `${lastIncident.error_code} · ` : ''}{formatRelativeTime(lastIncident.created_at)}</span>
+                                                                    : <span className="font-semibold text-gray-700 dark:text-gray-200">{t('agency.reliability.none') || 'Sin incidentes recientes'}</span>}
+                                                            </p>
+                                                        </div>
                                                         <div className="flex items-center justify-between">
                                                             <span className="text-xs text-gray-500 flex items-center gap-1">
                                                                 <Smartphone size={12} /> {totalSlots}

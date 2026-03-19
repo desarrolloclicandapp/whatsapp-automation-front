@@ -13,6 +13,7 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replac
 export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange, isAdminMode = false }) {
     const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
+    const [healthSummary, setHealthSummary] = useState(null);
     const [keywords, setKeywords] = useState([]);
     const [crmUsers, setCrmUsers] = useState([]);
     const [locationName, setLocationName] = useState(location.name || "");
@@ -109,6 +110,50 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 label: 'Cancelar'
             }
         });
+    };
+
+    const formatRelativeTime = (value) => {
+        if (!value) return t('agency.reliability.none') || 'Sin incidentes recientes';
+        const parsed = new Date(value).getTime();
+        if (!Number.isFinite(parsed)) return t('agency.reliability.none') || 'Sin incidentes recientes';
+        const diffMs = Date.now() - parsed;
+        const diffMin = Math.floor(diffMs / 60000);
+        if (diffMin < 1) return '0m';
+        if (diffMin < 60) return `${diffMin}m`;
+        const diffHours = Math.floor(diffMin / 60);
+        if (diffHours < 24) return `${diffHours}h`;
+        const diffDays = Math.floor(diffHours / 24);
+        return `${diffDays}d`;
+    };
+
+    const getReliabilityMeta = (status) => {
+        switch (String(status || '').toLowerCase()) {
+            case 'critical':
+                return {
+                    label: t('agency.reliability.critical') || 'Crítica',
+                    className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
+                };
+            case 'attention':
+                return {
+                    label: t('agency.reliability.attention') || 'Con atención',
+                    className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
+                };
+            case 'blocked':
+                return {
+                    label: t('agency.reliability.blocked') || 'Bloqueada',
+                    className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
+                };
+            case 'paused':
+                return {
+                    label: t('agency.reliability.paused') || 'Pausada',
+                    className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
+                };
+            default:
+                return {
+                    label: t('agency.reliability.healthy') || 'Sana',
+                    className: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                };
+        }
     };
 
     // ✅ LÓGICA DE TIEMPO REAL + ROOMS
@@ -211,6 +256,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (detailsRes && detailsRes.ok) {
                 const data = await detailsRes.json();
                 setSlots(data.slots || []);
+                setHealthSummary(data.healthSummary || null);
                 setKeywords(data.keywords || []);
 
                 if (data.name) setLocationName(data.name);
@@ -1457,6 +1503,37 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         </div>
                     </div>
 
+                    {healthSummary && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
+                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.title') || 'Confiabilidad'}</p>
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-full border ${getReliabilityMeta(healthSummary.status).className}`}>
+                                    {getReliabilityMeta(healthSummary.status).label}
+                                </span>
+                            </div>
+                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.online_slots') || 'Slots en línea'}</p>
+                                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
+                                    {healthSummary.connected_slots || 0}/{healthSummary.total_slots || 0}
+                                </p>
+                            </div>
+                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.reconnections_24h') || 'Reconexiones 24h'}</p>
+                                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
+                                    {healthSummary.reconnects_24h || 0}
+                                </p>
+                            </div>
+                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.last_incident') || 'Último incidente'}</p>
+                                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                                    {healthSummary.last_incident?.created_at
+                                        ? `${healthSummary.last_incident?.error_code ? `${healthSummary.last_incident.error_code} · ` : ''}${formatRelativeTime(healthSummary.last_incident.created_at)}`
+                                        : (t('agency.reliability.none') || 'Sin incidentes recientes')}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     {loading ? (
                         <div className="flex justify-center p-20"><RefreshCw className="animate-spin text-indigo-500 w-10 h-10" /></div>
                     ) : slots.length === 0 ? (
@@ -1472,6 +1549,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const connectedPhone = isConnected ? (slot.phone_number || "") : "";
                                 const currentPrio = slot.priority || 99;
                                 const settings = slot.settings || {};
+                                const slotHealth = slot.health || {};
+                                const slotHealthMeta = getReliabilityMeta(slotHealth.status);
+                                const slotReconnects24h = Number(slotHealth.reconnects_24h || 0);
+                                const slotLastIncident = slotHealth.last_incident || null;
 
                                 return (
                                     <div key={slot.slot_id} className={`bg-white dark:bg-gray-900 border rounded-2xl transition-all duration-300 overflow-hidden ${isExpanded ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-xl' : 'border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md'}`}>
@@ -1512,6 +1593,20 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             </>
                                                         )}
                                                     </p>
+                                                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${slotHealthMeta.className}`}>
+                                                            {slotHealthMeta.label}
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
+                                                            {(t('agency.reliability.reconnections_24h') || 'Reconexiones 24h')}: {slotReconnects24h}
+                                                        </span>
+                                                        <span
+                                                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
+                                                            title={slotLastIncident?.error_message || ''}
+                                                        >
+                                                            {(t('agency.reliability.last_incident') || 'Último incidente')}: {slotLastIncident?.created_at ? `${slotLastIncident?.error_code ? `${slotLastIncident.error_code} · ` : ''}${formatRelativeTime(slotLastIncident.created_at)}` : (t('agency.reliability.none_short') || 'Sin incidentes')}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
 
