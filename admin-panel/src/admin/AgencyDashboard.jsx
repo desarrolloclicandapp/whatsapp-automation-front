@@ -2648,14 +2648,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                                             <div>
                                                 <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                    {t('agency.reliability.activity_24h') || 'Actividad de las últimas 24 horas'}
+                                                    {t('agency.reliability.activity_24h') || 'Estabilidad en las últimas 24 horas'}
                                                 </h4>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    {t('agency.reliability.activity_24h_desc') || 'Cada barra muestra cuándo hubo reconexiones o cierres. Si no hay barras, tu operación estuvo tranquila.'}
+                                                    {t('agency.reliability.activity_24h_desc') || 'La línea azul muestra reconexiones automáticas. La línea ámbar muestra alertas o cierres de sesión.'}
                                                 </p>
                                             </div>
                                             <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                X = hora · Y = eventos
+                                                {t('agency.reliability.chart_axes') || 'Hora vs cantidad de eventos'}
                                             </p>
                                         </div>
 
@@ -2674,15 +2674,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                                             <div>
                                                 <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                    {t('agency.reliability.coverage_by_account') || 'Resumen por cuenta'}
+                                                    {t('agency.reliability.coverage_by_account') || 'Cuentas con más eventos'}
                                                 </h4>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    {t('agency.reliability.recent_movement') || 'Dónde se concentraron más eventos hoy.'}
+                                                    {t('agency.reliability.recent_movement') || 'Cada barra compara en qué cuenta se concentraron más eventos hoy.'}
                                                 </p>
                                             </div>
                                             {accountEventBars.length > 0 && (
                                                 <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                    Más alto = más eventos hoy
+                                                    {t('agency.reliability.account_bars_help') || 'Más alto = más eventos en esa cuenta'}
                                                 </p>
                                             )}
                                         </div>
