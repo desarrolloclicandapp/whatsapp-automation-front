@@ -1504,13 +1504,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     </div>
 
                     {healthSummary && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
-                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
-                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.title') || 'Confiabilidad'}</p>
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-full border ${getReliabilityMeta(healthSummary.status).className}`}>
-                                    {getReliabilityMeta(healthSummary.status).label}
-                                </span>
-                            </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
                                 <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.online_slots') || 'Slots en línea'}</p>
                                 <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
@@ -1518,19 +1512,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </p>
                             </div>
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
-                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.reconnections_24h') || 'Reconexiones 24h'}</p>
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.sent_24h') || 'Enviados 24h'}</p>
                                 <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                                    {healthSummary.reconnects_24h || 0}
+                                    {healthSummary.sent_24h || 0}
                                 </p>
                             </div>
-                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
+                            {false && (<div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
                                 <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.last_incident') || 'Último incidente'}</p>
                                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                                    {healthSummary.last_incident?.created_at
+                                    {false && healthSummary.last_incident?.created_at
                                         ? `${healthSummary.last_incident?.error_code ? `${healthSummary.last_incident.error_code} · ` : ''}${formatRelativeTime(healthSummary.last_incident.created_at)}`
                                         : (t('agency.reliability.none') || 'Sin incidentes recientes')}
                                 </p>
-                            </div>
+                            </div>)}
                         </div>
                     )}
 
@@ -1550,9 +1544,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const currentPrio = slot.priority || 99;
                                 const settings = slot.settings || {};
                                 const slotHealth = slot.health || {};
-                                const slotHealthMeta = getReliabilityMeta(slotHealth.status);
-                                const slotReconnects24h = Number(slotHealth.reconnects_24h || 0);
-                                const slotLastIncident = slotHealth.last_incident || null;
+                                const slotSent24h = Number(slotHealth.sent_24h || 0);
 
                                 return (
                                     <div key={slot.slot_id} className={`bg-white dark:bg-gray-900 border rounded-2xl transition-all duration-300 overflow-hidden ${isExpanded ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-xl' : 'border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md'}`}>
@@ -1594,18 +1586,18 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         )}
                                                     </p>
                                                     <div className="flex flex-wrap items-center gap-2 mt-2">
-                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${slotHealthMeta.className}`}>
+                                                        {false && <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${slotHealthMeta.className}`}>
                                                             {slotHealthMeta.label}
-                                                        </span>
+                                                        </span>}
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
-                                                            {(t('agency.reliability.reconnections_24h') || 'Reconexiones 24h')}: {slotReconnects24h}
+                                                            {(t('agency.reliability.sent_24h') || 'Enviados 24h')}: {slotSent24h}
                                                         </span>
-                                                        <span
+                                                        {false && <span
                                                             className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
                                                             title={slotLastIncident?.error_message || ''}
                                                         >
                                                             {(t('agency.reliability.last_incident') || 'Último incidente')}: {slotLastIncident?.created_at ? `${slotLastIncident?.error_code ? `${slotLastIncident.error_code} · ` : ''}${formatRelativeTime(slotLastIncident.created_at)}` : (t('agency.reliability.none_short') || 'Sin incidentes')}
-                                                        </span>
+                                                        </span>}
                                                     </div>
                                                 </div>
                                             </div>
