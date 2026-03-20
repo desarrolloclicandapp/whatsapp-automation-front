@@ -7,6 +7,7 @@ export const es = {
     "common.cancel": "Cancelar",
     "common.confirm": "Confirmar",
     "common.save": "Guardar",
+    "common.saving": "Guardando...",
     "common.close": "Cerrar",
     "common.copied": "Copiado",
     "common.understood": "Entendido",

@@ -7,6 +7,7 @@ export const en = {
     "common.cancel": "Cancel",
     "common.confirm": "Confirm",
     "common.save": "Save",
+    "common.saving": "Saving...",
     "common.close": "Close",
     "common.copied": "Copied",
     "common.understood": "Understood",

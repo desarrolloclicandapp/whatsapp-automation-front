@@ -2360,6 +2360,20 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 />
                                                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{t('slots.chatwoot.csat_hint') || "El contacto debe responder con un número entre 1 y 5. El último valor queda visible dentro del dashboard app."}</p>
                                                                             </div>
+
+                                                                            <div className="flex justify-end pt-1">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => saveChatwootConfig(slot.slot_id)}
+                                                                                    disabled={isSavingChatwoot || isLoadingChatwoot}
+                                                                                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                                >
+                                                                                    <Save size={16} />
+                                                                                    {isSavingChatwoot
+                                                                                        ? (t('common.saving') || "Guardando...")
+                                                                                        : (t('common.save') || "Guardar")}
+                                                                                </button>
+                                                                            </div>
                                                                         </div>
                                                                     );
                                                                 })()}
