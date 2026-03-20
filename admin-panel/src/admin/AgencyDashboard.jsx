@@ -2623,8 +2623,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
                                             <MessageSquare size={14} className="text-emerald-500" />
                                             {hasReplySample
-                                                ? `${replyRate24h || 0}% ${t('agency.reliability.reply_ratio') || 'ratio de respuesta'} · ${replyAnswered24h}/${replyInbound24h}`
-                                                : (t('agency.reliability.reply_no_sample') || 'Sin muestra suficiente')}
+                                                ? `${t('agency.reliability.reply_ratio') || 'ratio de respuesta'}: ${replyRate24h || 0}% · ${replyAnswered24h}/${replyInbound24h}`
+                                                : `${t('agency.reliability.reply_ratio') || 'ratio de respuesta'}: ${t('agency.reliability.reply_no_sample') || 'Sin muestra suficiente'}`}
                                         </span>
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
                                             <Smartphone size={14} className={replyAlertAccounts > 0 ? "text-rose-500" : "text-emerald-500"} />
@@ -3935,11 +3935,9 @@ const ReliabilityAccountBars = ({
                         ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
                         : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800";
                 const ratioText = hasReplySample
-                    ? `${Number(item?.replyRate) || 0}% ${replyRatioText}`
-                    : replyNoSampleText;
-                const detailText = hasReplySample
-                    ? `${Number(item?.answeredCount) || 0}/${Number(item?.inboundCount) || 0} ${replyAnsweredText}`
-                    : `${item.sent} ${reconnectText} · ${item.failed} ${alertText}`;
+                    ? `${replyRatioText}: ${Number(item?.replyRate) || 0}%`
+                    : `${replyRatioText}: ${replyNoSampleText}`;
+                const detailText = `${Number(item?.answeredCount) || 0}/${Number(item?.inboundCount) || 0} ${replyAnsweredText}`;
                 return (
                     <div key={item.locationId} className="grid grid-cols-[minmax(0,220px)_1fr_auto] gap-3 items-center">
                         <div className="min-w-0">
