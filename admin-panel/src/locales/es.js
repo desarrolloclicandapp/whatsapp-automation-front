@@ -474,7 +474,7 @@ export const es = {
     "slots.chatwoot.csat_title": "CSAT automático",
     "slots.chatwoot.csat_desc": "Envía una encuesta 1-5 cuando la conversación se marca como resuelta. Solo aplica a conversaciones directas.",
     "slots.chatwoot.csat_enabled_summary": "Activo al resolver conversaciones directas.",
-    "slots.chatwoot.csat_disabled_summary": "Desactivado. Puedes activarlo en ajustes avanzados.",
+    "slots.chatwoot.csat_disabled_summary": "Desactivado. Puedes activarlo en la configuración del slot.",
     "slots.chatwoot.csat_message": "Mensaje de encuesta",
     "slots.chatwoot.csat_message_placeholder": "Gracias por contactar con nuestro equipo. ¿Cómo calificarías la atención recibida del 1 al 5?",
     "slots.chatwoot.csat_hint": "El contacto debe responder con un número entre 1 y 5. El último valor queda visible dentro del dashboard app.",
