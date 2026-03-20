@@ -1940,13 +1940,29 @@ export default function AgencyDashboard({ token, onLogout }) {
         (max, point) => Math.max(max, point.sent, point.failed),
         0
     );
+    const replyRate24h = Number(reliabilityTotals?.reply_rate_24h);
+    const replyInbound24h = Number(reliabilityTotals?.inbound_24h) || 0;
+    const replyAnswered24h = Number(reliabilityTotals?.answered_inbound_24h) || 0;
+    const replyUnanswered24h = Number(reliabilityTotals?.unanswered_inbound_24h) || 0;
+    const replyAlertAccounts = Number(reliabilityTotals?.reply_alert_accounts) || 0;
+    const hasReplySample = replyInbound24h > 0;
     const accountEventBars = accountActivity
         .map((entry) => ({
             locationId: entry.location_id,
             name: entry.location_name || t('agency.location.no_name'),
             sent: Number(entry.sent) || 0,
             failed: Number(entry.failed) || 0,
-            totalEvents: Number(entry.total) || ((Number(entry.sent) || 0) + (Number(entry.failed) || 0))
+            totalEvents: Math.max(
+                Number(entry.total) || ((Number(entry.sent) || 0) + (Number(entry.failed) || 0)),
+                Number(entry.inbound_24h) || 0
+            ),
+            replyRate: Number(entry.reply_rate_24h) || 100,
+            inboundCount: Number(entry.inbound_24h) || 0,
+            answeredCount: Number(entry.answered_inbound_24h) || 0,
+            unansweredCount: Number(entry.unanswered_inbound_24h) || 0,
+            replyStrikes: Number(entry.reply_strikes) || 0,
+            replyStatus: String(entry.reply_status || 'healthy').toLowerCase(),
+            replyAutoBlocked: Boolean(entry.reply_auto_blocked)
         }))
         .filter((entry) => entry.totalEvents > 0)
         .slice(0, 8);
@@ -2605,8 +2621,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             {Number(reliabilityTotals?.failed_24h) || timelineSummary.failed} {t('agency.reliability.failed_24h') || 'No enviados 24h'}
                                         </span>
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
-                                            <Smartphone size={14} className="text-emerald-500" />
-                                            {(Number(reliabilityTotals?.connected_slots) || reliabilitySummary.connectedSlots)}/{(Number(reliabilityTotals?.total_slots) || reliabilitySummary.totalSlots || 0)} {t('agency.reliability.online_slots') || 'slots en línea'}
+                                            <MessageSquare size={14} className="text-emerald-500" />
+                                            {hasReplySample
+                                                ? `${replyRate24h || 0}% ${t('agency.reliability.reply_ratio') || 'ratio de respuesta'} · ${replyAnswered24h}/${replyInbound24h}`
+                                                : (t('agency.reliability.reply_no_sample') || 'Sin muestra suficiente')}
+                                        </span>
+                                        <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
+                                            <Smartphone size={14} className={replyAlertAccounts > 0 ? "text-rose-500" : "text-emerald-500"} />
+                                            {replyAlertAccounts} {t('agency.reliability.reply_alert_accounts') || 'cuentas en alerta'}
                                         </span>
                                     </div>
 
@@ -2659,6 +2681,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 emptyLabel={t('agency.reliability.all_good_desc') || 'Aún no hay cuentas con movimiento en este filtro.'}
                                                 reconnectText={t('agency.reliability.sent_short') || 'enviados'}
                                                 alertText={t('agency.reliability.failed_short') || 'no enviados'}
+                                                replyRatioText={t('agency.reliability.reply_ratio') || 'ratio de respuesta'}
+                                                replyNoSampleText={t('agency.reliability.reply_no_sample') || 'Sin muestra suficiente'}
+                                                replyStrikeText={t('agency.reliability.reply_strike') || 'strike'}
+                                                replyAnsweredText={t('agency.reliability.reply_answered_short') || 'respondidos'}
                                             />
                                         </div>
                                     </div>
@@ -3877,7 +3903,16 @@ const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, inci
     );
 };
 
-const ReliabilityAccountBars = ({ data, emptyLabel, reconnectText, alertText }) => {
+const ReliabilityAccountBars = ({
+    data,
+    emptyLabel,
+    reconnectText,
+    alertText,
+    replyRatioText,
+    replyNoSampleText,
+    replyStrikeText,
+    replyAnsweredText
+}) => {
     if (!Array.isArray(data) || data.length === 0) {
         return (
             <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-5 text-sm text-gray-500 dark:text-gray-400">
@@ -3892,6 +3927,19 @@ const ReliabilityAccountBars = ({ data, emptyLabel, reconnectText, alertText }) 
         <div className="space-y-4">
             {data.map((item) => {
                 const percent = Math.max(6, Math.round(((Number(item?.totalEvents) || 0) / maxValue) * 100));
+                const strikeCount = Number(item?.replyStrikes) || 0;
+                const hasReplySample = (Number(item?.inboundCount) || 0) > 0;
+                const statusTone = item?.replyAutoBlocked
+                    ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800"
+                    : strikeCount > 0
+                        ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+                        : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800";
+                const ratioText = hasReplySample
+                    ? `${Number(item?.replyRate) || 0}% ${replyRatioText}`
+                    : replyNoSampleText;
+                const detailText = hasReplySample
+                    ? `${Number(item?.answeredCount) || 0}/${Number(item?.inboundCount) || 0} ${replyAnsweredText}`
+                    : `${item.sent} ${reconnectText} · ${item.failed} ${alertText}`;
                 return (
                     <div key={item.locationId} className="grid grid-cols-[minmax(0,220px)_1fr_auto] gap-3 items-center">
                         <div className="min-w-0">
@@ -3899,11 +3947,24 @@ const ReliabilityAccountBars = ({ data, emptyLabel, reconnectText, alertText }) 
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {item.sent} {reconnectText} · {item.failed} {alertText}
                             </p>
+                            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
+                                {ratioText} · {detailText}
+                            </p>
                         </div>
                         <div className="h-3 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                            <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-amber-500" style={{ width: `${percent}%` }} />
+                            <div
+                                className={`h-full rounded-full ${strikeCount > 0 ? 'bg-gradient-to-r from-amber-500 to-rose-500' : 'bg-gradient-to-r from-blue-500 to-amber-500'}`}
+                                style={{ width: `${percent}%` }}
+                            />
                         </div>
-                        <span className="text-sm font-bold text-gray-900 dark:text-white">{item.totalEvents}</span>
+                        <div className="flex items-center gap-2 justify-end">
+                            {strikeCount > 0 && (
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full border text-[11px] font-semibold ${statusTone}`}>
+                                    {replyStrikeText} {strikeCount}/3
+                                </span>
+                            )}
+                            <span className="text-sm font-bold text-gray-900 dark:text-white">{item.totalEvents}</span>
+                        </div>
                     </div>
                 );
             })}

@@ -949,6 +949,11 @@ export const es = {
     "agency.reliability.sent_label": "Mensajes enviados",
     "agency.reliability.failed_label": "No enviados",
     "agency.reliability.sent_short": "enviados",
-    "agency.reliability.failed_short": "no enviados"
+    "agency.reliability.failed_short": "no enviados",
+    "agency.reliability.reply_ratio": "ratio de respuesta",
+    "agency.reliability.reply_alert_accounts": "cuentas en alerta",
+    "agency.reliability.reply_no_sample": "Sin muestra suficiente",
+    "agency.reliability.reply_strike": "strike",
+    "agency.reliability.reply_answered_short": "respondidos"
 };
 
