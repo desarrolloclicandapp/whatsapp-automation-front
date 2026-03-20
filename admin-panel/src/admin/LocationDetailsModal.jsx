@@ -2324,6 +2324,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 <>
                                                                 {(() => {
                                                                     const chatwoot = chatwootConfigBySlot[slot.slot_id] || createEmptyChatwootState();
+                                                                    const isLoadingChatwoot = !!loadingChatwootBySlot[slot.slot_id];
+                                                                    const isSavingChatwoot = !!savingChatwootBySlot[slot.slot_id];
                                                                     return (
                                                                         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                             <div className="flex justify-between items-start mb-4 gap-4">
