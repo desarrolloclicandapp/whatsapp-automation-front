@@ -248,6 +248,8 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [isSavingChatwootMaster, setIsSavingChatwootMaster] = useState(false);
     const [isTestingChatwootMaster, setIsTestingChatwootMaster] = useState(false);
     const [chatwootMasterTestStatus, setChatwootMasterTestStatus] = useState(null);
+    const chatwootMasterDraftDirtyRef = React.useRef(false);
+    const chatwootMasterSavedEmailRef = React.useRef("");
 
     const getDaysLeft = (dateValue) => {
         if (!dateValue) return null;
@@ -325,6 +327,53 @@ export default function AgencyDashboard({ token, onLogout }) {
         } catch (_) {
             return { rawText };
         }
+    };
+
+    const markChatwootMasterDraftDirty = () => {
+        chatwootMasterDraftDirtyRef.current = true;
+    };
+
+    const applyChatwootMasterServerState = ({
+        configured = false,
+        name = null,
+        email = null,
+        emailMasked = null,
+        clearPasswords = false,
+        preserveDraft = false
+    } = {}) => {
+        setChatwootMasterConfigured(Boolean(configured));
+
+        if (typeof emailMasked === "string") {
+            setChatwootMasterEmailMasked(String(emailMasked || ""));
+        }
+
+        if (typeof email === "string") {
+            const normalizedEmail = String(email || "").trim().toLowerCase();
+            chatwootMasterSavedEmailRef.current = normalizedEmail;
+            if (!preserveDraft) {
+                setChatwootMasterEmail(normalizedEmail);
+            }
+        } else if (!configured) {
+            chatwootMasterSavedEmailRef.current = "";
+            if (!preserveDraft) {
+                setChatwootMasterEmail("");
+            }
+        }
+
+        if (preserveDraft) {
+            return;
+        }
+
+        if (typeof name === "string") {
+            setChatwootMasterName(String(name || ""));
+        }
+
+        if (clearPasswords) {
+            setChatwootMasterPassword("");
+            setChatwootMasterVerificationPassword("");
+        }
+
+        chatwootMasterDraftDirtyRef.current = false;
     };
 
     const resetOnboardingSubaccountForm = () => {
@@ -405,9 +454,15 @@ export default function AgencyDashboard({ token, onLogout }) {
             if (accRes && accRes.ok) {
                 const data = await accRes.json();
                 setAccountInfo(data);
-                setChatwootMasterConfigured(Boolean(data.chatwoot_master_configured));
-                setChatwootMasterEmailMasked(String(data.chatwoot_master_email_masked || ""));
-                setChatwootMasterName(String(data.chatwoot_master_name || ""));
+                const chatwootConfigured = Boolean(data.chatwoot_master_configured);
+                applyChatwootMasterServerState({
+                    configured: chatwootConfigured,
+                    name: String(data.chatwoot_master_name || ""),
+                    email: chatwootConfigured ? null : "",
+                    emailMasked: String(data.chatwoot_master_email_masked || ""),
+                    clearPasswords: !chatwootConfigured,
+                    preserveDraft: chatwootMasterDraftDirtyRef.current
+                });
                 const resolvedInstallDomain = normalizeInstallDomain(
                     data.ghl_instalation_link ||
                     data.ghl_default_installation_link ||
@@ -1309,13 +1364,17 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
 
             const configured = Boolean(data.configured);
-            setChatwootMasterConfigured(configured);
-            setChatwootMasterName(String(data.masterName || ""));
-            setChatwootMasterEmail(String(data.masterEmail || ""));
-            setChatwootMasterEmailMasked(String(data.masterEmailMasked || ""));
-            setChatwootMasterVerificationPassword("");
-            if (!configured) {
-                setChatwootMasterPassword("");
+            const preserveDraft = chatwootMasterDraftDirtyRef.current;
+            applyChatwootMasterServerState({
+                configured,
+                name: String(data.masterName || ""),
+                email: configured ? String(data.masterEmail || "") : "",
+                emailMasked: String(data.masterEmailMasked || ""),
+                clearPasswords: !configured,
+                preserveDraft
+            });
+            if (!preserveDraft) {
+                setChatwootMasterVerificationPassword("");
             }
         } catch (e) {
             if (!silent) {
@@ -1372,7 +1431,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             return false;
         }
 
-        const previousMasterEmail = String(chatwootMasterEmail || "").trim().toLowerCase();
+        const previousMasterEmail = String(chatwootMasterSavedEmailRef.current || "").trim().toLowerCase();
         const shouldPrecheckMasterEmail = !chatwootMasterConfigured || safeEmail !== previousMasterEmail;
         if (shouldPrecheckMasterEmail) {
             try {
@@ -1410,12 +1469,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                 throw new Error(data.error || "No se pudo guardar el usuario maestro de Chatwoot");
             }
 
-            setChatwootMasterConfigured(Boolean(data.configured));
-            setChatwootMasterName(String(data.masterName || safeName));
-            setChatwootMasterEmail(String(data.masterEmail || safeEmail));
-            setChatwootMasterEmailMasked(String(data.masterEmailMasked || ""));
-            setChatwootMasterPassword("");
-            setChatwootMasterVerificationPassword("");
+            applyChatwootMasterServerState({
+                configured: Boolean(data.configured),
+                name: String(data.masterName || safeName),
+                email: String(data.masterEmail || safeEmail),
+                emailMasked: String(data.masterEmailMasked || ""),
+                clearPasswords: true,
+                preserveDraft: false
+            });
             setAccountInfo(prev => prev ? {
                 ...prev,
                 chatwoot_master_configured: true,
@@ -1455,6 +1516,8 @@ export default function AgencyDashboard({ token, onLogout }) {
             const safeEmailMasked = String(data.masterEmailMasked || chatwootMasterEmailMasked || "");
             const successMessage = String(data.message || "").trim() || (t('dash.chatwoot_master.test_success') || "Conexión validada correctamente.");
 
+            chatwootMasterSavedEmailRef.current = safeEmail;
+            chatwootMasterDraftDirtyRef.current = false;
             setChatwootMasterConfigured(Boolean(data.configured));
             setChatwootMasterName(safeName);
             setChatwootMasterEmail(safeEmail);
@@ -1701,7 +1764,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <input
                                     type="text"
                                     value={chatwootMasterName}
-                                    onChange={(e) => setChatwootMasterName(e.target.value)}
+                                    onChange={(e) => {
+                                        markChatwootMasterDraftDirty();
+                                        setChatwootMasterName(e.target.value);
+                                    }}
                                     placeholder="Ej: Soporte Agencia"
                                     autoComplete="off"
                                     className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1714,7 +1780,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <input
                                     type="email"
                                     value={chatwootMasterEmail}
-                                    onChange={(e) => setChatwootMasterEmail(e.target.value)}
+                                    onChange={(e) => {
+                                        markChatwootMasterDraftDirty();
+                                        setChatwootMasterEmail(e.target.value);
+                                    }}
                                     placeholder="soporte@agencia.com"
                                     autoComplete="off"
                                     className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1733,7 +1802,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <input
                                         type="password"
                                         value={chatwootMasterVerificationPassword}
-                                        onChange={(e) => setChatwootMasterVerificationPassword(e.target.value)}
+                                        onChange={(e) => {
+                                            markChatwootMasterDraftDirty();
+                                            setChatwootMasterVerificationPassword(e.target.value);
+                                        }}
                                         placeholder="••••••••"
                                         autoComplete="current-password"
                                         className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1752,7 +1824,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <input
                                     type="password"
                                     value={chatwootMasterPassword}
-                                    onChange={(e) => setChatwootMasterPassword(e.target.value)}
+                                    onChange={(e) => {
+                                        markChatwootMasterDraftDirty();
+                                        setChatwootMasterPassword(e.target.value);
+                                    }}
                                     placeholder="••••••••"
                                     autoComplete="new-password"
                                     className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
@@ -3593,7 +3668,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <input
                                                     type="text"
                                                     value={chatwootMasterName}
-                                                    onChange={(e) => setChatwootMasterName(e.target.value)}
+                                                    onChange={(e) => {
+                                                        markChatwootMasterDraftDirty();
+                                                        setChatwootMasterName(e.target.value);
+                                                    }}
                                                     placeholder="Ej: Soporte Agencia"
                                                     autoComplete="off"
                                                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
@@ -3606,7 +3684,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <input
                                                     type="email"
                                                     value={chatwootMasterEmail}
-                                                    onChange={(e) => setChatwootMasterEmail(e.target.value)}
+                                                    onChange={(e) => {
+                                                        markChatwootMasterDraftDirty();
+                                                        setChatwootMasterEmail(e.target.value);
+                                                    }}
                                                     placeholder="soporte@agencia.com"
                                                     autoComplete="off"
                                                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
@@ -3620,7 +3701,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     <input
                                                         type="password"
                                                         value={chatwootMasterVerificationPassword}
-                                                        onChange={(e) => setChatwootMasterVerificationPassword(e.target.value)}
+                                                        onChange={(e) => {
+                                                            markChatwootMasterDraftDirty();
+                                                            setChatwootMasterVerificationPassword(e.target.value);
+                                                        }}
                                                         placeholder="••••••••"
                                                         autoComplete="current-password"
                                                         className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
@@ -3639,7 +3723,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <input
                                                     type="password"
                                                     value={chatwootMasterPassword}
-                                                    onChange={(e) => setChatwootMasterPassword(e.target.value)}
+                                                    onChange={(e) => {
+                                                        markChatwootMasterDraftDirty();
+                                                        setChatwootMasterPassword(e.target.value);
+                                                    }}
                                                     placeholder="••••••••"
                                                     autoComplete="new-password"
                                                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
