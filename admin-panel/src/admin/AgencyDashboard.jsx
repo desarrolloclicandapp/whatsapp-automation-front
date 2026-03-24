@@ -2344,7 +2344,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="settings" icon={Settings} label={t('dash.nav.settings')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="builder" icon={Hammer} label={t('dash.nav.builder') || "Constructor"} branding={branding} sidebarOpen={sidebarOpen} />
                     <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
-                    <a href="https://docs.waflow.ai/docs/" target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}><BookOpen size={20} />{sidebarOpen && <span>{t('dash.nav.docs')}</span>}</a>
+                    <a href="https://docs.waflow.ai" target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}><BookOpen size={20} />{sidebarOpen && <span>{t('dash.nav.docs')}</span>}</a>
                     <a href={`https://wa.me/${SUPPORT_PHONE}`} target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}><LifeBuoy size={20} />{sidebarOpen && <span>{t('dash.nav.support')}</span>}</a>
                 </div>
                 <div className="p-4 border-t border-gray-200 dark:border-gray-800">
