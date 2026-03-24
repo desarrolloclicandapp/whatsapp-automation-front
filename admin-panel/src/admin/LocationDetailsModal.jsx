@@ -564,6 +564,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }
     };
 
+    const focusSlotConnectionSelector = (slotId) => {
+        setExpandedSlotId(slotId);
+        setActiveSlotTab('general');
+        window.setTimeout(() => {
+            const target = document.getElementById(`slot-card-${slotId}`);
+            if (!target) return;
+            target.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }, 140);
+    };
+
     const changePriority = async (slotId, newPriority) => {
         try {
             await authFetch(`/agency/update-slot-config`, {
@@ -1220,8 +1233,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 syncSlotConnectionMode(slot.slot_id, null, null);
             }
 
-            setActiveSlotTab('general');
             await loadData();
+            focusSlotConnectionSelector(slot.slot_id);
             toast.success(t('slots.connection_mode.reset_done') || 'Elige el nuevo tipo de conexión');
         } catch (e) {
             toast.error(t('slots.connection_mode.reset_error') || 'No se pudo cambiar el tipo de conexión', {
@@ -1687,7 +1700,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         {t('slots.connection_mode.official_title') || 'API oficial de WhatsApp'}
                     </h5>
                     <p className="text-sm text-gray-500 dark:text-gray-400 leading-6">
-                        {t('slots.connection_mode.official_desc') || 'Configura WABA, Phone Number ID, token y webhook de Meta. Este modo no usa el panel QR de Waflow.'}
+                        {t('slots.connection_mode.official_desc') || 'Configura WABA, Phone Number ID, token y webhook de Meta. Este modo solo opera mensajes desde Chatwoot o GoHighLevel y no usa el panel QR, grupos ni reglas de gestión de Waflow.'}
                     </p>
                 </button>
             </div>
@@ -1724,7 +1737,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </h4>
                             </div>
                             <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
-                                {t('slots.official.desc') || 'Configura este slot con la API oficial de Meta. Cuando este modo está activo, el panel QR de Waflow queda fuera de uso para este número.'}
+                                {t('slots.official.desc') || 'Configura este slot con la API oficial de Meta. Este modo queda enfocado en recibir y enviar mensajes desde Chatwoot o GoHighLevel, sin el panel QR ni extras del flujo Baileys.'}
                             </p>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${statusClassName}`}>
@@ -2195,9 +2208,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const connectionMode = getEffectiveSlotConnectionMode(slot);
                                 const slotHealth = slot.health || {};
                                 const slotSent24h = Number(slotHealth.sent_24h || 0);
+                                const isOfficialSlotMode = connectionMode === 'official_api';
+                                const slotHeaderModeLabel = isOfficialSlotMode
+                                    ? (t('slots.card.official_mode') || 'Meta API')
+                                    : (isExpanded ? t('slots.card.managing') : t('slots.card.manage'));
 
                                 return (
-                                    <div key={slot.slot_id} className={`bg-white dark:bg-gray-900 border rounded-2xl transition-all duration-300 overflow-hidden ${isExpanded ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-xl' : 'border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md'}`}>
+                                    <div id={`slot-card-${slot.slot_id}`} key={slot.slot_id} className={`bg-white dark:bg-gray-900 border rounded-2xl transition-all duration-300 overflow-hidden ${isExpanded ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-xl' : 'border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md'}`}>
 
                                         {/* CABECERA SLOT */}
                                         <div className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" onClick={() => handleExpandSlot(slot.slot_id)}>
@@ -2207,7 +2224,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     <div className="flex items-center gap-3">
                                                         <h3 className="font-bold text-gray-900 dark:text-white text-xl">{slot.slot_name || (isChatwootMode ? `Inbox ${slot.slot_id}` : `Dispositivo ${slot.slot_id}`)}</h3>
                                                         <div className="flex gap-1">
-                                                            {connectionMode && (
+                                                            {connectionMode && !isOfficialSlotMode && (
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
                                                                     className={`p-1.5 rounded-lg transition ${slot.is_favorite ? 'text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
@@ -2241,7 +2258,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         {isConnected && connectedPhone
                                                             ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{connectedPhone}</span>
                                                             : t('slots.card.disconnected')}
-                                                        {isGhlMode && (
+                                                        {isGhlMode && !isOfficialSlotMode && (
                                                             <>
                                                                 <span className="text-gray-300 dark:text-gray-600">•</span>
                                                                 <span>{t('slots.card.priority')}: {currentPrio}</span>
@@ -2267,7 +2284,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
                                             <div className="flex items-center gap-3">
                                                 <span className={`text-xs font-bold px-3 py-1.5 rounded-lg uppercase tracking-wide transition-colors ${isExpanded ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
-                                                    {isExpanded ? t('slots.card.managing') : t('slots.card.manage')}
+                                                    {slotHeaderModeLabel}
                                                 </span>
                                                 <button onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.slot_id); }} className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition" disabled={deletingSlotId === slot.slot_id}>
                                                     {deletingSlotId === slot.slot_id ? <Loader2 className="animate-spin" size={20} /> : <Trash2 size={20} />}

@@ -361,6 +361,7 @@ export const es = {
     "slots.card.priority": "Prioridad",
     "slots.card.managing": "Editando",
     "slots.card.manage": "Gestionar",
+    "slots.card.official_mode": "Meta API",
 
     // Tabs
     "slots.tab.general": "General",
@@ -375,7 +376,7 @@ export const es = {
     "slots.connection_mode.qr_title": "Conexión QR",
     "slots.connection_mode.qr_desc": "Vincula el número escaneando un QR y usa el panel actual de conexión, reconexión y grupos.",
     "slots.connection_mode.official_title": "API oficial de WhatsApp",
-    "slots.connection_mode.official_desc": "Configura WABA, Phone Number ID, token y webhook de Meta. Este modo no usa el panel QR de Waflow.",
+    "slots.connection_mode.official_desc": "Configura WABA, Phone Number ID, token y webhook de Meta. Este modo solo opera mensajes desde Chatwoot o GoHighLevel y no usa el panel QR, grupos ni reglas de gestión de Waflow.",
     "slots.connection_mode.change": "Cambiar conexión",
     "slots.connection_mode.confirm_title": "Cambiar tipo de conexión",
     "slots.connection_mode.confirm_qr_desc": "Si cambias el tipo de conexión, este slot se desconectará, se borrará la sesión QR actual y tendrás que volver a configurarlo desde cero.",
@@ -412,7 +413,7 @@ export const es = {
     "slots.sms.configured": "Configurado",
     "slots.sms.not_configured": "No configurado",
     "slots.official.title": "WhatsApp API oficial",
-    "slots.official.desc": "Configura este slot con la API oficial de Meta. Cuando este modo está activo, el panel QR de Waflow queda fuera de uso para este número.",
+    "slots.official.desc": "Configura este slot con la API oficial de Meta. Este modo queda enfocado en recibir y enviar mensajes desde Chatwoot o GoHighLevel, sin el panel QR ni extras del flujo Baileys.",
     "slots.official.business_account_id": "Business Account ID / WABA ID",
     "slots.official.phone_number_id": "Phone Number ID",
     "slots.official.access_token": "Access Token",
