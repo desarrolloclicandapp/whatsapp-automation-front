@@ -1691,8 +1691,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 <button
                     type="button"
                     onClick={() => selectSlotConnectionMode(slot, 'official_api')}
-                    className="text-left rounded-3xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-800 p-6 hover:border-emerald-400 hover:shadow-lg transition"
+                    className="relative text-left rounded-3xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-800 p-6 pt-10 hover:border-emerald-400 hover:shadow-lg transition"
                 >
+                    <span className="absolute left-6 top-0 -translate-y-1/2 inline-flex items-center rounded-full bg-emerald-400 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.24em] text-emerald-950 shadow-[0_10px_24px_rgba(16,185,129,0.28)]">
+                        {t('slots.connection_mode.official_badge') || 'Beta'}
+                    </span>
                     <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center mb-5">
                         <Link2 size={22} />
                     </div>

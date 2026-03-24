@@ -376,6 +376,7 @@ export const es = {
     "slots.connection_mode.qr_title": "Conexión QR",
     "slots.connection_mode.qr_desc": "Vincula el número escaneando un QR y usa el panel actual de conexión, reconexión y grupos.",
     "slots.connection_mode.official_title": "API oficial de WhatsApp",
+    "slots.connection_mode.official_badge": "Beta",
     "slots.connection_mode.official_desc": "Configura WABA, Phone Number ID, token y webhook de Meta. Este modo solo opera mensajes desde Chatwoot o GoHighLevel y no usa el panel QR, grupos ni reglas de gestión de Waflow.",
     "slots.connection_mode.change": "Cambiar conexión",
     "slots.connection_mode.confirm_title": "Cambiar tipo de conexión",
