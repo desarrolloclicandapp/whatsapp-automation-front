@@ -982,6 +982,9 @@ export const en = {
     "agency.onboarding.waflow_crm_new_account": "New Waflow Messaging Account",
     "agency.onboarding.waflow_crm_name_prompt": "Waflow Messaging account name",
     "agency.onboarding.chatwoot_master_step_desc": "This user is reused to provision new Waflow Messaging accounts hosted by us.",
-    "agency.onboarding.waflow_crm_free_badge": "Included free"
+    "agency.onboarding.waflow_crm_free_badge": "Included free",
+    "agency.onboarding.chatwoot_url_help": "Use the base domain where you sign in to Chatwoot. Example: https://chat.yourcompany.com. Do not paste internal routes or widget links.",
+    "agency.onboarding.chatwoot_account_id_help": "Open the account you want to connect and copy the number shown in the URL after /app/accounts/. It is also commonly visible in account settings.",
+    "agency.onboarding.chatwoot_api_token_help": "Sign in with an admin user for that account and copy the personal access token from the profile or user settings. Use the api_access_token, not the inbox token or a webhook token."
 };
 

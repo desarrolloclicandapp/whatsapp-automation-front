@@ -982,6 +982,9 @@ export const es = {
     "agency.onboarding.waflow_crm_title": "Waflow Mensajeria",
     "agency.onboarding.waflow_crm_desc": "Mensajeria hospedada por Waflow",
     "agency.onboarding.waflow_crm_benefit_3": "Operacion diaria dentro de Waflow",
-    "agency.onboarding.waflow_crm_free_badge": "Incluido gratis"
+    "agency.onboarding.waflow_crm_free_badge": "Incluido gratis",
+    "agency.onboarding.chatwoot_url_help": "Usa el dominio base donde inicias sesion en Chatwoot. Ejemplo: https://chat.tuempresa.com. No pegues rutas internas ni enlaces del widget.",
+    "agency.onboarding.chatwoot_account_id_help": "Abre la cuenta que quieres conectar y copia el numero que aparece en la URL despues de /app/accounts/. Tambien suele verse en la configuracion de la cuenta.",
+    "agency.onboarding.chatwoot_api_token_help": "Entra con un usuario administrador de esa cuenta y copia su access token personal desde el perfil o ajustes de usuario. Usa el api_access_token, no el token del inbox ni uno de webhook."
 };
 

@@ -21,7 +21,7 @@ import {
     TrendingUp, ShieldCheck, Settings, Trash2,
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
     Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Hammer,
-    Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare, Loader2, X,
+    Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare, Loader2, X, Info,
     Activity, AlertTriangle, Send // ✅ Iconos
 } from 'lucide-react';
 
@@ -160,6 +160,26 @@ function getLocationRuntimeMeta(loc) {
         connectedPreview,
         remainingConnected
     };
+}
+
+function InlineInfoHint({ text, ariaLabel = "Mas informacion" }) {
+    return (
+        <span className="relative inline-flex items-center group/info">
+            <button
+                type="button"
+                aria-label={ariaLabel}
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 bg-gray-100 text-gray-500 transition hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
+            >
+                <Info size={12} />
+            </button>
+            <span
+                role="tooltip"
+                className="pointer-events-none absolute left-0 top-full z-30 mt-2 hidden w-72 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[11px] leading-5 text-gray-600 shadow-xl group-hover/info:block group-focus-within/info:block dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+            >
+                {text}
+            </span>
+        </span>
+    );
 }
 
 function formatTimelineHour(value) {
@@ -3204,9 +3224,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         Conecta Waflow a un Chatwoot alojado externamente.
                                                     </p>
                                                     <div>
-                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                            URL de Chatwoot
-                                                        </label>
+                                                        <div className="mb-2 flex items-center gap-2">
+                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                                                URL de Chatwoot
+                                                            </label>
+                                                            <InlineInfoHint
+                                                                ariaLabel="Ayuda para URL de Chatwoot"
+                                                                text={t('agency.onboarding.chatwoot_url_help') || 'Usa el dominio base donde inicias sesion en Chatwoot. Ejemplo: https://chat.tuempresa.com. No pegues rutas internas ni links del widget.'}
+                                                            />
+                                                        </div>
                                                         <input
                                                             type="url"
                                                             value={addModalChatwootUrl}
@@ -3216,9 +3242,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                            Account ID
-                                                        </label>
+                                                        <div className="mb-2 flex items-center gap-2">
+                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                                                Account ID
+                                                            </label>
+                                                            <InlineInfoHint
+                                                                ariaLabel="Ayuda para Account ID de Chatwoot"
+                                                                text={t('agency.onboarding.chatwoot_account_id_help') || 'Abre la cuenta que quieres conectar y copia el numero que aparece en la URL despues de /app/accounts/. Tambien suele verse en la configuracion de la cuenta.'}
+                                                            />
+                                                        </div>
                                                         <input
                                                             type="number"
                                                             value={addModalChatwootAccountId}
@@ -3228,9 +3260,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                            Access Token de API
-                                                        </label>
+                                                        <div className="mb-2 flex items-center gap-2">
+                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                                                Access Token de API
+                                                            </label>
+                                                            <InlineInfoHint
+                                                                ariaLabel="Ayuda para Access Token de API de Chatwoot"
+                                                                text={t('agency.onboarding.chatwoot_api_token_help') || 'Entra con un usuario administrador de esa cuenta y copia su access token personal desde el perfil o ajustes de usuario. Usa el api_access_token, no el inbox token ni un webhook token.'}
+                                                            />
+                                                        </div>
                                                         <input
                                                             type="text"
                                                             value={addModalChatwootApiToken}
