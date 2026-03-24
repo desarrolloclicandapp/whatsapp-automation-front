@@ -968,6 +968,18 @@ export const es = {
     "agency.reliability.reply_alert_accounts": "cuentas en alerta",
     "agency.reliability.reply_no_sample": "Sin muestra suficiente",
     "agency.reliability.reply_strike": "strike",
-    "agency.reliability.reply_answered_short": "respondidos"
+    "agency.reliability.reply_answered_short": "respondidos",
+    "agency.onboarding.waflow_crm_title": "Waflow CRM",
+    "agency.onboarding.waflow_crm_desc": "CRM y mensajerÃ­a hospedados por Waflow",
+    "agency.onboarding.waflow_crm_benefit_1": "Cuenta lista para operar en minutos",
+    "agency.onboarding.waflow_crm_benefit_2": "WhatsApp, inboxes y usuarios en un solo flujo",
+    "agency.onboarding.waflow_crm_benefit_3": "OperaciÃ³n diaria dentro de Waflow",
+    "agency.onboarding.waflow_crm_benefit_4": "Infraestructura administrada por nuestro equipo",
+    "agency.onboarding.waflow_crm_benefit_5": "Ideal para agencias que quieren marca propia",
+    "agency.onboarding.waflow_crm_new_account": "Nueva Cuenta Waflow CRM",
+    "agency.onboarding.waflow_crm_name_prompt": "Nombre de la cuenta Waflow CRM",
+    "agency.onboarding.chatwoot_master_step_desc": "Este usuario se reutiliza para aprovisionar nuevas cuentas Waflow CRM hospedadas por nosotros.",
+    "agency.onboarding.waflow_crm_desc": "CRM y mensajeria hospedados por Waflow",
+    "agency.onboarding.waflow_crm_benefit_3": "Operacion diaria dentro de Waflow"
 };
 

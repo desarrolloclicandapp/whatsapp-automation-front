@@ -971,6 +971,16 @@ export const en = {
     "agency.reliability.reply_alert_accounts": "accounts in alert",
     "agency.reliability.reply_no_sample": "Not enough sample yet",
     "agency.reliability.reply_strike": "strike",
-    "agency.reliability.reply_answered_short": "answered"
+    "agency.reliability.reply_answered_short": "answered",
+    "agency.onboarding.waflow_crm_title": "Waflow CRM",
+    "agency.onboarding.waflow_crm_desc": "CRM and messaging hosted by Waflow",
+    "agency.onboarding.waflow_crm_benefit_1": "Account ready to operate in minutes",
+    "agency.onboarding.waflow_crm_benefit_2": "WhatsApp, inboxes, and users in one flow",
+    "agency.onboarding.waflow_crm_benefit_3": "Daily operations inside Waflow",
+    "agency.onboarding.waflow_crm_benefit_4": "Infrastructure managed by our team",
+    "agency.onboarding.waflow_crm_benefit_5": "Ideal for agencies that want their own brand",
+    "agency.onboarding.waflow_crm_new_account": "New Waflow CRM Account",
+    "agency.onboarding.waflow_crm_name_prompt": "Waflow CRM account name",
+    "agency.onboarding.chatwoot_master_step_desc": "This user is reused to provision new Waflow CRM accounts hosted by us."
 };
 
