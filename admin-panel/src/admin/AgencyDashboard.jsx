@@ -3352,7 +3352,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { resetOnboardingWizard(); setShowOnboarding(false); }}>
                             <div
                                 className={`bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full mx-4 overflow-hidden ${
-                                    onboardingStep === 0 ? "max-w-4xl" : "max-w-lg"
+                                    onboardingStep === 0 ? "max-w-6xl" : "max-w-lg"
                                 }`}
                                 onClick={e => e.stopPropagation()}
                             >
@@ -3381,10 +3381,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </button>
                                 </div>
 
-                                <div className="p-6">
+                                <div className="p-6 md:p-7">
                                     {/* Step 0: Choose integration type */}
                                     {onboardingStep === 0 && (
-                                        <div className="rounded-2xl border-2 border-gray-200 dark:border-gray-700 bg-gray-100/60 dark:bg-gray-800/40 p-4 md:p-6">
+                                        <div className="rounded-[28px] border-2 border-gray-200 dark:border-gray-700 bg-gray-100/60 dark:bg-gray-800/40 p-5 md:p-8">
                                             <h4 className="text-center text-base md:text-lg font-bold text-gray-900 dark:text-white">
                                                 {t('agency.onboarding.compare_title') || 'Compara beneficios y elige tu plataforma'}
                                             </h4>
@@ -3395,14 +3395,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 {t('agency.onboarding.choose_integration_summary') || 'Elige la experiencia ideal para cada cliente. Puedes crear cuentas mixtas dentro de la misma agencia.'}
                                             </p>
 
-                                            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-7">
+                                            <div className="mt-10 grid grid-cols-1 items-stretch gap-7 md:grid-cols-3 md:gap-8">
                                                 <button
                                                     onClick={() => goToOnboardingConnectionStep('ghl')}
                                                     onMouseEnter={() => setOnboardingHoveredCard('ghl')}
                                                     onMouseLeave={() => setOnboardingHoveredCard(null)}
                                                     onFocus={() => setOnboardingHoveredCard('ghl')}
                                                     onBlur={() => setOnboardingHoveredCard(null)}
-                                                    className={`group rounded-xl border-[3px] p-6 text-left transition-all duration-200 ${
+                                                    className={`group flex h-full min-h-[29rem] flex-col rounded-[28px] border-[3px] p-7 text-left transition-all duration-200 ${
                                                         onboardingHoveredCard === 'ghl'
                                                             ? 'border-blue-600 dark:border-blue-400 bg-blue-50/60 dark:bg-blue-900/20 shadow-[0_14px_30px_rgba(37,99,235,0.25)] -translate-y-0.5'
                                                             : onboardingHoveredCard
@@ -3424,23 +3424,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                                 : 'text-gray-300 group-hover:text-blue-500'
                                                         }`} />
                                                     </div>
-                                                    <div className="flex items-center gap-3 mt-3">
-                                                        <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                                                    <div className="mt-5 flex items-center gap-4">
+                                                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/30 shrink-0">
                                                             <Globe size={20} className="text-blue-600 dark:text-blue-400" />
                                                         </div>
-                                                        <h5 className="text-xl font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
+                                                        <h5 className="text-[1.75rem] leading-[1.05] font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
                                                             {t('agency.onboarding.ghl_title') || 'CRM GoHighLevel'}
                                                         </h5>
                                                     </div>
-                                                    <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                                                    <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
                                                         {t('agency.onboarding.benefits_title') || 'Listado de beneficios'}
                                                     </p>
-                                                    <ul className="mt-3 space-y-2 text-sm text-gray-800 dark:text-gray-200">
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_1') || 'Pipeline y CRM en un solo lugar'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_2') || 'Automatizaciones y campañas'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_3') || 'Instalación rápida de Waflow'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_4') || 'Mayor control comercial del cliente'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_5') || 'Escalable para múltiples subcuentas'}</span></li>
+                                                    <ul className="mt-4 space-y-3 text-[15px] leading-7 text-gray-800 dark:text-gray-200">
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_1') || 'Pipeline y CRM en un solo lugar'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_2') || 'Automatizaciones y campañas'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_3') || 'Instalación rápida de Waflow'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_4') || 'Mayor control comercial del cliente'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_5') || 'Escalable para múltiples subcuentas'}</span></li>
                                                     </ul>
                                                 </button>
 
@@ -3450,7 +3450,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     onMouseLeave={() => setOnboardingHoveredCard(null)}
                                                     onFocus={() => setOnboardingHoveredCard('waflow_crm')}
                                                     onBlur={() => setOnboardingHoveredCard(null)}
-                                                    className={`group relative mt-4 rounded-xl border-[3px] p-6 text-left transition-all duration-200 ${
+                                                    className={`group relative flex h-full min-h-[29rem] flex-col rounded-[28px] border-[3px] p-7 text-left transition-all duration-200 ${
                                                         onboardingHoveredCard === 'waflow_crm'
                                                             ? 'border-emerald-600 dark:border-emerald-400 bg-emerald-50/60 dark:bg-emerald-900/20 shadow-[0_14px_30px_rgba(5,150,105,0.22)] -translate-y-0.5'
                                                             : onboardingHoveredCard
@@ -3475,23 +3475,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                                 : 'text-gray-300 group-hover:text-emerald-500'
                                                         }`} />
                                                     </div>
-                                                    <div className="flex items-center gap-3 mt-3">
-                                                        <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+                                                    <div className="mt-5 flex items-center gap-4">
+                                                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-900/30 shrink-0">
                                                             <Building2 size={20} className="text-emerald-600 dark:text-emerald-400" />
                                                         </div>
-                                                        <h5 className="text-xl font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
+                                                        <h5 className="text-[1.75rem] leading-[1.05] font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
                                                             {t('agency.onboarding.waflow_crm_title') || 'Waflow Mensajeria'}
                                                         </h5>
                                                     </div>
-                                                    <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                                                    <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
                                                         {t('agency.onboarding.benefits_title') || 'Listado de beneficios'}
                                                     </p>
-                                                    <ul className="mt-3 space-y-2 text-sm text-gray-800 dark:text-gray-200">
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_1') || 'Cuenta lista para operar en minutos'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_2') || 'WhatsApp, inboxes y usuarios en un solo flujo'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_3') || 'Operación diaria dentro de Waflow'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_4') || 'Infraestructura administrada por nuestro equipo'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_5') || 'Ideal para agencias que quieren marca propia'}</span></li>
+                                                    <ul className="mt-4 space-y-3 text-[15px] leading-7 text-gray-800 dark:text-gray-200">
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_1') || 'Cuenta lista para operar en minutos'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_2') || 'WhatsApp, inboxes y usuarios en un solo flujo'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_3') || 'Operación diaria dentro de Waflow'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_4') || 'Infraestructura administrada por nuestro equipo'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_5') || 'Ideal para agencias que quieren marca propia'}</span></li>
                                                     </ul>
                                                 </button>
 
@@ -3501,7 +3501,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     onMouseLeave={() => setOnboardingHoveredCard(null)}
                                                     onFocus={() => setOnboardingHoveredCard('chatwoot')}
                                                     onBlur={() => setOnboardingHoveredCard(null)}
-                                                    className={`group rounded-xl border-[3px] p-6 text-left transition-all duration-200 ${
+                                                    className={`group flex h-full min-h-[29rem] flex-col rounded-[28px] border-[3px] p-7 text-left transition-all duration-200 ${
                                                         onboardingHoveredCard === 'chatwoot'
                                                             ? 'border-violet-600 dark:border-violet-400 bg-violet-50/60 dark:bg-violet-900/20 shadow-[0_14px_30px_rgba(124,58,237,0.25)] -translate-y-0.5'
                                                             : onboardingHoveredCard
@@ -3523,23 +3523,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                                 : 'text-gray-300 group-hover:text-violet-500'
                                                         }`} />
                                                     </div>
-                                                    <div className="flex items-center gap-3 mt-3">
-                                                        <div className="w-10 h-10 rounded-lg bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
+                                                    <div className="mt-5 flex items-center gap-4">
+                                                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-900/30 shrink-0">
                                                             <MessageSquare size={20} className="text-violet-600 dark:text-violet-400" />
                                                         </div>
-                                                        <h5 className="text-xl font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
+                                                        <h5 className="text-[1.75rem] leading-[1.05] font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
                                                             {t('agency.onboarding.chatwoot_title') || 'Chatwoot'}
                                                         </h5>
                                                     </div>
-                                                    <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                                                    <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
                                                         {t('agency.onboarding.benefits_title') || 'Listado de beneficios'}
                                                     </p>
-                                                    <ul className="mt-3 space-y-2 text-sm text-gray-800 dark:text-gray-200">
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_1') || 'Bandeja omnicanal colaborativa'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_2') || 'Asignación por equipo e inbox'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_3') || 'Conexión nativa con WhatsApp'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_4') || 'Contexto completo por conversación'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_5') || 'Ideal para equipos de soporte/operación'}</span></li>
+                                                    <ul className="mt-4 space-y-3 text-[15px] leading-7 text-gray-800 dark:text-gray-200">
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_1') || 'Bandeja omnicanal colaborativa'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_2') || 'Asignación por equipo e inbox'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_3') || 'Conexión nativa con WhatsApp'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_4') || 'Contexto completo por conversación'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_5') || 'Ideal para equipos de soporte/operación'}</span></li>
                                                     </ul>
                                                 </button>
                                             </div>
