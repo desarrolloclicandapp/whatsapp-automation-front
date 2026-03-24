@@ -202,7 +202,7 @@ function formatTimelineTooltip(value) {
 }
 
 export default function AgencyDashboard({ token, onLogout }) {
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     // ✅ Agregamos loadAgencyBranding para cargar desde server
     const { branding, updateBranding, resetBranding, DEFAULT_BRANDING, systemBranding, loadAgencyBranding } = useBranding();
 
@@ -237,6 +237,15 @@ export default function AgencyDashboard({ token, onLogout }) {
     const isCrmLocked = Boolean(accountInfo?.crm_type);
     const crmLabelMap = { ghl: "GoHighLevel", chatwoot: "Chatwoot", odoo: "Odoo" };
     const activeCrmLabel = crmLabelMap[agencyCrmType] || agencyCrmType.toUpperCase();
+    const isSpanish = language === 'es';
+    const onboardingCardTitles = {
+        ghl: 'GoHighLevel CRM',
+        waflow: isSpanish ? 'Waflow Mensajeria' : 'Waflow Messaging',
+        chatwoot: isSpanish ? 'Chatwoot Mensajeria' : 'Chatwoot Messaging',
+    };
+    const chatwootMasterBenefitCopy = isSpanish
+        ? 'Este usuario se reutiliza para aprovisionar nuevas cuentas Waflow Mensajeria hospedadas por nosotros, acelerar el alta de inboxes y usuarios, y dejar cada cuenta lista para operar sin configuraciones manuales en cada cliente.'
+        : 'This master user is reused to provision new Waflow Messaging accounts hosted by us, speed up inbox and user setup, and leave each account ready to operate without manual setup for every client.';
     const [searchTerm, setSearchTerm] = useState("");
     const [userEmail, setUserEmail] = useState("");
 
@@ -3467,7 +3476,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             <Globe size={20} className="text-blue-600 dark:text-blue-400" />
                                                         </div>
                                                         <h5 className="text-[1.75rem] leading-[1.05] font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
-                                                            {t('agency.onboarding.ghl_title') || 'CRM GoHighLevel'}
+                                                            {onboardingCardTitles.ghl}
                                                         </h5>
                                                     </div>
                                                     <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
@@ -3518,7 +3527,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             <Building2 size={20} className="text-emerald-600 dark:text-emerald-400" />
                                                         </div>
                                                         <h5 className="text-[1.75rem] leading-[1.05] font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
-                                                            {t('agency.onboarding.waflow_crm_title') || 'Waflow Mensajeria'}
+                                                            {onboardingCardTitles.waflow}
                                                         </h5>
                                                     </div>
                                                     <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
@@ -3566,7 +3575,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             <MessageSquare size={20} className="text-violet-600 dark:text-violet-400" />
                                                         </div>
                                                         <h5 className="text-[1.75rem] leading-[1.05] font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
-                                                            {t('agency.onboarding.chatwoot_title') || 'Chatwoot'}
+                                                            {onboardingCardTitles.chatwoot}
                                                         </h5>
                                                     </div>
                                                     <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
@@ -3776,7 +3785,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         >
                                             <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/20 p-4">
                                                 <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
-                                                    {t('agency.onboarding.chatwoot_master_step_desc') || 'Este usuario se reutiliza para aprovisionar nuevas cuentas Waflow Mensajeria hospedadas por WaFlow.'}
+                                                    {chatwootMasterBenefitCopy}
                                                 </p>
                                                 {chatwootMasterDisplayEmail && (
                                                     <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-2">
