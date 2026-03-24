@@ -67,8 +67,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const isChatwootMode = crmType === "chatwoot";
     const supportsSmsTab = isGhlMode || isChatwootMode;
     const supportsKeywordsTab = isGhlMode;
+    const OFFICIAL_WHATSAPP_API_UI_ENABLED = false; // Hidden for future rollout once the official Meta API flow is production-ready.
     const getEffectiveSlotConnectionMode = (slot) => {
         if (!slot) return null;
+        if (!OFFICIAL_WHATSAPP_API_UI_ENABLED) return 'qr';
         const explicitMode = String(slot?.settings?.connection_mode || "").trim().toLowerCase();
         if (explicitMode === 'official_api' || explicitMode === 'qr') return explicitMode;
 
@@ -2236,7 +2238,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
                                                                 </button>
                                                             )}
-                                                            {connectionMode && (
+                                                            {OFFICIAL_WHATSAPP_API_UI_ENABLED && connectionMode && (
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();

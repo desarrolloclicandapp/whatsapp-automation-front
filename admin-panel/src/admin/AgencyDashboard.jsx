@@ -3776,7 +3776,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         >
                                             <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/20 p-4">
                                                 <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
-                                                    {t('agency.onboarding.chatwoot_master_step_desc') || 'Este usuario se reutiliza para aprovisionar nuevas cuentas Waflow Mensajeria hospedadas por nosotros.'}
+                                                    {t('agency.onboarding.chatwoot_master_step_desc') || 'Este usuario se reutiliza para aprovisionar nuevas cuentas Waflow Mensajeria hospedadas por WaFlow.'}
                                                 </p>
                                                 {chatwootMasterDisplayEmail && (
                                                     <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-2">
