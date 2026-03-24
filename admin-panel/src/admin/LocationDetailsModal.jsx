@@ -2207,7 +2207,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     <div className="flex items-center gap-3">
                                                         <h3 className="font-bold text-gray-900 dark:text-white text-xl">{slot.slot_name || (isChatwootMode ? `Inbox ${slot.slot_id}` : `Dispositivo ${slot.slot_id}`)}</h3>
                                                         <div className="flex gap-1">
-                                                            {isGhlMode && (
+                                                            {connectionMode && (
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
                                                                     className={`p-1.5 rounded-lg transition ${slot.is_favorite ? 'text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
