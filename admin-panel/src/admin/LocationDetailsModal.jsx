@@ -86,6 +86,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
         return null;
     };
+    const hasOfficialWhatsappConfig = (slot) => {
+        const officialSettings = slot?.settings?.official_api || {};
+        return Boolean(
+            String(officialSettings?.businessAccountId || "").trim() ||
+            String(officialSettings?.phoneNumberId || "").trim() ||
+            String(officialSettings?.accessToken || "").trim() ||
+            String(officialSettings?.status || "").trim()
+        );
+    };
     const expandedSlot = slots.find((slot) => slot.slot_id === expandedSlotId) || null;
     const expandedConnectionMode = getEffectiveSlotConnectionMode(expandedSlot);
     const isExpandedChatwootLoaded = Boolean(
@@ -1163,6 +1172,90 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         return parsed.toLocaleString();
     };
 
+    const resetSlotConnectionMode = async (slot) => {
+        const currentMode = getEffectiveSlotConnectionMode(slot);
+        if (!currentMode) return;
+
+        const loadingId = toast.loading(t('slots.connection_mode.resetting') || 'Cambiando tipo de conexión...');
+        try {
+            if (currentMode === 'qr') {
+                const hasLinkedQr = slot?.is_connected === true || String(slot?.phone_number || "").trim();
+                if (hasLinkedQr) {
+                    const disconnectRes = await authFetch(`/agency/slots/${location.location_id}/${slot.slot_id}/disconnect`, {
+                        method: 'DELETE'
+                    });
+                    if (!disconnectRes) return;
+                    if (!disconnectRes.ok) {
+                        const err = await disconnectRes.json().catch(() => ({}));
+                        throw new Error(err.error || 'No se pudo cerrar la conexión QR');
+                    }
+                }
+
+                const nextSettings = { ...(slot.settings || {}) };
+                delete nextSettings.connection_mode;
+                delete nextSettings.official_api;
+                await updateSettingsBackend(slot.slot_id, nextSettings);
+                setOfficialConfigBySlot(prev => ({
+                    ...prev,
+                    [slot.slot_id]: createEmptyOfficialWhatsappState()
+                }));
+            } else {
+                const res = await authFetch(`/agency/whatsapp-official/config`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        locationId: location.location_id,
+                        slotId: slot.slot_id,
+                        clear: true
+                    })
+                });
+                if (!res) return;
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || 'No se pudo limpiar la configuración oficial');
+                }
+                setOfficialConfigBySlot(prev => ({
+                    ...prev,
+                    [slot.slot_id]: createEmptyOfficialWhatsappState()
+                }));
+                syncSlotConnectionMode(slot.slot_id, null, null);
+            }
+
+            setActiveSlotTab('general');
+            await loadData();
+            toast.success(t('slots.connection_mode.reset_done') || 'Elige el nuevo tipo de conexión');
+        } catch (e) {
+            toast.error(t('slots.connection_mode.reset_error') || 'No se pudo cambiar el tipo de conexión', {
+                description: e.message
+            });
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const requestSlotConnectionModeChange = (slot) => {
+        const currentMode = getEffectiveSlotConnectionMode(slot);
+        if (!currentMode) return;
+
+        const isQrMode = currentMode === 'qr';
+        const hasLinkedQr = isQrMode && (slot?.is_connected === true || String(slot?.phone_number || "").trim());
+        const hasOfficialConfig = !isQrMode && hasOfficialWhatsappConfig(slot);
+        const requiresWarning = hasLinkedQr || hasOfficialConfig;
+
+        if (!requiresWarning) {
+            resetSlotConnectionMode(slot);
+            return;
+        }
+
+        const title = t('slots.connection_mode.confirm_title') || 'Cambiar tipo de conexión';
+        const description = hasLinkedQr
+            ? (t('slots.connection_mode.confirm_qr_desc') || 'Si cambias el tipo de conexión, este slot se desconectará, se borrará la sesión QR actual y tendrás que volver a configurarlo desde cero.')
+            : (t('slots.connection_mode.confirm_official_desc') || 'Si cambias el tipo de conexión, se eliminará la configuración oficial guardada para este slot y tendrás que volver a cargarla.');
+
+        confirmToast(title, description, () => {
+            resetSlotConnectionMode(slot);
+        }, true);
+    };
+
     const loadChatwootConfig = async (slotId, forceRefresh = false) => {
         if (!slotId || !location?.location_id) return;
         if (!forceRefresh && chatwootConfigBySlot[slotId]?.loaded) return;
@@ -2121,6 +2214,18 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     title="Favorito"
                                                                 >
                                                                     <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
+                                                                </button>
+                                                            )}
+                                                            {connectionMode && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        requestSlotConnectionModeChange(slot);
+                                                                    }}
+                                                                    className="p-1.5 text-gray-300 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition"
+                                                                    title={t('slots.connection_mode.change') || 'Cambiar conexión'}
+                                                                >
+                                                                    <RefreshCw size={16} />
                                                                 </button>
                                                             )}
                                                             <button
