@@ -2222,10 +2222,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                         e.stopPropagation();
                                                                         requestSlotConnectionModeChange(slot);
                                                                     }}
-                                                                    className="p-1.5 text-gray-300 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition"
+                                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-300 dark:hover:bg-sky-900/35 transition text-xs font-semibold"
                                                                     title={t('slots.connection_mode.change') || 'Cambiar conexión'}
                                                                 >
-                                                                    <RefreshCw size={16} />
+                                                                    <Link2 size={14} />
+                                                                    <span>{t('slots.connection_mode.change') || 'Cambiar conexión'}</span>
                                                                 </button>
                                                             )}
                                                             <button

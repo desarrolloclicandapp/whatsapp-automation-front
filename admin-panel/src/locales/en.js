@@ -378,7 +378,7 @@ export const en = {
     "slots.connection_mode.qr_desc": "Link the number by scanning a QR code and keep using the current connection, reconnect, and groups panel.",
     "slots.connection_mode.official_title": "Official WhatsApp API",
     "slots.connection_mode.official_desc": "Configure WABA, Phone Number ID, token, and Meta webhook. This mode does not use Waflow's QR panel.",
-    "slots.connection_mode.change": "Choose another method",
+    "slots.connection_mode.change": "Change connection",
     "slots.connection_mode.confirm_title": "Change connection type",
     "slots.connection_mode.confirm_qr_desc": "If you change the connection type, this slot will disconnect, the current QR session will be removed, and you will have to configure it again from scratch.",
     "slots.connection_mode.confirm_official_desc": "If you change the connection type, the official API configuration saved for this slot will be removed and you will need to load it again.",
