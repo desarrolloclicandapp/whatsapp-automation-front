@@ -3137,7 +3137,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <div className="flex justify-between items-center mb-6">
                                     <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                                         {isWaflowCrmHostedModal
-                                            ? (t('agency.onboarding.waflow_crm_new_account') || "Nueva Cuenta Waflow CRM")
+                                            ? (t('agency.onboarding.waflow_crm_new_account') || "Nueva Cuenta Waflow Mensajeria")
                                             : (t('agency.onboarding.new_account') || "Nueva Cuenta")}
                                     </h3>
                                     <button onClick={closeAddLocationModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
@@ -3164,7 +3164,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                             {isWaflowCrmHostedModal
-                                                ? (t('agency.onboarding.waflow_crm_name_prompt') || "Nombre de la cuenta Waflow CRM")
+                                                ? (t('agency.onboarding.waflow_crm_name_prompt') || "Nombre de la cuenta Waflow Mensajeria")
                                                 : isChatwootModal
                                                     ? (t('dash.chatwoot_accounts.name_prompt') || "Nombre de la cuenta (Ej: Empresa)")
                                                     : (t('dash.locations.name_prompt') || "Nombre de la location")}
@@ -3372,7 +3372,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                                             {onboardingStep === 0 && (t('agency.onboarding.title') || 'Nueva Cuenta')}
                                             {onboardingStep === 1 && onboardingCrmType === 'ghl' && 'GoHighLevel'}
-                                            {onboardingStep === 1 && onboardingCrmType === 'waflow_crm' && onboardingConnectionType !== 'chatwoot_setup_master' && (t('agency.onboarding.waflow_crm_title') || 'Waflow CRM')}
+                                            {onboardingStep === 1 && onboardingCrmType === 'waflow_crm' && onboardingConnectionType !== 'chatwoot_setup_master' && (t('agency.onboarding.waflow_crm_title') || 'Waflow Mensajeria')}
                                             {onboardingStep === 1 && (onboardingCrmType === 'chatwoot' || onboardingCrmType === 'waflow_crm') && onboardingConnectionType === 'chatwoot_setup_master' && (t('dash.chatwoot_master.title') || 'Usuario Maestro de Chatwoot')}
                                         </h3>
                                     </div>
@@ -3395,14 +3395,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 {t('agency.onboarding.choose_integration_summary') || 'Elige la experiencia ideal para cada cliente. Puedes crear cuentas mixtas dentro de la misma agencia.'}
                                             </p>
 
-                                            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-7">
                                                 <button
                                                     onClick={() => goToOnboardingConnectionStep('ghl')}
                                                     onMouseEnter={() => setOnboardingHoveredCard('ghl')}
                                                     onMouseLeave={() => setOnboardingHoveredCard(null)}
                                                     onFocus={() => setOnboardingHoveredCard('ghl')}
                                                     onBlur={() => setOnboardingHoveredCard(null)}
-                                                    className={`group rounded-xl border-[3px] p-5 text-left transition-all duration-200 ${
+                                                    className={`group rounded-xl border-[3px] p-6 text-left transition-all duration-200 ${
                                                         onboardingHoveredCard === 'ghl'
                                                             ? 'border-blue-600 dark:border-blue-400 bg-blue-50/60 dark:bg-blue-900/20 shadow-[0_14px_30px_rgba(37,99,235,0.25)] -translate-y-0.5'
                                                             : onboardingHoveredCard
@@ -3445,12 +3445,63 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 </button>
 
                                                 <button
+                                                    onClick={openOnboardingWaflowCrmFlow}
+                                                    onMouseEnter={() => setOnboardingHoveredCard('waflow_crm')}
+                                                    onMouseLeave={() => setOnboardingHoveredCard(null)}
+                                                    onFocus={() => setOnboardingHoveredCard('waflow_crm')}
+                                                    onBlur={() => setOnboardingHoveredCard(null)}
+                                                    className={`group relative mt-4 rounded-xl border-[3px] p-6 text-left transition-all duration-200 ${
+                                                        onboardingHoveredCard === 'waflow_crm'
+                                                            ? 'border-emerald-600 dark:border-emerald-400 bg-emerald-50/60 dark:bg-emerald-900/20 shadow-[0_14px_30px_rgba(5,150,105,0.22)] -translate-y-0.5'
+                                                            : onboardingHoveredCard
+                                                                ? 'opacity-75 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900'
+                                                                : 'border-gray-900 dark:border-gray-200 bg-white dark:bg-gray-900 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-[0_10px_24px_rgba(16,185,129,0.18)]'
+                                                    }`}
+                                                >
+                                                    <span className="absolute -top-4 left-6 inline-flex items-center rounded-full border border-emerald-300 bg-emerald-500 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-lg shadow-emerald-500/25 dark:border-emerald-200/20 dark:bg-emerald-400 dark:text-emerald-950">
+                                                        {t('agency.onboarding.waflow_crm_free_badge') || 'Incluido gratis'}
+                                                    </span>
+                                                    <div className="flex items-center gap-3 justify-between">
+                                                        <span className={`inline-flex items-center px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-md border ${
+                                                            onboardingHoveredCard === 'waflow_crm'
+                                                                ? 'bg-emerald-600 text-white border-emerald-600'
+                                                                : 'bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+                                                        }`}>
+                                                            {onboardingHoveredCard === 'waflow_crm' ? (t('agency.onboarding.card_selected') || 'Seleccionado') : (t('agency.onboarding.card_select') || 'Seleccionar')}
+                                                        </span>
+                                                        <ChevronRight size={18} className={`shrink-0 transition ${
+                                                            onboardingHoveredCard === 'waflow_crm'
+                                                                ? 'text-emerald-600 dark:text-emerald-300'
+                                                                : 'text-gray-300 group-hover:text-emerald-500'
+                                                        }`} />
+                                                    </div>
+                                                    <div className="flex items-center gap-3 mt-3">
+                                                        <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+                                                            <Building2 size={20} className="text-emerald-600 dark:text-emerald-400" />
+                                                        </div>
+                                                        <h5 className="text-xl font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
+                                                            {t('agency.onboarding.waflow_crm_title') || 'Waflow Mensajeria'}
+                                                        </h5>
+                                                    </div>
+                                                    <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                                                        {t('agency.onboarding.benefits_title') || 'Listado de beneficios'}
+                                                    </p>
+                                                    <ul className="mt-3 space-y-2 text-sm text-gray-800 dark:text-gray-200">
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_1') || 'Cuenta lista para operar en minutos'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_2') || 'WhatsApp, inboxes y usuarios en un solo flujo'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_3') || 'Operación diaria dentro de Waflow'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_4') || 'Infraestructura administrada por nuestro equipo'}</span></li>
+                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_5') || 'Ideal para agencias que quieren marca propia'}</span></li>
+                                                    </ul>
+                                                </button>
+
+                                                <button
                                                     onClick={openOnboardingChatwootByocFlow}
                                                     onMouseEnter={() => setOnboardingHoveredCard('chatwoot')}
                                                     onMouseLeave={() => setOnboardingHoveredCard(null)}
                                                     onFocus={() => setOnboardingHoveredCard('chatwoot')}
                                                     onBlur={() => setOnboardingHoveredCard(null)}
-                                                    className={`group rounded-xl border-[3px] p-5 text-left transition-all duration-200 ${
+                                                    className={`group rounded-xl border-[3px] p-6 text-left transition-all duration-200 ${
                                                         onboardingHoveredCard === 'chatwoot'
                                                             ? 'border-violet-600 dark:border-violet-400 bg-violet-50/60 dark:bg-violet-900/20 shadow-[0_14px_30px_rgba(124,58,237,0.25)] -translate-y-0.5'
                                                             : onboardingHoveredCard
@@ -3489,54 +3540,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_3') || 'Conexión nativa con WhatsApp'}</span></li>
                                                         <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_4') || 'Contexto completo por conversación'}</span></li>
                                                         <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_5') || 'Ideal para equipos de soporte/operación'}</span></li>
-                                                    </ul>
-                                                </button>
-
-                                                <button
-                                                    onClick={openOnboardingWaflowCrmFlow}
-                                                    onMouseEnter={() => setOnboardingHoveredCard('waflow_crm')}
-                                                    onMouseLeave={() => setOnboardingHoveredCard(null)}
-                                                    onFocus={() => setOnboardingHoveredCard('waflow_crm')}
-                                                    onBlur={() => setOnboardingHoveredCard(null)}
-                                                    className={`group rounded-xl border-[3px] p-5 text-left transition-all duration-200 ${
-                                                        onboardingHoveredCard === 'waflow_crm'
-                                                            ? 'border-emerald-600 dark:border-emerald-400 bg-emerald-50/60 dark:bg-emerald-900/20 shadow-[0_14px_30px_rgba(5,150,105,0.22)] -translate-y-0.5'
-                                                            : onboardingHoveredCard
-                                                                ? 'opacity-75 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900'
-                                                                : 'border-gray-900 dark:border-gray-200 bg-white dark:bg-gray-900 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-[0_10px_24px_rgba(16,185,129,0.18)]'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center gap-3 justify-between">
-                                                        <span className={`inline-flex items-center px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-md border ${
-                                                            onboardingHoveredCard === 'waflow_crm'
-                                                                ? 'bg-emerald-600 text-white border-emerald-600'
-                                                                : 'bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
-                                                        }`}>
-                                                            {onboardingHoveredCard === 'waflow_crm' ? (t('agency.onboarding.card_selected') || 'Seleccionado') : (t('agency.onboarding.card_select') || 'Seleccionar')}
-                                                        </span>
-                                                        <ChevronRight size={18} className={`shrink-0 transition ${
-                                                            onboardingHoveredCard === 'waflow_crm'
-                                                                ? 'text-emerald-600 dark:text-emerald-300'
-                                                                : 'text-gray-300 group-hover:text-emerald-500'
-                                                        }`} />
-                                                    </div>
-                                                    <div className="flex items-center gap-3 mt-3">
-                                                        <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
-                                                            <Building2 size={20} className="text-emerald-600 dark:text-emerald-400" />
-                                                        </div>
-                                                        <h5 className="text-xl font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
-                                                            {t('agency.onboarding.waflow_crm_title') || 'Waflow CRM'}
-                                                        </h5>
-                                                    </div>
-                                                    <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-                                                        {t('agency.onboarding.benefits_title') || 'Listado de beneficios'}
-                                                    </p>
-                                                    <ul className="mt-3 space-y-2 text-sm text-gray-800 dark:text-gray-200">
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_1') || 'Cuenta lista para operar en minutos'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_2') || 'WhatsApp, inboxes y usuarios en un solo flujo'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_3') || 'Operación diaria dentro de Waflow'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_4') || 'Infraestructura administrada por nuestro equipo'}</span></li>
-                                                        <li className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_5') || 'Ideal para agencias que quieren marca propia'}</span></li>
                                                     </ul>
                                                 </button>
                                             </div>
@@ -3735,7 +3738,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         >
                                             <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/20 p-4">
                                                 <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
-                                                    {t('agency.onboarding.chatwoot_master_step_desc') || 'Este usuario se reutiliza para aprovisionar nuevas cuentas Waflow CRM hospedadas por nosotros.'}
+                                                    {t('agency.onboarding.chatwoot_master_step_desc') || 'Este usuario se reutiliza para aprovisionar nuevas cuentas Waflow Mensajeria hospedadas por nosotros.'}
                                                 </p>
                                                 {chatwootMasterDisplayEmail && (
                                                     <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-2">
