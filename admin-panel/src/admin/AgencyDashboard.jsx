@@ -239,7 +239,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const activeCrmLabel = crmLabelMap[agencyCrmType] || agencyCrmType.toUpperCase();
     const isSpanish = language === 'es';
     const onboardingCardTitles = {
-        ghl: 'GoHighLevel CRM',
+        ghl: 'GoHighLevel',
         waflow: isSpanish ? 'Waflow Mensajeria' : 'Waflow Messaging',
         chatwoot: isSpanish ? 'Chatwoot Mensajeria' : 'Chatwoot Messaging',
     };
@@ -3480,7 +3480,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         </h5>
                                                     </div>
                                                     <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
-                                                        {t('agency.onboarding.benefits_title') || 'Listado de beneficios'}
+                                                        {t('agency.onboarding.benefits_title_ghl') || 'Listado de beneficios'}
                                                     </p>
                                                     <ul className="mt-4 space-y-3 text-[15px] leading-7 text-gray-800 dark:text-gray-200">
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_1') || 'Pipeline y CRM en un solo lugar'}</span></li>
@@ -3531,7 +3531,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         </h5>
                                                     </div>
                                                     <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
-                                                        {t('agency.onboarding.benefits_title') || 'Listado de beneficios'}
+                                                        {t('agency.onboarding.benefits_title_waflow') || 'Listado de beneficios'}
                                                     </p>
                                                     <ul className="mt-4 space-y-3 text-[15px] leading-7 text-gray-800 dark:text-gray-200">
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_1') || 'Cuenta lista para operar en minutos'}</span></li>
@@ -3579,7 +3579,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         </h5>
                                                     </div>
                                                     <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
-                                                        {t('agency.onboarding.benefits_title') || 'Listado de beneficios'}
+                                                        {t('agency.onboarding.benefits_title_chatwoot') || 'Listado de beneficios'}
                                                     </p>
                                                     <ul className="mt-4 space-y-3 text-[15px] leading-7 text-gray-800 dark:text-gray-200">
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_1') || 'Bandeja omnicanal colaborativa'}</span></li>

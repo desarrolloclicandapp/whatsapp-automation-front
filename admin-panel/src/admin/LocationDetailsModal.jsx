@@ -2147,7 +2147,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 )}
                             </div>
 
-                            {canWhiteLabel && (
+                            {canWhiteLabel && !isChatwootMode && (
                                 <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-4 shadow-sm">
                                     <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
                                         <Settings size={18} />
