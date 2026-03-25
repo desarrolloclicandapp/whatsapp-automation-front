@@ -1043,6 +1043,17 @@ export const en = {
     "agency.onboarding.waflow_crm_free_badge": "Included free",
     "agency.onboarding.chatwoot_url_help": "Use the base domain where you sign in to Chatwoot. Example: https://chat.yourcompany.com. Do not paste internal routes or widget links. If you use ChatWoot Cloud use: https://app.chatwoot.com/",
     "agency.onboarding.chatwoot_account_id_help": "Open the account you want to connect and copy the number shown in the URL after /app/accounts/. It is also commonly visible in account settings.",
-    "agency.onboarding.chatwoot_api_token_help": "Sign in with an admin user for that account and copy the personal access token from the profile or user settings. Use the api_access_token, not the inbox token or a webhook token."
+    "agency.onboarding.chatwoot_api_token_help": "Sign in with an admin user for that account and copy the personal access token from the profile or user settings. Use the api_access_token, not the inbox token or a webhook token.",
+    "dash.chatwoot_accounts.inbox_required": "The first phone name is required.",
+    "agency.onboarding.waflow_crm_usage_title": "Who is this account for?",
+    "agency.onboarding.waflow_crm_for_self_title": "For my business",
+    "agency.onboarding.waflow_crm_for_self_desc": "Use your primary access and create the account with your own details.",
+    "agency.onboarding.waflow_crm_for_client_title": "For a client",
+    "agency.onboarding.waflow_crm_for_client_desc": "Create a separate account and define the final client access.",
+    "agency.onboarding.waflow_crm_self_modal_title": "We will use your primary access",
+    "agency.onboarding.waflow_crm_self_modal_desc": "We will create the account with your main profile details and you only need to define the first phone name.",
+    "agency.onboarding.waflow_crm_self_modal_name": "Account",
+    "agency.onboarding.waflow_crm_self_modal_email": "Primary email",
+    "agency.onboarding.waflow_crm_self_missing_identity": "We could not recover your primary access. Complete your profile or review the Master User before continuing."
 };
 

@@ -1044,6 +1044,17 @@ export const es = {
     "agency.onboarding.waflow_crm_free_badge": "Incluido gratis",
     "agency.onboarding.chatwoot_url_help": "Usa el dominio base donde inicias sesion en Chatwoot. Ejemplo: https://chat.tuempresa.com. No pegues rutas internas ni enlaces del widget. Si usas ChatWoot Cloud usa: https://app.chatwoot.com/",
     "agency.onboarding.chatwoot_account_id_help": "Abre la cuenta que quieres conectar y copia el numero que aparece en la URL despues de /app/accounts/. Tambien suele verse en la configuracion de la cuenta.",
-    "agency.onboarding.chatwoot_api_token_help": "Entra con un usuario administrador de esa cuenta y copia su access token personal desde el perfil o ajustes de usuario. Usa el api_access_token, no el token del inbox ni uno de webhook."
+    "agency.onboarding.chatwoot_api_token_help": "Entra con un usuario administrador de esa cuenta y copia su access token personal desde el perfil o ajustes de usuario. Usa el api_access_token, no el token del inbox ni uno de webhook.",
+    "dash.chatwoot_accounts.inbox_required": "El nombre del primer telefono es requerido.",
+    "agency.onboarding.waflow_crm_usage_title": "¿Para quién es esta cuenta?",
+    "agency.onboarding.waflow_crm_for_self_title": "Para mi negocio",
+    "agency.onboarding.waflow_crm_for_self_desc": "Usa tu acceso principal y crea la cuenta con tus propios datos.",
+    "agency.onboarding.waflow_crm_for_client_title": "Para un cliente",
+    "agency.onboarding.waflow_crm_for_client_desc": "Crea una cuenta separada y define el acceso del cliente final.",
+    "agency.onboarding.waflow_crm_self_modal_title": "Usaremos tu acceso principal",
+    "agency.onboarding.waflow_crm_self_modal_desc": "Crearemos la cuenta con los datos principales de tu perfil y solo debes definir el nombre del primer numero.",
+    "agency.onboarding.waflow_crm_self_modal_name": "Cuenta",
+    "agency.onboarding.waflow_crm_self_modal_email": "Email principal",
+    "agency.onboarding.waflow_crm_self_missing_identity": "No pudimos recuperar tu acceso principal. Completa tu perfil o revisa el Usuario Maestro antes de continuar."
 };
 

@@ -987,6 +987,21 @@ export default function AgencyDashboard({ token, onLogout }) {
         return `<script src=\"${apiUrl}/loader.js\"></script>`;
     };
 
+    const getHostedWaflowPrimaryIdentity = () => {
+        const primaryEmail = String(
+            chatwootMasterEmail || accountInfo?.email || userEmail || ""
+        ).trim().toLowerCase();
+        const fallbackNameFromEmail = primaryEmail ? primaryEmail.split("@")[0] : "";
+        const primaryName = String(
+            chatwootMasterName || accountInfo?.name || fallbackNameFromEmail || ""
+        ).trim();
+
+        return {
+            name: primaryName,
+            email: primaryEmail
+        };
+    };
+
     const handleDeleteTenant = async (e, locationId, name) => {
         e.stopPropagation();
         if (!confirm(`⚠️ ${t('agency.tenant.confirm_delete')} "${name || locationId}"?`)) return;
@@ -1035,13 +1050,24 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const goBackToChatwootOnboarding = () => {
         closeAddLocationModal();
+        if (onboardingCrmType === "waflow_crm") {
+            setOnboardingStep(1);
+            setOnboardingConnectionType(null);
+            setOnboardingHoveredCard(null);
+            setShowOnboarding(true);
+            return;
+        }
         resetOnboardingWizard();
         setShowOnboarding(true);
     };
 
-    const openOnboardingChatwootAddModal = ({ external = false, onboardingType = "chatwoot" } = {}) => {
+    const openOnboardingChatwootAddModal = ({ external = false, onboardingType = "chatwoot", connectionType = null } = {}) => {
         setOnboardingCrmType(onboardingType);
-        setOnboardingConnectionType(external ? "chatwoot_existing" : "waflow_crm_hosted");
+        setOnboardingConnectionType(
+            external
+                ? "chatwoot_existing"
+                : (connectionType || "waflow_crm_hosted")
+        );
         setShowOnboarding(false);
         openAddLocationModal({
             crmType: "chatwoot",
@@ -1072,20 +1098,45 @@ export default function AgencyDashboard({ token, onLogout }) {
         setOnboardingCrmType("waflow_crm");
         setOnboardingHoveredCard("waflow_crm");
         setTimeout(() => {
+            setOnboardingStep(1);
+            setOnboardingConnectionType(null);
             setOnboardingHoveredCard(null);
-            openOnboardingChatwootAddModal({ external: false, onboardingType: "waflow_crm" });
         }, 120);
+    };
+
+    const openOnboardingWaflowPrimaryFlow = () => {
+        openOnboardingChatwootAddModal({
+            external: false,
+            onboardingType: "waflow_crm",
+            connectionType: "waflow_crm_self"
+        });
+    };
+
+    const openOnboardingWaflowClientFlow = () => {
+        openOnboardingChatwootAddModal({
+            external: false,
+            onboardingType: "waflow_crm",
+            connectionType: "waflow_crm_client"
+        });
     };
 
     useEffect(() => {
         if (!showAddModal) return;
         // Some password managers/autofill tools inject values after mount; force-clear once more.
+        const isHostedSelfFlow =
+            String(onboardingCrmType || "").toLowerCase() === "waflow_crm" &&
+            onboardingConnectionType === "waflow_crm_self";
+        const primaryIdentity = getHostedWaflowPrimaryIdentity();
         const timer = setTimeout(() => {
+            setAddModalName(isHostedSelfFlow ? primaryIdentity.name : "");
             setAddModalInboxName("");
             setAddModalClientEmail("");
             setAddModalClientPassword("");
             setAddModalChatwootUrl("");
             setAddModalChatwootApiToken("");
+            if (isHostedSelfFlow) {
+                setAddModalClientEmail(primaryIdentity.email);
+            }
         }, 60);
         return () => clearTimeout(timer);
     }, [showAddModal]);
@@ -1095,6 +1146,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         const currentCrmType = String(
             addModalCrmType || onboardingCrmType || agencyCrmType || "ghl"
         ).toLowerCase();
+        const currentOnboardingType = String(onboardingCrmType || "").toLowerCase();
         const isChatwootView = currentCrmType === "chatwoot";
         const safeName = String(addModalName || "").trim();
         const safeInboxName = String(addModalInboxName || "").trim();
@@ -1107,9 +1159,25 @@ export default function AgencyDashboard({ token, onLogout }) {
         const safeExternalUrl = String(addModalChatwootUrl || "").trim();
         const safeExternalAccountId = String(addModalChatwootAccountId || "").trim();
         const safeExternalApiToken = String(addModalChatwootApiToken || "").trim();
-        const effectiveClientName = isChatwootView && !isExternalChatwoot
-            ? safeName
-            : safeClientName;
+        const hostedPrimaryIdentity = getHostedWaflowPrimaryIdentity();
+        const hostedPrimaryName = String(hostedPrimaryIdentity.name || "").trim();
+        const hostedPrimaryEmail = String(hostedPrimaryIdentity.email || "").trim().toLowerCase();
+        const isWaflowSelfFlow =
+            isChatwootView &&
+            !isExternalChatwoot &&
+            currentOnboardingType === "waflow_crm" &&
+            onboardingConnectionType === "waflow_crm_self";
+        const effectiveAccountName = isWaflowSelfFlow
+            ? (safeName || hostedPrimaryName)
+            : safeName;
+        const effectiveClientEmail = isWaflowSelfFlow
+            ? hostedPrimaryEmail
+            : safeClientEmail;
+        const effectiveClientName = isWaflowSelfFlow
+            ? (hostedPrimaryName || effectiveAccountName)
+            : (isChatwootView && !isExternalChatwoot
+                ? effectiveAccountName
+                : safeClientName);
         const effectiveSelfManagedChatwootEmail = String(
             chatwootMasterEmail || accountInfo?.email || userEmail || ""
         ).trim().toLowerCase();
@@ -1117,13 +1185,21 @@ export default function AgencyDashboard({ token, onLogout }) {
             Boolean(
                 isChatwootView &&
                 !isExternalChatwoot &&
-                safeClientEmail &&
+                effectiveClientEmail &&
                 effectiveSelfManagedChatwootEmail &&
-                safeClientEmail === effectiveSelfManagedChatwootEmail
+                effectiveClientEmail === effectiveSelfManagedChatwootEmail
             );
         const safeClientPassword = isSameEmailAsPrimaryChatwootUser ? "" : rawClientPassword;
 
-        if (!safeName) {
+        if (isWaflowSelfFlow && (!hostedPrimaryName || !hostedPrimaryEmail)) {
+            toast.error(
+                t('agency.onboarding.waflow_crm_self_missing_identity') ||
+                "No pudimos recuperar tu acceso principal. Completa tu perfil o revisa el Usuario Maestro antes de continuar."
+            );
+            return;
+        }
+
+        if (!effectiveAccountName) {
             toast.error(
                 isChatwootView
                     ? (t('dash.chatwoot_accounts.create_error') || "Error creando cuenta Chatwoot")
@@ -1136,6 +1212,13 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
 
         if (isChatwootView) {
+            if (isWaflowSelfFlow && !safeInboxName) {
+                toast.error(
+                    t('dash.chatwoot_accounts.inbox_required') || "El nombre del primer telefono es requerido."
+                );
+                return;
+            }
+
             if (isExternalChatwoot) {
                 if (!safeExternalUrl || !safeExternalAccountId || !safeExternalApiToken) {
                     toast.error(
@@ -1154,16 +1237,16 @@ export default function AgencyDashboard({ token, onLogout }) {
                 return;
             }
 
-            if (!isExternalChatwoot && safeClientPassword && !safeClientEmail) {
+            if (!isExternalChatwoot && safeClientPassword && !effectiveClientEmail) {
                 toast.error(
                     t('dash.chatwoot_accounts.client_email_required') || "El email del cliente final es requerido."
                 );
                 return;
             }
 
-            if (safeClientEmail) {
+            if (effectiveClientEmail) {
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(safeClientEmail)) {
+                if (!emailRegex.test(effectiveClientEmail)) {
                     toast.error(
                         t('dash.chatwoot_accounts.client_email_invalid') || "Email del cliente final inválido."
                     );
@@ -1176,7 +1259,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     const emailCheck = shouldSkipSelfManagedPrecheck
                         ? { exists: true, credentials: { checked: false, valid: null }, skippedBecauseSharedPrimaryUser: true }
                         : await checkChatwootEmailAvailability({
-                            email: safeClientEmail,
+                            email: effectiveClientEmail,
                             password: safeClientPassword
                         });
 
@@ -1206,7 +1289,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         const loadingId = toast.loading(t('common.create') || "Crear");
         try {
             const bodyPayload = {
-                name: safeName,
+                name: effectiveAccountName,
                 crmType: isExternalChatwoot ? "chatwoot_external" : currentCrmType
             };
 
@@ -1216,9 +1299,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                     bodyPayload.chatwootUrl = safeExternalUrl;
                     bodyPayload.chatwootAccountId = safeExternalAccountId;
                     bodyPayload.chatwootApiToken = safeExternalApiToken;
-                } else if (safeClientEmail) {
+                } else if (effectiveClientEmail) {
                     bodyPayload.clientName = effectiveClientName;
-                    bodyPayload.clientEmail = safeClientEmail;
+                    bodyPayload.clientEmail = effectiveClientEmail;
                     bodyPayload.clientRole = safeClientRole;
                     if (safeClientPassword) {
                         bodyPayload.clientPassword = safeClientPassword;
@@ -2166,6 +2249,12 @@ export default function AgencyDashboard({ token, onLogout }) {
         addModalChatwootModeLocked &&
         !addModalChatwootExternal &&
         onboardingCrmType === "waflow_crm";
+    const isWaflowCrmSelfModal =
+        isWaflowCrmHostedModal &&
+        onboardingConnectionType === "waflow_crm_self";
+    const hostedWaflowPrimaryIdentity = getHostedWaflowPrimaryIdentity();
+    const hostedWaflowPrimaryName = String(hostedWaflowPrimaryIdentity.name || "").trim();
+    const hostedWaflowPrimaryEmail = String(hostedWaflowPrimaryIdentity.email || "").trim().toLowerCase();
     const canGoBackToChatwootOnboarding = isChatwootModal && addModalChatwootModeLocked;
     const primaryHostedChatwootEmail = String(
         chatwootMasterEmail || accountInfo?.email || userEmail || ""
@@ -3262,26 +3351,57 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         className="hidden"
                                         aria-hidden="true"
                                     />
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                            {isWaflowCrmHostedModal
-                                                ? (t('agency.onboarding.waflow_crm_name_prompt') || "Nombre de Cuenta")
-                                                : isChatwootModal
-                                                    ? (t('dash.chatwoot_accounts.name_prompt') || "Nombre de la cuenta (Ej: Empresa)")
-                                                    : (t('dash.locations.name_prompt') || "Nombre de la location")}
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={addModalName}
-                                            onChange={(e) => setAddModalName(e.target.value)}
-                                            placeholder={isWaflowCrmHostedModal ? "Ej: Operaciones Viraltia" : (isChatwootModal ? "Ej: Mi Empresa LLC" : "Ej: Sucursal Centro")}
-                                            name="cw_account_name"
-                                            autoComplete="off"
-                                            required
-                                            autoFocus
-                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
-                                        />
-                                    </div>
+                                    {!isWaflowCrmSelfModal ? (
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                {isWaflowCrmHostedModal
+                                                    ? (t('agency.onboarding.waflow_crm_name_prompt') || "Nombre de Cuenta")
+                                                    : isChatwootModal
+                                                        ? (t('dash.chatwoot_accounts.name_prompt') || "Nombre de la cuenta (Ej: Empresa)")
+                                                        : (t('dash.locations.name_prompt') || "Nombre de la location")}
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={addModalName}
+                                                onChange={(e) => setAddModalName(e.target.value)}
+                                                placeholder={isWaflowCrmHostedModal ? "Ej: Operaciones Viraltia" : (isChatwootModal ? "Ej: Mi Empresa LLC" : "Ej: Sucursal Centro")}
+                                                name="cw_account_name"
+                                                autoComplete="off"
+                                                required
+                                                autoFocus
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-900/20 p-4 space-y-3">
+                                            <div>
+                                                <p className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                                                    {t('agency.onboarding.waflow_crm_self_modal_title') || "Usaremos tu acceso principal"}
+                                                </p>
+                                                <p className="text-xs text-emerald-800/80 dark:text-emerald-300 mt-1">
+                                                    {t('agency.onboarding.waflow_crm_self_modal_desc') || "Crearemos la cuenta con los datos principales de tu perfil y solo debes definir el nombre del primer numero."}
+                                                </p>
+                                            </div>
+                                            <div className="grid gap-3 sm:grid-cols-2">
+                                                <div className="rounded-xl bg-white/80 dark:bg-gray-900/40 border border-emerald-100 dark:border-emerald-800/50 px-3 py-2">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                                                        {t('agency.onboarding.waflow_crm_self_modal_name') || "Cuenta"}
+                                                    </p>
+                                                    <p className="text-sm font-semibold text-gray-900 dark:text-white mt-1 break-words">
+                                                        {hostedWaflowPrimaryName || "—"}
+                                                    </p>
+                                                </div>
+                                                <div className="rounded-xl bg-white/80 dark:bg-gray-900/40 border border-emerald-100 dark:border-emerald-800/50 px-3 py-2">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                                                        {t('agency.onboarding.waflow_crm_self_modal_email') || "Email principal"}
+                                                    </p>
+                                                    <p className="text-sm font-semibold text-gray-900 dark:text-white mt-1 break-all">
+                                                        {hostedWaflowPrimaryEmail || "—"}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                     {isChatwootModal && (
                                         <>
                                             {!addModalChatwootModeLocked && (
@@ -3372,9 +3492,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     placeholder="Ej: Soporte Principal"
                                                     name="cw_first_inbox_name"
                                                     autoComplete="off"
+                                                    autoFocus={isWaflowCrmSelfModal}
                                                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                                 />
                                             </div>
+                                            {!isWaflowCrmSelfModal && (
                                             <div className="pt-1 border-t border-gray-200 dark:border-gray-700">
                                                 <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mt-4 mb-3">
                                                             {t('dash.chatwoot_accounts.client_access_title') || "Acceso del Usuario"}
@@ -3423,6 +3545,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     </div>
                                                 </div>
                                             </div>
+                                            )}
                                         </>
                                         )}
                                         </>
@@ -3450,7 +3573,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         </button>
                                         <button
                                             type="submit"
-                                            disabled={isAddingLocation || !addModalName.trim()}
+                                            disabled={
+                                                isAddingLocation ||
+                                                (isWaflowCrmSelfModal ? !addModalInboxName.trim() : !addModalName.trim())
+                                            }
                                             className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:hover:translate-y-0 flex items-center justify-center gap-2"
                                         >
                                             {isAddingLocation ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
@@ -3704,6 +3830,49 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         </div>
                                     )}
 
+                                    {/* Step 1 WaFloW: Who is this account for? */}
+                                    {onboardingStep === 1 && onboardingCrmType === 'waflow_crm' && !onboardingConnectionType && (
+                                        <div className="space-y-3">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                                {t('agency.onboarding.waflow_crm_usage_title') || '¿Para quién es esta cuenta?'}
+                                            </p>
+                                            <button
+                                                onClick={openOnboardingWaflowPrimaryFlow}
+                                                className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-emerald-400 dark:hover:border-emerald-600 bg-white dark:bg-gray-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-all group text-left flex items-center gap-4"
+                                            >
+                                                <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+                                                    <User size={20} className="text-emerald-600 dark:text-emerald-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                        {t('agency.onboarding.waflow_crm_for_self_title') || 'Para mi negocio'}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {t('agency.onboarding.waflow_crm_for_self_desc') || 'Usa tu acceso principal y crea la cuenta con tus propios datos.'}
+                                                    </p>
+                                                </div>
+                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-emerald-500 ml-auto shrink-0 transition" />
+                                            </button>
+                                            <button
+                                                onClick={openOnboardingWaflowClientFlow}
+                                                className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-emerald-400 dark:hover:border-emerald-600 bg-white dark:bg-gray-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-all group text-left flex items-center gap-4"
+                                            >
+                                                <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+                                                    <Users size={20} className="text-emerald-600 dark:text-emerald-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                        {t('agency.onboarding.waflow_crm_for_client_title') || 'Para un cliente'}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {t('agency.onboarding.waflow_crm_for_client_desc') || 'Crea una cuenta separada y define el acceso del cliente final.'}
+                                                    </p>
+                                                </div>
+                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-emerald-500 ml-auto shrink-0 transition" />
+                                            </button>
+                                        </div>
+                                    )}
+
                                     {/* Step 1 GHL: Manual sub-account request form */}
                                     {onboardingStep === 1 && onboardingCrmType === 'ghl' && onboardingConnectionType === 'ghl_create_subaccount' && (
                                         <form onSubmit={async (e) => {
@@ -3846,8 +4015,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             onSubmit={async (e) => {
                                                 const saved = await handleSaveChatwootMasterUser(e);
                                                 if (!saved) return;
-                                                setOnboardingConnectionType('waflow_crm_hosted');
-                                                openOnboardingChatwootAddModal({ external: false, onboardingType: 'waflow_crm' });
+                                                setOnboardingConnectionType(null);
                                             }}
                                             className="space-y-4"
                                         >

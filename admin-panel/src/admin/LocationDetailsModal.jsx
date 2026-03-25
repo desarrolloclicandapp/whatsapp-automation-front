@@ -65,6 +65,20 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
     const isChatwootMode = crmType === "chatwoot";
+    const isEnabledTenantFlag = (value) => {
+        if (value === true || value === 1) return true;
+        const normalized = String(value ?? "").trim().toLowerCase();
+        return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
+    };
+    const isHostedWaflowMode = isChatwootMode
+        && isEnabledTenantFlag(tenantSettings?.is_auto_provisioned)
+        && !isEnabledTenantFlag(tenantSettings?.is_byoc);
+    const managedInboxBrandName = isHostedWaflowMode ? "WaFloW" : "Chatwoot";
+    const getManagedInboxText = (translatedText, fallbackText = "") => {
+        const baseText = translatedText || fallbackText;
+        if (!isHostedWaflowMode || !baseText) return baseText;
+        return String(baseText).replace(/Chatwoot/g, "WaFloW");
+    };
     const supportsSmsTab = isGhlMode || isChatwootMode;
     const supportsKeywordsTab = isGhlMode;
     const OFFICIAL_WHATSAPP_API_UI_ENABLED = false; // Hidden for future rollout once the official Meta API flow is production-ready.
@@ -452,7 +466,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (data.success) {
                 const successDescription = isChatwootMode
                     ? (tenantSettings?.is_auto_provisioned
-                        ? (t('slots.chatwoot.auto_provisioned_ready') || "Configurado automáticamente en Chatwoot.")
+                        ? getManagedInboxText(t('slots.chatwoot.auto_provisioned_ready'), "Configurado automaticamente en Chatwoot.")
                         : "Listo para vincular.")
                     : "Listo para vincular.";
                 toast.success(isChatwootMode ? (t('slots.chatwoot_inbox.added') || "Inbox agregado") : "Dispositivo agregado", { description: successDescription });
@@ -866,7 +880,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res) return;
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "No se pudo cargar el acceso Chatwoot");
+                throw new Error(err.error || getManagedInboxText("", "No se pudo cargar el acceso Chatwoot"));
             }
             const data = await res.json();
             setChatwootAccessInfo(data?.chatwoot || null);
@@ -1970,7 +1984,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         >
                             <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
                                 <div>
-                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Info de acceso Chatwoot</h3>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{`Info de acceso ${managedInboxBrandName}`}</h3>
                                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                                         Datos del usuario para compartir con el cliente final.
                                     </p>
@@ -2299,7 +2313,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
                                         {/* CONTENIDO EXPANDIBLE */}
                                         {isExpanded && (
-                                            <div className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-black/20 animate-in slide-in-from-top-2">
+                                            <div className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/60 dark:bg-black/20 animate-in slide-in-from-top-2">
                                                 {connectionMode === null ? (
                                                     <div className="p-8">
                                                         {renderConnectionModeSelector(slot)}
@@ -2311,7 +2325,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 ) : (
                                                     <>
                                                 {/* TABS */}
-                                                <div className="flex border-b border-gray-200 dark:border-gray-800 px-6 bg-white dark:bg-gray-900/50">
+                                                <div className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-800 px-6 pt-3 bg-slate-50/90 dark:bg-gray-950/50">
                                                     <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />
                                                     <TabButton active={activeSlotTab === 'integration'} onClick={() => setActiveSlotTab('integration')} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
                                                     {supportsSmsTab && (
@@ -2716,14 +2730,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 <div>
                                                                                     <p className="font-bold">{t('slots.chatwoot.auto_provision_title') || "Aprovisionamiento Automático"}</p>
                                                                                     <p className="text-xs opacity-90 mt-1">
-                                                                                        {t('slots.chatwoot.auto_provision_desc') || "Las credenciales de Chatwoot (URL, Token, Account ID y Webhooks) se gestionan internamente para esta cuenta."}
+                                                                                        {getManagedInboxText(t('slots.chatwoot.auto_provision_desc'), "Las credenciales de Chatwoot (URL, Token, Account ID y Webhooks) se gestionan internamente para esta cuenta.")}
                                                                                     </p>
                                                                                 </div>
                                                                             </div>
                                                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                                                                 <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
                                                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.dashboard_apps_title') || "Apps del panel"}</p>
-                                                                                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{t('slots.chatwoot.dashboard_apps_desc') || "Conversation Hub se publica automáticamente. Las pestañas legacy se limpian en la siguiente sincronización."}</p>
+                                                                                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{getManagedInboxText(t('slots.chatwoot.dashboard_apps_desc'), "Conversation Hub se publica automáticamente. Las pestañas legacy se limpian en la siguiente sincronización.")}</p>
                                                                                 </div>
                                                                                 <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
                                                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.custom_attrs_title') || "Atributos sincronizados"}</p>
@@ -2777,8 +2791,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
                                                                         <div className="flex flex-wrap items-start justify-between gap-4">
                                                                             <div>
-                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.chatwoot.title')}</h4>
-                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('slots.chatwoot.desc')}</p>
+                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{getManagedInboxText(t('slots.chatwoot.title'), "Chatwoot")}</h4>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{getManagedInboxText(t('slots.chatwoot.desc'), "Configura Chatwoot para este numero. URL/token/cuenta son globales por location; Inbox ID es por slot.")}</p>
                                                                             </div>
                                                                             <div className="flex items-center gap-2">
                                                                                 <button
@@ -2815,7 +2829,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                     <CheckCircle2 className="shrink-0" size={18} />
                                                                                     <div>
                                                                                         <p className="font-bold">Aprovisionamiento Automático</p>
-                                                                                        <p className="text-xs opacity-90">Las credenciales de Chatwoot (URL, Token y Account ID) se gestionan internamente para esta cuenta.</p>
+                                                                                        <p className="text-xs opacity-90">{getManagedInboxText("", "Las credenciales de Chatwoot (URL, Token y Account ID) se gestionan internamente para esta cuenta.")}</p>
                                                                                     </div>
                                                                                 </div>
                                                                             ) : (
@@ -2939,14 +2953,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                         {t('slots.chatwoot.copy_webhook')}
                                                                                     </button>
                                                                                 </div>
-                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{t('slots.chatwoot.webhook_hint')}</p>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{getManagedInboxText(t('slots.chatwoot.webhook_hint'), "Copia esta URL y configúrala en Chatwoot. Mantén el mismo secret en ambos lados.")}</p>
                                                                             </div>
                                                                         </div>
 
                                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                                             <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-3">
                                                                                 <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.dashboard_apps_title') || "Apps del panel"}</p>
-                                                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.dashboard_apps_desc') || "Conversation Hub se publica automáticamente. Las pestañas legacy se limpian en la siguiente sincronización."}</p>
+                                                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mt-1">{getManagedInboxText(t('slots.chatwoot.dashboard_apps_desc'), "Conversation Hub se publica automáticamente. Las pestañas legacy se limpian en la siguiente sincronización.")}</p>
                                                                             </div>
                                                                             <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-3">
                                                                                 <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.custom_attrs_title') || "Atributos sincronizados"}</p>
@@ -2954,7 +2968,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                             </div>
                                                                         </div>
 
-                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('slots.chatwoot.scope_note')}</p>
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{getManagedInboxText(t('slots.chatwoot.scope_note'), "Los campos globales aplican a toda la location. Inbox ID aplica solo a este numero (slot).")}</p>
 
                                                                         <div className="flex flex-wrap items-center gap-2">
                                                                             <button
@@ -3464,7 +3478,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 }
 
 const TabButton = ({ active, onClick, icon, label, disabled }) => (
-    <button onClick={onClick} disabled={disabled} className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-colors ${active ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`-mb-px flex items-center gap-2 rounded-t-xl border px-4 py-3 text-sm font-semibold whitespace-nowrap transition-all ${active
+            ? 'border-gray-200 border-b-indigo-600 bg-white text-indigo-600 shadow-sm dark:border-gray-800 dark:border-b-indigo-400 dark:bg-gray-900 dark:text-indigo-300'
+            : 'border-transparent bg-transparent text-gray-500 hover:border-gray-200 hover:bg-white/80 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-800 dark:hover:bg-gray-900/60 dark:hover:text-gray-200'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
         {icon} {label}
     </button>
 );
