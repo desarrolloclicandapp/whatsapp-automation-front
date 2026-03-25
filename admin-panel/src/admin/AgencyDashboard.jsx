@@ -240,8 +240,8 @@ export default function AgencyDashboard({ token, onLogout }) {
     const isSpanish = language === 'es';
     const onboardingCardTitles = {
         ghl: 'GoHighLevel',
-        waflow: isSpanish ? 'Waflow Mensajeria' : 'Waflow Messaging',
-        chatwoot: isSpanish ? 'Chatwoot Mensajeria' : 'Chatwoot Messaging',
+        waflow: isSpanish ? 'Waflow Inbox' : 'Waflow Inbox',
+        chatwoot: isSpanish ? 'Tu Chatwoot' : 'Your Chatwoot',
     };
     const chatwootMasterBenefitCopy = isSpanish
         ? 'Este usuario se reutiliza para aprovisionar nuevas cuentas Waflow Mensajeria hospedadas por nosotros, acelerar el alta de inboxes y usuarios, y dejar cada cuenta lista para operar sin configuraciones manuales en cada cliente.'
@@ -1100,7 +1100,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         const safeInboxName = String(addModalInboxName || "").trim();
         const safeClientName = String(addModalClientName || "").trim();
         const safeClientEmail = String(addModalClientEmail || "").trim().toLowerCase();
-        const safeClientPassword = String(addModalClientPassword || "");
+        const rawClientPassword = String(addModalClientPassword || "");
         const safeClientRole = "administrator";
 
         const isExternalChatwoot = isChatwootView && Boolean(addModalChatwootExternal);
@@ -1121,6 +1121,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 effectiveSelfManagedChatwootEmail &&
                 safeClientEmail === effectiveSelfManagedChatwootEmail
             );
+        const safeClientPassword = isSameEmailAsPrimaryChatwootUser ? "" : rawClientPassword;
 
         if (!safeName) {
             toast.error(
@@ -2166,6 +2167,18 @@ export default function AgencyDashboard({ token, onLogout }) {
         !addModalChatwootExternal &&
         onboardingCrmType === "waflow_crm";
     const canGoBackToChatwootOnboarding = isChatwootModal && addModalChatwootModeLocked;
+    const primaryHostedChatwootEmail = String(
+        chatwootMasterEmail || accountInfo?.email || userEmail || ""
+    ).trim().toLowerCase();
+    const modalClientEmail = String(addModalClientEmail || "").trim().toLowerCase();
+    const isSharedPrimaryChatwootEmailInModal =
+        Boolean(
+            isChatwootModal &&
+            !addModalChatwootExternal &&
+            modalClientEmail &&
+            primaryHostedChatwootEmail &&
+            modalClientEmail === primaryHostedChatwootEmail
+        );
     const chatwootMasterDisplayEmail = String(chatwootMasterEmailMasked || chatwootMasterEmail || "").trim();
     const accountPlanCode = String(accountInfo?.plan || "").toLowerCase();
     const accountPlanLabelMap = {
@@ -2198,6 +2211,12 @@ export default function AgencyDashboard({ token, onLogout }) {
     const accountCreatedAtLabel =
         formatDateTime(accountInfo?.created_at) ||
         (t('agency.account.not_available') || "No disponible");
+
+    useEffect(() => {
+        if (!isSharedPrimaryChatwootEmailInModal) return;
+        if (!addModalClientPassword) return;
+        setAddModalClientPassword("");
+    }, [isSharedPrimaryChatwootEmailInModal, addModalClientPassword]);
     const accountStatusCode = String(
         suspensionStatus?.status ||
         (accountInfo?.is_active === false ? "inactive" : "active")
@@ -3386,13 +3405,20 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             type="password"
                                                             value={addModalClientPassword}
                                                             onChange={(e) => setAddModalClientPassword(e.target.value)}
-                                                            placeholder={t('dash.chatwoot_accounts.client_password_optional') || "Opcional: si lo dejas vacío, se genera automática"}
+                                                            placeholder={
+                                                                isSharedPrimaryChatwootEmailInModal
+                                                                    ? (t('dash.chatwoot_accounts.shared_primary_password_ignored') || "Se reutilizara el mismo acceso principal")
+                                                                    : (t('dash.chatwoot_accounts.client_password_optional') || "Opcional: si lo dejas vacío, se genera automática")
+                                                            }
                                                             name="cw_client_password"
                                                             autoComplete="new-password"
-                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                                            disabled={isSharedPrimaryChatwootEmailInModal}
+                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow disabled:opacity-60 disabled:cursor-not-allowed"
                                                         />
                                                         <p className="text-[11px] text-gray-500 mt-1">
-                                                            Sugerencia: Usa una contraseña segura (mínimo 6 caracteres).
+                                                            {isSharedPrimaryChatwootEmailInModal
+                                                                ? (t('dash.chatwoot_accounts.shared_primary_password_ignored') || "Se reutilizara el mismo acceso principal")
+                                                                : "Sugerencia: Usa una contraseña segura (mínimo 6 caracteres)."}
                                                         </p>
                                                     </div>
                                                 </div>
