@@ -235,7 +235,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const isGhlAgency = agencyCrmType === "ghl";
     const isChatwootAgency = agencyCrmType === "chatwoot";
     const isCrmLocked = Boolean(accountInfo?.crm_type);
-    const crmLabelMap = { ghl: "GoHighLevel", chatwoot: "Chatwoot", odoo: "Odoo" };
+    const crmLabelMap = { ghl: "GoHighLevel", waflow: "WaFloW", chatwoot: "Chatwoot", odoo: "Odoo" };
     const activeCrmLabel = crmLabelMap[agencyCrmType] || agencyCrmType.toUpperCase();
     const isSpanish = language === 'es';
     const onboardingCardTitles = {
@@ -328,7 +328,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [onboardingHoveredCard, setOnboardingHoveredCard] = useState(null);
 
     // Integration filter for accounts list
-    const [accountsFilter, setAccountsFilter] = useState("all"); // "all" | "ghl" | "chatwoot"
+    const [accountsFilter, setAccountsFilter] = useState("all"); // "all" | "ghl" | "waflow" | "chatwoot"
     const [settingsSection, setSettingsSection] = useState("guide");
 
     const authFetch = async (endpoint, options = {}) => {
@@ -1073,11 +1073,6 @@ export default function AgencyDashboard({ token, onLogout }) {
         setOnboardingHoveredCard("waflow_crm");
         setTimeout(() => {
             setOnboardingHoveredCard(null);
-            if (!chatwootMasterConfigured) {
-                setOnboardingStep(1);
-                setOnboardingConnectionType("chatwoot_setup_master");
-                return;
-            }
             openOnboardingChatwootAddModal({ external: false, onboardingType: "waflow_crm" });
         }, 120);
     };
@@ -1112,6 +1107,20 @@ export default function AgencyDashboard({ token, onLogout }) {
         const safeExternalUrl = String(addModalChatwootUrl || "").trim();
         const safeExternalAccountId = String(addModalChatwootAccountId || "").trim();
         const safeExternalApiToken = String(addModalChatwootApiToken || "").trim();
+        const effectiveClientName = isChatwootView && !isExternalChatwoot
+            ? safeName
+            : safeClientName;
+        const effectiveSelfManagedChatwootEmail = String(
+            chatwootMasterEmail || accountInfo?.email || userEmail || ""
+        ).trim().toLowerCase();
+        const isSameEmailAsPrimaryChatwootUser =
+            Boolean(
+                isChatwootView &&
+                !isExternalChatwoot &&
+                safeClientEmail &&
+                effectiveSelfManagedChatwootEmail &&
+                safeClientEmail === effectiveSelfManagedChatwootEmail
+            );
 
         if (!safeName) {
             toast.error(
@@ -1125,24 +1134,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             return;
         }
 
-            if (isChatwootView) {
-                if (!isExternalChatwoot && !chatwootMasterConfigured) {
-                    toast.error(
-                        t('dash.chatwoot_master.must_configure') ||
-                        "Configura primero el Usuario Maestro de Chatwoot en Settings."
-                    );
-                    if (addModalChatwootModeLocked) {
-                        closeAddLocationModal();
-                        setOnboardingStep(1);
-                        setOnboardingCrmType("chatwoot");
-                        setOnboardingConnectionType("chatwoot_setup_master");
-                        setShowOnboarding(true);
-                    } else {
-                        setActiveTab('settings');
-                    }
-                    return;
-                }
-
+        if (isChatwootView) {
             if (isExternalChatwoot) {
                 if (!safeExternalUrl || !safeExternalAccountId || !safeExternalApiToken) {
                     toast.error(
@@ -1161,9 +1153,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                 return;
             }
 
-            if (!isExternalChatwoot && Boolean(safeClientName) !== Boolean(safeClientEmail)) {
+            if (!isExternalChatwoot && safeClientPassword && !safeClientEmail) {
                 toast.error(
-                    t('dash.chatwoot_accounts.client_required') || "Nombre y email del cliente final son requeridos."
+                    t('dash.chatwoot_accounts.client_email_required') || "El email del cliente final es requerido."
                 );
                 return;
             }
@@ -1178,12 +1170,16 @@ export default function AgencyDashboard({ token, onLogout }) {
                 }
 
                 try {
-                    const emailCheck = await checkChatwootEmailAvailability({
-                        email: safeClientEmail,
-                        password: safeClientPassword
-                    });
+                    const shouldSkipSelfManagedPrecheck =
+                        isSameEmailAsPrimaryChatwootUser && !safeClientPassword;
+                    const emailCheck = shouldSkipSelfManagedPrecheck
+                        ? { exists: true, credentials: { checked: false, valid: null }, skippedBecauseSharedPrimaryUser: true }
+                        : await checkChatwootEmailAvailability({
+                            email: safeClientEmail,
+                            password: safeClientPassword
+                        });
 
-                    if (emailCheck?.exists && !safeClientPassword) {
+                    if (emailCheck?.exists && !safeClientPassword && !isSameEmailAsPrimaryChatwootUser) {
                         toast.error(
                             t('dash.chatwoot_accounts.client_email_exists_password_required') ||
                             "Ese email ya existe en Chatwoot. Debes indicar su contraseña actual o usar otro email."
@@ -1219,8 +1215,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                     bodyPayload.chatwootUrl = safeExternalUrl;
                     bodyPayload.chatwootAccountId = safeExternalAccountId;
                     bodyPayload.chatwootApiToken = safeExternalApiToken;
-                } else if (safeClientName) {
-                    bodyPayload.clientName = safeClientName;
+                } else if (safeClientEmail) {
+                    bodyPayload.clientName = effectiveClientName;
                     bodyPayload.clientEmail = safeClientEmail;
                     bodyPayload.clientRole = safeClientRole;
                     if (safeClientPassword) {
@@ -1262,7 +1258,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                     {
                         description: generatedPassword
                             ? `${safeEmail} (${safeRoleLabel}) | Password temporal: ${generatedPassword}`
-                            : `${safeEmail} (${safeRoleLabel})`
+                            : data.chatwootClient.reusedMasterUser
+                                ? `${safeEmail} (${safeRoleLabel}) | ${t('dash.chatwoot_accounts.shared_primary_access') || "usando el mismo acceso principal"}`
+                                : `${safeEmail} (${safeRoleLabel})`
                     }
                 );
             }
@@ -1994,7 +1992,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         </div>
     );
 
-    const resolveTenantCrmType = (tenant) => {
+    const parseTenantSettings = (tenant) => {
         let settings = tenant?.settings || {};
         if (typeof settings === "string") {
             try {
@@ -2003,6 +2001,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                 settings = {};
             }
         }
+        return settings;
+    };
+
+    const isEnabledTenantFlag = (value) =>
+        value === true ||
+        value === "true" ||
+        value === 1 ||
+        value === "1";
+
+    const resolveTenantCrmType = (tenant) => {
+        const settings = parseTenantSettings(tenant);
         const tenantCrm = String(settings?.crm_type || "").trim().toLowerCase();
         if (tenantCrm === "ghl" || tenantCrm === "chatwoot") {
             return tenantCrm;
@@ -2016,10 +2025,54 @@ export default function AgencyDashboard({ token, onLogout }) {
         return hasChatwootHints ? "chatwoot" : "ghl";
     };
 
-    // Integration filter: show all locations or filtered by CRM type
+    const resolveTenantProductType = (tenant) => {
+        const crmType = resolveTenantCrmType(tenant);
+        if (crmType !== "chatwoot") return crmType;
+
+        const settings = parseTenantSettings(tenant);
+        const isByoc = isEnabledTenantFlag(settings?.is_byoc);
+        const isAutoProvisioned = isEnabledTenantFlag(settings?.is_auto_provisioned);
+
+        if (isAutoProvisioned && !isByoc) {
+            return "waflow";
+        }
+
+        return "chatwoot";
+    };
+
+    const getTenantProductMeta = (tenant) => {
+        const productType = resolveTenantProductType(tenant);
+
+        if (productType === "waflow") {
+            return {
+                type: "waflow",
+                label: "WaFloW",
+                icon: Sparkles,
+                badgeClassName: "bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800"
+            };
+        }
+
+        if (productType === "chatwoot") {
+            return {
+                type: "chatwoot",
+                label: "Chatwoot",
+                icon: MessageSquareText,
+                badgeClassName: "bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-800"
+            };
+        }
+
+        return {
+            type: "ghl",
+            label: "GoHighLevel",
+            icon: Globe,
+            badgeClassName: "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
+        };
+    };
+
+    // Integration filter: show all locations or filtered by visible product type
     const accountsFilteredLocations = accountsFilter === "all"
         ? locations
-        : locations.filter((loc) => resolveTenantCrmType(loc) === accountsFilter);
+        : locations.filter((loc) => resolveTenantProductType(loc) === accountsFilter);
 
     const filteredLocations = accountsFilteredLocations.filter(loc =>
         (loc.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
@@ -2032,8 +2085,9 @@ export default function AgencyDashboard({ token, onLogout }) {
     const activeLocationRows = locations.filter((loc) => (Number.parseInt(loc?.connected_slot_count, 10) || 0) > 0);
     const reliabilityFilterOptions = [
         { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: activeLocationRows.length },
-        { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: activeLocationRows.filter(l => resolveTenantCrmType(l) === 'ghl').length },
-        { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: activeLocationRows.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
+        { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: activeLocationRows.filter((l) => resolveTenantProductType(l) === 'ghl').length },
+        { id: 'waflow', label: 'WaFloW', icon: Sparkles, count: activeLocationRows.filter((l) => resolveTenantProductType(l) === 'waflow').length },
+        { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: activeLocationRows.filter((l) => resolveTenantProductType(l) === 'chatwoot').length }
     ];
     const reliabilityBaseCards = filteredLocationCards.filter((entry) => entry.connectedSlotCount > 0);
     const reliabilitySummary = reliabilityBaseCards.reduce((acc, entry) => {
@@ -2047,8 +2101,9 @@ export default function AgencyDashboard({ token, onLogout }) {
     });
     const accountFilterOptions = [
         { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: locations.length },
-        { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: locations.filter(l => resolveTenantCrmType(l) === 'ghl').length },
-        { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: locations.filter(l => resolveTenantCrmType(l) === 'chatwoot').length }
+        { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: locations.filter((l) => resolveTenantProductType(l) === 'ghl').length },
+        { id: 'waflow', label: 'WaFloW', icon: Sparkles, count: locations.filter((l) => resolveTenantProductType(l) === 'waflow').length },
+        { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: locations.filter((l) => resolveTenantProductType(l) === 'chatwoot').length }
     ];
     const reliabilityTotalAccounts = reliabilityBaseCards.length;
     const reliabilityTimeline = Array.isArray(reliabilityOverview?.timeline) ? reliabilityOverview.timeline : [];
@@ -2132,7 +2187,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const activeIntegrationLabels = Array.from(
         new Set(
             (locations || [])
-                .map((loc) => resolveTenantCrmType(loc))
+                .map((loc) => resolveTenantProductType(loc))
                 .filter(Boolean)
                 .map((crm) => crmLabelMap[crm] || String(crm || "").toUpperCase())
         )
@@ -2575,57 +2630,55 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <div className="py-12 text-center text-gray-400">{t('agency.loading_data')}</div>
                                         ) : (
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                {filteredLocationCards.map(({ loc, totalSlots, connectedSlotCount, connectedNumbers, hasConnectedSlots, connectedPreview, remainingConnected }) => (
-                                                    <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer">
-                                                        <div className="flex items-start justify-between mb-3">
-                                                            <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                                                                {resolveTenantCrmType(loc) === 'chatwoot'
-                                                                    ? <MessageSquareText size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                                                                    : <Globe size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                                                                }
+                                                {filteredLocationCards.map(({ loc, totalSlots, connectedSlotCount, connectedNumbers, hasConnectedSlots, connectedPreview, remainingConnected }) => {
+                                                    const productMeta = getTenantProductMeta(loc);
+                                                    const ProductIcon = productMeta.icon;
+
+                                                    return (
+                                                        <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer">
+                                                            <div className="flex items-start justify-between mb-3">
+                                                                <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                                                                    <ProductIcon size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-full border ${productMeta.badgeClassName}`}>
+                                                                        {productMeta.label}
+                                                                    </span>
+                                                                    <button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100">
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-full border ${
-                                                                    resolveTenantCrmType(loc) === 'chatwoot'
-                                                                        ? 'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-800'
-                                                                        : 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+                                                            <h4 className="font-semibold text-gray-900 dark:text-white mb-1 truncate text-sm">{loc.name || t('agency.location.no_name')}</h4>
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                                                                    hasConnectedSlots
+                                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                                                                        : 'bg-gray-50 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
                                                                 }`}>
-                                                                    {resolveTenantCrmType(loc) === 'chatwoot' ? 'Chatwoot' : 'GHL'}
+                                                                    <span className={`w-1.5 h-1.5 rounded-full ${hasConnectedSlots ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                                                                    {hasConnectedSlots
+                                                                        ? `${connectedSlotCount}/${totalSlots || connectedSlotCount} ${t('agency.location.online') || 'en línea'}`
+                                                                        : (t('agency.location.none_online') || 'Sin números en línea')}
                                                                 </span>
-                                                                <button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100">
-                                                                    <Trash2 size={14} />
-                                                                </button>
+                                                            </div>
+                                                            {connectedNumbers.length > 0 && (
+                                                                <p
+                                                                    className="text-[11px] text-emerald-600 dark:text-emerald-400 mb-3 truncate"
+                                                                    title={connectedNumbers.join(' · ')}
+                                                                >
+                                                                    {(t('agency.location.online_numbers') || 'Números en línea')}: {connectedPreview.join(' · ')}{remainingConnected > 0 ? ` +${remainingConnected}` : ''}
+                                                                </p>
+                                                            )}
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                                    <Smartphone size={12} /> {totalSlots}
+                                                                </span>
+                                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
                                                             </div>
                                                         </div>
-                                                        <h4 className="font-semibold text-gray-900 dark:text-white mb-1 truncate text-sm">{loc.name || t('agency.location.no_name')}</h4>
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-                                                                hasConnectedSlots
-                                                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
-                                                                    : 'bg-gray-50 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
-                                                            }`}>
-                                                                <span className={`w-1.5 h-1.5 rounded-full ${hasConnectedSlots ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                                                                {hasConnectedSlots
-                                                                    ? `${connectedSlotCount}/${totalSlots || connectedSlotCount} ${t('agency.location.online') || 'en línea'}`
-                                                                    : (t('agency.location.none_online') || 'Sin números en línea')}
-                                                            </span>
-                                                        </div>
-                                                        {connectedNumbers.length > 0 && (
-                                                            <p
-                                                                className="text-[11px] text-emerald-600 dark:text-emerald-400 mb-3 truncate"
-                                                                title={connectedNumbers.join(' · ')}
-                                                            >
-                                                                {(t('agency.location.online_numbers') || 'Números en línea')}: {connectedPreview.join(' · ')}{remainingConnected > 0 ? ` +${remainingConnected}` : ''}
-                                                            </p>
-                                                        )}
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs text-gray-500 flex items-center gap-1">
-                                                                <Smartphone size={12} /> {totalSlots}
-                                                            </span>
-                                                            <ChevronRight size={16} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
 
                                                 {!searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
                                                     <div key={`empty-${idx}`} onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setOnboardingHoveredCard(null); setShowOnboarding(true); }} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
@@ -3193,7 +3246,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                             {isWaflowCrmHostedModal
-                                                ? (t('agency.onboarding.waflow_crm_name_prompt') || "Nombre de la cuenta Waflow Mensajeria")
+                                                ? (t('agency.onboarding.waflow_crm_name_prompt') || "Nombre de Cuenta")
                                                 : isChatwootModal
                                                     ? (t('dash.chatwoot_accounts.name_prompt') || "Nombre de la cuenta (Ej: Empresa)")
                                                     : (t('dash.locations.name_prompt') || "Nombre de la location")}
@@ -3291,7 +3344,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <>
                                             <div>
                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                    {t('dash.chatwoot_accounts.inbox_prompt') || "Nombre del Primer Inbox"}
+                                                    {t('dash.chatwoot_accounts.inbox_prompt') || "Nombre del primer Telefono"}
                                                 </label>
                                                 <input
                                                     type="text"
@@ -3308,20 +3361,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             {t('dash.chatwoot_accounts.client_access_title') || "Acceso del Usuario"}
                                                 </p>
                                                 <div className="space-y-3">
-                                                    <div>
-                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                            {t('dash.chatwoot_accounts.client_name_prompt') || "Nombre del usuario del cliente final:"}
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            value={addModalClientName}
-                                                            onChange={(e) => setAddModalClientName(e.target.value)}
-                                                            placeholder="Ej: María Operaciones"
-                                                            name="cw_client_name"
-                                                            autoComplete="off"
-                                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
-                                                        />
-                                                    </div>
+                                                    <p className="text-[11px] text-gray-500 -mt-1">
+                                                        {t('dash.chatwoot_accounts.client_name_auto_note') || "El nombre del usuario final se tomará automáticamente desde el Nombre de Cuenta."}
+                                                    </p>
                                                     <div>
                                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                                             {t('dash.chatwoot_accounts.client_email_prompt') || "Email del usuario del cliente final:"}
