@@ -523,7 +523,7 @@ export const es = {
     "slots.chatwoot.show_debug": "Ver ajustes avanzados",
     "slots.chatwoot.hide_debug": "Ocultar ajustes avanzados",
     "slots.chatwoot.dashboard_apps_title": "Apps del panel",
-    "slots.chatwoot.dashboard_apps_desc": "Conversation Overview, Move Channel y Connection Status se publican automáticamente en Chatwoot.",
+    "slots.chatwoot.dashboard_apps_desc": "Conversation Hub se publica automáticamente en Chatwoot. Las pestañas legacy se limpian en la siguiente sincronización.",
     "slots.chatwoot.custom_attrs_title": "Atributos sincronizados",
     "slots.chatwoot.custom_attrs_desc": "Se actualizan slot, tipo de chat, grupo, origen del lead y último preview del contacto.",
     "slots.chatwoot.csat_title": "CSAT automático",

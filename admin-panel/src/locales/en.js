@@ -525,7 +525,7 @@ export const en = {
     "slots.chatwoot.show_debug": "Show advanced settings",
     "slots.chatwoot.hide_debug": "Hide advanced settings",
     "slots.chatwoot.dashboard_apps_title": "Dashboard apps",
-    "slots.chatwoot.dashboard_apps_desc": "Conversation Overview, Move Channel, and Connection Status are published automatically in Chatwoot.",
+    "slots.chatwoot.dashboard_apps_desc": "Conversation Hub is published automatically in Chatwoot. Legacy tabs are cleaned up on the next dashboard sync.",
     "slots.chatwoot.custom_attrs_title": "Synced attributes",
     "slots.chatwoot.custom_attrs_desc": "Slot, channel type, group, lead source, and last preview are kept in contact metadata automatically.",
     "slots.chatwoot.csat_title": "Automatic CSAT",

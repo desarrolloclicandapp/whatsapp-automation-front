@@ -2723,7 +2723,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                                                                 <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
                                                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.dashboard_apps_title') || "Apps del panel"}</p>
-                                                                                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{t('slots.chatwoot.dashboard_apps_desc') || "Conversation Overview, Move Channel y Connection Status se publican automáticamente."}</p>
+                                                                                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{t('slots.chatwoot.dashboard_apps_desc') || "Conversation Hub se publica automáticamente. Las pestañas legacy se limpian en la siguiente sincronización."}</p>
                                                                                 </div>
                                                                                 <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
                                                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.custom_attrs_title') || "Atributos sincronizados"}</p>
@@ -2946,7 +2946,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                                             <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-3">
                                                                                 <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.dashboard_apps_title') || "Apps del panel"}</p>
-                                                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.dashboard_apps_desc') || "Conversation Overview, Move Channel y Connection Status se publican automáticamente."}</p>
+                                                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.dashboard_apps_desc') || "Conversation Hub se publica automáticamente. Las pestañas legacy se limpian en la siguiente sincronización."}</p>
                                                                             </div>
                                                                             <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-3">
                                                                                 <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.custom_attrs_title') || "Atributos sincronizados"}</p>
@@ -3484,7 +3484,10 @@ const SettingRow = ({ label, desc, checked, onChange }) => (
 // ✅ COMPONENTE DE GESTIÓN DE CONEXIÓN
 function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode = false }) {
     const { t } = useLanguage();
-    const [status, setStatus] = useState({ connected: false, myNumber: null });
+    const [status, setStatus] = useState({
+        connected: slot?.is_connected === true,
+        myNumber: slot?.phone_number || null
+    });
     const [qr, setQr] = useState(null);
     const [qrUpdatedAt, setQrUpdatedAt] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -3594,12 +3597,37 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
     useEffect(() => {
         checkStatus();
         return () => stopPolling();
-    }, []);
+    }, [locationId, slot?.slot_id]);
 
     useEffect(() => {
         setShareUrl("");
         setIsGeneratingShareUrl(false);
     }, [locationId, slot?.slot_id]);
+
+    useEffect(() => {
+        const nextConnected = slot?.is_connected === true;
+        const nextNumber = slot?.phone_number || null;
+
+        setStatus((current) => {
+            const resolvedNumber = nextNumber || current.myNumber || null;
+            if (current.connected === nextConnected && current.myNumber === resolvedNumber) {
+                return current;
+            }
+            return {
+                connected: nextConnected,
+                myNumber: resolvedNumber
+            };
+        });
+
+        setSlotSuspendedBy(slot?.suspended_by || null);
+
+        if (nextConnected) {
+            setQr(null);
+            setQrUpdatedAt(null);
+            setLoading(false);
+            stopPolling();
+        }
+    }, [slot?.slot_id, slot?.is_connected, slot?.phone_number, slot?.suspended_by]);
 
     const handleConnect = async () => {
         if (!isAdminMode && (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system')) {
