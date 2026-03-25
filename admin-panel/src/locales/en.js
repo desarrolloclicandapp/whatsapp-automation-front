@@ -260,8 +260,8 @@ export const en = {
     "builder.type.call": "Call",
     "builder.type.copy": "Copy",
 
-    "dash.stats.subaccounts": "Subaccounts",
-    "dash.stats.cw_accounts": "Chatwoot Accounts",
+    "dash.stats.subaccounts": "WaFloW Accounts",
+    "dash.stats.cw_accounts": "WaFloW Accounts",
     "dash.stats.connections": "WA Connections",
     "dash.stats.plan": "Current Plan",
     "dash.stats.active": "Active",
