@@ -169,6 +169,9 @@ export const en = {
     "sub.feat.3_subs": "3 Subaccounts",
     "sub.feat.10_subs": "10 Subaccounts",
     "sub.feat.99_numbers": "99 Linkable Numbers",
+    "sub.feat.5_numbers_std": "5 Linkable Numbers",
+    "sub.feat.15_numbers_std": "15 Linkable Numbers",
+    "sub.feat.50_numbers_std": "50 Linkable Numbers",
     "sub.feat.save_annual": "Save 2 months with Annual",
 
     // Chatwoot specific features
