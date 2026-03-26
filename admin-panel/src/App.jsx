@@ -14,7 +14,7 @@ function App() {
         const params = new URLSearchParams(window.location.search);
         const locId = params.get("location_id");
         if (locId) {
-            sessionStorage.setItem("ghl_location_id", locId);
+            sessionStorage.setItem("crm_location_id", locId);
         }
 
         // 🔥 FIX: Ensure admins don't have sticky branding

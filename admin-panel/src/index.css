@@ -9,3 +9,47 @@ body {
   padding: 0;
   min-height: 100vh;
 }
+
+/* Agency dashboard visual tuning (light mode only):
+   - Stronger borders
+   - More obvious hover/focus states */
+html.light .agency-dashboard-ui {
+  --ag-border: #b8c3d6;
+  --ag-border-strong: #94a3b8;
+  --ag-hover-ring: rgba(37, 99, 235, 0.2);
+  --ag-hover-shadow: rgba(15, 23, 42, 0.12);
+}
+
+html.light .agency-dashboard-ui :where(
+  .border,
+  .border-x,
+  .border-y,
+  .border-t,
+  .border-r,
+  .border-b,
+  .border-l
+) {
+  border-color: var(--ag-border) !important;
+}
+
+html.light .agency-dashboard-ui :where(.border) {
+  border-width: 1.5px;
+}
+
+html.light .agency-dashboard-ui :where(.border-2) {
+  border-width: 2.5px;
+}
+
+html.light .agency-dashboard-ui :where(.cursor-pointer, button, a):not(:disabled):hover {
+  border-color: var(--ag-border-strong) !important;
+  box-shadow: 0 0 0 2px var(--ag-hover-ring), 0 10px 24px -14px var(--ag-hover-shadow);
+}
+
+html.light .agency-dashboard-ui :where(button, a, .cursor-pointer):focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+html.light .agency-dashboard-ui :where(input, select, textarea):hover {
+  border-color: var(--ag-border-strong) !important;
+}
