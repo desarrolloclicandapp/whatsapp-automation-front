@@ -10,6 +10,22 @@ import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
+function translateOr(t, key, fallback) {
+    const translated = typeof t === 'function' ? t(key) : null;
+    if (!translated || translated === key) return fallback;
+    return translated;
+}
+
+function toFiniteMetric(value, fallback = 0) {
+    if (value === null || value === undefined || value === '') return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function formatReplyCoverage(engagedCount, contactedCount, replyRate) {
+    return `${engagedCount} de ${contactedCount} clientes respondieron (${replyRate}%)`;
+}
+
 export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange, isAdminMode = false }) {
     const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
@@ -113,6 +129,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
     const expandedSlot = slots.find((slot) => slot.slot_id === expandedSlotId) || null;
     const expandedConnectionMode = getEffectiveSlotConnectionMode(expandedSlot);
+    const replyReadableLabel = translateOr(t, 'agency.reliability.reply_ratio_readable', 'Clientes que respondieron 24h');
+    const replyNoSampleLabel = translateOr(t, 'agency.reliability.reply_no_sample_readable', 'Todavía no hay clientes contactados para medir respuestas');
+    const summaryContacted24h = toFiniteMetric(healthSummary?.contacted_contacts_24h, 0);
+    const summaryEngaged24h = toFiniteMetric(healthSummary?.engaged_contacts_24h, 0);
+    const summaryReplyRate24h = toFiniteMetric(healthSummary?.reply_rate_24h, 0);
     const isExpandedChatwootLoaded = Boolean(
         expandedSlotId && chatwootConfigBySlot[expandedSlotId]?.loaded
     );
@@ -2199,12 +2220,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </p>
                             </div>
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
-                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.reply_ratio') || 'Interacción 24h'}</p>
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{replyReadableLabel}</p>
                                 <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                                    {Number(healthSummary.reply_rate_24h || 0)}%
+                                    {summaryContacted24h > 0 ? `${summaryReplyRate24h}%` : 'Sin muestra'}
                                 </p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {(healthSummary.engaged_contacts_24h || 0)}/{(healthSummary.contacted_contacts_24h || 0)} {(t('agency.reliability.reply_answered_short') || 'contactos respondieron')}
+                                    {summaryContacted24h > 0
+                                        ? formatReplyCoverage(summaryEngaged24h, summaryContacted24h, summaryReplyRate24h)
+                                        : replyNoSampleLabel}
                                 </p>
                             </div>
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
@@ -2245,7 +2268,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const connectionMode = getEffectiveSlotConnectionMode(slot);
                                 const slotHealth = slot.health || {};
                                 const slotSent24h = Number(slotHealth.sent_24h || 0);
-                                const slotReplyRate24h = Number(slotHealth.reply_rate_24h || 0);
+                                const slotReplyRate24h = toFiniteMetric(slotHealth.reply_rate_24h, 0);
                                 const slotContacted24h = Number(slotHealth.contacted_contacts_24h || 0);
                                 const slotEngaged24h = Number(slotHealth.engaged_contacts_24h || 0);
                                 const slotEngagementStatus = String(slotHealth.engagement_status || 'healthy').toLowerCase();
@@ -2320,7 +2343,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
                                                                     : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
                                                         }`}>
-                                                            {(t('agency.reliability.reply_ratio') || 'Interacción 24h')}: {slotReplyRate24h}% · {slotEngaged24h}/{slotContacted24h}
+                                                            {slotContacted24h > 0
+                                                                ? `${replyReadableLabel}: ${formatReplyCoverage(slotEngaged24h, slotContacted24h, slotReplyRate24h)}`
+                                                                : `${replyReadableLabel}: ${replyNoSampleLabel}`}
                                                         </span>
                                                         {false && <span
                                                             className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"

@@ -108,6 +108,22 @@ function formatRelativeTime(value) {
     return `${diffDays}d`;
 }
 
+function translateOr(t, key, fallback) {
+    const translated = typeof t === "function" ? t(key) : null;
+    if (!translated || translated === key) return fallback;
+    return translated;
+}
+
+function toFiniteMetric(value, fallback = 0) {
+    if (value === null || value === undefined || value === "") return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function formatReplyCoverage(engagedCount, contactedCount, replyRate) {
+    return `${engagedCount} de ${contactedCount} clientes respondieron (${replyRate}%)`;
+}
+
 function getHealthTone(status) {
     switch (String(status || "").toLowerCase()) {
         case "blocked":
@@ -2214,12 +2230,17 @@ export default function AgencyDashboard({ token, onLogout }) {
         (max, point) => Math.max(max, point.sent, point.failed),
         0
     );
-    const replyRate24h = Number(reliabilityTotals?.reply_rate_24h);
+    const replyRate24h = toFiniteMetric(reliabilityTotals?.reply_rate_24h, 0);
     const contactedContacts24h = Number(reliabilityTotals?.contacted_contacts_24h ?? reliabilityTotals?.inbound_24h) || 0;
     const engagedContacts24h = Number(reliabilityTotals?.engaged_contacts_24h ?? reliabilityTotals?.answered_inbound_24h) || 0;
     const unansweredContacts24h = Number(reliabilityTotals?.unanswered_contacts_24h ?? reliabilityTotals?.unanswered_inbound_24h) || 0;
     const replyAlertAccounts = Number(reliabilityTotals?.reply_alert_accounts) || 0;
     const hasReplySample = contactedContacts24h > 0;
+    const replyReadableLabel = translateOr(t, 'agency.reliability.reply_ratio_readable', 'Clientes que respondieron 24h');
+    const replyNoSampleLabel = translateOr(t, 'agency.reliability.reply_no_sample_readable', 'Todavía no hay clientes contactados para medir respuestas');
+    const replyAnsweredLabel = translateOr(t, 'agency.reliability.reply_answered_short', 'clientes respondieron');
+    const replyContactedLabel = translateOr(t, 'agency.reliability.reply_contacted_short', 'clientes contactados');
+    const replyPendingLabel = translateOr(t, 'agency.reliability.reply_pending_short', 'sin responder');
     const accountEventBars = accountActivity
         .map((entry) => ({
             locationId: entry.location_id,
@@ -2230,7 +2251,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 Number(entry.total) || ((Number(entry.sent) || 0) + (Number(entry.failed) || 0)),
                 Number(entry.contacted_contacts_24h ?? entry.inbound_24h) || 0
             ),
-            replyRate: Number(entry.reply_rate_24h) || 100,
+            replyRate: toFiniteMetric(entry.reply_rate_24h, 100),
             contactedCount: Number(entry.contacted_contacts_24h ?? entry.inbound_24h) || 0,
             engagedCount: Number(entry.engaged_contacts_24h ?? entry.answered_inbound_24h) || 0,
             unansweredCount: Number(entry.unanswered_contacts_24h ?? entry.unanswered_inbound_24h) || 0,
@@ -2924,8 +2945,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
                                             <MessageSquare size={14} className="text-emerald-500" />
                                             {hasReplySample
-                                                ? `${t('agency.reliability.reply_ratio') || 'interacción 24h'}: ${replyRate24h || 0}% · ${engagedContacts24h}/${contactedContacts24h} contactos respondieron`
-                                                : `${t('agency.reliability.reply_ratio') || 'interacción 24h'}: ${t('agency.reliability.reply_no_sample') || 'Sin muestra suficiente'}`}
+                                                ? `${replyReadableLabel}: ${formatReplyCoverage(engagedContacts24h, contactedContacts24h, replyRate24h)}`
+                                                : `${replyReadableLabel}: ${replyNoSampleLabel}`}
                                         </span>
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
                                             <Smartphone size={14} className={replyAlertAccounts > 0 ? "text-rose-500" : "text-emerald-500"} />
@@ -2969,7 +2990,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     {t('agency.reliability.recent_movement') || 'Cada barra compara dónde hubo más envíos o fallos hoy.'}
                                                 </p>
                                                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                                                    El ratio compara contactos unicos que respondieron vs contactos unicos contactados. Si escribiste varias veces al mismo numero, los mensajes enviados pueden ser mayores que la base del ratio.
+                                                    Lectura rapida: "7 enviados" significa 7 mensajes salidos. "0 de 3 clientes respondieron" significa que escribiste a 3 clientes distintos y ninguno respondio todavia. Si envias varios mensajes al mismo cliente, sigue contando como 1 cliente contactado.
                                                 </p>
                                             </div>
                                             {accountEventBars.length > 0 && (
@@ -2985,10 +3006,12 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 emptyLabel={t('agency.reliability.all_good_desc') || 'Aún no hay cuentas con movimiento en este filtro.'}
                                                 reconnectText={t('agency.reliability.sent_short') || 'enviados'}
                                                 alertText={t('agency.reliability.failed_short') || 'no enviados'}
-                                                replyRatioText={t('agency.reliability.reply_ratio') || 'interacción 24h'}
-                                                replyNoSampleText={t('agency.reliability.reply_no_sample') || 'Sin muestra suficiente'}
+                                                replyRatioText={replyReadableLabel}
+                                                replyNoSampleText={replyNoSampleLabel}
                                                 replyStrikeText={t('agency.reliability.reply_strike') || 'strike'}
-                                                replyAnsweredText={t('agency.reliability.reply_answered_short') || 'contactos respondieron'}
+                                                replyAnsweredText={replyAnsweredLabel}
+                                                replyContactedText={replyContactedLabel}
+                                                replyPendingText={replyPendingLabel}
                                             />
                                         </div>
                                     </div>
@@ -4270,7 +4293,9 @@ const ReliabilityAccountBars = ({
     replyRatioText,
     replyNoSampleText,
     replyStrikeText,
-    replyAnsweredText
+    replyAnsweredText,
+    replyContactedText,
+    replyPendingText
 }) => {
     if (!Array.isArray(data) || data.length === 0) {
         return (
@@ -4294,9 +4319,11 @@ const ReliabilityAccountBars = ({
                         ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
                         : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800";
                 const ratioText = hasReplySample
-                    ? `${replyRatioText}: ${Number(item?.replyRate) || 0}%`
+                    ? `${replyRatioText}: ${formatReplyCoverage(Number(item?.engagedCount) || 0, Number(item?.contactedCount) || 0, toFiniteMetric(item?.replyRate, 0))}`
                     : `${replyRatioText}: ${replyNoSampleText}`;
-                const detailText = `${Number(item?.engagedCount) || 0}/${Number(item?.contactedCount) || 0} ${replyAnsweredText}`;
+                const detailText = hasReplySample
+                    ? `${Number(item?.contactedCount) || 0} ${replyContactedText} · ${Number(item?.unansweredCount) || 0} ${replyPendingText}`
+                    : `${Number(item?.engagedCount) || 0} ${replyAnsweredText}`;
                 return (
                     <div key={item.locationId} className="grid grid-cols-[minmax(0,220px)_1fr_auto] gap-3 items-center">
                         <div className="min-w-0">
