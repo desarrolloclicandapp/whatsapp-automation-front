@@ -2924,7 +2924,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
                                             <MessageSquare size={14} className="text-emerald-500" />
                                             {hasReplySample
-                                                ? `${t('agency.reliability.reply_ratio') || 'interacción 24h'}: ${replyRate24h || 0}% · ${engagedContacts24h}/${contactedContacts24h}`
+                                                ? `${t('agency.reliability.reply_ratio') || 'interacción 24h'}: ${replyRate24h || 0}% · ${engagedContacts24h}/${contactedContacts24h} contactos respondieron`
                                                 : `${t('agency.reliability.reply_ratio') || 'interacción 24h'}: ${t('agency.reliability.reply_no_sample') || 'Sin muestra suficiente'}`}
                                         </span>
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
@@ -2968,6 +2968,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                                                     {t('agency.reliability.recent_movement') || 'Cada barra compara dónde hubo más envíos o fallos hoy.'}
                                                 </p>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                                                    El ratio compara contactos unicos que respondieron vs contactos unicos contactados. Si escribiste varias veces al mismo numero, los mensajes enviados pueden ser mayores que la base del ratio.
+                                                </p>
                                             </div>
                                             {accountEventBars.length > 0 && (
                                                 <p className="text-xs text-gray-400 dark:text-gray-500">
@@ -2985,7 +2988,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 replyRatioText={t('agency.reliability.reply_ratio') || 'interacción 24h'}
                                                 replyNoSampleText={t('agency.reliability.reply_no_sample') || 'Sin muestra suficiente'}
                                                 replyStrikeText={t('agency.reliability.reply_strike') || 'strike'}
-                                                replyAnsweredText={t('agency.reliability.reply_answered_short') || 'respondieron'}
+                                                replyAnsweredText={t('agency.reliability.reply_answered_short') || 'contactos respondieron'}
                                             />
                                         </div>
                                     </div>

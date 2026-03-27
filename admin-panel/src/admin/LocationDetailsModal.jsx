@@ -2204,7 +2204,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     {Number(healthSummary.reply_rate_24h || 0)}%
                                 </p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {(healthSummary.engaged_contacts_24h || 0)}/{(healthSummary.contacted_contacts_24h || 0)} {(t('agency.reliability.reply_answered_short') || 'respondieron')}
+                                    {(healthSummary.engaged_contacts_24h || 0)}/{(healthSummary.contacted_contacts_24h || 0)} {(t('agency.reliability.reply_answered_short') || 'contactos respondieron')}
                                 </p>
                             </div>
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
