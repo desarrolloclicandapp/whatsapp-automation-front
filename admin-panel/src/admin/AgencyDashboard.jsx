@@ -2215,11 +2215,11 @@ export default function AgencyDashboard({ token, onLogout }) {
         0
     );
     const replyRate24h = Number(reliabilityTotals?.reply_rate_24h);
-    const replyInbound24h = Number(reliabilityTotals?.inbound_24h) || 0;
-    const replyAnswered24h = Number(reliabilityTotals?.answered_inbound_24h) || 0;
-    const replyUnanswered24h = Number(reliabilityTotals?.unanswered_inbound_24h) || 0;
+    const contactedContacts24h = Number(reliabilityTotals?.contacted_contacts_24h ?? reliabilityTotals?.inbound_24h) || 0;
+    const engagedContacts24h = Number(reliabilityTotals?.engaged_contacts_24h ?? reliabilityTotals?.answered_inbound_24h) || 0;
+    const unansweredContacts24h = Number(reliabilityTotals?.unanswered_contacts_24h ?? reliabilityTotals?.unanswered_inbound_24h) || 0;
     const replyAlertAccounts = Number(reliabilityTotals?.reply_alert_accounts) || 0;
-    const hasReplySample = replyInbound24h > 0;
+    const hasReplySample = contactedContacts24h > 0;
     const accountEventBars = accountActivity
         .map((entry) => ({
             locationId: entry.location_id,
@@ -2228,12 +2228,12 @@ export default function AgencyDashboard({ token, onLogout }) {
             failed: Number(entry.failed) || 0,
             totalEvents: Math.max(
                 Number(entry.total) || ((Number(entry.sent) || 0) + (Number(entry.failed) || 0)),
-                Number(entry.inbound_24h) || 0
+                Number(entry.contacted_contacts_24h ?? entry.inbound_24h) || 0
             ),
             replyRate: Number(entry.reply_rate_24h) || 100,
-            inboundCount: Number(entry.inbound_24h) || 0,
-            answeredCount: Number(entry.answered_inbound_24h) || 0,
-            unansweredCount: Number(entry.unanswered_inbound_24h) || 0,
+            contactedCount: Number(entry.contacted_contacts_24h ?? entry.inbound_24h) || 0,
+            engagedCount: Number(entry.engaged_contacts_24h ?? entry.answered_inbound_24h) || 0,
+            unansweredCount: Number(entry.unanswered_contacts_24h ?? entry.unanswered_inbound_24h) || 0,
             replyStrikes: Number(entry.reply_strikes) || 0,
             replyStatus: String(entry.reply_status || 'healthy').toLowerCase(),
             replyAutoBlocked: Boolean(entry.reply_auto_blocked)
@@ -2924,8 +2924,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
                                             <MessageSquare size={14} className="text-emerald-500" />
                                             {hasReplySample
-                                                ? `${t('agency.reliability.reply_ratio') || 'ratio de respuesta'}: ${replyRate24h || 0}% · ${replyAnswered24h}/${replyInbound24h}`
-                                                : `${t('agency.reliability.reply_ratio') || 'ratio de respuesta'}: ${t('agency.reliability.reply_no_sample') || 'Sin muestra suficiente'}`}
+                                                ? `${t('agency.reliability.reply_ratio') || 'interacción 24h'}: ${replyRate24h || 0}% · ${engagedContacts24h}/${contactedContacts24h}`
+                                                : `${t('agency.reliability.reply_ratio') || 'interacción 24h'}: ${t('agency.reliability.reply_no_sample') || 'Sin muestra suficiente'}`}
                                         </span>
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
                                             <Smartphone size={14} className={replyAlertAccounts > 0 ? "text-rose-500" : "text-emerald-500"} />
@@ -2982,10 +2982,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 emptyLabel={t('agency.reliability.all_good_desc') || 'Aún no hay cuentas con movimiento en este filtro.'}
                                                 reconnectText={t('agency.reliability.sent_short') || 'enviados'}
                                                 alertText={t('agency.reliability.failed_short') || 'no enviados'}
-                                                replyRatioText={t('agency.reliability.reply_ratio') || 'ratio de respuesta'}
+                                                replyRatioText={t('agency.reliability.reply_ratio') || 'interacción 24h'}
                                                 replyNoSampleText={t('agency.reliability.reply_no_sample') || 'Sin muestra suficiente'}
                                                 replyStrikeText={t('agency.reliability.reply_strike') || 'strike'}
-                                                replyAnsweredText={t('agency.reliability.reply_answered_short') || 'respondidos'}
+                                                replyAnsweredText={t('agency.reliability.reply_answered_short') || 'respondieron'}
                                             />
                                         </div>
                                     </div>
@@ -4284,7 +4284,7 @@ const ReliabilityAccountBars = ({
             {data.map((item) => {
                 const percent = Math.max(6, Math.round(((Number(item?.totalEvents) || 0) / maxValue) * 100));
                 const strikeCount = Number(item?.replyStrikes) || 0;
-                const hasReplySample = (Number(item?.inboundCount) || 0) > 0;
+                const hasReplySample = (Number(item?.contactedCount) || 0) > 0;
                 const statusTone = item?.replyAutoBlocked
                     ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800"
                     : strikeCount > 0
@@ -4293,7 +4293,7 @@ const ReliabilityAccountBars = ({
                 const ratioText = hasReplySample
                     ? `${replyRatioText}: ${Number(item?.replyRate) || 0}%`
                     : `${replyRatioText}: ${replyNoSampleText}`;
-                const detailText = `${Number(item?.answeredCount) || 0}/${Number(item?.inboundCount) || 0} ${replyAnsweredText}`;
+                const detailText = `${Number(item?.engagedCount) || 0}/${Number(item?.contactedCount) || 0} ${replyAnsweredText}`;
                 return (
                     <div key={item.locationId} className="grid grid-cols-[minmax(0,220px)_1fr_auto] gap-3 items-center">
                         <div className="min-w-0">

@@ -2185,7 +2185,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     </div>
 
                     {healthSummary && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
                                 <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.online_slots') || 'Slots en línea'}</p>
                                 <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
@@ -2196,6 +2196,24 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.sent_24h') || 'Enviados 24h'}</p>
                                 <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
                                     {healthSummary.sent_24h || 0}
+                                </p>
+                            </div>
+                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.reply_ratio') || 'Interacción 24h'}</p>
+                                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
+                                    {Number(healthSummary.reply_rate_24h || 0)}%
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    {(healthSummary.engaged_contacts_24h || 0)}/{(healthSummary.contacted_contacts_24h || 0)} {(t('agency.reliability.reply_answered_short') || 'respondieron')}
+                                </p>
+                            </div>
+                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.reply_strike') || 'Strikes'}</p>
+                                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
+                                    {healthSummary.reply_strikes || 0}/3
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    {getReliabilityMeta(healthSummary.reply_status).label}
                                 </p>
                             </div>
                             {false && (<div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
@@ -2227,6 +2245,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const connectionMode = getEffectiveSlotConnectionMode(slot);
                                 const slotHealth = slot.health || {};
                                 const slotSent24h = Number(slotHealth.sent_24h || 0);
+                                const slotReplyRate24h = Number(slotHealth.reply_rate_24h || 0);
+                                const slotContacted24h = Number(slotHealth.contacted_contacts_24h || 0);
+                                const slotEngaged24h = Number(slotHealth.engaged_contacts_24h || 0);
+                                const slotEngagementStatus = String(slotHealth.engagement_status || 'healthy').toLowerCase();
                                 const isOfficialSlotMode = connectionMode === 'official_api';
                                 const slotHeaderModeLabel = isOfficialSlotMode
                                     ? (t('slots.card.official_mode') || 'Meta API')
@@ -2290,6 +2312,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </span>}
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
                                                             {(t('agency.reliability.sent_24h') || 'Enviados 24h')}: {slotSent24h}
+                                                        </span>
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                                                            slotEngagementStatus === 'critical'
+                                                                ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800'
+                                                                : slotEngagementStatus === 'attention'
+                                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
+                                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
+                                                        }`}>
+                                                            {(t('agency.reliability.reply_ratio') || 'Interacción 24h')}: {slotReplyRate24h}% · {slotEngaged24h}/{slotContacted24h}
                                                         </span>
                                                         {false && <span
                                                             className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
