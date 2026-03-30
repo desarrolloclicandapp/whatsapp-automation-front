@@ -2264,7 +2264,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const replyAnsweredLabel = translateOr(t, 'agency.reliability.reply_answered_short', 'clientes respondieron');
     const replyContactedLabel = translateOr(t, 'agency.reliability.reply_contacted_short', 'clientes contactados');
     const replyPendingLabel = translateOr(t, 'agency.reliability.reply_pending_short', 'sin responder');
-    const metaRiskLabel = t('agency.reliability.meta_risk') || 'Riesgo Meta';
+    const metaRiskLabel = translateOr(t, 'agency.reliability.meta_risk', 'Riesgo Meta');
     const accountEventBars = accountActivity
         .map((entry) => ({
             locationId: entry.location_id,

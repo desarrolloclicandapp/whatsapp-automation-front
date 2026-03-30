@@ -1032,6 +1032,7 @@ export const es = {
     "agency.reliability.reply_no_sample": "Sin muestra suficiente",
     "agency.reliability.reply_strike": "strike",
     "agency.reliability.reply_answered_short": "respondidos",
+    "agency.reliability.meta_risk": "Riesgo Meta",
     "agency.onboarding.waflow_crm_desc": "CRM y mensajerÃ­a hospedados por Waflow",
     "agency.onboarding.waflow_crm_benefit_1": "Para los que quieren empezar sin complicaciones técnicas",
     "agency.onboarding.waflow_crm_benefit_2": "Bandeja WhatSapp para operar en minutos",

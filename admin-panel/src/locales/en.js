@@ -1033,6 +1033,7 @@ export const en = {
     "agency.reliability.reply_no_sample": "Not enough sample yet",
     "agency.reliability.reply_strike": "strike",
     "agency.reliability.reply_answered_short": "answered",
+    "agency.reliability.meta_risk": "Meta Risk",
     "agency.onboarding.waflow_crm_title": "Waflow Inbox",
     "agency.onboarding.waflow_crm_desc": "Messaging hosted by Waflow",
     "agency.onboarding.waflow_crm_benefit_1": "For those who want to start without technical complications",
