@@ -3019,16 +3019,16 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     {t('agency.reliability.coverage_by_account') || 'Cuentas con más movimiento'}
                                                 </h4>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    {t('agency.reliability.recent_movement') || 'Cada barra compara dónde hubo más envíos o fallos hoy.'}
-                                                </p>
-                                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                                                    Lectura rapida: "7 enviados" significa 7 mensajes salidos. "0 de 3 clientes respondieron" significa que escribiste a 3 clientes distintos y ninguno respondio todavia. Si envias varios mensajes al mismo cliente, sigue contando como 1 cliente contactado.
+                                                    Vista ejecutiva por cuenta: actividad, respuesta y señales operativas en un formato más visual.
                                                 </p>
                                             </div>
                                             {accountEventBars.length > 0 && (
-                                                <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                    {t('agency.reliability.account_bars_help') || 'Más alto = más mensajes en esa cuenta'}
-                                                </p>
+                                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-indigo-200 dark:border-indigo-900/40 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300">
+                                                    <Sparkles size={16} />
+                                                    <span className="text-sm font-semibold">
+                                                        {accountEventBars.length} cuentas visibles en monitoreo
+                                                    </span>
+                                                </div>
                                             )}
                                         </div>
 
@@ -4370,11 +4370,67 @@ const ReliabilityAccountBars = ({
     }
 
     const maxValue = Math.max(1, ...data.map((item) => Number(item?.totalEvents) || 0));
+    const overviewCards = [
+        {
+            label: 'Cuentas activas',
+            value: data.length,
+            caption: 'con movimiento hoy',
+            icon: Activity,
+            tone: 'healthy'
+        },
+        {
+            label: 'Con fallos',
+            value: data.filter((item) => (Number(item?.failed) || 0) > 0).length,
+            caption: 'requieren revisión',
+            icon: AlertTriangle,
+            tone: data.some((item) => (Number(item?.failed) || 0) > 0) ? 'attention' : 'healthy'
+        },
+        {
+            label: 'Con respuestas',
+            value: data.filter((item) => (Number(item?.engagedCount) || 0) > 0).length,
+            caption: 'clientes interactuaron',
+            icon: MessageSquare,
+            tone: data.some((item) => (Number(item?.engagedCount) || 0) > 0) ? 'healthy' : 'paused'
+        },
+        {
+            label: metaRiskText || 'Riesgo Meta',
+            value: data.filter((item) => {
+                const metaRiskLevel = String(item?.metaRiskLevel || 'healthy').toLowerCase();
+                return metaRiskLevel !== 'healthy' || (Number(item?.replyStrikes) || 0) > 0;
+            }).length,
+            caption: 'cuentas a vigilar',
+            icon: ShieldCheck,
+            tone: data.some((item) => String(item?.metaRiskLevel || 'healthy').toLowerCase() !== 'healthy')
+                ? 'critical'
+                : (data.some((item) => (Number(item?.replyStrikes) || 0) > 0) ? 'attention' : 'healthy')
+        }
+    ];
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-5">
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                {overviewCards.map((card) => {
+                    const Icon = card.icon;
+                    return (
+                        <div key={card.label} className={`rounded-2xl border px-4 py-4 ${getHealthTone(card.tone)}`}>
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] opacity-75">{card.label}</p>
+                                    <p className="mt-2 text-3xl font-black leading-none">{card.value}</p>
+                                </div>
+                                <div className="w-10 h-10 rounded-2xl bg-white/70 dark:bg-black/20 flex items-center justify-center">
+                                    <Icon size={18} />
+                                </div>
+                            </div>
+                            <p className="mt-3 text-xs opacity-80">{card.caption}</p>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             {data.map((item) => {
-                const percent = Math.max(6, Math.round(((Number(item?.totalEvents) || 0) / maxValue) * 100));
+                const percent = Math.max(8, Math.round(((Number(item?.totalEvents) || 0) / maxValue) * 100));
                 const strikeCount = Number(item?.replyStrikes) || 0;
                 const hasReplySample = (Number(item?.contactedCount) || 0) > 0;
                 const statusTone = item?.replyAutoBlocked
@@ -4391,44 +4447,120 @@ const ReliabilityAccountBars = ({
                 const metaRiskLevel = String(item?.metaRiskLevel || 'healthy').toLowerCase();
                 const metaRiskTone = getHealthTone(metaRiskLevel);
                 const topMetaRiskSignal = Array.isArray(item?.metaRiskSignals) ? item.metaRiskSignals[0] : null;
+                const responseHeadline = hasReplySample
+                    ? `${toFiniteMetric(item?.replyRate, 0)}%`
+                    : 'Sin muestra';
+                const responseDetail = hasReplySample
+                    ? `${Number(item?.engagedCount) || 0} de ${Number(item?.contactedCount) || 0} respondieron`
+                    : replyNoSampleText;
+                const primaryTone = metaRiskLevel !== 'healthy'
+                    ? 'bg-gradient-to-r from-rose-500 via-orange-400 to-amber-400'
+                    : strikeCount > 0
+                        ? 'bg-gradient-to-r from-amber-400 to-rose-500'
+                        : 'bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400';
+                const primaryStateTone = metaRiskLevel !== 'healthy' ? metaRiskTone : statusTone;
+                const StateIcon = metaRiskLevel !== 'healthy'
+                    ? ShieldCheck
+                    : strikeCount > 0
+                        ? AlertTriangle
+                        : CheckCircle2;
+                const stateTitle = metaRiskLevel !== 'healthy'
+                    ? `${metaRiskText || 'Riesgo Meta'} ${getMetaRiskLabel(metaRiskLevel)}`
+                    : strikeCount > 0
+                        ? `${replyStrikeText} ${strikeCount}/3`
+                        : 'Operación estable';
+                const stateBody = topMetaRiskSignal
+                    ? `${topMetaRiskSignal.title}: ${topMetaRiskSignal.summary}`
+                    : metaRiskLevel !== 'healthy'
+                        ? (item?.metaRiskRecommendedAction || 'Se detectaron señales operativas que conviene revisar.')
+                        : strikeCount > 0
+                            ? ratioText
+                            : 'Sin señales críticas en esta cuenta durante la ventana observada.';
+                const stateAction = metaRiskLevel !== 'healthy' && item?.metaRiskRecommendedAction
+                    ? item.metaRiskRecommendedAction
+                    : null;
+
                 return (
-                    <div key={item.locationId} className="grid grid-cols-[minmax(0,220px)_1fr_auto] gap-3 items-center">
-                        <div className="min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{item.name}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {item.sent} {reconnectText} · {item.failed} {alertText}
-                            </p>
-                            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
-                                {ratioText} · {detailText}
-                            </p>
-                            {topMetaRiskSignal && (
-                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                                    {topMetaRiskSignal.title}: {topMetaRiskSignal.summary}
-                                </p>
-                            )}
-                        </div>
-                        <div className="h-3 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                            <div
-                                className={`h-full rounded-full ${strikeCount > 0 ? 'bg-gradient-to-r from-amber-500 to-rose-500' : 'bg-gradient-to-r from-blue-500 to-amber-500'}`}
-                                style={{ width: `${percent}%` }}
-                            />
-                        </div>
-                        <div className="flex items-center gap-2 justify-end">
-                            {strikeCount > 0 && (
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full border text-[11px] font-semibold ${statusTone}`}>
-                                    {replyStrikeText} {strikeCount}/3
-                                </span>
-                            )}
-                            {metaRiskLevel !== 'healthy' && (
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full border text-[11px] font-semibold ${metaRiskTone}`}>
-                                    {metaRiskText || 'Riesgo Meta'} {getMetaRiskLabel(metaRiskLevel)}
-                                </span>
-                            )}
-                            <span className="text-sm font-bold text-gray-900 dark:text-white">{item.totalEvents}</span>
+                    <div key={item.locationId} className="overflow-hidden rounded-[28px] border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
+                        <div className={`h-1.5 w-full ${primaryTone}`} />
+                        <div className="p-5 md:p-6 space-y-5">
+                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                <div className="min-w-0">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-gray-400">Cuenta monitoreada</p>
+                                    <h5 className="mt-2 text-2xl font-black text-gray-900 dark:text-white truncate">{item.name}</h5>
+                                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                        Actividad, respuesta y señales operativas en una sola vista.
+                                    </p>
+                                </div>
+                                <div className="shrink-0 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/40 px-4 py-3 min-w-[132px]">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-400">Movimiento</p>
+                                    <p className="mt-2 text-3xl font-black text-gray-900 dark:text-white leading-none">{item.totalEvents}</p>
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">últimas 24 horas</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-blue-50/70 dark:bg-blue-950/20 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-blue-500">Enviados</p>
+                                    <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{item.sent}</p>
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{reconnectText}</p>
+                                </div>
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-amber-50/70 dark:bg-amber-950/20 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-500">Fallos</p>
+                                    <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{item.failed}</p>
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{alertText}</p>
+                                </div>
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-emerald-50/70 dark:bg-emerald-950/20 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-500">Respuesta</p>
+                                    <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{responseHeadline}</p>
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{responseDetail}</p>
+                                </div>
+                                <div className={`rounded-2xl border p-4 ${primaryStateTone}`}>
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] opacity-80">Estado</p>
+                                    <p className="mt-2 text-xl font-black leading-tight">{metaRiskLevel !== 'healthy' ? getMetaRiskLabel(metaRiskLevel) : (strikeCount > 0 ? `${strikeCount}/3` : 'OK')}</p>
+                                    <p className="mt-2 text-xs opacity-80">
+                                        {metaRiskLevel !== 'healthy'
+                                            ? (metaRiskText || 'Riesgo Meta')
+                                            : (strikeCount > 0 ? `${replyStrikeText}` : 'Sin alertas')}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/30 p-4">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-400">Intensidad relativa</p>
+                                        <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">Comparada con la cuenta más activa del filtro</p>
+                                    </div>
+                                    <span className="text-lg font-black text-gray-900 dark:text-white">{percent}%</span>
+                                </div>
+                                <div className="mt-4 h-4 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
+                                    <div className={`h-full rounded-full ${primaryTone}`} style={{ width: `${percent}%` }} />
+                                </div>
+                                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{detailText}</p>
+                            </div>
+
+                            <div className={`rounded-2xl border p-4 ${primaryStateTone}`}>
+                                <div className="flex items-start gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-white/70 dark:bg-black/20 flex items-center justify-center shrink-0">
+                                        <StateIcon size={18} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="font-bold">{stateTitle}</p>
+                                        <p className="mt-1 text-sm opacity-90">{stateBody}</p>
+                                        {stateAction && (
+                                            <p className="mt-3 text-xs font-semibold uppercase tracking-[0.2em] opacity-80">
+                                                Acción sugerida: {stateAction}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 );
             })}
+            </div>
         </div>
     );
 };

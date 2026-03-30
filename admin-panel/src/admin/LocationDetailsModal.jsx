@@ -16,46 +16,6 @@ function translateOr(t, key, fallback) {
     return translated;
 }
 
-function toFiniteMetric(value, fallback = 0) {
-    if (value === null || value === undefined || value === '') return fallback;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function formatReplyCoverage(engagedCount, contactedCount, replyRate) {
-    return `${engagedCount} de ${contactedCount} clientes respondieron (${replyRate}%)`;
-}
-
-function getMetaRiskMeta(level) {
-    switch (String(level || '').toLowerCase()) {
-        case 'critical':
-            return {
-                label: 'Crítico',
-                className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
-            };
-        case 'high':
-            return {
-                label: 'Alto',
-                className: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800'
-            };
-        case 'attention':
-            return {
-                label: 'Atención',
-                className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
-            };
-        case 'info':
-            return {
-                label: 'Info',
-                className: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-300 dark:border-sky-800'
-            };
-        default:
-            return {
-                label: 'Sano',
-                className: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
-            };
-    }
-}
-
 export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange, isAdminMode = false }) {
     const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
@@ -161,15 +121,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
     const expandedSlot = slots.find((slot) => slot.slot_id === expandedSlotId) || null;
     const expandedConnectionMode = getEffectiveSlotConnectionMode(expandedSlot);
-    const replyReadableLabel = translateOr(t, 'agency.reliability.reply_ratio_readable', 'Clientes que respondieron 24h');
-    const replyNoSampleLabel = translateOr(t, 'agency.reliability.reply_no_sample_readable', 'Todavía no hay clientes contactados para medir respuestas');
-    const summaryContacted24h = toFiniteMetric(healthSummary?.contacted_contacts_24h, 0);
-    const summaryEngaged24h = toFiniteMetric(healthSummary?.engaged_contacts_24h, 0);
-    const summaryReplyRate24h = toFiniteMetric(healthSummary?.reply_rate_24h, 0);
-    const summaryMetaRiskLevel = String(healthSummary?.meta_risk_level || 'healthy').toLowerCase();
-    const summaryMetaRiskScore = toFiniteMetric(healthSummary?.meta_risk_score, 0);
-    const summaryMetaRiskSignals = Array.isArray(healthSummary?.meta_risk_signals) ? healthSummary.meta_risk_signals : [];
-    const summaryMetaRisk = getMetaRiskMeta(summaryMetaRiskLevel);
     const isExpandedChatwootLoaded = Boolean(
         expandedSlotId && chatwootConfigBySlot[expandedSlotId]?.loaded
     );
@@ -219,50 +170,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 label: 'Cancelar'
             }
         });
-    };
-
-    const formatRelativeTime = (value) => {
-        if (!value) return t('agency.reliability.none') || 'Sin incidentes recientes';
-        const parsed = new Date(value).getTime();
-        if (!Number.isFinite(parsed)) return t('agency.reliability.none') || 'Sin incidentes recientes';
-        const diffMs = Date.now() - parsed;
-        const diffMin = Math.floor(diffMs / 60000);
-        if (diffMin < 1) return '0m';
-        if (diffMin < 60) return `${diffMin}m`;
-        const diffHours = Math.floor(diffMin / 60);
-        if (diffHours < 24) return `${diffHours}h`;
-        const diffDays = Math.floor(diffHours / 24);
-        return `${diffDays}d`;
-    };
-
-    const getReliabilityMeta = (status) => {
-        switch (String(status || '').toLowerCase()) {
-            case 'critical':
-                return {
-                    label: t('agency.reliability.critical') || 'Crítica',
-                    className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
-                };
-            case 'attention':
-                return {
-                    label: t('agency.reliability.attention') || 'Con atención',
-                    className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
-                };
-            case 'blocked':
-                return {
-                    label: t('agency.reliability.blocked') || 'Bloqueada',
-                    className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
-                };
-            case 'paused':
-                return {
-                    label: t('agency.reliability.paused') || 'Pausada',
-                    className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
-                };
-            default:
-                return {
-                    label: t('agency.reliability.healthy') || 'Sana',
-                    className: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
-                };
-        }
     };
 
     // ✅ LÓGICA DE TIEMPO REAL + ROOMS
@@ -2242,8 +2149,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     </div>
 
                     {healthSummary && (
-                        <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
                                 <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.online_slots') || 'Slots en línea'}</p>
                                 <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
@@ -2256,65 +2162,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     {healthSummary.sent_24h || 0}
                                 </p>
                             </div>
-                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
-                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{replyReadableLabel}</p>
-                                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                                    {summaryContacted24h > 0 ? `${summaryReplyRate24h}%` : 'Sin muestra'}
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {summaryContacted24h > 0
-                                        ? formatReplyCoverage(summaryEngaged24h, summaryContacted24h, summaryReplyRate24h)
-                                        : replyNoSampleLabel}
-                                </p>
-                            </div>
-                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
-                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.reply_strike') || 'Strikes'}</p>
-                                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                                    {healthSummary.reply_strikes || 0}/3
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {getReliabilityMeta(healthSummary.reply_status).label}
-                                </p>
-                            </div>
-                            <div className={`border rounded-2xl p-4 shadow-sm ${summaryMetaRisk.className}`}>
-                                <p className="text-[11px] font-bold uppercase tracking-widest opacity-80 mb-2">Riesgo Meta</p>
-                                <p className="text-2xl font-extrabold">
-                                    {summaryMetaRisk.label}
-                                </p>
-                                <p className="text-xs mt-1 opacity-80">
-                                    Score {summaryMetaRiskScore} · {summaryMetaRiskSignals.length} señal(es)
-                                </p>
-                            </div>
-                            {false && (<div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
-                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.last_incident') || 'Último incidente'}</p>
-                                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                                    {false && healthSummary.last_incident?.created_at
-                                        ? `${healthSummary.last_incident?.error_code ? `${healthSummary.last_incident.error_code} · ` : ''}${formatRelativeTime(healthSummary.last_incident.created_at)}`
-                                        : (t('agency.reliability.none') || 'Sin incidentes recientes')}
-                                </p>
-                            </div>)}
                         </div>
-                        {summaryMetaRiskSignals.length > 0 && (
-                            <div className={`mb-6 rounded-2xl border p-4 ${summaryMetaRisk.className}`}>
-                                <div className="flex items-start gap-3">
-                                    <AlertTriangle className="shrink-0 mt-0.5" size={18} />
-                                    <div className="min-w-0">
-                                        <p className="font-bold">Señales principales de riesgo</p>
-                                        <div className="mt-2 space-y-1 text-sm opacity-90">
-                                            {summaryMetaRiskSignals.map((signal, index) => (
-                                                <p key={`${signal.type || 'signal'}-${index}`}>{signal.title}: {signal.summary}</p>
-                                            ))}
-                                        </div>
-                                        {healthSummary.meta_risk_recommended_action && (
-                                            <p className="mt-3 text-xs opacity-80">
-                                                Acción sugerida: {healthSummary.meta_risk_recommended_action}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        </>
                     )}
 
                     {loading ? (
@@ -2335,13 +2183,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const connectionMode = getEffectiveSlotConnectionMode(slot);
                                 const slotHealth = slot.health || {};
                                 const slotSent24h = Number(slotHealth.sent_24h || 0);
-                                const slotReplyRate24h = toFiniteMetric(slotHealth.reply_rate_24h, 0);
-                                const slotContacted24h = Number(slotHealth.contacted_contacts_24h || 0);
-                                const slotEngaged24h = Number(slotHealth.engaged_contacts_24h || 0);
-                                const slotEngagementStatus = String(slotHealth.engagement_status || 'healthy').toLowerCase();
-                                const slotMetaRiskLevel = String(slotHealth.meta_risk_level || 'healthy').toLowerCase();
-                                const slotMetaRiskSignals = Array.isArray(slotHealth.meta_risk_signals) ? slotHealth.meta_risk_signals : [];
-                                const slotMetaRisk = getMetaRiskMeta(slotMetaRiskLevel);
                                 const isOfficialSlotMode = connectionMode === 'official_api';
                                 const slotHeaderModeLabel = isOfficialSlotMode
                                     ? (t('slots.card.official_mode') || 'Meta API')
@@ -2400,37 +2241,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         )}
                                                     </p>
                                                     <div className="flex flex-wrap items-center gap-2 mt-2">
-                                                        {false && <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${slotHealthMeta.className}`}>
-                                                            {slotHealthMeta.label}
-                                                        </span>}
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
                                                             {(t('agency.reliability.sent_24h') || 'Enviados 24h')}: {slotSent24h}
                                                         </span>
-                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-                                                            slotEngagementStatus === 'critical'
-                                                                ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800'
-                                                                : slotEngagementStatus === 'attention'
-                                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
-                                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
-                                                        }`}>
-                                                            {slotContacted24h > 0
-                                                                ? `${replyReadableLabel}: ${formatReplyCoverage(slotEngaged24h, slotContacted24h, slotReplyRate24h)}`
-                                                                : `${replyReadableLabel}: ${replyNoSampleLabel}`}
-                                                        </span>
-                                                        {slotMetaRiskLevel !== 'healthy' && (
-                                                            <span
-                                                                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${slotMetaRisk.className}`}
-                                                                title={slotMetaRiskSignals[0]?.summary || ''}
-                                                            >
-                                                                Riesgo Meta: {slotMetaRisk.label}
-                                                            </span>
-                                                        )}
-                                                        {false && <span
-                                                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
-                                                            title={slotLastIncident?.error_message || ''}
-                                                        >
-                                                            {(t('agency.reliability.last_incident') || 'Último incidente')}: {slotLastIncident?.created_at ? `${slotLastIncident?.error_code ? `${slotLastIncident.error_code} · ` : ''}${formatRelativeTime(slotLastIncident.created_at)}` : (t('agency.reliability.none_short') || 'Sin incidentes')}
-                                                        </span>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -4154,3 +3967,4 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         </div>
     );
 }
+
