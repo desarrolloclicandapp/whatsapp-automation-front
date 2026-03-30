@@ -128,13 +128,31 @@ function getHealthTone(status) {
     switch (String(status || "").toLowerCase()) {
         case "blocked":
         case "critical":
+        case "high":
             return "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800";
         case "attention":
             return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800";
+        case "info":
+            return "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-300 dark:border-sky-800";
         case "paused":
             return "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-300 dark:border-slate-700";
         default:
             return "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800";
+    }
+}
+
+function getMetaRiskLabel(level) {
+    switch (String(level || '').toLowerCase()) {
+        case 'critical':
+            return 'Crítico';
+        case 'high':
+            return 'Alto';
+        case 'attention':
+            return 'Atención';
+        case 'info':
+            return 'Info';
+        default:
+            return 'Sano';
     }
 }
 
@@ -2235,12 +2253,18 @@ export default function AgencyDashboard({ token, onLogout }) {
     const engagedContacts24h = Number(reliabilityTotals?.engaged_contacts_24h ?? reliabilityTotals?.answered_inbound_24h) || 0;
     const unansweredContacts24h = Number(reliabilityTotals?.unanswered_contacts_24h ?? reliabilityTotals?.unanswered_inbound_24h) || 0;
     const replyAlertAccounts = Number(reliabilityTotals?.reply_alert_accounts) || 0;
+    const metaRiskAlertAccounts = Number(reliabilityTotals?.meta_risk_alert_accounts) || 0;
+    const metaRiskInfoAccounts = Number(reliabilityTotals?.meta_risk_info_accounts) || 0;
+    const metaRiskAttentionAccounts = Number(reliabilityTotals?.meta_risk_attention_accounts) || 0;
+    const metaRiskHighAccounts = Number(reliabilityTotals?.meta_risk_high_accounts) || 0;
+    const metaRiskCriticalAccounts = Number(reliabilityTotals?.meta_risk_critical_accounts) || 0;
     const hasReplySample = contactedContacts24h > 0;
     const replyReadableLabel = translateOr(t, 'agency.reliability.reply_ratio_readable', 'Clientes que respondieron 24h');
     const replyNoSampleLabel = translateOr(t, 'agency.reliability.reply_no_sample_readable', 'Todavía no hay clientes contactados para medir respuestas');
     const replyAnsweredLabel = translateOr(t, 'agency.reliability.reply_answered_short', 'clientes respondieron');
     const replyContactedLabel = translateOr(t, 'agency.reliability.reply_contacted_short', 'clientes contactados');
     const replyPendingLabel = translateOr(t, 'agency.reliability.reply_pending_short', 'sin responder');
+    const metaRiskLabel = t('agency.reliability.meta_risk') || 'Riesgo Meta';
     const accountEventBars = accountActivity
         .map((entry) => ({
             locationId: entry.location_id,
@@ -2257,7 +2281,11 @@ export default function AgencyDashboard({ token, onLogout }) {
             unansweredCount: Number(entry.unanswered_contacts_24h ?? entry.unanswered_inbound_24h) || 0,
             replyStrikes: Number(entry.reply_strikes) || 0,
             replyStatus: String(entry.reply_status || 'healthy').toLowerCase(),
-            replyAutoBlocked: Boolean(entry.reply_auto_blocked)
+            replyAutoBlocked: Boolean(entry.reply_auto_blocked),
+            metaRiskLevel: String(entry.meta_risk_level || 'healthy').toLowerCase(),
+            metaRiskScore: Number(entry.meta_risk_score) || 0,
+            metaRiskSignals: Array.isArray(entry.meta_risk_signals) ? entry.meta_risk_signals : [],
+            metaRiskRecommendedAction: String(entry.meta_risk_recommended_action || '')
         }))
         .filter((entry) => entry.totalEvents > 0)
         .slice(0, 8);
@@ -2952,6 +2980,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <Smartphone size={14} className={replyAlertAccounts > 0 ? "text-rose-500" : "text-emerald-500"} />
                                             {replyAlertAccounts} {t('agency.reliability.reply_alert_accounts') || 'cuentas en alerta'}
                                         </span>
+                                        <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
+                                            <ShieldCheck size={14} className={metaRiskAlertAccounts > 0 ? "text-rose-500" : "text-emerald-500"} />
+                                            {metaRiskAlertAccounts} {metaRiskLabel}
+                                        </span>
                                     </div>
 
                                     <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
@@ -3012,7 +3044,38 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 replyAnsweredText={replyAnsweredLabel}
                                                 replyContactedText={replyContactedLabel}
                                                 replyPendingText={replyPendingLabel}
+                                                metaRiskText={metaRiskLabel}
                                             />
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
+                                        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                                            <div>
+                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                    {metaRiskLabel}
+                                                </h4>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                    Señales operativas observables: baja respuesta, follow-up insistente, copy repetido, opt-out ignorado y ráfagas de envío.
+                                                </p>
+                                            </div>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                Fase 1: visible en monitoreo, sin bloqueo automático.
+                                            </p>
+                                        </div>
+
+                                        <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-3">
+                                            {[
+                                                { label: 'Info', value: metaRiskInfoAccounts, tone: 'info' },
+                                                { label: 'Atención', value: metaRiskAttentionAccounts, tone: 'attention' },
+                                                { label: 'Alto', value: metaRiskHighAccounts, tone: 'high' },
+                                                { label: 'Crítico', value: metaRiskCriticalAccounts, tone: 'critical' }
+                                            ].map((item) => (
+                                                <div key={item.label} className={`rounded-2xl border px-4 py-4 ${getHealthTone(item.tone)}`}>
+                                                    <p className="text-[11px] font-bold uppercase tracking-widest opacity-80">{item.label}</p>
+                                                    <p className="text-2xl font-extrabold mt-2">{item.value}</p>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 </>
@@ -4295,7 +4358,8 @@ const ReliabilityAccountBars = ({
     replyStrikeText,
     replyAnsweredText,
     replyContactedText,
-    replyPendingText
+    replyPendingText,
+    metaRiskText
 }) => {
     if (!Array.isArray(data) || data.length === 0) {
         return (
@@ -4324,6 +4388,9 @@ const ReliabilityAccountBars = ({
                 const detailText = hasReplySample
                     ? `${Number(item?.contactedCount) || 0} ${replyContactedText} · ${Number(item?.unansweredCount) || 0} ${replyPendingText}`
                     : `${Number(item?.engagedCount) || 0} ${replyAnsweredText}`;
+                const metaRiskLevel = String(item?.metaRiskLevel || 'healthy').toLowerCase();
+                const metaRiskTone = getHealthTone(metaRiskLevel);
+                const topMetaRiskSignal = Array.isArray(item?.metaRiskSignals) ? item.metaRiskSignals[0] : null;
                 return (
                     <div key={item.locationId} className="grid grid-cols-[minmax(0,220px)_1fr_auto] gap-3 items-center">
                         <div className="min-w-0">
@@ -4334,6 +4401,11 @@ const ReliabilityAccountBars = ({
                             <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
                                 {ratioText} · {detailText}
                             </p>
+                            {topMetaRiskSignal && (
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                                    {topMetaRiskSignal.title}: {topMetaRiskSignal.summary}
+                                </p>
+                            )}
                         </div>
                         <div className="h-3 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
                             <div
@@ -4345,6 +4417,11 @@ const ReliabilityAccountBars = ({
                             {strikeCount > 0 && (
                                 <span className={`inline-flex items-center px-2 py-1 rounded-full border text-[11px] font-semibold ${statusTone}`}>
                                     {replyStrikeText} {strikeCount}/3
+                                </span>
+                            )}
+                            {metaRiskLevel !== 'healthy' && (
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full border text-[11px] font-semibold ${metaRiskTone}`}>
+                                    {metaRiskText || 'Riesgo Meta'} {getMetaRiskLabel(metaRiskLevel)}
                                 </span>
                             )}
                             <span className="text-sm font-bold text-gray-900 dark:text-white">{item.totalEvents}</span>

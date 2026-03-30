@@ -26,6 +26,36 @@ function formatReplyCoverage(engagedCount, contactedCount, replyRate) {
     return `${engagedCount} de ${contactedCount} clientes respondieron (${replyRate}%)`;
 }
 
+function getMetaRiskMeta(level) {
+    switch (String(level || '').toLowerCase()) {
+        case 'critical':
+            return {
+                label: 'Crítico',
+                className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
+            };
+        case 'high':
+            return {
+                label: 'Alto',
+                className: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800'
+            };
+        case 'attention':
+            return {
+                label: 'Atención',
+                className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
+            };
+        case 'info':
+            return {
+                label: 'Info',
+                className: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-300 dark:border-sky-800'
+            };
+        default:
+            return {
+                label: 'Sano',
+                className: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+            };
+    }
+}
+
 export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange, isAdminMode = false }) {
     const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
@@ -97,7 +127,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
     const supportsSmsTab = isGhlMode || isChatwootMode;
     const supportsKeywordsTab = isGhlMode;
-    const OFFICIAL_WHATSAPP_API_UI_ENABLED = false; // Hidden for future rollout once the official Meta API flow is production-ready.
+    const OFFICIAL_WHATSAPP_API_UI_ENABLED = isEnabledTenantFlag(
+        import.meta.env.VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED ?? true
+    );
     const getEffectiveSlotConnectionMode = (slot) => {
         if (!slot) return null;
         if (!OFFICIAL_WHATSAPP_API_UI_ENABLED) return 'qr';
@@ -134,6 +166,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const summaryContacted24h = toFiniteMetric(healthSummary?.contacted_contacts_24h, 0);
     const summaryEngaged24h = toFiniteMetric(healthSummary?.engaged_contacts_24h, 0);
     const summaryReplyRate24h = toFiniteMetric(healthSummary?.reply_rate_24h, 0);
+    const summaryMetaRiskLevel = String(healthSummary?.meta_risk_level || 'healthy').toLowerCase();
+    const summaryMetaRiskScore = toFiniteMetric(healthSummary?.meta_risk_score, 0);
+    const summaryMetaRiskSignals = Array.isArray(healthSummary?.meta_risk_signals) ? healthSummary.meta_risk_signals : [];
+    const summaryMetaRisk = getMetaRiskMeta(summaryMetaRiskLevel);
     const isExpandedChatwootLoaded = Boolean(
         expandedSlotId && chatwootConfigBySlot[expandedSlotId]?.loaded
     );
@@ -2206,7 +2242,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     </div>
 
                     {healthSummary && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
+                        <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-6">
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
                                 <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.online_slots') || 'Slots en línea'}</p>
                                 <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
@@ -2239,6 +2276,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     {getReliabilityMeta(healthSummary.reply_status).label}
                                 </p>
                             </div>
+                            <div className={`border rounded-2xl p-4 shadow-sm ${summaryMetaRisk.className}`}>
+                                <p className="text-[11px] font-bold uppercase tracking-widest opacity-80 mb-2">Riesgo Meta</p>
+                                <p className="text-2xl font-extrabold">
+                                    {summaryMetaRisk.label}
+                                </p>
+                                <p className="text-xs mt-1 opacity-80">
+                                    Score {summaryMetaRiskScore} · {summaryMetaRiskSignals.length} señal(es)
+                                </p>
+                            </div>
                             {false && (<div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
                                 <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.last_incident') || 'Último incidente'}</p>
                                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
@@ -2248,6 +2294,27 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </p>
                             </div>)}
                         </div>
+                        {summaryMetaRiskSignals.length > 0 && (
+                            <div className={`mb-6 rounded-2xl border p-4 ${summaryMetaRisk.className}`}>
+                                <div className="flex items-start gap-3">
+                                    <AlertTriangle className="shrink-0 mt-0.5" size={18} />
+                                    <div className="min-w-0">
+                                        <p className="font-bold">Señales principales de riesgo</p>
+                                        <div className="mt-2 space-y-1 text-sm opacity-90">
+                                            {summaryMetaRiskSignals.map((signal, index) => (
+                                                <p key={`${signal.type || 'signal'}-${index}`}>{signal.title}: {signal.summary}</p>
+                                            ))}
+                                        </div>
+                                        {healthSummary.meta_risk_recommended_action && (
+                                            <p className="mt-3 text-xs opacity-80">
+                                                Acción sugerida: {healthSummary.meta_risk_recommended_action}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        </>
                     )}
 
                     {loading ? (
@@ -2272,6 +2339,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const slotContacted24h = Number(slotHealth.contacted_contacts_24h || 0);
                                 const slotEngaged24h = Number(slotHealth.engaged_contacts_24h || 0);
                                 const slotEngagementStatus = String(slotHealth.engagement_status || 'healthy').toLowerCase();
+                                const slotMetaRiskLevel = String(slotHealth.meta_risk_level || 'healthy').toLowerCase();
+                                const slotMetaRiskSignals = Array.isArray(slotHealth.meta_risk_signals) ? slotHealth.meta_risk_signals : [];
+                                const slotMetaRisk = getMetaRiskMeta(slotMetaRiskLevel);
                                 const isOfficialSlotMode = connectionMode === 'official_api';
                                 const slotHeaderModeLabel = isOfficialSlotMode
                                     ? (t('slots.card.official_mode') || 'Meta API')
@@ -2347,6 +2417,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 ? `${replyReadableLabel}: ${formatReplyCoverage(slotEngaged24h, slotContacted24h, slotReplyRate24h)}`
                                                                 : `${replyReadableLabel}: ${replyNoSampleLabel}`}
                                                         </span>
+                                                        {slotMetaRiskLevel !== 'healthy' && (
+                                                            <span
+                                                                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${slotMetaRisk.className}`}
+                                                                title={slotMetaRiskSignals[0]?.summary || ''}
+                                                            >
+                                                                Riesgo Meta: {slotMetaRisk.label}
+                                                            </span>
+                                                        )}
                                                         {false && <span
                                                             className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
                                                             title={slotLastIncident?.error_message || ''}
