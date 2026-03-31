@@ -92,8 +92,8 @@ export default function ExpiryPopup({ token }) {
                     </p>
 
                     <div className="flex gap-3 w-full">
-                         <button 
-                            onClick={() => window.location.href = '?tab=billing'}
+                        <button 
+                            onClick={() => window.location.href = '/admin/agency/dashboard?tab=billing'}
                             className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
                         >
                             <Calendar size={18} /> Reactivar Plan

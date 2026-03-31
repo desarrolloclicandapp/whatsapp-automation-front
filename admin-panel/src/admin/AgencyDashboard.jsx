@@ -129,11 +129,11 @@ function getHealthTone(status) {
         case "blocked":
         case "critical":
         case "high":
-            return "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800";
+            return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-200 dark:border-amber-800";
         case "attention":
-            return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800";
+            return "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/20 dark:text-sky-200 dark:border-sky-800";
         case "info":
-            return "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-300 dark:border-sky-800";
+            return "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-200 dark:border-indigo-800";
         case "paused":
             return "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-300 dark:border-slate-700";
         default:
@@ -144,15 +144,15 @@ function getHealthTone(status) {
 function getMetaRiskLabel(level) {
     switch (String(level || '').toLowerCase()) {
         case 'critical':
-            return 'Crítico';
+            return 'Prioridad';
         case 'high':
-            return 'Alto';
+            return 'Revisar';
         case 'attention':
-            return 'Atención';
+            return 'Seguimiento';
         case 'info':
-            return 'Info';
+            return 'Observación';
         default:
-            return 'Sano';
+            return 'Estable';
     }
 }
 
@@ -243,9 +243,13 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));
     const queryParams = new URLSearchParams(window.location.search);
     const AGENCY_ID = storedAgencyId || queryParams.get("agencyId");
+    const initialTabParam = String(queryParams.get("tab") || "").trim().toLowerCase();
+    const initialTab = ["overview", "billing", "reliability", "settings", "builder"].includes(initialTabParam)
+        ? initialTabParam
+        : "overview";
     const { theme, toggleTheme } = useTheme();
 
-    const [activeTab, setActiveTab] = useState('overview');
+    const [activeTab, setActiveTab] = useState(initialTab);
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     const [locations, setLocations] = useState([]);
@@ -2264,7 +2268,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const replyAnsweredLabel = translateOr(t, 'agency.reliability.reply_answered_short', 'clientes respondieron');
     const replyContactedLabel = translateOr(t, 'agency.reliability.reply_contacted_short', 'clientes contactados');
     const replyPendingLabel = translateOr(t, 'agency.reliability.reply_pending_short', 'sin responder');
-    const metaRiskLabel = translateOr(t, 'agency.reliability.meta_risk', 'Riesgo Meta');
+    const metaRiskLabel = translateOr(t, 'agency.reliability.meta_risk', 'Monitoreo Meta');
     const accountEventBars = accountActivity
         .map((entry) => ({
             locationId: entry.location_id,
@@ -3056,7 +3060,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     {metaRiskLabel}
                                                 </h4>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    Señales operativas observables: baja respuesta, follow-up insistente, copy repetido, opt-out ignorado y ráfagas de envío.
+                                                    Indicadores preventivos para ajustar cadencia, seguimiento y copy antes de escalar el volumen.
                                                 </p>
                                             </div>
                                             <p className="text-xs text-gray-400 dark:text-gray-500">
@@ -3066,10 +3070,10 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                                         <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-3">
                                             {[
-                                                { label: 'Info', value: metaRiskInfoAccounts, tone: 'info' },
-                                                { label: 'Atención', value: metaRiskAttentionAccounts, tone: 'attention' },
-                                                { label: 'Alto', value: metaRiskHighAccounts, tone: 'high' },
-                                                { label: 'Crítico', value: metaRiskCriticalAccounts, tone: 'critical' }
+                                                { label: 'Observación', value: metaRiskInfoAccounts, tone: 'info' },
+                                                { label: 'Seguimiento', value: metaRiskAttentionAccounts, tone: 'attention' },
+                                                { label: 'Revisar', value: metaRiskHighAccounts, tone: 'high' },
+                                                { label: 'Prioridad', value: metaRiskCriticalAccounts, tone: 'critical' }
                                             ].map((item) => (
                                                 <div key={item.label} className={`rounded-2xl border px-4 py-4 ${getHealthTone(item.tone)}`}>
                                                     <p className="text-[11px] font-bold uppercase tracking-widest opacity-80">{item.label}</p>
@@ -4393,7 +4397,7 @@ const ReliabilityAccountBars = ({
             tone: data.some((item) => (Number(item?.engagedCount) || 0) > 0) ? 'healthy' : 'paused'
         },
         {
-            label: metaRiskText || 'Riesgo Meta',
+            label: metaRiskText || 'Monitoreo Meta',
             value: data.filter((item) => {
                 const metaRiskLevel = String(item?.metaRiskLevel || 'healthy').toLowerCase();
                 return metaRiskLevel !== 'healthy' || (Number(item?.replyStrikes) || 0) > 0;
@@ -4401,7 +4405,7 @@ const ReliabilityAccountBars = ({
             caption: 'cuentas a vigilar',
             icon: ShieldCheck,
             tone: data.some((item) => String(item?.metaRiskLevel || 'healthy').toLowerCase() !== 'healthy')
-                ? 'critical'
+                ? 'attention'
                 : (data.some((item) => (Number(item?.replyStrikes) || 0) > 0) ? 'attention' : 'healthy')
         }
     ];
@@ -4454,9 +4458,9 @@ const ReliabilityAccountBars = ({
                     ? `${Number(item?.engagedCount) || 0} de ${Number(item?.contactedCount) || 0} respondieron`
                     : replyNoSampleText;
                 const primaryTone = metaRiskLevel !== 'healthy'
-                    ? 'bg-gradient-to-r from-rose-500 via-orange-400 to-amber-400'
+                    ? 'bg-gradient-to-r from-sky-500 via-cyan-400 to-amber-300'
                     : strikeCount > 0
-                        ? 'bg-gradient-to-r from-amber-400 to-rose-500'
+                        ? 'bg-gradient-to-r from-slate-400 to-amber-300'
                         : 'bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400';
                 const primaryStateTone = metaRiskLevel !== 'healthy' ? metaRiskTone : statusTone;
                 const StateIcon = metaRiskLevel !== 'healthy'
@@ -4465,17 +4469,17 @@ const ReliabilityAccountBars = ({
                         ? AlertTriangle
                         : CheckCircle2;
                 const stateTitle = metaRiskLevel !== 'healthy'
-                    ? `${metaRiskText || 'Riesgo Meta'} ${getMetaRiskLabel(metaRiskLevel)}`
+                    ? `${metaRiskText || 'Monitoreo Meta'} · ${getMetaRiskLabel(metaRiskLevel)}`
                     : strikeCount > 0
                         ? `${replyStrikeText} ${strikeCount}/3`
                         : 'Operación estable';
                 const stateBody = topMetaRiskSignal
                     ? `${topMetaRiskSignal.title}: ${topMetaRiskSignal.summary}`
                     : metaRiskLevel !== 'healthy'
-                        ? (item?.metaRiskRecommendedAction || 'Se detectaron señales operativas que conviene revisar.')
+                        ? (item?.metaRiskRecommendedAction || 'Se detectaron señales preventivas que conviene revisar con calma.')
                         : strikeCount > 0
                             ? ratioText
-                            : 'Sin señales críticas en esta cuenta durante la ventana observada.';
+                            : 'Sin señales relevantes en esta cuenta durante la ventana observada.';
                 const stateAction = metaRiskLevel !== 'healthy' && item?.metaRiskRecommendedAction
                     ? item.metaRiskRecommendedAction
                     : null;
@@ -4516,11 +4520,11 @@ const ReliabilityAccountBars = ({
                                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{responseDetail}</p>
                                 </div>
                                 <div className={`rounded-2xl border p-4 ${primaryStateTone}`}>
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] opacity-80">Estado</p>
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] opacity-80">Monitoreo</p>
                                     <p className="mt-2 text-xl font-black leading-tight">{metaRiskLevel !== 'healthy' ? getMetaRiskLabel(metaRiskLevel) : (strikeCount > 0 ? `${strikeCount}/3` : 'OK')}</p>
                                     <p className="mt-2 text-xs opacity-80">
                                         {metaRiskLevel !== 'healthy'
-                                            ? (metaRiskText || 'Riesgo Meta')
+                                            ? (metaRiskText || 'Monitoreo Meta')
                                             : (strikeCount > 0 ? `${replyStrikeText}` : 'Sin alertas')}
                                     </p>
                                 </div>
@@ -4549,8 +4553,8 @@ const ReliabilityAccountBars = ({
                                         <p className="font-bold">{stateTitle}</p>
                                         <p className="mt-1 text-sm opacity-90">{stateBody}</p>
                                         {stateAction && (
-                                            <p className="mt-3 text-xs font-semibold uppercase tracking-[0.2em] opacity-80">
-                                                Acción sugerida: {stateAction}
+                                            <p className="mt-3 text-xs font-medium opacity-80">
+                                                Sugerencia: {stateAction}
                                             </p>
                                         )}
                                     </div>
