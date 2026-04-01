@@ -3332,7 +3332,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     </button>
                                                 </div>
                                                 <p className="mt-3 text-xs leading-5 text-indigo-700/80 dark:text-indigo-200/80">
-                                                    {t('dash.settings.n8n_base_url_help') || "Usa este valor en el campo Base URL de la credencial WaFloW.ai en n8n."}
+                                                    {t('dash.settings.n8n_base_url_help') || "El nodo oficial de WaFloW en n8n ya usa esta URL de produccion automaticamente. Solo la necesitas si haces una integracion manual."}
                                                 </p>
                                             </div>
 
@@ -3365,7 +3365,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     </button>
                                                 </div>
                                                 <p className="mt-3 text-xs leading-5 text-emerald-700/80 dark:text-emerald-200/80">
-                                                    {t('dash.settings.n8n_agency_id_help') || "Usa este valor en el campo Agency ID / Location ID de la credencial WaFloW.ai en n8n."}
+                                                    {t('dash.settings.n8n_agency_id_help') || "Usa este valor en la credencial WaFloW.ai de n8n. Luego el nodo oficial te deja elegir la cuenta y el slot desde listas dinamicas."}
                                                 </p>
                                             </div>
                                         </div>
