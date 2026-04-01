@@ -3304,6 +3304,72 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </div>
 
                                     <div className="space-y-8">
+                                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/80 dark:border-indigo-900/60 dark:bg-indigo-950/20 p-5">
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div>
+                                                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-300">
+                                                            {t('dash.settings.n8n_reference') || "Referencia n8n"}
+                                                        </p>
+                                                        <h4 className="mt-2 text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                            <Globe size={16} className="text-indigo-500" />
+                                                            {t('dash.settings.n8n_base_url') || "Base URL"}
+                                                        </h4>
+                                                        <p className="mt-2 font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-200 break-all">
+                                                            {API_URL}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(API_URL);
+                                                            toast.success(t('common.copied') || "Copiado");
+                                                        }}
+                                                        className="shrink-0 rounded-xl border border-indigo-200 bg-white/80 px-3 py-2 text-indigo-600 transition hover:bg-white dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                                        title={t('common.copy') || "Copiar"}
+                                                    >
+                                                        <Copy size={16} />
+                                                    </button>
+                                                </div>
+                                                <p className="mt-3 text-xs leading-5 text-indigo-700/80 dark:text-indigo-200/80">
+                                                    {t('dash.settings.n8n_base_url_help') || "Usa este valor en el campo Base URL de la credencial WaFloW.ai en n8n."}
+                                                </p>
+                                            </div>
+
+                                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20 p-5">
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div>
+                                                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-300">
+                                                            {t('agency.account.agency_id') || "ID de Agencia"}
+                                                        </p>
+                                                        <h4 className="mt-2 text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                            <Key size={16} className="text-emerald-500" />
+                                                            {t('dash.settings.n8n_agency_id') || "Agency ID / Location ID"}
+                                                        </h4>
+                                                        <p className="mt-2 font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-200 break-all">
+                                                            {accountInfo?.agencyId || AGENCY_ID || (t('common.not_available') || "No disponible")}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const agencyIdToCopy = accountInfo?.agencyId || AGENCY_ID || "";
+                                                            if (!agencyIdToCopy) return;
+                                                            navigator.clipboard.writeText(agencyIdToCopy);
+                                                            toast.success(t('common.copied') || "Copiado");
+                                                        }}
+                                                        className="shrink-0 rounded-xl border border-emerald-200 bg-white/80 px-3 py-2 text-emerald-600 transition hover:bg-white dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                                        title={t('common.copy') || "Copiar"}
+                                                    >
+                                                        <Copy size={16} />
+                                                    </button>
+                                                </div>
+                                                <p className="mt-3 text-xs leading-5 text-emerald-700/80 dark:text-emerald-200/80">
+                                                    {t('dash.settings.n8n_agency_id_help') || "Usa este valor en el campo Agency ID / Location ID de la credencial WaFloW.ai en n8n."}
+                                                </p>
+                                            </div>
+                                        </div>
+
                                         {/* API KEYS SECTION */}
                                         <div className="space-y-4">
                                             <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-800 pb-2">
