@@ -346,6 +346,11 @@ export const es = {
     "dash.settings.key_generated": "Clave Generada",
     "dash.settings.key_copy_warning": "Cópiala ahora, no podrás verla después.",
     "dash.settings.new_webhook": "Nuevo Webhook",
+    "dash.settings.n8n_reference": "Referencia n8n",
+    "dash.settings.n8n_base_url": "Base URL",
+    "dash.settings.n8n_base_url_help": "El nodo oficial de WaFloW en n8n ya usa esta URL de producción automáticamente. Solo la necesitas si haces una integración manual.",
+    "dash.settings.n8n_agency_id": "Agency ID / Location ID",
+    "dash.settings.n8n_agency_id_help": "Usa este valor en la credencial WaFloW.ai de n8n. Luego el nodo oficial te deja elegir la cuenta y el slot desde listas dinámicas.",
 
     "dash.locked.title": "Función Premium Bloqueada",
     "dash.locked.desc": "Esta característica está disponible exclusivamente para planes Growth y superiores.",
