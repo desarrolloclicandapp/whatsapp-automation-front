@@ -10,6 +10,12 @@ import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
+function translateOr(t, key, fallback) {
+    const translated = typeof t === 'function' ? t(key) : null;
+    if (!translated || translated === key) return fallback;
+    return translated;
+}
+
 export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange, isAdminMode = false }) {
     const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
@@ -81,7 +87,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
     const supportsSmsTab = isGhlMode || isChatwootMode;
     const supportsKeywordsTab = isGhlMode;
-    const OFFICIAL_WHATSAPP_API_UI_ENABLED = false; // Hidden for future rollout once the official Meta API flow is production-ready.
+    const OFFICIAL_WHATSAPP_API_UI_ENABLED = isEnabledTenantFlag(
+        import.meta.env.VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED ?? true
+    );
     const getEffectiveSlotConnectionMode = (slot) => {
         if (!slot) return null;
         if (!OFFICIAL_WHATSAPP_API_UI_ENABLED) return 'qr';
@@ -162,50 +170,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 label: 'Cancelar'
             }
         });
-    };
-
-    const formatRelativeTime = (value) => {
-        if (!value) return t('agency.reliability.none') || 'Sin incidentes recientes';
-        const parsed = new Date(value).getTime();
-        if (!Number.isFinite(parsed)) return t('agency.reliability.none') || 'Sin incidentes recientes';
-        const diffMs = Date.now() - parsed;
-        const diffMin = Math.floor(diffMs / 60000);
-        if (diffMin < 1) return '0m';
-        if (diffMin < 60) return `${diffMin}m`;
-        const diffHours = Math.floor(diffMin / 60);
-        if (diffHours < 24) return `${diffHours}h`;
-        const diffDays = Math.floor(diffHours / 24);
-        return `${diffDays}d`;
-    };
-
-    const getReliabilityMeta = (status) => {
-        switch (String(status || '').toLowerCase()) {
-            case 'critical':
-                return {
-                    label: t('agency.reliability.critical') || 'Crítica',
-                    className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
-                };
-            case 'attention':
-                return {
-                    label: t('agency.reliability.attention') || 'Con atención',
-                    className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
-                };
-            case 'blocked':
-                return {
-                    label: t('agency.reliability.blocked') || 'Bloqueada',
-                    className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
-                };
-            case 'paused':
-                return {
-                    label: t('agency.reliability.paused') || 'Pausada',
-                    className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
-                };
-            default:
-                return {
-                    label: t('agency.reliability.healthy') || 'Sana',
-                    className: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
-                };
-        }
     };
 
     // ✅ LÓGICA DE TIEMPO REAL + ROOMS
@@ -2198,14 +2162,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     {healthSummary.sent_24h || 0}
                                 </p>
                             </div>
-                            {false && (<div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
-                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.last_incident') || 'Último incidente'}</p>
-                                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                                    {false && healthSummary.last_incident?.created_at
-                                        ? `${healthSummary.last_incident?.error_code ? `${healthSummary.last_incident.error_code} · ` : ''}${formatRelativeTime(healthSummary.last_incident.created_at)}`
-                                        : (t('agency.reliability.none') || 'Sin incidentes recientes')}
-                                </p>
-                            </div>)}
                         </div>
                     )}
 
@@ -2285,18 +2241,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         )}
                                                     </p>
                                                     <div className="flex flex-wrap items-center gap-2 mt-2">
-                                                        {false && <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${slotHealthMeta.className}`}>
-                                                            {slotHealthMeta.label}
-                                                        </span>}
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
                                                             {(t('agency.reliability.sent_24h') || 'Enviados 24h')}: {slotSent24h}
                                                         </span>
-                                                        {false && <span
-                                                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
-                                                            title={slotLastIncident?.error_message || ''}
-                                                        >
-                                                            {(t('agency.reliability.last_incident') || 'Último incidente')}: {slotLastIncident?.created_at ? `${slotLastIncident?.error_code ? `${slotLastIncident.error_code} · ` : ''}${formatRelativeTime(slotLastIncident.created_at)}` : (t('agency.reliability.none_short') || 'Sin incidentes')}
-                                                        </span>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -4020,3 +3967,4 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         </div>
     );
 }
+
