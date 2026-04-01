@@ -351,8 +351,8 @@ export const en = {
     "dash.settings.n8n_reference": "n8n Reference",
     "dash.settings.n8n_base_url": "Base URL",
     "dash.settings.n8n_base_url_help": "The official WaFloW node in n8n already uses this production URL automatically. You only need it for a manual integration.",
-    "dash.settings.n8n_agency_id": "Agency ID / Location ID",
-    "dash.settings.n8n_agency_id_help": "Use this value in the WaFloW.ai credential in n8n. The official node then lets you choose the account and slot from dynamic lists.",
+    "dash.settings.n8n_agency_id": "Agency ID",
+    "dash.settings.n8n_agency_id_help": "Use this value as the Agency ID reference in n8n. The official node then lets you choose the account and slot from dynamic lists.",
 
     "dash.locked.title": "Premium Feature Locked",
     "dash.locked.desc": "This feature is exclusively available for Growth plans and higher.",
