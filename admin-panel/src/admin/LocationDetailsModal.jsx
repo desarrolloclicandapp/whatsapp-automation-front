@@ -2078,7 +2078,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         <div className="flex flex-col md:flex-row md:items-center gap-4">
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
                                 <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-[0.18em] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                                    {isGhlMode ? "GOHIGHLEVEL" : "CHATWOOT"}
+                                    {isGhlMode ? "GOHIGHLEVEL" : managedInboxBrandName.toUpperCase()}
                                 </span>
                                 {isGhlMode && (
                                     <>
