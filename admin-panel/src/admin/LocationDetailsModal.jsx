@@ -1051,10 +1051,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             slotId
         };
 
-        if ((current.businessAccountId || "").trim()) payload.businessAccountId = current.businessAccountId.trim();
         if ((current.phoneNumberId || "").trim()) payload.phoneNumberId = current.phoneNumberId.trim();
         if ((current.accessToken || "").trim()) payload.accessToken = current.accessToken.trim();
-        if ((current.webhookVerifyToken || "").trim()) payload.webhookVerifyToken = current.webhookVerifyToken.trim();
 
         setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
@@ -1086,10 +1084,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             slotId
         };
 
-        if ((current.businessAccountId || "").trim()) payload.businessAccountId = current.businessAccountId.trim();
         if ((current.phoneNumberId || "").trim()) payload.phoneNumberId = current.phoneNumberId.trim();
         if ((current.accessToken || "").trim()) payload.accessToken = current.accessToken.trim();
-        if ((current.webhookVerifyToken || "").trim()) payload.webhookVerifyToken = current.webhookVerifyToken.trim();
 
         const loadingId = toast.loading(t('slots.official.validating') || "Validando WhatsApp API oficial...");
         setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
@@ -1737,19 +1733,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                        {t('slots.official.business_account_id') || 'Business Account ID / WABA ID'}
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={official.businessAccountId || ""}
-                                        onChange={(e) => updateOfficialWhatsappField(slot.slot_id, "businessAccountId", e.target.value)}
-                                        placeholder={t('slots.official.ph_business_account_id') || 'Ej: 123456789012345'}
-                                        autoComplete="off"
-                                        className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                         {t('slots.official.phone_number_id') || 'Phone Number ID'}
                                     </label>
                                     <input
@@ -1759,6 +1742,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         placeholder={t('slots.official.ph_phone_number_id') || 'Ej: 109876543210987'}
                                         autoComplete="off"
                                         className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        {t('slots.official.business_account_detected') || 'WABA ID detectado'}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={official.businessAccountId || ""}
+                                        placeholder={t('slots.official.ph_business_account_detected') || 'Se completa solo cuando Meta lo confirma'}
+                                        autoComplete="off"
+                                        readOnly
+                                        className="w-full p-3 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 outline-none transition font-mono text-sm"
                                     />
                                 </div>
                             </div>
@@ -1782,21 +1778,23 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
                                         {t('slots.official.verify_token') || 'Webhook Verify Token'}
                                     </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => updateOfficialWhatsappField(slot.slot_id, "webhookVerifyToken", generateRandomSecret(32))}
-                                        className="text-xs font-bold uppercase tracking-wide text-indigo-600 hover:text-indigo-500"
-                                    >
-                                        {t('slots.official.generate_verify_token') || 'Generar token'}
-                                    </button>
+                                    {official.webhookVerifyToken ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => copyToClipboard(official.webhookVerifyToken, t('slots.official.verify_token_copied') || 'Verify token copiado')}
+                                            className="text-xs font-bold uppercase tracking-wide text-indigo-600 hover:text-indigo-500"
+                                        >
+                                            {t('slots.official.copy_verify_token') || 'Copiar'}
+                                        </button>
+                                    ) : null}
                                 </div>
                                 <input
                                     type="text"
                                     value={official.webhookVerifyToken || ""}
-                                    onChange={(e) => updateOfficialWhatsappField(slot.slot_id, "webhookVerifyToken", e.target.value)}
                                     placeholder={t('slots.official.ph_verify_token') || 'Se genera automáticamente al guardar si lo dejas vacío'}
                                     autoComplete="off"
-                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                    readOnly
+                                    className="w-full p-3 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 outline-none transition font-mono text-sm"
                                 />
                             </div>
 
