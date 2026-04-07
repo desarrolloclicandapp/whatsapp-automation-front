@@ -90,6 +90,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const OFFICIAL_WHATSAPP_API_UI_ENABLED = isEnabledTenantFlag(
         import.meta.env.VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED ?? true
     );
+    const SLOT_CONNECTION_MODE_CHANGE_ENABLED = false;
     const getEffectiveSlotConnectionMode = (slot) => {
         if (!slot) return null;
         if (!OFFICIAL_WHATSAPP_API_UI_ENABLED) return 'qr';
@@ -2285,7 +2286,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
                                                                 </button>
                                                             )}
-                                                            {OFFICIAL_WHATSAPP_API_UI_ENABLED && connectionMode && (
+                                                            {SLOT_CONNECTION_MODE_CHANGE_ENABLED && OFFICIAL_WHATSAPP_API_UI_ENABLED && connectionMode && (
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
