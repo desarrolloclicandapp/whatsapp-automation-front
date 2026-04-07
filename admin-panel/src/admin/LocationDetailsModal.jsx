@@ -56,6 +56,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [officialConfigBySlot, setOfficialConfigBySlot] = useState({});
     const [loadingOfficialBySlot, setLoadingOfficialBySlot] = useState({});
     const [savingOfficialBySlot, setSavingOfficialBySlot] = useState({});
+    const [officialTemplatesBySlot, setOfficialTemplatesBySlot] = useState({});
+    const [loadingOfficialTemplatesBySlot, setLoadingOfficialTemplatesBySlot] = useState({});
+    const [sendingOfficialTemplateBySlot, setSendingOfficialTemplateBySlot] = useState({});
     const [chatwootInboxes, setChatwootInboxes] = useState([]);
     const [loadingChatwootInboxes, setLoadingChatwootInboxes] = useState(false);
     const [chatwootInboxesLoaded, setChatwootInboxesLoaded] = useState(false);
@@ -253,6 +256,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if (isExpandedOfficialLoaded) return;
         loadOfficialWhatsappConfig(expandedSlotId);
     }, [expandedSlotId, expandedConnectionMode, isExpandedOfficialLoaded]);
+
+    useEffect(() => {
+        if (!expandedSlotId || expandedConnectionMode !== 'official_api') return;
+        const official = officialConfigBySlot[expandedSlotId];
+        if (!official?.loaded || !official?.businessAccountId || !official?.hasAccessToken) return;
+        if (officialTemplatesBySlot[expandedSlotId]?.loaded) return;
+        loadOfficialWhatsappTemplates(expandedSlotId);
+    }, [expandedSlotId, expandedConnectionMode, officialConfigBySlot, officialTemplatesBySlot]);
 
     useEffect(() => {
         if (!supportsKeywordsTab && activeSlotTab === 'keywords') {
@@ -949,6 +960,178 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         nameStatus: ""
     });
 
+    const createEmptyOfficialTemplateState = () => ({
+        loaded: false,
+        templates: [],
+        fetchedAt: null,
+        targetPhone: "",
+        selectedTemplateKey: "",
+        componentsJson: "",
+        parameterValues: {}
+    });
+
+    const getOfficialTemplateKey = (template) => {
+        const safeName = String(template?.name || "").trim();
+        const safeLanguage = String(template?.language || "").trim();
+        return `${safeName}::${safeLanguage}`;
+    };
+
+    const extractTemplatePlaceholderIndexes = (text = "") => {
+        const safeText = String(text || "");
+        const indexes = new Set();
+        const regex = /\{\{\s*(\d+)\s*\}\}/g;
+        let match = regex.exec(safeText);
+        while (match) {
+            indexes.add(Number.parseInt(match[1], 10));
+            match = regex.exec(safeText);
+        }
+        return Array.from(indexes).filter(Number.isFinite).sort((a, b) => a - b);
+    };
+
+    const getOfficialTemplateParameterFields = (template = {}) => {
+        const components = Array.isArray(template?.components) ? template.components : [];
+        const fields = [];
+
+        components.forEach((component, componentIndex) => {
+            const componentType = String(component?.type || "").trim().toUpperCase();
+            const componentFormat = String(component?.format || "").trim().toUpperCase();
+            const componentText = String(component?.text || "").trim();
+
+            if (componentType === 'HEADER' && componentFormat === 'TEXT') {
+                extractTemplatePlaceholderIndexes(componentText).forEach((placeholderIndex) => {
+                    fields.push({
+                        key: `header_text_${placeholderIndex}`,
+                        label: `${t('slots.official.templates.header_var') || 'Header'} {{${placeholderIndex}}}`,
+                        componentType: 'header',
+                        valueType: 'text',
+                        placeholderIndex
+                    });
+                });
+            }
+
+            if (componentType === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(componentFormat)) {
+                fields.push({
+                    key: 'header_media_url',
+                    label: `${t('slots.official.templates.header_media_url') || 'URL del header'} (${componentFormat})`,
+                    componentType: 'header',
+                    valueType: componentFormat.toLowerCase()
+                });
+            }
+
+            if (componentType === 'BODY') {
+                extractTemplatePlaceholderIndexes(componentText).forEach((placeholderIndex) => {
+                    fields.push({
+                        key: `body_text_${placeholderIndex}`,
+                        label: `${t('slots.official.templates.body_var') || 'Body'} {{${placeholderIndex}}}`,
+                        componentType: 'body',
+                        valueType: 'text',
+                        placeholderIndex
+                    });
+                });
+            }
+
+            if (componentType === 'BUTTONS') {
+                const buttons = Array.isArray(component?.buttons) ? component.buttons : [];
+                buttons.forEach((button, buttonIndex) => {
+                    const buttonType = String(button?.type || "").trim().toUpperCase();
+                    const buttonUrl = String(button?.url || "").trim();
+                    if (buttonType !== 'URL' || !buttonUrl.includes('{{')) return;
+
+                    extractTemplatePlaceholderIndexes(buttonUrl).forEach((placeholderIndex) => {
+                        fields.push({
+                            key: `button_${componentIndex}_${buttonIndex}_${placeholderIndex}`,
+                            label: `${t('slots.official.templates.button_var') || 'Botón'} ${buttonIndex + 1} {{${placeholderIndex}}}`,
+                            componentType: 'button',
+                            buttonIndex,
+                            valueType: 'text',
+                            placeholderIndex
+                        });
+                    });
+                });
+            }
+        });
+
+        return fields;
+    };
+
+    const buildOfficialTemplateComponents = (template = {}, parameterValues = {}) => {
+        const components = [];
+        const rawComponents = Array.isArray(template?.components) ? template.components : [];
+
+        rawComponents.forEach((component, componentIndex) => {
+            const componentType = String(component?.type || "").trim().toUpperCase();
+            const componentFormat = String(component?.format || "").trim().toUpperCase();
+            const componentText = String(component?.text || "").trim();
+
+            if (componentType === 'HEADER' && componentFormat === 'TEXT') {
+                const indexes = extractTemplatePlaceholderIndexes(componentText);
+                if (indexes.length > 0) {
+                    components.push({
+                        type: 'header',
+                        parameters: indexes.map((placeholderIndex) => ({
+                            type: 'text',
+                            text: String(parameterValues[`header_text_${placeholderIndex}`] || '').trim()
+                        }))
+                    });
+                }
+                return;
+            }
+
+            if (componentType === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(componentFormat)) {
+                const link = String(parameterValues.header_media_url || '').trim();
+                if (link) {
+                    const mediaType = componentFormat.toLowerCase();
+                    components.push({
+                        type: 'header',
+                        parameters: [{
+                            type: mediaType,
+                            [mediaType]: { link }
+                        }]
+                    });
+                }
+                return;
+            }
+
+            if (componentType === 'BODY') {
+                const indexes = extractTemplatePlaceholderIndexes(componentText);
+                if (indexes.length > 0) {
+                    components.push({
+                        type: 'body',
+                        parameters: indexes.map((placeholderIndex) => ({
+                            type: 'text',
+                            text: String(parameterValues[`body_text_${placeholderIndex}`] || '').trim()
+                        }))
+                    });
+                }
+                return;
+            }
+
+            if (componentType === 'BUTTONS') {
+                const buttons = Array.isArray(component?.buttons) ? component.buttons : [];
+                buttons.forEach((button, buttonIndex) => {
+                    const buttonType = String(button?.type || "").trim().toUpperCase();
+                    const buttonUrl = String(button?.url || "").trim();
+                    if (buttonType !== 'URL' || !buttonUrl.includes('{{')) return;
+
+                    const indexes = extractTemplatePlaceholderIndexes(buttonUrl);
+                    if (indexes.length === 0) return;
+
+                    components.push({
+                        type: 'button',
+                        sub_type: 'url',
+                        index: String(buttonIndex),
+                        parameters: indexes.map((placeholderIndex) => ({
+                            type: 'text',
+                            text: String(parameterValues[`button_${componentIndex}_${buttonIndex}_${placeholderIndex}`] || '').trim()
+                        }))
+                    });
+                });
+            }
+        });
+
+        return components;
+    };
+
     const syncSlotConnectionMode = (slotId, nextMode, officialConfig = undefined) => {
         setSlots(prev => prev.map(slot => {
             if (slot.slot_id !== slotId) return slot;
@@ -990,6 +1173,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if (!slotId || !location?.location_id) return;
         if (!forceRefresh && officialConfigBySlot[slotId]?.loaded) return;
 
+        const previousOfficial = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
         setLoadingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
             const res = await authFetch(`/agency/whatsapp-official/config?locationId=${location.location_id}&slotId=${slotId}`);
@@ -999,6 +1183,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 throw new Error(err.error || "No se pudo cargar la configuración oficial");
             }
             const data = await res.json();
+            const nextBusinessAccountId = data.businessAccountId ? String(data.businessAccountId) : "";
+            const nextHasAccessToken = !!data.hasAccessToken;
             setOfficialConfigBySlot(prev => ({
                 ...prev,
                 [slotId]: {
@@ -1006,11 +1192,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     configured: !!data.configured,
                     connectionMode: data.connectionMode || 'official_api',
                     status: data.status || 'draft',
-                    businessAccountId: data.businessAccountId ? String(data.businessAccountId) : "",
+                    businessAccountId: nextBusinessAccountId,
                     phoneNumberId: data.phoneNumberId ? String(data.phoneNumberId) : "",
                     accessToken: "",
                     accessTokenMasked: data.accessTokenMasked || "",
-                    hasAccessToken: !!data.hasAccessToken,
+                    hasAccessToken: nextHasAccessToken,
                     webhookVerifyToken: data.webhookVerifyToken || "",
                     webhookUrl: data.webhookUrl || "",
                     verifiedAt: data.verifiedAt || null,
@@ -1023,12 +1209,179 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     nameStatus: data.nameStatus || ""
                 }
             }));
+            if (
+                String(previousOfficial.businessAccountId || "").trim() !== nextBusinessAccountId ||
+                !!previousOfficial.hasAccessToken !== nextHasAccessToken
+            ) {
+                setOfficialTemplatesBySlot(prev => ({
+                    ...prev,
+                    [slotId]: createEmptyOfficialTemplateState()
+                }));
+            }
         } catch (e) {
             toast.error(t('slots.official.load_error') || "Error cargando WhatsApp API oficial", {
                 description: e.message
             });
         } finally {
             setLoadingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateOfficialTemplateState = (slotId, updater) => {
+        setOfficialTemplatesBySlot(prev => {
+            const current = prev[slotId] || createEmptyOfficialTemplateState();
+            const nextState = typeof updater === 'function'
+                ? updater(current)
+                : { ...current, ...(updater || {}) };
+            return {
+                ...prev,
+                [slotId]: nextState
+            };
+        });
+    };
+
+    const loadOfficialWhatsappTemplates = async (slotId, forceRefresh = false) => {
+        const official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        if (!location?.location_id) return;
+        if (!official.businessAccountId) {
+            updateOfficialTemplateState(slotId, {
+                ...createEmptyOfficialTemplateState(),
+                loaded: false
+            });
+            return;
+        }
+        if (!forceRefresh && officialTemplatesBySlot[slotId]?.loaded) return;
+
+        setLoadingOfficialTemplatesBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/templates?locationId=${location.location_id}&slotId=${slotId}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || (t('slots.official.templates.load_error') || 'No se pudieron cargar los templates'));
+            }
+            const data = await res.json();
+            const templates = Array.isArray(data?.templates) ? data.templates : [];
+            updateOfficialTemplateState(slotId, (current) => {
+                const approvedTemplates = templates.filter((template) => String(template?.status || '').trim().toUpperCase() === 'APPROVED');
+                const validTemplatePool = approvedTemplates.length > 0 ? approvedTemplates : templates;
+                const nextSelectedTemplateKey = current.selectedTemplateKey && validTemplatePool.some((template) => getOfficialTemplateKey(template) === current.selectedTemplateKey)
+                    ? current.selectedTemplateKey
+                    : (validTemplatePool[0] ? getOfficialTemplateKey(validTemplatePool[0]) : "");
+                return {
+                    ...current,
+                    loaded: true,
+                    templates,
+                    fetchedAt: data?.fetchedAt || new Date().toISOString(),
+                    selectedTemplateKey: nextSelectedTemplateKey
+                };
+            });
+        } catch (e) {
+            toast.error(t('slots.official.templates.load_error') || 'Error cargando templates', {
+                description: e.message
+            });
+        } finally {
+            setLoadingOfficialTemplatesBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateOfficialTemplateField = (slotId, key, value) => {
+        updateOfficialTemplateState(slotId, (current) => ({
+            ...current,
+            [key]: value,
+            ...(key === 'selectedTemplateKey'
+                ? {
+                    componentsJson: "",
+                    parameterValues: {}
+                }
+                : {})
+        }));
+    };
+
+    const updateOfficialTemplateParameter = (slotId, key, value) => {
+        updateOfficialTemplateState(slotId, (current) => ({
+            ...current,
+            parameterValues: {
+                ...(current.parameterValues || {}),
+                [key]: value
+            }
+        }));
+    };
+
+    const sendOfficialTemplateTest = async (slotId) => {
+        const official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        const templateState = officialTemplatesBySlot[slotId] || createEmptyOfficialTemplateState();
+        const selectedTemplate = (templateState.templates || []).find((template) => getOfficialTemplateKey(template) === templateState.selectedTemplateKey);
+
+        if (!official.businessAccountId) {
+            toast.error(t('slots.official.templates.missing_waba') || 'Completa el WABA ID antes de usar templates');
+            return;
+        }
+        if (!selectedTemplate) {
+            toast.error(t('slots.official.templates.select_template') || 'Selecciona un template');
+            return;
+        }
+        if (String(selectedTemplate.status || '').trim().toUpperCase() !== 'APPROVED') {
+            toast.error(t('slots.official.templates.not_approved') || 'El template seleccionado no está aprobado');
+            return;
+        }
+
+        const safeTargetPhone = String(templateState.targetPhone || '').trim();
+        if (!safeTargetPhone) {
+            toast.error(t('slots.official.templates.target_required') || 'Ingresa un número destino');
+            return;
+        }
+
+        let components = [];
+        const safeComponentsJson = String(templateState.componentsJson || '').trim();
+        if (safeComponentsJson) {
+            try {
+                const parsed = JSON.parse(safeComponentsJson);
+                if (!Array.isArray(parsed)) {
+                    throw new Error(t('slots.official.templates.components_json_invalid') || 'El JSON de components debe ser un arreglo');
+                }
+                components = parsed;
+            } catch (e) {
+                toast.error(t('slots.official.templates.components_json_invalid') || 'Components JSON inválido', {
+                    description: e.message
+                });
+                return;
+            }
+        } else {
+            const fields = getOfficialTemplateParameterFields(selectedTemplate);
+            const missingFields = fields.filter((field) => !String(templateState.parameterValues?.[field.key] || '').trim());
+            if (missingFields.length > 0) {
+                toast.error(t('slots.official.templates.missing_params') || 'Completa las variables requeridas del template');
+                return;
+            }
+            components = buildOfficialTemplateComponents(selectedTemplate, templateState.parameterValues || {});
+        }
+
+        setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/send-template`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    targetPhone: safeTargetPhone,
+                    templateName: selectedTemplate.name,
+                    languageCode: selectedTemplate.language,
+                    components
+                })
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || (t('slots.official.templates.send_error') || 'No se pudo enviar el template'));
+            }
+            toast.success(t('slots.official.templates.send_success') || 'Template enviado');
+        } catch (e) {
+            toast.error(t('slots.official.templates.send_error') || 'Error enviando template', {
+                description: e.message
+            });
+        } finally {
+            setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: false }));
         }
     };
 
@@ -1044,6 +1397,18 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 }
             };
         });
+        if (key === 'businessAccountId' || key === 'accessToken') {
+            setOfficialTemplatesBySlot(prev => {
+                const current = prev[slotId] || createEmptyOfficialTemplateState();
+                return {
+                    ...prev,
+                    [slotId]: {
+                        ...createEmptyOfficialTemplateState(),
+                        targetPhone: current.targetPhone || ""
+                    }
+                };
+            });
+        }
     };
 
     const saveOfficialWhatsappConfig = async (slotId) => {
@@ -1053,6 +1418,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             slotId
         };
 
+        if ((current.businessAccountId || "").trim()) payload.businessAccountId = current.businessAccountId.trim();
         if ((current.phoneNumberId || "").trim()) payload.phoneNumberId = current.phoneNumberId.trim();
         if ((current.accessToken || "").trim()) payload.accessToken = current.accessToken.trim();
 
@@ -1086,6 +1452,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             slotId
         };
 
+        if ((current.businessAccountId || "").trim()) payload.businessAccountId = current.businessAccountId.trim();
         if ((current.phoneNumberId || "").trim()) payload.phoneNumberId = current.phoneNumberId.trim();
         if ((current.accessToken || "").trim()) payload.accessToken = current.accessToken.trim();
 
@@ -1150,6 +1517,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 ...prev,
                 [slotId]: createEmptyOfficialWhatsappState()
             }));
+            setOfficialTemplatesBySlot(prev => ({
+                ...prev,
+                [slotId]: createEmptyOfficialTemplateState()
+            }));
             syncSlotConnectionMode(slotId, null, null);
         } catch (e) {
             toast.error(t('slots.official.clear_error') || "Error limpiando WhatsApp API oficial", {
@@ -1203,6 +1574,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     qualityRating: data.qualityRating || "",
                     nameStatus: data.nameStatus || ""
                 }
+            }));
+            setOfficialTemplatesBySlot(prev => ({
+                ...prev,
+                [slotId]: createEmptyOfficialTemplateState()
             }));
             syncSlotConnectionMode(slotId, 'official_api', {
                 ...(slots.find((slot) => slot.slot_id === slotId)?.settings?.official_api || {}),
@@ -1763,6 +2138,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const official = officialConfigBySlot[slot.slot_id] || createEmptyOfficialWhatsappState();
         const isLoadingOfficial = !!loadingOfficialBySlot[slot.slot_id];
         const isSavingOfficial = !!savingOfficialBySlot[slot.slot_id];
+        const templateState = officialTemplatesBySlot[slot.slot_id] || createEmptyOfficialTemplateState();
+        const isLoadingTemplates = !!loadingOfficialTemplatesBySlot[slot.slot_id];
+        const isSendingTemplate = !!sendingOfficialTemplateBySlot[slot.slot_id];
+        const approvedTemplates = (templateState.templates || []).filter((template) => String(template.status || '').trim().toUpperCase() === 'APPROVED');
+        const selectedTemplate = (templateState.templates || []).find((template) => getOfficialTemplateKey(template) === templateState.selectedTemplateKey) || null;
+        const selectedTemplateIsApproved = !!selectedTemplate && String(selectedTemplate.status || '').trim().toUpperCase() === 'APPROVED';
+        const templateFields = selectedTemplate ? getOfficialTemplateParameterFields(selectedTemplate) : [];
+        const canSyncTemplates = Boolean(String(official.businessAccountId || '').trim() && official.hasAccessToken);
         const status = String(official.status || 'draft').toLowerCase();
         const statusClassName = status === 'verified'
             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
@@ -1819,16 +2202,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                        {t('slots.official.business_account_detected') || 'WABA ID detectado'}
+                                        {t('slots.official.business_account_id') || 'Business Account ID / WABA ID'}
                                     </label>
                                     <input
                                         type="text"
                                         value={official.businessAccountId || ""}
-                                        placeholder={t('slots.official.ph_business_account_detected') || 'Se completa solo cuando Meta lo confirma'}
+                                        onChange={(e) => updateOfficialWhatsappField(slot.slot_id, "businessAccountId", e.target.value)}
+                                        placeholder={t('slots.official.ph_business_account_id') || 'Ej: 123456789012345'}
                                         autoComplete="off"
-                                        readOnly
-                                        className="w-full p-3 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 outline-none transition font-mono text-sm"
+                                        className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
                                     />
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                        {t('slots.official.waba_hint') || 'Si Meta no lo detecta automáticamente, puedes completarlo manualmente para habilitar templates y la suscripción automática de la WABA.'}
+                                    </p>
                                 </div>
                             </div>
 
@@ -1944,6 +2330,188 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     ) : null}
                                 </div>
                             )}
+
+                            <div className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/30 p-5 space-y-5">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <h5 className="text-base font-bold text-gray-900 dark:text-white">
+                                            {t('slots.official.templates.title') || 'Templates oficiales'}
+                                        </h5>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
+                                            {t('slots.official.templates.desc') || 'Sincroniza los templates aprobados de la WABA y envía pruebas directamente desde WaFloW.'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => loadOfficialWhatsappTemplates(slot.slot_id, true)}
+                                        disabled={!canSyncTemplates || isLoadingTemplates || isLoadingOfficial || isSavingOfficial}
+                                        className="px-4 py-2 rounded-xl bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 dark:bg-gray-950 dark:text-indigo-300 dark:border-indigo-900/40 dark:hover:bg-indigo-900/20 disabled:opacity-50 transition flex items-center gap-2"
+                                    >
+                                        <RefreshCw size={16} className={isLoadingTemplates ? "animate-spin" : ""} />
+                                        {isLoadingTemplates
+                                            ? (t('slots.official.templates.syncing') || 'Sincronizando...')
+                                            : (t('slots.official.templates.sync') || 'Sincronizar templates')}
+                                    </button>
+                                </div>
+
+                                {!official.businessAccountId ? (
+                                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                                        {t('slots.official.templates.missing_waba') || 'Completa el WABA ID antes de usar templates.'}
+                                    </div>
+                                ) : !official.hasAccessToken ? (
+                                    <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-200">
+                                        {t('slots.official.templates.needs_saved_token') || 'Guarda o valida primero la configuración oficial para poder sincronizar templates desde Meta.'}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950/50 overflow-hidden">
+                                            <div className="grid grid-cols-[minmax(0,1.5fr)_110px_120px_110px] gap-3 px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                                                <span>{t('slots.official.templates.name') || 'Template'}</span>
+                                                <span>{t('slots.official.templates.language') || 'Idioma'}</span>
+                                                <span>{t('slots.official.templates.category') || 'Categoría'}</span>
+                                                <span>{t('slots.official.templates.status') || 'Estado'}</span>
+                                            </div>
+                                            {(templateState.templates || []).length > 0 ? (
+                                                <div className="max-h-64 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                                                    {(templateState.templates || []).map((template) => {
+                                                        const templateKey = getOfficialTemplateKey(template);
+                                                        const isApproved = String(template.status || '').trim().toUpperCase() === 'APPROVED';
+                                                        return (
+                                                            <div
+                                                                key={templateKey}
+                                                                className={`grid grid-cols-[minmax(0,1.5fr)_110px_120px_110px] gap-3 px-4 py-3 text-sm ${templateState.selectedTemplateKey === templateKey ? 'bg-indigo-50/70 dark:bg-indigo-900/10' : 'bg-transparent'}`}
+                                                            >
+                                                                <div className="min-w-0">
+                                                                    <p className="font-semibold text-gray-900 dark:text-white truncate">{template.name}</p>
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                                        {Array.isArray(template.components) ? template.components.length : 0} {t('slots.official.templates.components_count') || 'componentes'}
+                                                                    </p>
+                                                                </div>
+                                                                <span className="text-gray-700 dark:text-gray-200 font-mono text-xs self-center">{template.language || '-'}</span>
+                                                                <span className="text-gray-700 dark:text-gray-200 text-xs self-center">{template.category || '-'}</span>
+                                                                <span className={`text-xs font-bold self-center ${isApproved ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+                                                                    {template.status || '-'}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <div className="px-4 py-5 text-sm text-gray-500 dark:text-gray-400">
+                                                    {t('slots.official.templates.empty') || 'No se encontraron templates en esta WABA todavía.'}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {t('slots.official.templates.manage_hint') || 'WaFloW sincroniza y envía templates. La creación o edición avanzada sigue haciéndose en Meta.'}
+                                        </p>
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('slots.official.templates.target_phone') || 'Número destino'}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={templateState.targetPhone || ""}
+                                                    onChange={(e) => updateOfficialTemplateField(slot.slot_id, "targetPhone", e.target.value)}
+                                                    placeholder={t('slots.official.templates.ph_target_phone') || 'Ej: 595981234567'}
+                                                    autoComplete="off"
+                                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('slots.official.templates.select_template') || 'Template aprobado'}
+                                                </label>
+                                                <select
+                                                    value={templateState.selectedTemplateKey || ""}
+                                                    onChange={(e) => updateOfficialTemplateField(slot.slot_id, "selectedTemplateKey", e.target.value)}
+                                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
+                                                    disabled={approvedTemplates.length === 0}
+                                                >
+                                                    <option value="">{t('slots.official.templates.select_template_placeholder') || 'Selecciona un template aprobado'}</option>
+                                                    {approvedTemplates.map((template) => (
+                                                        <option key={getOfficialTemplateKey(template)} value={getOfficialTemplateKey(template)}>
+                                                            {template.name} · {template.language}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {approvedTemplates.length === 0 ? (
+                                                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">
+                                                        {t('slots.official.templates.no_approved') || 'Todavía no hay templates aprobados disponibles para enviar.'}
+                                                    </p>
+                                                ) : selectedTemplate && !selectedTemplateIsApproved ? (
+                                                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">
+                                                        {t('slots.official.templates.not_approved') || 'El template seleccionado no está aprobado'}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                        </div>
+
+                                        {selectedTemplate ? (
+                                            <div className="space-y-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950/50 p-4">
+                                                {templateFields.length > 0 ? (
+                                                    <div className="grid gap-3 md:grid-cols-2">
+                                                        {templateFields.map((field) => (
+                                                            <div key={field.key}>
+                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                                    {field.label}
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={templateState.parameterValues?.[field.key] || ""}
+                                                                    onChange={(e) => updateOfficialTemplateParameter(slot.slot_id, field.key, e.target.value)}
+                                                                    autoComplete="off"
+                                                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                                                        {t('slots.official.templates.no_params') || 'Este template no requiere variables dinámicas comunes. Puedes enviarlo directo o usar el JSON avanzado si necesitas un payload especial.'}
+                                                    </div>
+                                                )}
+
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                        {t('slots.official.templates.advanced_json') || 'Components JSON avanzado'}
+                                                    </label>
+                                                    <textarea
+                                                        rows={4}
+                                                        value={templateState.componentsJson || ""}
+                                                        onChange={(e) => updateOfficialTemplateField(slot.slot_id, "componentsJson", e.target.value)}
+                                                        placeholder='[{"type":"body","parameters":[{"type":"text","text":"valor"}]}]'
+                                                        className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-xs"
+                                                    />
+                                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                        {t('slots.official.templates.advanced_json_hint') || 'Si completas este JSON, WaFloW lo enviará tal cual y omitirá las variables simples del formulario.'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ) : null}
+
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => sendOfficialTemplateTest(slot.slot_id)}
+                                                disabled={isSendingTemplate || isLoadingTemplates || !selectedTemplateIsApproved || !String(templateState.targetPhone || '').trim()}
+                                                className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                            >
+                                                {isSendingTemplate ? <Loader2 className="animate-spin" size={16} /> : <MessageSquare size={16} />}
+                                                {t('slots.official.templates.send') || 'Enviar template de prueba'}
+                                            </button>
+                                            {templateState.fetchedAt ? (
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {t('slots.official.templates.last_sync') || 'Última sincronización'}: {formatOfficialDatetime(templateState.fetchedAt)}
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
 
                             {official.lastValidationError ? (
                                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
