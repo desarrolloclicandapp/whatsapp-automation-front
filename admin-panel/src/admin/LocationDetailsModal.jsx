@@ -1107,7 +1107,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 businessAccountId: data.businessAccountId || "",
                 phoneNumberId: data.phoneNumberId || "",
                 status: data.status || "verified",
-                verifiedAt: data.verifiedAt || null
+                verifiedAt: data.verifiedAt || null,
+                displayPhoneNumber: data.displayPhoneNumber || "",
+                verifiedName: data.verifiedName || "",
+                qualityRating: data.qualityRating || "",
+                nameStatus: data.nameStatus || ""
             });
             return true;
         } catch (e) {
@@ -2174,14 +2178,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         <div className="space-y-6">
                             {slots.map(slot => {
                                 const isExpanded = expandedSlotId === slot.slot_id;
-                                const isConnected = slot.is_connected === true;
-                                const connectedPhone = isConnected ? (slot.phone_number || "") : "";
-                                const currentPrio = slot.priority || 99;
-                                const settings = slot.settings || {};
+                                const slotSettings = slot.settings || {};
+                                const officialSlotSettings = (slotSettings.official_api && typeof slotSettings.official_api === 'object')
+                                    ? slotSettings.official_api
+                                    : {};
                                 const connectionMode = getEffectiveSlotConnectionMode(slot);
+                                const isOfficialSlotMode = connectionMode === 'official_api';
+                                const officialStatus = String(officialSlotSettings.status || '').trim().toLowerCase();
+                                const isOfficialConnected = isOfficialSlotMode && ['verified', 'active', 'connected'].includes(officialStatus);
+                                const isConnected = isOfficialSlotMode ? isOfficialConnected : slot.is_connected === true;
+                                const connectedPhone = isOfficialSlotMode
+                                    ? String(officialSlotSettings.displayPhoneNumber || slot.phone_number || '').trim()
+                                    : (isConnected ? (slot.phone_number || "") : "");
+                                const currentPrio = slot.priority || 99;
+                                const settings = slotSettings;
                                 const slotHealth = slot.health || {};
                                 const slotSent24h = Number(slotHealth.sent_24h || 0);
-                                const isOfficialSlotMode = connectionMode === 'official_api';
                                 const slotHeaderModeLabel = isOfficialSlotMode
                                     ? (t('slots.card.official_mode') || 'Meta API')
                                     : (isExpanded ? t('slots.card.managing') : t('slots.card.manage'));
@@ -2230,6 +2242,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1 flex items-center gap-2">
                                                         {isConnected && connectedPhone
                                                             ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{connectedPhone}</span>
+                                                            : isOfficialSlotMode && officialStatus && officialStatus !== 'draft'
+                                                                ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">{t('slots.card.official_verified') || 'Meta API validada'}</span>
                                                             : t('slots.card.disconnected')}
                                                         {isGhlMode && !isOfficialSlotMode && (
                                                             <>
