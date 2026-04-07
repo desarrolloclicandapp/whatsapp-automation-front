@@ -1134,7 +1134,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 body: JSON.stringify({
                     locationId: location.location_id,
                     slotId,
-                    clear: true
+                    clear: true,
+                    preserveConnectionMode: true
                 })
             });
             if (!res) return;
@@ -1148,6 +1149,72 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 [slotId]: createEmptyOfficialWhatsappState()
             }));
             syncSlotConnectionMode(slotId, null, null);
+        } catch (e) {
+            toast.error(t('slots.official.clear_error') || "Error limpiando WhatsApp API oficial", {
+                description: e.message
+            });
+        } finally {
+            setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const clearOfficialWhatsappConfigKeepMode = async (slotId) => {
+        const loadingId = toast.loading(t('slots.official.clearing') || "Limpiando configuracion oficial...");
+        setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/config`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    clear: true,
+                    preserveConnectionMode: true
+                })
+            });
+            if (!res) return;
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || "No se pudo limpiar la configuracion oficial");
+            }
+            toast.success(t('slots.official.cleared') || "Configuracion oficial eliminada");
+            setOfficialConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    loaded: true,
+                    configured: !!data.configured,
+                    connectionMode: data.connectionMode || 'official_api',
+                    status: data.status || 'draft',
+                    businessAccountId: data.businessAccountId ? String(data.businessAccountId) : "",
+                    phoneNumberId: data.phoneNumberId ? String(data.phoneNumberId) : "",
+                    accessToken: "",
+                    accessTokenMasked: data.accessTokenMasked || "",
+                    hasAccessToken: !!data.hasAccessToken,
+                    webhookVerifyToken: data.webhookVerifyToken || "",
+                    webhookUrl: data.webhookUrl || "",
+                    verifiedAt: data.verifiedAt || null,
+                    lastValidationAt: data.lastValidationAt || null,
+                    lastValidationError: data.lastValidationError || "",
+                    lastWebhookAt: data.lastWebhookAt || null,
+                    displayPhoneNumber: data.displayPhoneNumber || "",
+                    verifiedName: data.verifiedName || "",
+                    qualityRating: data.qualityRating || "",
+                    nameStatus: data.nameStatus || ""
+                }
+            }));
+            syncSlotConnectionMode(slotId, 'official_api', {
+                ...(slots.find((slot) => slot.slot_id === slotId)?.settings?.official_api || {}),
+                businessAccountId: data.businessAccountId || "",
+                phoneNumberId: data.phoneNumberId || "",
+                accessToken: "",
+                webhookVerifyToken: data.webhookVerifyToken || "",
+                status: data.status || 'draft',
+                verifiedAt: data.verifiedAt || null,
+                displayPhoneNumber: data.displayPhoneNumber || "",
+                verifiedName: data.verifiedName || "",
+                qualityRating: data.qualityRating || "",
+                nameStatus: data.nameStatus || ""
+            });
         } catch (e) {
             toast.error(t('slots.official.clear_error') || "Error limpiando WhatsApp API oficial", {
                 description: e.message
@@ -1896,7 +1963,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => clearOfficialWhatsappConfig(slot.slot_id)}
+                                    onClick={() => clearOfficialWhatsappConfigKeepMode(slot.slot_id)}
                                     disabled={isLoadingOfficial || isSavingOfficial}
                                     className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
                                 >
