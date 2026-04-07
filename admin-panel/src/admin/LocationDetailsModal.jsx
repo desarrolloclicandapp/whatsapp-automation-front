@@ -91,6 +91,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         import.meta.env.VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED ?? true
     );
     const SLOT_CONNECTION_MODE_CHANGE_ENABLED = false;
+    const SHOW_OFFICIAL_WEBHOOK_DEBUG = !!isAdminMode;
     const getEffectiveSlotConnectionMode = (slot) => {
         if (!slot) return null;
         if (!OFFICIAL_WHATSAPP_API_UI_ENABLED) return 'qr';
@@ -1845,6 +1846,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 />
                             </div>
 
+                            {SHOW_OFFICIAL_WEBHOOK_DEBUG ? (
+                                <>
                             <div>
                                 <div className="flex items-center justify-between gap-3 mb-2">
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
@@ -1898,6 +1901,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-200 font-mono text-xs"
                                 />
                             </div>
+                                </>
+                            ) : (
+                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200">
+                                    WaFloW configura y enruta el webhook oficial automÃ¡ticamente para este canal. El cliente no necesita copiar ni pegar nada en Meta por slot.
+                                </div>
+                            )}
 
                             {(official.verifiedName || official.displayPhoneNumber || official.qualityRating || official.lastWebhookAt) && (
                                 <div className="grid gap-3 md:grid-cols-2">
