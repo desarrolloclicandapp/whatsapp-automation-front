@@ -56,6 +56,18 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [officialConfigBySlot, setOfficialConfigBySlot] = useState({});
     const [loadingOfficialBySlot, setLoadingOfficialBySlot] = useState({});
     const [savingOfficialBySlot, setSavingOfficialBySlot] = useState({});
+    const [startingOfficialEmbeddedBySlot, setStartingOfficialEmbeddedBySlot] = useState({});
+    const [completingOfficialEmbeddedBySlot, setCompletingOfficialEmbeddedBySlot] = useState({});
+    const [officialTemplatesBySlot, setOfficialTemplatesBySlot] = useState({});
+    const [loadingOfficialTemplatesBySlot, setLoadingOfficialTemplatesBySlot] = useState({});
+    const [sendingOfficialTemplateBySlot, setSendingOfficialTemplateBySlot] = useState({});
+    const [facebookSdkState, setFacebookSdkState] = useState({
+        ready: false,
+        loading: false,
+        appId: "",
+        sdkVersion: "",
+        error: ""
+    });
     const [chatwootInboxes, setChatwootInboxes] = useState([]);
     const [loadingChatwootInboxes, setLoadingChatwootInboxes] = useState(false);
     const [chatwootInboxesLoaded, setChatwootInboxesLoaded] = useState(false);
@@ -68,6 +80,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [customProxyBySlot, setCustomProxyBySlot] = useState({});
     const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
     const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
+    const facebookSdkPromiseRef = useRef(null);
+    const embeddedSignupFlowRef = useRef({
+        slotId: null,
+        completionSent: false,
+        authCode: "",
+        accessToken: "",
+        businessAccountId: "",
+        phoneNumberId: "",
+        businessId: "",
+        displayPhoneNumber: ""
+    });
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
     const isChatwootMode = crmType === "chatwoot";
@@ -90,6 +113,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const OFFICIAL_WHATSAPP_API_UI_ENABLED = isEnabledTenantFlag(
         import.meta.env.VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED ?? true
     );
+    const SLOT_CONNECTION_MODE_CHANGE_ENABLED = false;
+    const SHOW_OFFICIAL_WEBHOOK_DEBUG = !!isAdminMode;
     const getEffectiveSlotConnectionMode = (slot) => {
         if (!slot) return null;
         if (!OFFICIAL_WHATSAPP_API_UI_ENABLED) return 'qr';
@@ -116,6 +141,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             String(officialSettings?.businessAccountId || "").trim() ||
             String(officialSettings?.phoneNumberId || "").trim() ||
             String(officialSettings?.accessToken || "").trim() ||
+            String(officialSettings?.accessTokenEncrypted || "").trim() ||
             String(officialSettings?.status || "").trim()
         );
     };
@@ -251,6 +277,63 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if (isExpandedOfficialLoaded) return;
         loadOfficialWhatsappConfig(expandedSlotId);
     }, [expandedSlotId, expandedConnectionMode, isExpandedOfficialLoaded]);
+
+    useEffect(() => {
+        if (!expandedSlotId || expandedConnectionMode !== 'official_api') return;
+        const official = officialConfigBySlot[expandedSlotId];
+        if (!official?.loaded || !official?.businessAccountId || !official?.hasAccessToken) return;
+        if (officialTemplatesBySlot[expandedSlotId]?.loaded) return;
+        loadOfficialWhatsappTemplates(expandedSlotId);
+    }, [expandedSlotId, expandedConnectionMode, officialConfigBySlot, officialTemplatesBySlot]);
+
+    useEffect(() => {
+        const handleEmbeddedSignupMessage = (event) => {
+            const origin = String(event?.origin || '').toLowerCase();
+            if (!origin || (!origin.includes('facebook.com') && !origin.includes('fb.com'))) {
+                return;
+            }
+
+            const flow = embeddedSignupFlowRef.current;
+            if (!flow?.slotId) return;
+
+            const parsed = normalizeEmbeddedSignupMessage(event.data);
+            if (!parsed) return;
+
+            if (parsed.status === 'cancel') {
+                setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                toast.error(t('slots.official.embedded.cancelled') || 'El asistente de Meta fue cancelado');
+                resetEmbeddedSignupFlow();
+                return;
+            }
+
+            if (parsed.status === 'error') {
+                setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                toast.error(t('slots.official.embedded.error') || 'Meta devolvió un error en el Embedded Signup', {
+                    description: parsed.errorMessage || undefined
+                });
+                resetEmbeddedSignupFlow();
+                return;
+            }
+
+            flow.authCode = pickFirstNonEmptyString(parsed.authCode, flow.authCode);
+            flow.accessToken = pickFirstNonEmptyString(parsed.accessToken, flow.accessToken);
+            flow.businessAccountId = pickFirstNonEmptyString(parsed.businessAccountId, flow.businessAccountId);
+            flow.phoneNumberId = pickFirstNonEmptyString(parsed.phoneNumberId, flow.phoneNumberId);
+            flow.businessId = pickFirstNonEmptyString(parsed.businessId, flow.businessId);
+            flow.displayPhoneNumber = pickFirstNonEmptyString(parsed.displayPhoneNumber, flow.displayPhoneNumber);
+
+            if (!flow.completionSent && flow.phoneNumberId && (flow.authCode || flow.accessToken)) {
+                const snapshot = { ...flow };
+                flow.completionSent = true;
+                completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch(() => { });
+            }
+        };
+
+        window.addEventListener('message', handleEmbeddedSignupMessage);
+        return () => window.removeEventListener('message', handleEmbeddedSignupMessage);
+    }, [location.location_id, officialConfigBySlot, slots, t]);
 
     useEffect(() => {
         if (!supportsKeywordsTab && activeSlotTab === 'keywords') {
@@ -944,8 +1027,410 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         displayPhoneNumber: "",
         verifiedName: "",
         qualityRating: "",
-        nameStatus: ""
+        nameStatus: "",
+        setupSource: "",
+        embeddedSignupCompletedAt: null,
+        embeddedSignupBusinessId: "",
+        embeddedSignupPhone: "",
+        embeddedSignupError: "",
+        embeddedSignupEnabled: false,
+        embeddedSignupAppId: "",
+        embeddedSignupConfigurationId: "",
+        embeddedSignupSdkVersion: "",
+        embeddedSignupGraphVersion: "",
+        embeddedSignupSessionInfoVersion: 3,
+        embeddedSignupSolutionId: "",
+        embeddedSignupProviderTokenConfigured: false,
+        embeddedSignupMissing: []
     });
+
+    const createEmptyOfficialTemplateState = () => ({
+        loaded: false,
+        templates: [],
+        fetchedAt: null,
+        targetPhone: "",
+        selectedTemplateKey: "",
+        componentsJson: "",
+        parameterValues: {}
+    });
+
+    const resetEmbeddedSignupFlow = () => {
+        embeddedSignupFlowRef.current = {
+            slotId: null,
+            completionSent: false,
+            authCode: "",
+            accessToken: "",
+            businessAccountId: "",
+            phoneNumberId: "",
+            businessId: "",
+            displayPhoneNumber: ""
+        };
+    };
+
+    const pickFirstNonEmptyString = (...values) => {
+        for (const value of values) {
+            const normalized = String(value ?? "").trim();
+            if (normalized) return normalized;
+        }
+        return "";
+    };
+
+    const safeParseJson = (value) => {
+        if (typeof value !== "string") return null;
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        try {
+            return JSON.parse(trimmed);
+        } catch (_) {
+            return null;
+        }
+    };
+
+    const deepFindFirstString = (input, keys, depth = 0) => {
+        if (!input || depth > 6) return "";
+        if (Array.isArray(input)) {
+            for (const item of input) {
+                const fromItem = deepFindFirstString(item, keys, depth + 1);
+                if (fromItem) return fromItem;
+            }
+            return "";
+        }
+
+        if (typeof input !== "object") return "";
+
+        for (const key of keys) {
+            const value = input[key];
+            if (value === undefined || value === null) continue;
+            const normalized = String(value).trim();
+            if (normalized && normalized !== "[object Object]") {
+                return normalized;
+            }
+        }
+
+        for (const value of Object.values(input)) {
+            const fromNested = deepFindFirstString(value, keys, depth + 1);
+            if (fromNested) return fromNested;
+        }
+
+        return "";
+    };
+
+    const normalizeEmbeddedSignupMessage = (rawPayload) => {
+        const payload = typeof rawPayload === "string"
+            ? (safeParseJson(rawPayload) || null)
+            : rawPayload;
+        if (!payload || typeof payload !== "object") return null;
+
+        const eventName = pickFirstNonEmptyString(
+            payload?.event,
+            payload?.eventType,
+            payload?.type,
+            payload?.data?.event,
+            payload?.data?.eventType,
+            payload?.data?.type
+        ).toUpperCase();
+
+        const phoneNumberId = deepFindFirstString(payload, ["phone_number_id", "phoneNumberId"]);
+        const businessAccountId = deepFindFirstString(payload, ["waba_id", "wabaId", "business_account_id", "businessAccountId"]);
+        const businessId = deepFindFirstString(payload, ["business_id", "businessId", "business_manager_id", "businessManagerId"]);
+        const displayPhoneNumber = deepFindFirstString(payload, ["display_phone_number", "displayPhoneNumber", "phone_number", "phoneNumber"]);
+        const authCode = deepFindFirstString(payload, ["code", "authCode"]);
+        const accessToken = deepFindFirstString(payload, ["access_token", "accessToken"]);
+        const errorMessage = deepFindFirstString(payload, ["error_message", "errorMessage", "message", "error"]);
+
+        let status = "";
+        if (eventName.includes("FINISH") || eventName.includes("COMPLETE")) {
+            status = "finish";
+        } else if (eventName.includes("CANCEL")) {
+            status = "cancel";
+        } else if (eventName.includes("ERROR") || eventName.includes("FAIL")) {
+            status = "error";
+        } else if (phoneNumberId || businessAccountId || authCode || accessToken) {
+            status = "finish";
+        }
+
+        if (!status) return null;
+
+        return {
+            status,
+            authCode,
+            accessToken,
+            phoneNumberId,
+            businessAccountId,
+            businessId,
+            displayPhoneNumber,
+            errorMessage
+        };
+    };
+
+    const ensureFacebookSdk = async (officialConfig = {}) => {
+        const appId = String(officialConfig?.embeddedSignupAppId || "").trim();
+        const sdkVersion = String(officialConfig?.embeddedSignupSdkVersion || "v24.0").trim() || "v24.0";
+        if (!appId) {
+            throw new Error("Falta el App ID de Meta para el Embedded Signup.");
+        }
+
+        if (
+            window.FB &&
+            facebookSdkState.ready &&
+            facebookSdkState.appId === appId &&
+            facebookSdkState.sdkVersion === sdkVersion
+        ) {
+            return window.FB;
+        }
+
+        if (facebookSdkPromiseRef.current) {
+            return facebookSdkPromiseRef.current;
+        }
+
+        setFacebookSdkState({
+            ready: false,
+            loading: true,
+            appId,
+            sdkVersion,
+            error: ""
+        });
+
+        facebookSdkPromiseRef.current = new Promise((resolve, reject) => {
+            const finishInit = () => {
+                if (!window.FB) {
+                    const err = new Error("No se pudo inicializar el SDK de Facebook.");
+                    setFacebookSdkState({
+                        ready: false,
+                        loading: false,
+                        appId,
+                        sdkVersion,
+                        error: err.message
+                    });
+                    reject(err);
+                    return;
+                }
+
+                try {
+                    window.FB.init({
+                        appId,
+                        autoLogAppEvents: true,
+                        xfbml: false,
+                        version: sdkVersion
+                    });
+                    setFacebookSdkState({
+                        ready: true,
+                        loading: false,
+                        appId,
+                        sdkVersion,
+                        error: ""
+                    });
+                    resolve(window.FB);
+                } catch (err) {
+                    setFacebookSdkState({
+                        ready: false,
+                        loading: false,
+                        appId,
+                        sdkVersion,
+                        error: err.message
+                    });
+                    reject(err);
+                }
+            };
+
+            if (window.FB) {
+                finishInit();
+                return;
+            }
+
+            window.fbAsyncInit = finishInit;
+
+            const existingScript = document.getElementById("waflow-facebook-sdk");
+            if (existingScript) {
+                return;
+            }
+
+            const script = document.createElement("script");
+            script.id = "waflow-facebook-sdk";
+            script.async = true;
+            script.defer = true;
+            script.crossOrigin = "anonymous";
+            script.src = "https://connect.facebook.net/en_US/sdk.js";
+            script.onerror = () => {
+                const err = new Error("No se pudo cargar el SDK de Facebook.");
+                setFacebookSdkState({
+                    ready: false,
+                    loading: false,
+                    appId,
+                    sdkVersion,
+                    error: err.message
+                });
+                reject(err);
+            };
+            document.body.appendChild(script);
+        }).finally(() => {
+            facebookSdkPromiseRef.current = null;
+        });
+
+        return facebookSdkPromiseRef.current;
+    };
+
+    const getOfficialTemplateKey = (template) => {
+        const safeName = String(template?.name || "").trim();
+        const safeLanguage = String(template?.language || "").trim();
+        return `${safeName}::${safeLanguage}`;
+    };
+
+    const extractTemplatePlaceholderIndexes = (text = "") => {
+        const safeText = String(text || "");
+        const indexes = new Set();
+        const regex = /\{\{\s*(\d+)\s*\}\}/g;
+        let match = regex.exec(safeText);
+        while (match) {
+            indexes.add(Number.parseInt(match[1], 10));
+            match = regex.exec(safeText);
+        }
+        return Array.from(indexes).filter(Number.isFinite).sort((a, b) => a - b);
+    };
+
+    const getOfficialTemplateParameterFields = (template = {}) => {
+        const components = Array.isArray(template?.components) ? template.components : [];
+        const fields = [];
+
+        components.forEach((component, componentIndex) => {
+            const componentType = String(component?.type || "").trim().toUpperCase();
+            const componentFormat = String(component?.format || "").trim().toUpperCase();
+            const componentText = String(component?.text || "").trim();
+
+            if (componentType === 'HEADER' && componentFormat === 'TEXT') {
+                extractTemplatePlaceholderIndexes(componentText).forEach((placeholderIndex) => {
+                    fields.push({
+                        key: `header_text_${placeholderIndex}`,
+                        label: `${t('slots.official.templates.header_var') || 'Header'} {{${placeholderIndex}}}`,
+                        componentType: 'header',
+                        valueType: 'text',
+                        placeholderIndex
+                    });
+                });
+            }
+
+            if (componentType === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(componentFormat)) {
+                fields.push({
+                    key: 'header_media_url',
+                    label: `${t('slots.official.templates.header_media_url') || 'URL del header'} (${componentFormat})`,
+                    componentType: 'header',
+                    valueType: componentFormat.toLowerCase()
+                });
+            }
+
+            if (componentType === 'BODY') {
+                extractTemplatePlaceholderIndexes(componentText).forEach((placeholderIndex) => {
+                    fields.push({
+                        key: `body_text_${placeholderIndex}`,
+                        label: `${t('slots.official.templates.body_var') || 'Body'} {{${placeholderIndex}}}`,
+                        componentType: 'body',
+                        valueType: 'text',
+                        placeholderIndex
+                    });
+                });
+            }
+
+            if (componentType === 'BUTTONS') {
+                const buttons = Array.isArray(component?.buttons) ? component.buttons : [];
+                buttons.forEach((button, buttonIndex) => {
+                    const buttonType = String(button?.type || "").trim().toUpperCase();
+                    const buttonUrl = String(button?.url || "").trim();
+                    if (buttonType !== 'URL' || !buttonUrl.includes('{{')) return;
+
+                    extractTemplatePlaceholderIndexes(buttonUrl).forEach((placeholderIndex) => {
+                        fields.push({
+                            key: `button_${componentIndex}_${buttonIndex}_${placeholderIndex}`,
+                            label: `${t('slots.official.templates.button_var') || 'Botón'} ${buttonIndex + 1} {{${placeholderIndex}}}`,
+                            componentType: 'button',
+                            buttonIndex,
+                            valueType: 'text',
+                            placeholderIndex
+                        });
+                    });
+                });
+            }
+        });
+
+        return fields;
+    };
+
+    const buildOfficialTemplateComponents = (template = {}, parameterValues = {}) => {
+        const components = [];
+        const rawComponents = Array.isArray(template?.components) ? template.components : [];
+
+        rawComponents.forEach((component, componentIndex) => {
+            const componentType = String(component?.type || "").trim().toUpperCase();
+            const componentFormat = String(component?.format || "").trim().toUpperCase();
+            const componentText = String(component?.text || "").trim();
+
+            if (componentType === 'HEADER' && componentFormat === 'TEXT') {
+                const indexes = extractTemplatePlaceholderIndexes(componentText);
+                if (indexes.length > 0) {
+                    components.push({
+                        type: 'header',
+                        parameters: indexes.map((placeholderIndex) => ({
+                            type: 'text',
+                            text: String(parameterValues[`header_text_${placeholderIndex}`] || '').trim()
+                        }))
+                    });
+                }
+                return;
+            }
+
+            if (componentType === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(componentFormat)) {
+                const link = String(parameterValues.header_media_url || '').trim();
+                if (link) {
+                    const mediaType = componentFormat.toLowerCase();
+                    components.push({
+                        type: 'header',
+                        parameters: [{
+                            type: mediaType,
+                            [mediaType]: { link }
+                        }]
+                    });
+                }
+                return;
+            }
+
+            if (componentType === 'BODY') {
+                const indexes = extractTemplatePlaceholderIndexes(componentText);
+                if (indexes.length > 0) {
+                    components.push({
+                        type: 'body',
+                        parameters: indexes.map((placeholderIndex) => ({
+                            type: 'text',
+                            text: String(parameterValues[`body_text_${placeholderIndex}`] || '').trim()
+                        }))
+                    });
+                }
+                return;
+            }
+
+            if (componentType === 'BUTTONS') {
+                const buttons = Array.isArray(component?.buttons) ? component.buttons : [];
+                buttons.forEach((button, buttonIndex) => {
+                    const buttonType = String(button?.type || "").trim().toUpperCase();
+                    const buttonUrl = String(button?.url || "").trim();
+                    if (buttonType !== 'URL' || !buttonUrl.includes('{{')) return;
+
+                    const indexes = extractTemplatePlaceholderIndexes(buttonUrl);
+                    if (indexes.length === 0) return;
+
+                    components.push({
+                        type: 'button',
+                        sub_type: 'url',
+                        index: String(buttonIndex),
+                        parameters: indexes.map((placeholderIndex) => ({
+                            type: 'text',
+                            text: String(parameterValues[`button_${componentIndex}_${buttonIndex}_${placeholderIndex}`] || '').trim()
+                        }))
+                    });
+                });
+            }
+        });
+
+        return components;
+    };
 
     const syncSlotConnectionMode = (slotId, nextMode, officialConfig = undefined) => {
         setSlots(prev => prev.map(slot => {
@@ -988,6 +1473,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if (!slotId || !location?.location_id) return;
         if (!forceRefresh && officialConfigBySlot[slotId]?.loaded) return;
 
+        const previousOfficial = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
         setLoadingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
             const res = await authFetch(`/agency/whatsapp-official/config?locationId=${location.location_id}&slotId=${slotId}`);
@@ -997,6 +1483,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 throw new Error(err.error || "No se pudo cargar la configuración oficial");
             }
             const data = await res.json();
+            const nextBusinessAccountId = data.businessAccountId ? String(data.businessAccountId) : "";
+            const nextHasAccessToken = !!data.hasAccessToken;
+            const embeddedSignup = data?.embeddedSignup || {};
             setOfficialConfigBySlot(prev => ({
                 ...prev,
                 [slotId]: {
@@ -1004,11 +1493,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     configured: !!data.configured,
                     connectionMode: data.connectionMode || 'official_api',
                     status: data.status || 'draft',
-                    businessAccountId: data.businessAccountId ? String(data.businessAccountId) : "",
+                    businessAccountId: nextBusinessAccountId,
                     phoneNumberId: data.phoneNumberId ? String(data.phoneNumberId) : "",
                     accessToken: "",
                     accessTokenMasked: data.accessTokenMasked || "",
-                    hasAccessToken: !!data.hasAccessToken,
+                    hasAccessToken: nextHasAccessToken,
                     webhookVerifyToken: data.webhookVerifyToken || "",
                     webhookUrl: data.webhookUrl || "",
                     verifiedAt: data.verifiedAt || null,
@@ -1021,12 +1510,179 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     nameStatus: data.nameStatus || ""
                 }
             }));
+            if (
+                String(previousOfficial.businessAccountId || "").trim() !== nextBusinessAccountId ||
+                !!previousOfficial.hasAccessToken !== nextHasAccessToken
+            ) {
+                setOfficialTemplatesBySlot(prev => ({
+                    ...prev,
+                    [slotId]: createEmptyOfficialTemplateState()
+                }));
+            }
         } catch (e) {
             toast.error(t('slots.official.load_error') || "Error cargando WhatsApp API oficial", {
                 description: e.message
             });
         } finally {
             setLoadingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateOfficialTemplateState = (slotId, updater) => {
+        setOfficialTemplatesBySlot(prev => {
+            const current = prev[slotId] || createEmptyOfficialTemplateState();
+            const nextState = typeof updater === 'function'
+                ? updater(current)
+                : { ...current, ...(updater || {}) };
+            return {
+                ...prev,
+                [slotId]: nextState
+            };
+        });
+    };
+
+    const loadOfficialWhatsappTemplates = async (slotId, forceRefresh = false) => {
+        const official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        if (!location?.location_id) return;
+        if (!official.businessAccountId) {
+            updateOfficialTemplateState(slotId, {
+                ...createEmptyOfficialTemplateState(),
+                loaded: false
+            });
+            return;
+        }
+        if (!forceRefresh && officialTemplatesBySlot[slotId]?.loaded) return;
+
+        setLoadingOfficialTemplatesBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/templates?locationId=${location.location_id}&slotId=${slotId}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || (t('slots.official.templates.load_error') || 'No se pudieron cargar los templates'));
+            }
+            const data = await res.json();
+            const templates = Array.isArray(data?.templates) ? data.templates : [];
+            updateOfficialTemplateState(slotId, (current) => {
+                const approvedTemplates = templates.filter((template) => String(template?.status || '').trim().toUpperCase() === 'APPROVED');
+                const validTemplatePool = approvedTemplates.length > 0 ? approvedTemplates : templates;
+                const nextSelectedTemplateKey = current.selectedTemplateKey && validTemplatePool.some((template) => getOfficialTemplateKey(template) === current.selectedTemplateKey)
+                    ? current.selectedTemplateKey
+                    : (validTemplatePool[0] ? getOfficialTemplateKey(validTemplatePool[0]) : "");
+                return {
+                    ...current,
+                    loaded: true,
+                    templates,
+                    fetchedAt: data?.fetchedAt || new Date().toISOString(),
+                    selectedTemplateKey: nextSelectedTemplateKey
+                };
+            });
+        } catch (e) {
+            toast.error(t('slots.official.templates.load_error') || 'Error cargando templates', {
+                description: e.message
+            });
+        } finally {
+            setLoadingOfficialTemplatesBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateOfficialTemplateField = (slotId, key, value) => {
+        updateOfficialTemplateState(slotId, (current) => ({
+            ...current,
+            [key]: value,
+            ...(key === 'selectedTemplateKey'
+                ? {
+                    componentsJson: "",
+                    parameterValues: {}
+                }
+                : {})
+        }));
+    };
+
+    const updateOfficialTemplateParameter = (slotId, key, value) => {
+        updateOfficialTemplateState(slotId, (current) => ({
+            ...current,
+            parameterValues: {
+                ...(current.parameterValues || {}),
+                [key]: value
+            }
+        }));
+    };
+
+    const sendOfficialTemplateTest = async (slotId) => {
+        const official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        const templateState = officialTemplatesBySlot[slotId] || createEmptyOfficialTemplateState();
+        const selectedTemplate = (templateState.templates || []).find((template) => getOfficialTemplateKey(template) === templateState.selectedTemplateKey);
+
+        if (!official.businessAccountId) {
+            toast.error(t('slots.official.templates.missing_waba') || 'Completa el WABA ID antes de usar templates');
+            return;
+        }
+        if (!selectedTemplate) {
+            toast.error(t('slots.official.templates.select_template') || 'Selecciona un template');
+            return;
+        }
+        if (String(selectedTemplate.status || '').trim().toUpperCase() !== 'APPROVED') {
+            toast.error(t('slots.official.templates.not_approved') || 'El template seleccionado no está aprobado');
+            return;
+        }
+
+        const safeTargetPhone = String(templateState.targetPhone || '').trim();
+        if (!safeTargetPhone) {
+            toast.error(t('slots.official.templates.target_required') || 'Ingresa un número destino');
+            return;
+        }
+
+        let components = [];
+        const safeComponentsJson = String(templateState.componentsJson || '').trim();
+        if (safeComponentsJson) {
+            try {
+                const parsed = JSON.parse(safeComponentsJson);
+                if (!Array.isArray(parsed)) {
+                    throw new Error(t('slots.official.templates.components_json_invalid') || 'El JSON de components debe ser un arreglo');
+                }
+                components = parsed;
+            } catch (e) {
+                toast.error(t('slots.official.templates.components_json_invalid') || 'Components JSON inválido', {
+                    description: e.message
+                });
+                return;
+            }
+        } else {
+            const fields = getOfficialTemplateParameterFields(selectedTemplate);
+            const missingFields = fields.filter((field) => !String(templateState.parameterValues?.[field.key] || '').trim());
+            if (missingFields.length > 0) {
+                toast.error(t('slots.official.templates.missing_params') || 'Completa las variables requeridas del template');
+                return;
+            }
+            components = buildOfficialTemplateComponents(selectedTemplate, templateState.parameterValues || {});
+        }
+
+        setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/send-template`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    targetPhone: safeTargetPhone,
+                    templateName: selectedTemplate.name,
+                    languageCode: selectedTemplate.language,
+                    components
+                })
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || (t('slots.official.templates.send_error') || 'No se pudo enviar el template'));
+            }
+            toast.success(t('slots.official.templates.send_success') || 'Template enviado');
+        } catch (e) {
+            toast.error(t('slots.official.templates.send_error') || 'Error enviando template', {
+                description: e.message
+            });
+        } finally {
+            setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: false }));
         }
     };
 
@@ -1042,6 +1698,18 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 }
             };
         });
+        if (key === 'businessAccountId' || key === 'accessToken') {
+            setOfficialTemplatesBySlot(prev => {
+                const current = prev[slotId] || createEmptyOfficialTemplateState();
+                return {
+                    ...prev,
+                    [slotId]: {
+                        ...createEmptyOfficialTemplateState(),
+                        targetPhone: current.targetPhone || ""
+                    }
+                };
+            });
+        }
     };
 
     const saveOfficialWhatsappConfig = async (slotId) => {
@@ -1054,7 +1722,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if ((current.businessAccountId || "").trim()) payload.businessAccountId = current.businessAccountId.trim();
         if ((current.phoneNumberId || "").trim()) payload.phoneNumberId = current.phoneNumberId.trim();
         if ((current.accessToken || "").trim()) payload.accessToken = current.accessToken.trim();
-        if ((current.webhookVerifyToken || "").trim()) payload.webhookVerifyToken = current.webhookVerifyToken.trim();
 
         setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
@@ -1089,7 +1756,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if ((current.businessAccountId || "").trim()) payload.businessAccountId = current.businessAccountId.trim();
         if ((current.phoneNumberId || "").trim()) payload.phoneNumberId = current.phoneNumberId.trim();
         if ((current.accessToken || "").trim()) payload.accessToken = current.accessToken.trim();
-        if ((current.webhookVerifyToken || "").trim()) payload.webhookVerifyToken = current.webhookVerifyToken.trim();
 
         const loadingId = toast.loading(t('slots.official.validating') || "Validando WhatsApp API oficial...");
         setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
@@ -1111,7 +1777,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 businessAccountId: data.businessAccountId || "",
                 phoneNumberId: data.phoneNumberId || "",
                 status: data.status || "verified",
-                verifiedAt: data.verifiedAt || null
+                verifiedAt: data.verifiedAt || null,
+                displayPhoneNumber: data.displayPhoneNumber || "",
+                verifiedName: data.verifiedName || "",
+                qualityRating: data.qualityRating || "",
+                nameStatus: data.nameStatus || ""
             });
             return true;
         } catch (e) {
@@ -1134,7 +1804,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 body: JSON.stringify({
                     locationId: location.location_id,
                     slotId,
-                    clear: true
+                    clear: true,
+                    preserveConnectionMode: true
                 })
             });
             if (!res) return;
@@ -1147,7 +1818,96 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 ...prev,
                 [slotId]: createEmptyOfficialWhatsappState()
             }));
+            setOfficialTemplatesBySlot(prev => ({
+                ...prev,
+                [slotId]: createEmptyOfficialTemplateState()
+            }));
             syncSlotConnectionMode(slotId, null, null);
+        } catch (e) {
+            toast.error(t('slots.official.clear_error') || "Error limpiando WhatsApp API oficial", {
+                description: e.message
+            });
+        } finally {
+            setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const clearOfficialWhatsappConfigKeepMode = async (slotId) => {
+        const loadingId = toast.loading(t('slots.official.clearing') || "Limpiando configuracion oficial...");
+        setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/config`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    clear: true,
+                    preserveConnectionMode: true
+                })
+            });
+            if (!res) return;
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || "No se pudo limpiar la configuracion oficial");
+            }
+            const embeddedSignup = data?.embeddedSignup || {};
+            toast.success(t('slots.official.cleared') || "Configuracion oficial eliminada");
+            setOfficialConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    loaded: true,
+                    configured: !!data.configured,
+                    connectionMode: data.connectionMode || 'official_api',
+                    status: data.status || 'draft',
+                    businessAccountId: data.businessAccountId ? String(data.businessAccountId) : "",
+                    phoneNumberId: data.phoneNumberId ? String(data.phoneNumberId) : "",
+                    accessToken: "",
+                    accessTokenMasked: data.accessTokenMasked || "",
+                    hasAccessToken: !!data.hasAccessToken,
+                    webhookVerifyToken: data.webhookVerifyToken || "",
+                    webhookUrl: data.webhookUrl || "",
+                    verifiedAt: data.verifiedAt || null,
+                    lastValidationAt: data.lastValidationAt || null,
+                    lastValidationError: data.lastValidationError || "",
+                    lastWebhookAt: data.lastWebhookAt || null,
+                    displayPhoneNumber: data.displayPhoneNumber || "",
+                    verifiedName: data.verifiedName || "",
+                    qualityRating: data.qualityRating || "",
+                    nameStatus: data.nameStatus || "",
+                    setupSource: data.setupSource || "",
+                    embeddedSignupCompletedAt: data.embeddedSignupCompletedAt || null,
+                    embeddedSignupBusinessId: data.embeddedSignupBusinessId || "",
+                    embeddedSignupPhone: data.embeddedSignupPhone || "",
+                    embeddedSignupError: data.embeddedSignupError || "",
+                    embeddedSignupEnabled: !!embeddedSignup.enabled,
+                    embeddedSignupAppId: embeddedSignup.appId ? String(embeddedSignup.appId) : "",
+                    embeddedSignupConfigurationId: embeddedSignup.configurationId ? String(embeddedSignup.configurationId) : "",
+                    embeddedSignupSdkVersion: embeddedSignup.sdkVersion ? String(embeddedSignup.sdkVersion) : "",
+                    embeddedSignupGraphVersion: embeddedSignup.graphVersion ? String(embeddedSignup.graphVersion) : "",
+                    embeddedSignupSessionInfoVersion: Number(embeddedSignup.sessionInfoVersion) || 3,
+                    embeddedSignupSolutionId: embeddedSignup.solutionId ? String(embeddedSignup.solutionId) : "",
+                    embeddedSignupProviderTokenConfigured: embeddedSignup.providerTokenConfigured === true,
+                    embeddedSignupMissing: Array.isArray(embeddedSignup.missing) ? embeddedSignup.missing : []
+                }
+            }));
+            setOfficialTemplatesBySlot(prev => ({
+                ...prev,
+                [slotId]: createEmptyOfficialTemplateState()
+            }));
+            syncSlotConnectionMode(slotId, 'official_api', {
+                ...(slots.find((slot) => slot.slot_id === slotId)?.settings?.official_api || {}),
+                businessAccountId: data.businessAccountId || "",
+                phoneNumberId: data.phoneNumberId || "",
+                accessToken: "",
+                webhookVerifyToken: data.webhookVerifyToken || "",
+                status: data.status || 'draft',
+                verifiedAt: data.verifiedAt || null,
+                displayPhoneNumber: data.displayPhoneNumber || "",
+                verifiedName: data.verifiedName || "",
+                qualityRating: data.qualityRating || "",
+                nameStatus: data.nameStatus || ""
+            });
         } catch (e) {
             toast.error(t('slots.official.clear_error') || "Error limpiando WhatsApp API oficial", {
                 description: e.message
@@ -1163,6 +1923,138 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const parsed = new Date(value);
         if (Number.isNaN(parsed.getTime())) return "";
         return parsed.toLocaleString();
+    };
+
+    const completeOfficialEmbeddedSignup = async (slotId, flowSnapshot) => {
+        const loadingId = toast.loading(t('slots.official.embedded.completing') || 'Completando vinculación con Meta...');
+        setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: true }));
+        setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/embedded-signup/complete`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    authCode: flowSnapshot?.authCode || "",
+                    accessToken: flowSnapshot?.accessToken || "",
+                    businessAccountId: flowSnapshot?.businessAccountId || "",
+                    phoneNumberId: flowSnapshot?.phoneNumberId || "",
+                    businessId: flowSnapshot?.businessId || "",
+                    displayPhoneNumber: flowSnapshot?.displayPhoneNumber || ""
+                })
+            });
+            if (!res) return;
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || (t('slots.official.embedded.complete_error') || 'No se pudo completar la vinculación con Meta'));
+            }
+
+            await loadData();
+            await loadOfficialWhatsappConfig(slotId, true);
+            syncSlotConnectionMode(slotId, 'official_api', {
+                ...(slots.find((slot) => slot.slot_id === slotId)?.settings?.official_api || {}),
+                businessAccountId: data.businessAccountId || "",
+                phoneNumberId: data.phoneNumberId || "",
+                status: data.status || "verified",
+                verifiedAt: data.verifiedAt || null,
+                displayPhoneNumber: data.displayPhoneNumber || "",
+                verifiedName: data.verifiedName || "",
+                qualityRating: data.qualityRating || "",
+                nameStatus: data.nameStatus || "",
+                setupSource: data.setupSource || "embedded_signup",
+                embeddedSignupCompletedAt: data.embeddedSignupCompletedAt || null,
+                embeddedSignupBusinessId: data.embeddedSignupBusinessId || "",
+                embeddedSignupPhone: data.embeddedSignupPhone || ""
+            });
+            toast.success(t('slots.official.embedded.completed') || 'WhatsApp oficial conectado desde Meta');
+        } catch (e) {
+            toast.error(t('slots.official.embedded.complete_error') || 'Error completando la vinculación con Meta', {
+                description: e.message
+            });
+            throw e;
+        } finally {
+            toast.dismiss(loadingId);
+            setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
+            resetEmbeddedSignupFlow();
+        }
+    };
+
+    const startOfficialEmbeddedSignup = async (slotId) => {
+        const official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        const missing = Array.isArray(official.embeddedSignupMissing) ? official.embeddedSignupMissing : [];
+
+        if (!official.embeddedSignupEnabled) {
+            toast.error(t('slots.official.embedded.unavailable') || 'El Embedded Signup de Meta no está configurado en este entorno', {
+                description: missing.length > 0
+                    ? `${t('slots.official.embedded.missing') || 'Faltan'}: ${missing.join(', ')}`
+                    : undefined
+            });
+            return;
+        }
+
+        setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const fb = await ensureFacebookSdk(official);
+            resetEmbeddedSignupFlow();
+            embeddedSignupFlowRef.current.slotId = slotId;
+
+            const extras = {
+                sessionInfoVersion: Number(official.embeddedSignupSessionInfoVersion) || 3
+            };
+            if (String(official.embeddedSignupSolutionId || '').trim()) {
+                extras.setup = {
+                    solutionID: String(official.embeddedSignupSolutionId || '').trim()
+                };
+            }
+
+            fb.login((response) => {
+                const authResponse = response?.authResponse || null;
+                if (!authResponse) {
+                    setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
+                    window.setTimeout(() => {
+                        const currentFlow = embeddedSignupFlowRef.current;
+                        if (
+                            currentFlow?.slotId === slotId &&
+                            !currentFlow.completionSent &&
+                            !currentFlow.authCode &&
+                            !currentFlow.accessToken
+                        ) {
+                            toast.error(t('slots.official.embedded.cancelled') || 'El asistente de Meta fue cancelado');
+                            resetEmbeddedSignupFlow();
+                        }
+                    }, 800);
+                    return;
+                }
+
+                embeddedSignupFlowRef.current.authCode = pickFirstNonEmptyString(
+                    authResponse.code,
+                    embeddedSignupFlowRef.current.authCode
+                );
+                embeddedSignupFlowRef.current.accessToken = pickFirstNonEmptyString(
+                    authResponse.accessToken,
+                    embeddedSignupFlowRef.current.accessToken
+                );
+                setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
+
+                const flow = embeddedSignupFlowRef.current;
+                if (!flow.completionSent && flow.phoneNumberId && (flow.authCode || flow.accessToken)) {
+                    const snapshot = { ...flow };
+                    flow.completionSent = true;
+                    completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch(() => { });
+                }
+            }, {
+                config_id: official.embeddedSignupConfigurationId,
+                response_type: 'code',
+                override_default_response_type: true,
+                extras
+            });
+        } catch (e) {
+            setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
+            toast.error(t('slots.official.embedded.start_error') || 'No se pudo abrir el Embedded Signup de Meta', {
+                description: e.message
+            });
+            resetEmbeddedSignupFlow();
+        }
     };
 
     const resetSlotConnectionMode = async (slot) => {
@@ -1694,6 +2586,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const official = officialConfigBySlot[slot.slot_id] || createEmptyOfficialWhatsappState();
         const isLoadingOfficial = !!loadingOfficialBySlot[slot.slot_id];
         const isSavingOfficial = !!savingOfficialBySlot[slot.slot_id];
+        const isStartingEmbedded = !!startingOfficialEmbeddedBySlot[slot.slot_id];
+        const isCompletingEmbedded = !!completingOfficialEmbeddedBySlot[slot.slot_id];
+        const isWorkingEmbedded = isStartingEmbedded || isCompletingEmbedded;
+        const templateState = officialTemplatesBySlot[slot.slot_id] || createEmptyOfficialTemplateState();
+        const isLoadingTemplates = !!loadingOfficialTemplatesBySlot[slot.slot_id];
+        const isSendingTemplate = !!sendingOfficialTemplateBySlot[slot.slot_id];
+        const approvedTemplates = (templateState.templates || []).filter((template) => String(template.status || '').trim().toUpperCase() === 'APPROVED');
+        const selectedTemplate = (templateState.templates || []).find((template) => getOfficialTemplateKey(template) === templateState.selectedTemplateKey) || null;
+        const selectedTemplateIsApproved = !!selectedTemplate && String(selectedTemplate.status || '').trim().toUpperCase() === 'APPROVED';
+        const templateFields = selectedTemplate ? getOfficialTemplateParameterFields(selectedTemplate) : [];
+        const canSyncTemplates = Boolean(String(official.businessAccountId || '').trim() && official.hasAccessToken);
         const status = String(official.status || 'draft').toLowerCase();
         const statusClassName = status === 'verified'
             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
@@ -1705,6 +2608,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             : official.configured
                 ? (t('slots.official.pending') || 'Pendiente de validación')
                 : (t('slots.official.not_configured') || 'Sin configurar');
+
+        const embeddedMissingLabel = Array.isArray(official.embeddedSignupMissing) && official.embeddedSignupMissing.length > 0
+            ? official.embeddedSignupMissing.join(', ')
+            : '';
 
         return (
             <div className="max-w-3xl space-y-6">
@@ -1734,20 +2641,63 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         </div>
                     ) : (
                         <div className="space-y-5">
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                        {t('slots.official.business_account_id') || 'Business Account ID / WABA ID'}
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={official.businessAccountId || ""}
-                                        onChange={(e) => updateOfficialWhatsappField(slot.slot_id, "businessAccountId", e.target.value)}
-                                        placeholder={t('slots.official.ph_business_account_id') || 'Ej: 123456789012345'}
-                                        autoComplete="off"
-                                        className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
-                                    />
+                            <div className="rounded-3xl border border-emerald-200 dark:border-emerald-900/40 bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-emerald-950/30 dark:via-gray-900 dark:to-teal-950/20 p-5">
+                                <div className="flex flex-wrap items-start justify-between gap-4">
+                                    <div className="max-w-2xl">
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-600 mb-2">
+                                            {t('slots.official.embedded.eyebrow') || 'Recomendado'}
+                                        </p>
+                                        <h5 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2">
+                                            {t('slots.official.embedded.title') || 'Conectar con WhatsApp Business'}
+                                        </h5>
+                                        <p className="text-sm text-gray-600 dark:text-gray-300 leading-6">
+                                            {t('slots.official.embedded.desc') || 'Abre el flujo oficial de Meta dentro de Waflow para crear o vincular la cuenta, elegir el número y dejar el slot listo sin copiar IDs ni tokens manualmente.'}
+                                        </p>
+                                        {official.setupSource === 'embedded_signup' && official.embeddedSignupCompletedAt ? (
+                                            <p className="mt-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                                                {t('slots.official.embedded.connected_at') || 'Conectado desde Meta'}: {formatOfficialDatetime(official.embeddedSignupCompletedAt)}
+                                            </p>
+                                        ) : null}
+                                        {!official.embeddedSignupEnabled ? (
+                                            <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+                                                {embeddedMissingLabel
+                                                    ? `${t('slots.official.embedded.missing') || 'Faltan'}: ${embeddedMissingLabel}`
+                                                    : (t('slots.official.embedded.unavailable') || 'Este entorno todavía no tiene configurado el Embedded Signup de Meta.')}
+                                            </p>
+                                        ) : null}
+                                        {facebookSdkState.error ? (
+                                            <p className="mt-3 text-xs text-rose-700 dark:text-rose-300">
+                                                {facebookSdkState.error}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => startOfficialEmbeddedSignup(slot.slot_id)}
+                                        disabled={!official.embeddedSignupEnabled || isWorkingEmbedded || isSavingOfficial}
+                                        className="min-w-[240px] px-5 py-3 rounded-2xl bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed transition flex items-center justify-center gap-3 font-bold shadow-[0_18px_40px_rgba(16,185,129,0.25)]"
+                                    >
+                                        {isWorkingEmbedded ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+                                        {isCompletingEmbedded
+                                            ? (t('slots.official.embedded.completing_cta') || 'Conectando...')
+                                            : isStartingEmbedded
+                                                ? (t('slots.official.embedded.starting') || 'Abriendo Meta...')
+                                                : (t('slots.official.embedded.cta') || 'Conectar con WhatsApp Business')}
+                                    </button>
                                 </div>
+                            </div>
+
+                            <div className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/20 p-5">
+                                <div className="mb-4">
+                                    <h5 className="text-base font-bold text-gray-900 dark:text-white">
+                                        {t('slots.official.manual.title') || 'Configuración manual avanzada'}
+                                    </h5>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        {t('slots.official.manual.desc') || 'Usa esta sección solo si prefieres cargar el WABA ID, el Phone Number ID y el token manualmente o si Meta exige un ajuste puntual.'}
+                                    </p>
+                                </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                         {t('slots.official.phone_number_id') || 'Phone Number ID'}
@@ -1760,6 +2710,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         autoComplete="off"
                                         className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
                                     />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        {t('slots.official.business_account_id') || 'Business Account ID / WABA ID'}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={official.businessAccountId || ""}
+                                        onChange={(e) => updateOfficialWhatsappField(slot.slot_id, "businessAccountId", e.target.value)}
+                                        placeholder={t('slots.official.ph_business_account_id') || 'Ej: 123456789012345'}
+                                        autoComplete="off"
+                                        className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                    />
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                        {t('slots.official.waba_hint') || 'Si Meta no lo detecta automáticamente, puedes completarlo manualmente para habilitar templates y la suscripción automática de la WABA.'}
+                                    </p>
                                 </div>
                             </div>
 
@@ -1777,26 +2743,30 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 />
                             </div>
 
+                            {SHOW_OFFICIAL_WEBHOOK_DEBUG ? (
+                                <>
                             <div>
                                 <div className="flex items-center justify-between gap-3 mb-2">
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
                                         {t('slots.official.verify_token') || 'Webhook Verify Token'}
                                     </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => updateOfficialWhatsappField(slot.slot_id, "webhookVerifyToken", generateRandomSecret(32))}
-                                        className="text-xs font-bold uppercase tracking-wide text-indigo-600 hover:text-indigo-500"
-                                    >
-                                        {t('slots.official.generate_verify_token') || 'Generar token'}
-                                    </button>
+                                    {official.webhookVerifyToken ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => copyToClipboard(official.webhookVerifyToken, t('slots.official.verify_token_copied') || 'Verify token copiado')}
+                                            className="text-xs font-bold uppercase tracking-wide text-indigo-600 hover:text-indigo-500"
+                                        >
+                                            {t('slots.official.copy_verify_token') || 'Copiar'}
+                                        </button>
+                                    ) : null}
                                 </div>
                                 <input
                                     type="text"
                                     value={official.webhookVerifyToken || ""}
-                                    onChange={(e) => updateOfficialWhatsappField(slot.slot_id, "webhookVerifyToken", e.target.value)}
                                     placeholder={t('slots.official.ph_verify_token') || 'Se genera automáticamente al guardar si lo dejas vacío'}
                                     autoComplete="off"
-                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                    readOnly
+                                    className="w-full p-3 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 outline-none transition font-mono text-sm"
                                 />
                             </div>
 
@@ -1827,6 +2797,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     value={official.webhookUrl || (t('slots.official.webhook_pending') || 'Guarda la configuración para generar la URL del webhook')}
                                     className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-200 font-mono text-xs"
                                 />
+                            </div>
+                                </>
+                            ) : (
+                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200">
+                                    WaFloW configura y enruta el webhook oficial automÃ¡ticamente para este canal. El cliente no necesita copiar ni pegar nada en Meta por slot.
+                                </div>
+                            )}
+
                             </div>
 
                             {(official.verifiedName || official.displayPhoneNumber || official.qualityRating || official.lastWebhookAt) && (
@@ -1866,6 +2844,188 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </div>
                             )}
 
+                            <div className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/30 p-5 space-y-5">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <h5 className="text-base font-bold text-gray-900 dark:text-white">
+                                            {t('slots.official.templates.title') || 'Templates oficiales'}
+                                        </h5>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
+                                            {t('slots.official.templates.desc') || 'Sincroniza los templates aprobados de la WABA y envía pruebas directamente desde WaFloW.'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => loadOfficialWhatsappTemplates(slot.slot_id, true)}
+                                        disabled={!canSyncTemplates || isLoadingTemplates || isLoadingOfficial || isSavingOfficial}
+                                        className="px-4 py-2 rounded-xl bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 dark:bg-gray-950 dark:text-indigo-300 dark:border-indigo-900/40 dark:hover:bg-indigo-900/20 disabled:opacity-50 transition flex items-center gap-2"
+                                    >
+                                        <RefreshCw size={16} className={isLoadingTemplates ? "animate-spin" : ""} />
+                                        {isLoadingTemplates
+                                            ? (t('slots.official.templates.syncing') || 'Sincronizando...')
+                                            : (t('slots.official.templates.sync') || 'Sincronizar templates')}
+                                    </button>
+                                </div>
+
+                                {!official.businessAccountId ? (
+                                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                                        {t('slots.official.templates.missing_waba') || 'Completa el WABA ID antes de usar templates.'}
+                                    </div>
+                                ) : !official.hasAccessToken ? (
+                                    <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-200">
+                                        {t('slots.official.templates.needs_saved_token') || 'Guarda o valida primero la configuración oficial para poder sincronizar templates desde Meta.'}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950/50 overflow-hidden">
+                                            <div className="grid grid-cols-[minmax(0,1.5fr)_110px_120px_110px] gap-3 px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                                                <span>{t('slots.official.templates.name') || 'Template'}</span>
+                                                <span>{t('slots.official.templates.language') || 'Idioma'}</span>
+                                                <span>{t('slots.official.templates.category') || 'Categoría'}</span>
+                                                <span>{t('slots.official.templates.status') || 'Estado'}</span>
+                                            </div>
+                                            {(templateState.templates || []).length > 0 ? (
+                                                <div className="max-h-64 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                                                    {(templateState.templates || []).map((template) => {
+                                                        const templateKey = getOfficialTemplateKey(template);
+                                                        const isApproved = String(template.status || '').trim().toUpperCase() === 'APPROVED';
+                                                        return (
+                                                            <div
+                                                                key={templateKey}
+                                                                className={`grid grid-cols-[minmax(0,1.5fr)_110px_120px_110px] gap-3 px-4 py-3 text-sm ${templateState.selectedTemplateKey === templateKey ? 'bg-indigo-50/70 dark:bg-indigo-900/10' : 'bg-transparent'}`}
+                                                            >
+                                                                <div className="min-w-0">
+                                                                    <p className="font-semibold text-gray-900 dark:text-white truncate">{template.name}</p>
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                                        {Array.isArray(template.components) ? template.components.length : 0} {t('slots.official.templates.components_count') || 'componentes'}
+                                                                    </p>
+                                                                </div>
+                                                                <span className="text-gray-700 dark:text-gray-200 font-mono text-xs self-center">{template.language || '-'}</span>
+                                                                <span className="text-gray-700 dark:text-gray-200 text-xs self-center">{template.category || '-'}</span>
+                                                                <span className={`text-xs font-bold self-center ${isApproved ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+                                                                    {template.status || '-'}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <div className="px-4 py-5 text-sm text-gray-500 dark:text-gray-400">
+                                                    {t('slots.official.templates.empty') || 'No se encontraron templates en esta WABA todavía.'}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {t('slots.official.templates.manage_hint') || 'WaFloW sincroniza y envía templates. La creación o edición avanzada sigue haciéndose en Meta.'}
+                                        </p>
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('slots.official.templates.target_phone') || 'Número destino'}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={templateState.targetPhone || ""}
+                                                    onChange={(e) => updateOfficialTemplateField(slot.slot_id, "targetPhone", e.target.value)}
+                                                    placeholder={t('slots.official.templates.ph_target_phone') || 'Ej: 595981234567'}
+                                                    autoComplete="off"
+                                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('slots.official.templates.select_template') || 'Template aprobado'}
+                                                </label>
+                                                <select
+                                                    value={templateState.selectedTemplateKey || ""}
+                                                    onChange={(e) => updateOfficialTemplateField(slot.slot_id, "selectedTemplateKey", e.target.value)}
+                                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
+                                                    disabled={approvedTemplates.length === 0}
+                                                >
+                                                    <option value="">{t('slots.official.templates.select_template_placeholder') || 'Selecciona un template aprobado'}</option>
+                                                    {approvedTemplates.map((template) => (
+                                                        <option key={getOfficialTemplateKey(template)} value={getOfficialTemplateKey(template)}>
+                                                            {template.name} · {template.language}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {approvedTemplates.length === 0 ? (
+                                                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">
+                                                        {t('slots.official.templates.no_approved') || 'Todavía no hay templates aprobados disponibles para enviar.'}
+                                                    </p>
+                                                ) : selectedTemplate && !selectedTemplateIsApproved ? (
+                                                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">
+                                                        {t('slots.official.templates.not_approved') || 'El template seleccionado no está aprobado'}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                        </div>
+
+                                        {selectedTemplate ? (
+                                            <div className="space-y-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950/50 p-4">
+                                                {templateFields.length > 0 ? (
+                                                    <div className="grid gap-3 md:grid-cols-2">
+                                                        {templateFields.map((field) => (
+                                                            <div key={field.key}>
+                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                                    {field.label}
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={templateState.parameterValues?.[field.key] || ""}
+                                                                    onChange={(e) => updateOfficialTemplateParameter(slot.slot_id, field.key, e.target.value)}
+                                                                    autoComplete="off"
+                                                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                                                        {t('slots.official.templates.no_params') || 'Este template no requiere variables dinámicas comunes. Puedes enviarlo directo o usar el JSON avanzado si necesitas un payload especial.'}
+                                                    </div>
+                                                )}
+
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                        {t('slots.official.templates.advanced_json') || 'Components JSON avanzado'}
+                                                    </label>
+                                                    <textarea
+                                                        rows={4}
+                                                        value={templateState.componentsJson || ""}
+                                                        onChange={(e) => updateOfficialTemplateField(slot.slot_id, "componentsJson", e.target.value)}
+                                                        placeholder='[{"type":"body","parameters":[{"type":"text","text":"valor"}]}]'
+                                                        className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-xs"
+                                                    />
+                                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                        {t('slots.official.templates.advanced_json_hint') || 'Si completas este JSON, WaFloW lo enviará tal cual y omitirá las variables simples del formulario.'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ) : null}
+
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => sendOfficialTemplateTest(slot.slot_id)}
+                                                disabled={isSendingTemplate || isLoadingTemplates || !selectedTemplateIsApproved || !String(templateState.targetPhone || '').trim()}
+                                                className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                            >
+                                                {isSendingTemplate ? <Loader2 className="animate-spin" size={16} /> : <MessageSquare size={16} />}
+                                                {t('slots.official.templates.send') || 'Enviar template de prueba'}
+                                            </button>
+                                            {templateState.fetchedAt ? (
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {t('slots.official.templates.last_sync') || 'Última sincronización'}: {formatOfficialDatetime(templateState.fetchedAt)}
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
                             {official.lastValidationError ? (
                                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
                                     <span className="font-bold mr-2">{t('slots.official.validation_error') || 'Último error'}:</span>
@@ -1877,7 +3037,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 <button
                                     type="button"
                                     onClick={() => validateOfficialWhatsappConfigSlot(slot.slot_id)}
-                                    disabled={isLoadingOfficial || isSavingOfficial}
+                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
                                     className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition flex items-center gap-2"
                                 >
                                     <CheckCircle2 size={16} />
@@ -1886,7 +3046,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 <button
                                     type="button"
                                     onClick={() => saveOfficialWhatsappConfig(slot.slot_id)}
-                                    disabled={isLoadingOfficial || isSavingOfficial}
+                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
                                     className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
                                 >
                                     {isSavingOfficial ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
@@ -1894,8 +3054,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => clearOfficialWhatsappConfig(slot.slot_id)}
-                                    disabled={isLoadingOfficial || isSavingOfficial}
+                                    onClick={() => clearOfficialWhatsappConfigKeepMode(slot.slot_id)}
+                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
                                     className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
                                 >
                                     {t('slots.official.clear') || 'Limpiar'}
@@ -1903,7 +3063,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 <button
                                     type="button"
                                     onClick={() => loadOfficialWhatsappConfig(slot.slot_id, true)}
-                                    disabled={isLoadingOfficial || isSavingOfficial}
+                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
                                     className="px-3 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
                                     title={t('slots.official.reload') || 'Recargar configuración'}
                                 >
@@ -2078,7 +3238,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         <div className="flex flex-col md:flex-row md:items-center gap-4">
                             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
                                 <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-[0.18em] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                                    {isGhlMode ? "GOHIGHLEVEL" : "CHATWOOT"}
+                                    {isGhlMode ? "GOHIGHLEVEL" : managedInboxBrandName.toUpperCase()}
                                 </span>
                                 {isGhlMode && (
                                     <>
@@ -2176,14 +3336,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         <div className="space-y-6">
                             {slots.map(slot => {
                                 const isExpanded = expandedSlotId === slot.slot_id;
-                                const isConnected = slot.is_connected === true;
-                                const connectedPhone = isConnected ? (slot.phone_number || "") : "";
-                                const currentPrio = slot.priority || 99;
-                                const settings = slot.settings || {};
+                                const slotSettings = slot.settings || {};
+                                const officialSlotSettings = (slotSettings.official_api && typeof slotSettings.official_api === 'object')
+                                    ? slotSettings.official_api
+                                    : {};
                                 const connectionMode = getEffectiveSlotConnectionMode(slot);
+                                const isOfficialSlotMode = connectionMode === 'official_api';
+                                const officialStatus = String(officialSlotSettings.status || '').trim().toLowerCase();
+                                const isOfficialConnected = isOfficialSlotMode && ['verified', 'active', 'connected'].includes(officialStatus);
+                                const isConnected = isOfficialSlotMode ? isOfficialConnected : slot.is_connected === true;
+                                const connectedPhone = isOfficialSlotMode
+                                    ? String(officialSlotSettings.displayPhoneNumber || slot.phone_number || '').trim()
+                                    : (isConnected ? (slot.phone_number || "") : "");
+                                const currentPrio = slot.priority || 99;
+                                const settings = slotSettings;
                                 const slotHealth = slot.health || {};
                                 const slotSent24h = Number(slotHealth.sent_24h || 0);
-                                const isOfficialSlotMode = connectionMode === 'official_api';
                                 const slotHeaderModeLabel = isOfficialSlotMode
                                     ? (t('slots.card.official_mode') || 'Meta API')
                                     : (isExpanded ? t('slots.card.managing') : t('slots.card.manage'));
@@ -2208,7 +3376,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                     <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
                                                                 </button>
                                                             )}
-                                                            {OFFICIAL_WHATSAPP_API_UI_ENABLED && connectionMode && (
+                                                            {SLOT_CONNECTION_MODE_CHANGE_ENABLED && OFFICIAL_WHATSAPP_API_UI_ENABLED && connectionMode && (
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
@@ -2232,6 +3400,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1 flex items-center gap-2">
                                                         {isConnected && connectedPhone
                                                             ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{connectedPhone}</span>
+                                                            : isOfficialSlotMode && officialStatus && officialStatus !== 'draft'
+                                                                ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">{t('slots.card.official_verified') || 'Meta API validada'}</span>
                                                             : t('slots.card.disconnected')}
                                                         {isGhlMode && !isOfficialSlotMode && (
                                                             <>
@@ -3462,6 +4632,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
     const [accountSuspensionState, setAccountSuspensionState] = useState(null);
     const [slotSuspendedBy, setSlotSuspendedBy] = useState(slot?.suspended_by || null);
     const [slotLockMessage, setSlotLockMessage] = useState(null);
+    const [qrExpired, setQrExpired] = useState(false);
     const [shareUrl, setShareUrl] = useState("");
     const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
     const pollInterval = useRef(null);
@@ -3512,13 +4683,6 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         }
     };
 
-    const isFreshQrTimestamp = (rawTimestamp) => {
-        if (!rawTimestamp) return false;
-        const parsed = new Date(rawTimestamp).getTime();
-        if (!Number.isFinite(parsed)) return true;
-        return (Date.now() - parsed) <= 25000;
-    };
-
     const applyAccessError = (accessError) => {
         if (!accessError) return false;
 
@@ -3534,6 +4698,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         setLoading(false);
         setQr(null);
         setQrUpdatedAt(null);
+        setQrExpired(false);
         stopPolling();
         return true;
     };
@@ -3570,6 +4735,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
     useEffect(() => {
         setShareUrl("");
         setIsGeneratingShareUrl(false);
+        setQrExpired(false);
     }, [locationId, slot?.slot_id]);
 
     useEffect(() => {
@@ -3592,6 +4758,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         if (nextConnected) {
             setQr(null);
             setQrUpdatedAt(null);
+            setQrExpired(false);
             setLoading(false);
             stopPolling();
         }
@@ -3604,6 +4771,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         }
 
         setLoading(true);
+        setQrExpired(false);
         setQr(null);
         setQrUpdatedAt(null);
         try {
@@ -3615,6 +4783,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
 
             setAccountSuspensionState(null);
             stopPolling();
+            let sawFreshQr = false;
 
             const pollStep = async () => {
                 try {
@@ -3625,11 +4794,18 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                     if (qrRes.ok) {
                         const data = await qrRes.json();
                         const nextQrUpdatedAt = data.qrUpdatedAt || null;
-                        const nextQr = data.qr && isFreshQrTimestamp(nextQrUpdatedAt)
-                            ? data.qr
-                            : null;
+                        const nextQr = data.qr || null;
+                        const stillWaitingForQr = data.waitingForQr === true;
                         setQrUpdatedAt(nextQrUpdatedAt);
                         setQr(nextQr);
+                        if (nextQr) {
+                            sawFreshQr = true;
+                        } else if (!data.connected && sawFreshQr && !stillWaitingForQr) {
+                            setLoading(false);
+                            setQrExpired(true);
+                            stopPolling();
+                            return;
+                        }
                         if (data.connected) {
                             checkStatus();
                             return; // Stop polling, checkStatus will clear the rest
@@ -3677,6 +4853,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setSlotLockMessage(newLock === 'admin'
                 ? 'Pausado por administracion. Solo admin puede reactivar.'
                 : 'Pausado por ti. Puedes reconectar sin escanear QR.');
+            setQrExpired(false);
             setQr(null);
             setQrUpdatedAt(null);
             stopPolling();
@@ -3713,6 +4890,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setSlotSuspendedBy(null);
             setSlotLockMessage(null);
             setAccountSuspensionState(null);
+            setQrExpired(false);
             setQr(null);
             setQrUpdatedAt(null);
             toast.success('Reconectando...');
@@ -3758,6 +4936,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setStatus({ connected: false, myNumber: null });
             setSlotSuspendedBy(null);
             setSlotLockMessage(null);
+            setQrExpired(false);
             setQr(null);
             setQrUpdatedAt(null);
             stopPolling();
@@ -3787,7 +4966,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             try {
                 await navigator.clipboard.writeText(data.shareUrl);
                 toast.success(t('slots.share.link_ready') || 'URL QR generada', {
-                    description: t('slots.share.link_ready_slot_desc') || 'Tu cliente podrá abrirla y el QR de este slot se generará automáticamente.'
+                    description: t('slots.share.link_ready_slot_desc') || 'Tu cliente podrá abrirla y generar manualmente el QR de este slot cuando lo necesite.'
                 });
             } catch (_) {
                 toast.success(t('slots.share.link_ready') || 'URL QR generada', {
@@ -3911,18 +5090,25 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             ) : (
                 <div className="w-full flex flex-col items-center">
                     {!qr && !loading && !accountSuspensionState && (
-                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                            <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
-                                <QrCode size={20} /> Generar Codigo QR
-                            </button>
-                            <button
-                                onClick={handleGenerateShareUrl}
-                                disabled={isGeneratingShareUrl}
-                                className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 disabled:opacity-60"
-                            >
-                                {isGeneratingShareUrl ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
-                                {t('slots.share.generate_link') || "Generar URL QR"}
-                            </button>
+                        <div className="flex flex-col items-center gap-3">
+                            {qrExpired && (
+                                <p className="text-sm text-amber-700 dark:text-amber-300 text-center">
+                                    El QR expiro. Pulsa de nuevo para generar uno nuevo.
+                                </p>
+                            )}
+                            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
+                                    <QrCode size={20} /> Generar Codigo QR
+                                </button>
+                                <button
+                                    onClick={handleGenerateShareUrl}
+                                    disabled={isGeneratingShareUrl}
+                                    className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 disabled:opacity-60"
+                                >
+                                    {isGeneratingShareUrl ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+                                    {t('slots.share.generate_link') || "Generar URL QR"}
+                                </button>
+                            </div>
                         </div>
                     )}
 
