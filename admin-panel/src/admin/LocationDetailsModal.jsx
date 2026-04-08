@@ -4683,13 +4683,6 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         }
     };
 
-    const isFreshQrTimestamp = (rawTimestamp) => {
-        if (!rawTimestamp) return false;
-        const parsed = new Date(rawTimestamp).getTime();
-        if (!Number.isFinite(parsed)) return true;
-        return (Date.now() - parsed) <= 25000;
-    };
-
     const applyAccessError = (accessError) => {
         if (!accessError) return false;
 
@@ -4801,14 +4794,13 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                     if (qrRes.ok) {
                         const data = await qrRes.json();
                         const nextQrUpdatedAt = data.qrUpdatedAt || null;
-                        const nextQr = data.qr && isFreshQrTimestamp(nextQrUpdatedAt)
-                            ? data.qr
-                            : null;
+                        const nextQr = data.qr || null;
+                        const stillWaitingForQr = data.waitingForQr === true;
                         setQrUpdatedAt(nextQrUpdatedAt);
                         setQr(nextQr);
                         if (nextQr) {
                             sawFreshQr = true;
-                        } else if (!data.connected && sawFreshQr) {
+                        } else if (!data.connected && sawFreshQr && !stillWaitingForQr) {
                             setLoading(false);
                             setQrExpired(true);
                             stopPolling();
