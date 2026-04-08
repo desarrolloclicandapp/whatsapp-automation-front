@@ -4632,6 +4632,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
     const [accountSuspensionState, setAccountSuspensionState] = useState(null);
     const [slotSuspendedBy, setSlotSuspendedBy] = useState(slot?.suspended_by || null);
     const [slotLockMessage, setSlotLockMessage] = useState(null);
+    const [qrExpired, setQrExpired] = useState(false);
     const [shareUrl, setShareUrl] = useState("");
     const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
     const pollInterval = useRef(null);
@@ -4704,6 +4705,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         setLoading(false);
         setQr(null);
         setQrUpdatedAt(null);
+        setQrExpired(false);
         stopPolling();
         return true;
     };
@@ -4740,6 +4742,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
     useEffect(() => {
         setShareUrl("");
         setIsGeneratingShareUrl(false);
+        setQrExpired(false);
     }, [locationId, slot?.slot_id]);
 
     useEffect(() => {
@@ -4762,6 +4765,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         if (nextConnected) {
             setQr(null);
             setQrUpdatedAt(null);
+            setQrExpired(false);
             setLoading(false);
             stopPolling();
         }
@@ -4774,6 +4778,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         }
 
         setLoading(true);
+        setQrExpired(false);
         setQr(null);
         setQrUpdatedAt(null);
         try {
@@ -4785,6 +4790,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
 
             setAccountSuspensionState(null);
             stopPolling();
+            let sawFreshQr = false;
 
             const pollStep = async () => {
                 try {
@@ -4800,6 +4806,14 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                             : null;
                         setQrUpdatedAt(nextQrUpdatedAt);
                         setQr(nextQr);
+                        if (nextQr) {
+                            sawFreshQr = true;
+                        } else if (!data.connected && sawFreshQr) {
+                            setLoading(false);
+                            setQrExpired(true);
+                            stopPolling();
+                            return;
+                        }
                         if (data.connected) {
                             checkStatus();
                             return; // Stop polling, checkStatus will clear the rest
@@ -4847,6 +4861,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setSlotLockMessage(newLock === 'admin'
                 ? 'Pausado por administracion. Solo admin puede reactivar.'
                 : 'Pausado por ti. Puedes reconectar sin escanear QR.');
+            setQrExpired(false);
             setQr(null);
             setQrUpdatedAt(null);
             stopPolling();
@@ -4883,6 +4898,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setSlotSuspendedBy(null);
             setSlotLockMessage(null);
             setAccountSuspensionState(null);
+            setQrExpired(false);
             setQr(null);
             setQrUpdatedAt(null);
             toast.success('Reconectando...');
@@ -4928,6 +4944,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setStatus({ connected: false, myNumber: null });
             setSlotSuspendedBy(null);
             setSlotLockMessage(null);
+            setQrExpired(false);
             setQr(null);
             setQrUpdatedAt(null);
             stopPolling();
@@ -4957,7 +4974,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             try {
                 await navigator.clipboard.writeText(data.shareUrl);
                 toast.success(t('slots.share.link_ready') || 'URL QR generada', {
-                    description: t('slots.share.link_ready_slot_desc') || 'Tu cliente podrá abrirla y el QR de este slot se generará automáticamente.'
+                    description: t('slots.share.link_ready_slot_desc') || 'Tu cliente podrá abrirla y generar manualmente el QR de este slot cuando lo necesite.'
                 });
             } catch (_) {
                 toast.success(t('slots.share.link_ready') || 'URL QR generada', {
@@ -5081,18 +5098,25 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             ) : (
                 <div className="w-full flex flex-col items-center">
                     {!qr && !loading && !accountSuspensionState && (
-                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                            <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
-                                <QrCode size={20} /> Generar Codigo QR
-                            </button>
-                            <button
-                                onClick={handleGenerateShareUrl}
-                                disabled={isGeneratingShareUrl}
-                                className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 disabled:opacity-60"
-                            >
-                                {isGeneratingShareUrl ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
-                                {t('slots.share.generate_link') || "Generar URL QR"}
-                            </button>
+                        <div className="flex flex-col items-center gap-3">
+                            {qrExpired && (
+                                <p className="text-sm text-amber-700 dark:text-amber-300 text-center">
+                                    El QR expiro. Pulsa de nuevo para generar uno nuevo.
+                                </p>
+                            )}
+                            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
+                                    <QrCode size={20} /> Generar Codigo QR
+                                </button>
+                                <button
+                                    onClick={handleGenerateShareUrl}
+                                    disabled={isGeneratingShareUrl}
+                                    className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 disabled:opacity-60"
+                                >
+                                    {isGeneratingShareUrl ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+                                    {t('slots.share.generate_link') || "Generar URL QR"}
+                                </button>
+                            </div>
                         </div>
                     )}
 

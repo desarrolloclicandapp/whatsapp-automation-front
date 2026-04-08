@@ -408,7 +408,7 @@ export const en = {
     "slots.share.copied": "QR URL copied",
     "slots.share.link_ready": "QR URL generated",
     "slots.share.link_ready_desc": "Your client can open it and generate the QR codes for this location.",
-    "slots.share.link_ready_slot_desc": "Your client can open it and the QR for this slot will start automatically.",
+    "slots.share.link_ready_slot_desc": "Your client can open it and manually generate the QR for this slot whenever needed.",
     "slots.share.copy_hint": "Copy the URL from the field to share it with your client.",
     "slots.share.no_slots": "Add at least one slot before generating the link",
     "slots.share.error": "Could not generate the QR link",
