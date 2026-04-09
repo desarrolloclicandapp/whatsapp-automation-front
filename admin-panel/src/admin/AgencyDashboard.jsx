@@ -2307,6 +2307,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             const connectedSlotCount = Number(entry.connected_slot_count ?? linkedLocation?.connected_slot_count) || 0;
             const totalSlots = Number(linkedLocation?.total_slots) || connectedSlotCount;
             const metaRiskLevel = String(entry.meta_risk_level || 'healthy').toLowerCase();
+            const numberQualityLevel = String(entry.number_quality_level || 'unknown').toLowerCase();
             const replyStrikes = Number(entry.reply_strikes) || 0;
             const operationalState = (metaRiskLevel === 'critical' || metaRiskLevel === 'high')
                 ? 'review'
@@ -2318,20 +2319,24 @@ export default function AgencyDashboard({ token, onLogout }) {
                 : (operationalState === 'watch'
                     ? translateOr(t, 'agency.reliability.ban_risk_medium', 'Medio')
                     : translateOr(t, 'agency.reliability.ban_risk_low', 'Bajo'));
-            const qualityLabel = metaRiskLevel === 'critical'
-                ? translateOr(t, 'agency.reliability.quality_critical', 'Revisión preferente')
-                : (metaRiskLevel === 'high'
-                    ? translateOr(t, 'agency.reliability.quality_high', 'Revisar hoy')
-                    : (metaRiskLevel === 'attention'
-                        ? translateOr(t, 'agency.reliability.quality_attention', 'Seguimiento')
-                        : (metaRiskLevel === 'info'
-                            ? translateOr(t, 'agency.reliability.quality_info', 'En observación')
-                            : translateOr(t, 'agency.reliability.quality_healthy', 'Estable'))));
-            const suggestedAction = operationalState === 'review'
+            const qualityLabel = numberQualityLevel === 'delicate'
+                ? translateOr(t, 'agency.reliability.number_quality_delicate', 'Delicada')
+                : (numberQualityLevel === 'sensitive'
+                    ? translateOr(t, 'agency.reliability.number_quality_sensitive', 'Sensible')
+                    : (numberQualityLevel === 'care'
+                        ? translateOr(t, 'agency.reliability.number_quality_care', 'A cuidar')
+                        : (numberQualityLevel === 'good'
+                            ? translateOr(t, 'agency.reliability.number_quality_good', 'Buena')
+                            : translateOr(t, 'agency.reliability.number_quality_unknown', 'Aun sin historial'))));
+            const suggestedAction = (operationalState === 'review' || numberQualityLevel === 'delicate')
                 ? translateOr(t, 'agency.reliability.action_review', 'Baja la cantidad de mensajes y evita insistir a clientes que no responden para no parecer spam.')
-                : (operationalState === 'watch'
-                    ? translateOr(t, 'agency.reliability.action_watch', 'Trata de mandar menos mensajes seguidos y enfócate más en clientes que sí responden.')
-                    : translateOr(t, 'agency.reliability.action_stable', 'Puedes seguir igual, pero evita mandar muchos mensajes seguidos al mismo cliente.'));
+                : ((operationalState === 'watch' || numberQualityLevel === 'sensitive')
+                    ? translateOr(t, 'agency.reliability.action_watch', 'Trata de mandar menos mensajes seguidos y enfocate mas en clientes que si responden.')
+                    : (numberQualityLevel === 'care'
+                        ? translateOr(t, 'agency.reliability.action_care', 'Mantene un ritmo moderado y evita repetir el mismo mensaje a muchos clientes seguidos.')
+                        : (numberQualityLevel === 'unknown'
+                            ? translateOr(t, 'agency.reliability.action_unknown', 'Todavia no hay suficiente historial. Conviene empezar con poco volumen y revisar la respuesta.')
+                            : translateOr(t, 'agency.reliability.action_stable', 'Puedes seguir igual, pero evita mandar muchos mensajes seguidos al mismo cliente.'))));
 
             return {
                 locationId: String(entry.location_id || ''),
@@ -2343,7 +2348,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                 unansweredCount,
                 connectedSlotCount,
                 totalSlots,
-                replyStrikes,
                 metaRiskLevel,
                 operationalState,
                 operationalStateLabel,
@@ -3226,13 +3230,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     sent: t('agency.reliability.table_sent') || 'Enviados',
                                                     replies: t('agency.reliability.table_no_replies') || 'No respondieron',
                                                     slots: t('agency.reliability.table_slots') || 'Slots',
-                                                    quality: t('agency.reliability.table_quality') || 'Calidad',
-                                                    action: t('agency.reliability.table_action') || 'Acción'
+                                                    quality: t('agency.reliability.table_quality') || 'Calidad del numero',
+                                                    action: t('agency.reliability.table_action') || 'Accion'
                                                 }}
                                                 noSampleText={t('agency.reliability.no_sample_short') || 'Sin muestra'}
-                                                ofContactedText={t('agency.reliability.table_of_contacted') || 'de clientes contactados'}
-                                                strikeText={t('agency.reliability.reply_strike') || 'strike'}
-                                                strikesText={t('agency.reliability.reply_strikes') || 'strikes'}
                                             />
                                         </div>
                                     </div>
@@ -4546,10 +4547,7 @@ const ReliabilityAccountsTable = ({
     previousText,
     nextText,
     columns,
-    noSampleText,
-    ofContactedText,
-    strikeText,
-    strikesText
+    noSampleText
 }) => {
     if (!Array.isArray(data) || data.length === 0) {
         return (
@@ -4610,9 +4608,6 @@ const ReliabilityAccountsTable = ({
                                             <p className="font-semibold text-gray-900 dark:text-white">
                                                 {replySample ? item.unansweredCount : noSampleText}
                                             </p>
-                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                {replySample ? `${item.contactedCount} ${ofContactedText}` : ''}
-                                            </p>
                                         </div>
                                     </td>
                                     <td className="px-4 py-4 align-top">
@@ -4620,11 +4615,6 @@ const ReliabilityAccountsTable = ({
                                     </td>
                                     <td className="px-4 py-4 align-top">
                                         <p className="font-semibold text-gray-900 dark:text-white">{item.qualityLabel}</p>
-                                        {item.replyStrikes > 0 && (
-                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                {item.replyStrikes} {item.replyStrikes === 1 ? strikeText : strikesText}
-                                            </p>
-                                        )}
                                     </td>
                                     <td className="px-4 py-4 align-top">
                                         <p className="text-sm text-gray-600 dark:text-gray-300">{item.suggestedAction}</p>
