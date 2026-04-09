@@ -3231,7 +3231,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     replies: t('agency.reliability.table_no_replies') || 'No respondieron',
                                                     slots: t('agency.reliability.table_slots') || 'Slots',
                                                     quality: t('agency.reliability.table_quality') || 'Calidad del numero',
-                                                    action: t('agency.reliability.table_action') || 'Accion'
+                                                    action: t('agency.reliability.table_action') || 'Recomendacion'
                                                 }}
                                                 noSampleText={t('agency.reliability.no_sample_short') || 'Sin muestra'}
                                             />

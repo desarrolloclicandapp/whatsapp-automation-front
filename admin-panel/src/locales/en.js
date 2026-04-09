@@ -1161,7 +1161,7 @@ export const en = {
     "agency.reliability.table_of_contacted": "of contacted clients",
     "agency.reliability.table_slots": "Slots",
     "agency.reliability.table_quality": "Number quality",
-    "agency.reliability.table_action": "Action",
+    "agency.reliability.table_action": "Recommendation",
     "agency.reliability.no_sample_short": "No sample",
     "agency.reliability.ban_risk_low": "Low",
     "agency.reliability.ban_risk_medium": "Medium",

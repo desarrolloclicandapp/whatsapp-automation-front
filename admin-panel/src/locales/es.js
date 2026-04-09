@@ -1162,7 +1162,7 @@ export const es = {
     "agency.reliability.table_of_contacted": "de clientes contactados",
     "agency.reliability.table_slots": "Slots",
     "agency.reliability.table_quality": "Calidad del numero",
-    "agency.reliability.table_action": "Accion",
+    "agency.reliability.table_action": "Recomendacion",
     "agency.reliability.no_sample_short": "Sin muestra",
     "agency.reliability.ban_risk_low": "Bajo",
     "agency.reliability.ban_risk_medium": "Medio",
