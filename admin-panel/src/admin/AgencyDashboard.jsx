@@ -2343,7 +2343,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 name: entry.location_name || t('agency.location.no_name'),
                 channelLabel: productMeta.label,
                 channelBadgeClassName: productMeta.badgeClassName,
-                sent: Number(entry.sent) || 0,
+                sent: contactedCount,
                 contactedCount,
                 unansweredCount,
                 connectedSlotCount,
