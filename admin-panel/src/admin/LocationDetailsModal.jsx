@@ -16,6 +16,36 @@ function translateOr(t, key, fallback) {
     return translated;
 }
 
+function getNumberQualityTone(level = '') {
+    switch (String(level || '').toLowerCase()) {
+        case 'delicate':
+            return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-200 dark:border-amber-800';
+        case 'sensitive':
+            return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/20 dark:text-sky-200 dark:border-sky-800';
+        case 'care':
+            return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-200 dark:border-indigo-800';
+        case 'unknown':
+            return 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-300 dark:border-slate-700';
+        default:
+            return 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800';
+    }
+}
+
+function getNumberQualityLabel(level = '', t) {
+    switch (String(level || '').toLowerCase()) {
+        case 'delicate':
+            return translateOr(t, 'agency.reliability.number_quality_delicate', 'Delicada');
+        case 'sensitive':
+            return translateOr(t, 'agency.reliability.number_quality_sensitive', 'Sensible');
+        case 'care':
+            return translateOr(t, 'agency.reliability.number_quality_care', 'A cuidar');
+        case 'good':
+            return translateOr(t, 'agency.reliability.number_quality_good', 'Buena');
+        default:
+            return translateOr(t, 'agency.reliability.number_quality_unknown', 'Aun sin historial');
+    }
+}
+
 export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange, isAdminMode = false }) {
     const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
@@ -3352,6 +3382,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const settings = slotSettings;
                                 const slotHealth = slot.health || {};
                                 const slotSent24h = Number(slotHealth.sent_24h || 0);
+                                const slotNumberQualityLevel = String(slotHealth.number_quality_level || 'unknown').toLowerCase();
+                                const slotNumberQualityLabel = getNumberQualityLabel(slotNumberQualityLevel, t);
                                 const slotHeaderModeLabel = isOfficialSlotMode
                                     ? (t('slots.card.official_mode') || 'Meta API')
                                     : (isExpanded ? t('slots.card.managing') : t('slots.card.manage'));
@@ -3413,6 +3445,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     <div className="flex flex-wrap items-center gap-2 mt-2">
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
                                                             {(t('agency.reliability.sent_24h') || 'Enviados 24h')}: {slotSent24h}
+                                                        </span>
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${getNumberQualityTone(slotNumberQualityLevel)}`}>
+                                                            {(t('agency.reliability.slot_quality') || 'Calidad')}: {slotNumberQualityLabel}
                                                         </span>
                                                     </div>
                                                 </div>
