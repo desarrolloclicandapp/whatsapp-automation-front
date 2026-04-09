@@ -2303,9 +2303,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     badgeClassName: "bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700"
                 };
             const contactedCount = Number(entry.contacted_contacts_24h ?? entry.inbound_24h) || 0;
-            const engagedCount = Number(entry.engaged_contacts_24h ?? entry.answered_inbound_24h) || 0;
             const unansweredCount = Number(entry.unanswered_contacts_24h ?? entry.unanswered_inbound_24h) || 0;
-            const replyRate = toFiniteMetric(entry.reply_rate_24h, 100);
             const connectedSlotCount = Number(entry.connected_slot_count ?? linkedLocation?.connected_slot_count) || 0;
             const totalSlots = Number(linkedLocation?.total_slots) || connectedSlotCount;
             const metaRiskLevel = String(entry.meta_risk_level || 'healthy').toLowerCase();
@@ -2316,10 +2314,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                     ? 'watch'
                     : 'healthy');
             const operationalStateLabel = operationalState === 'review'
-                ? translateOr(t, 'agency.reliability.state_review', 'Revisar')
+                ? translateOr(t, 'agency.reliability.ban_risk_high', 'Alto')
                 : (operationalState === 'watch'
-                    ? translateOr(t, 'agency.reliability.state_watch', 'Seguimiento')
-                    : translateOr(t, 'agency.reliability.state_stable', 'Estable'));
+                    ? translateOr(t, 'agency.reliability.ban_risk_medium', 'Medio')
+                    : translateOr(t, 'agency.reliability.ban_risk_low', 'Bajo'));
             const qualityLabel = metaRiskLevel === 'critical'
                 ? translateOr(t, 'agency.reliability.quality_critical', 'Revisión preferente')
                 : (metaRiskLevel === 'high'
@@ -2329,13 +2327,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                         : (metaRiskLevel === 'info'
                             ? translateOr(t, 'agency.reliability.quality_info', 'En observación')
                             : translateOr(t, 'agency.reliability.quality_healthy', 'Estable'))));
-            const suggestedAction = String(entry.meta_risk_recommended_action || '').trim() || (
-                operationalState === 'review'
-                    ? translateOr(t, 'agency.reliability.action_review', 'Conviene revisar cadencia, copy y seguimiento antes de subir el volumen.')
-                    : (operationalState === 'watch'
-                        ? translateOr(t, 'agency.reliability.action_watch', 'Mantén seguimiento suave y revisa si las respuestas siguen entrando con normalidad.')
-                        : translateOr(t, 'agency.reliability.action_stable', 'Sin acciones urgentes por ahora.'))
-            );
+            const suggestedAction = operationalState === 'review'
+                ? translateOr(t, 'agency.reliability.action_review', 'Baja la cantidad de mensajes y evita insistir a clientes que no responden para no parecer spam.')
+                : (operationalState === 'watch'
+                    ? translateOr(t, 'agency.reliability.action_watch', 'Trata de mandar menos mensajes seguidos y enfócate más en clientes que sí responden.')
+                    : translateOr(t, 'agency.reliability.action_stable', 'Puedes seguir igual, pero evita mandar muchos mensajes seguidos al mismo cliente.'));
 
             return {
                 locationId: String(entry.location_id || ''),
@@ -2343,9 +2339,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 channelLabel: productMeta.label,
                 channelBadgeClassName: productMeta.badgeClassName,
                 sent: Number(entry.sent) || 0,
-                replyRate,
                 contactedCount,
-                engagedCount,
                 unansweredCount,
                 connectedSlotCount,
                 totalSlots,
@@ -3228,15 +3222,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 columns={{
                                                     account: t('agency.reliability.table_account') || 'Cuenta',
                                                     channel: t('agency.reliability.table_channel') || 'Canal',
-                                                    state: t('agency.reliability.table_state') || 'Estado',
+                                                    state: t('agency.reliability.table_state') || 'Posible baneo',
                                                     sent: t('agency.reliability.table_sent') || 'Enviados',
-                                                    replies: t('agency.reliability.table_replies') || 'Respondieron',
-                                                    pending: t('agency.reliability.table_pending') || 'Pendientes',
+                                                    replies: t('agency.reliability.table_no_replies') || 'No respondieron',
                                                     slots: t('agency.reliability.table_slots') || 'Slots',
                                                     quality: t('agency.reliability.table_quality') || 'Calidad',
                                                     action: t('agency.reliability.table_action') || 'Acción'
                                                 }}
                                                 noSampleText={t('agency.reliability.no_sample_short') || 'Sin muestra'}
+                                                ofContactedText={t('agency.reliability.table_of_contacted') || 'de clientes contactados'}
                                                 strikeText={t('agency.reliability.reply_strike') || 'strike'}
                                                 strikesText={t('agency.reliability.reply_strikes') || 'strikes'}
                                             />
@@ -4553,6 +4547,7 @@ const ReliabilityAccountsTable = ({
     nextText,
     columns,
     noSampleText,
+    ofContactedText,
     strikeText,
     strikesText
 }) => {
@@ -4575,7 +4570,6 @@ const ReliabilityAccountsTable = ({
                             <th className="px-4 py-3">{columns.state}</th>
                             <th className="px-4 py-3">{columns.sent}</th>
                             <th className="px-4 py-3">{columns.replies}</th>
-                            <th className="px-4 py-3">{columns.pending}</th>
                             <th className="px-4 py-3">{columns.slots}</th>
                             <th className="px-4 py-3">{columns.quality}</th>
                             <th className="px-4 py-3 min-w-[220px]">{columns.action}</th>
@@ -4614,14 +4608,13 @@ const ReliabilityAccountsTable = ({
                                     <td className="px-4 py-4 align-top">
                                         <div className="min-w-[110px]">
                                             <p className="font-semibold text-gray-900 dark:text-white">
-                                                {replySample ? `${item.engagedCount}/${item.contactedCount}` : noSampleText}
+                                                {replySample ? item.unansweredCount : noSampleText}
                                             </p>
                                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                {replySample ? `${item.replyRate}%` : ''}
+                                                {replySample ? `${item.contactedCount} ${ofContactedText}` : ''}
                                             </p>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4 align-top font-semibold text-gray-900 dark:text-white">{item.unansweredCount}</td>
                                     <td className="px-4 py-4 align-top">
                                         <p className="font-semibold text-gray-900 dark:text-white">{item.connectedSlotCount}/{item.totalSlots || item.connectedSlotCount}</p>
                                     </td>
