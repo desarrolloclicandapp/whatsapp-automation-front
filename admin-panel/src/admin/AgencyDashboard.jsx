@@ -2235,21 +2235,18 @@ export default function AgencyDashboard({ token, onLogout }) {
         : (Array.isArray(reliabilityOverview?.accountActivity) ? reliabilityOverview.accountActivity : []);
     const timelineSummary = reliabilityTimeline.reduce((acc, item) => {
         const sent = Number(item?.sent) || 0;
-        const failed = Number(item?.failed) || 0;
         const total = Number(item?.total) || 0;
         acc.sent += sent;
-        acc.failed += failed;
         if (total > 0) acc.activeHours += 1;
         return acc;
-    }, { sent: 0, failed: 0, activeHours: 0 });
+    }, { sent: 0, activeHours: 0 });
     const reliabilityPeriodHours = Number.parseInt(reliabilityOverview?.periodHours, 10) || 24;
     const reliabilityTrendPoints = reliabilityTimeline.map((point) => ({
         bucketStart: point?.bucket_start,
-        sent: Number(point?.sent) || 0,
-        failed: Number(point?.failed) || 0
+        sent: Number(point?.sent) || 0
     }));
     const reliabilityTrendMax = reliabilityTrendPoints.reduce(
-        (max, point) => Math.max(max, point.sent, point.failed),
+        (max, point) => Math.max(max, point.sent),
         0
     );
     const replyRate24h = toFiniteMetric(reliabilityTotals?.reply_rate_24h, 0);
@@ -2274,9 +2271,8 @@ export default function AgencyDashboard({ token, onLogout }) {
             locationId: entry.location_id,
             name: entry.location_name || t('agency.location.no_name'),
             sent: Number(entry.sent) || 0,
-            failed: Number(entry.failed) || 0,
             totalEvents: Math.max(
-                Number(entry.total) || ((Number(entry.sent) || 0) + (Number(entry.failed) || 0)),
+                Number(entry.total) || (Number(entry.sent) || 0),
                 Number(entry.contacted_contacts_24h ?? entry.inbound_24h) || 0
             ),
             replyRate: toFiniteMetric(entry.reply_rate_24h, 100),
@@ -2971,10 +2967,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             {Number(reliabilityTotals?.sent_24h) || timelineSummary.sent} {t('agency.reliability.sent_24h') || 'Enviados 24h'}
                                         </span>
                                         <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
-                                            <AlertTriangle size={14} className="text-amber-500" />
-                                            {Number(reliabilityTotals?.failed_24h) || timelineSummary.failed} {t('agency.reliability.failed_24h') || 'No enviados 24h'}
-                                        </span>
-                                        <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
                                             <MessageSquare size={14} className="text-emerald-500" />
                                             {hasReplySample
                                                 ? `${replyReadableLabel}: ${formatReplyCoverage(engagedContacts24h, contactedContacts24h, replyRate24h)}`
@@ -2997,7 +2989,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     {t('agency.reliability.activity_24h') || 'Mensajes en las últimas 24 horas'}
                                                 </h4>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    {t('agency.reliability.activity_24h_desc') || 'La línea azul muestra mensajes enviados. La línea ámbar muestra mensajes que no pudieron salir.'}
+                                                    {t('agency.reliability.activity_24h_desc') || 'La línea azul muestra mensajes enviados durante las últimas 24 horas.'}
                                                 </p>
                                             </div>
                                             <p className="text-xs text-gray-400 dark:text-gray-500">
@@ -3010,8 +3002,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 data={reliabilityTrendPoints}
                                                 maxValue={reliabilityTrendMax}
                                                 emptyLabel={t('agency.reliability.no_activity') || 'Sin mensajes recientes en este periodo.'}
-                                                reconnectLabel={t('agency.reliability.sent_label') || 'Mensajes enviados'}
-                                                incidentLabel={t('agency.reliability.failed_label') || 'No enviados'}
+                                                seriesLabel={t('agency.reliability.sent_label') || 'Mensajes enviados'}
                                             />
                                         </div>
                                     </div>
@@ -3040,8 +3031,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <ReliabilityAccountBars
                                                 data={accountEventBars}
                                                 emptyLabel={t('agency.reliability.all_good_desc') || 'Aún no hay cuentas con movimiento en este filtro.'}
-                                                reconnectText={t('agency.reliability.sent_short') || 'enviados'}
-                                                alertText={t('agency.reliability.failed_short') || 'no enviados'}
+                                                sentText={t('agency.reliability.sent_short') || 'enviados'}
                                                 replyRatioText={replyReadableLabel}
                                                 replyNoSampleText={replyNoSampleLabel}
                                                 replyStrikeText={t('agency.reliability.reply_strike') || 'strike'}
@@ -4296,8 +4286,8 @@ const SidebarItem = ({ id, icon: Icon, label, activeTab, setActiveTab, branding,
     </button>
 );
 
-const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, incidentLabel }) => {
-    if (!Array.isArray(data) || data.length === 0 || !data.some((item) => Number(item?.sent) > 0 || Number(item?.failed) > 0)) {
+const ReliabilityLineChart = ({ data, maxValue, emptyLabel, seriesLabel }) => {
+    if (!Array.isArray(data) || data.length === 0 || !data.some((item) => Number(item?.sent) > 0)) {
         return (
             <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-5 text-sm text-gray-500 dark:text-gray-400">
                 {emptyLabel}
@@ -4329,8 +4319,7 @@ const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, inci
         return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
     }).join(' ');
 
-    const reconnectPath = buildPath((point) => point?.sent);
-    const incidentPath = buildPath((point) => point?.failed);
+    const seriesPath = buildPath((point) => point?.sent);
 
     return (
         <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-4">
@@ -4345,30 +4334,23 @@ const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, inci
                     );
                 })}
 
-                <path d={reconnectPath} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                <path d={incidentPath} fill="none" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={seriesPath} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
 
                 {data.map((point, index) => {
                     const x = padding.left + (index * stepX);
-                    const reconnectY = padding.top + chartHeight - (((Number(point?.sent) || 0) / safeMax) * chartHeight);
-                    const incidentY = padding.top + chartHeight - (((Number(point?.failed) || 0) / safeMax) * chartHeight);
+                    const seriesY = padding.top + chartHeight - (((Number(point?.sent) || 0) / safeMax) * chartHeight);
                     const showTick = index % 6 === 0 || index === data.length - 1;
                     const tooltipText = [
                         formatTimelineTooltip(point?.bucketStart),
-                        `${reconnectLabel}: ${Number(point?.sent) || 0}`,
-                        `${incidentLabel}: ${Number(point?.failed) || 0}`
+                        `${seriesLabel}: ${Number(point?.sent) || 0}`
                     ].filter(Boolean).join('\n');
 
                     return (
                         <g key={`point-${point?.bucketStart || index}`}>
-                            <circle cx={x} cy={reconnectY} r="7" fill="transparent" className="cursor-help">
+                            <circle cx={x} cy={seriesY} r="7" fill="transparent" className="cursor-help">
                                 <title>{tooltipText}</title>
                             </circle>
-                            <circle cx={x} cy={incidentY} r="7" fill="transparent" className="cursor-help">
-                                <title>{tooltipText}</title>
-                            </circle>
-                            <circle cx={x} cy={reconnectY} r="3.5" fill="#3b82f6" pointerEvents="none" />
-                            <circle cx={x} cy={incidentY} r="3.5" fill="#f59e0b" pointerEvents="none" />
+                            <circle cx={x} cy={seriesY} r="3.5" fill="#3b82f6" pointerEvents="none" />
                             {showTick && (
                                 <text x={x} y={height - 10} textAnchor="middle" className="fill-gray-400 text-[10px]">
                                     {formatTimelineHour(point?.bucketStart)}
@@ -4380,8 +4362,7 @@ const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, inci
             </svg>
 
             <div className="mt-4 flex flex-wrap items-center gap-4 text-[11px] text-gray-500 dark:text-gray-400">
-                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> {reconnectLabel}</span>
-                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> {incidentLabel}</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> {seriesLabel}</span>
             </div>
         </div>
     );
@@ -4390,8 +4371,7 @@ const ReliabilityLineChart = ({ data, maxValue, emptyLabel, reconnectLabel, inci
 const ReliabilityAccountBars = ({
     data,
     emptyLabel,
-    reconnectText,
-    alertText,
+    sentText,
     replyRatioText,
     replyNoSampleText,
     replyStrikeText,
@@ -4418,11 +4398,11 @@ const ReliabilityAccountBars = ({
             tone: 'healthy'
         },
         {
-            label: 'Con fallos',
-            value: data.filter((item) => (Number(item?.failed) || 0) > 0).length,
-            caption: 'requieren revisión',
-            icon: AlertTriangle,
-            tone: data.some((item) => (Number(item?.failed) || 0) > 0) ? 'attention' : 'healthy'
+            label: 'Con muestra',
+            value: data.filter((item) => (Number(item?.contactedCount) || 0) > 0).length,
+            caption: 'ya permiten medir respuesta',
+            icon: MessageSquare,
+            tone: data.some((item) => (Number(item?.contactedCount) || 0) > 0) ? 'healthy' : 'paused'
         },
         {
             label: 'Con respuestas',
@@ -4542,12 +4522,7 @@ const ReliabilityAccountBars = ({
                                 <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-blue-50/70 dark:bg-blue-950/20 p-4">
                                     <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-blue-500">Enviados</p>
                                     <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{item.sent}</p>
-                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{reconnectText}</p>
-                                </div>
-                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-amber-50/70 dark:bg-amber-950/20 p-4">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-500">Fallos</p>
-                                    <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{item.failed}</p>
-                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{alertText}</p>
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{sentText}</p>
                                 </div>
                                 <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-emerald-50/70 dark:bg-emerald-950/20 p-4">
                                     <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-500">Respuesta</p>
