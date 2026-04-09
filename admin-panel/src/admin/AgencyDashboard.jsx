@@ -127,16 +127,35 @@ function getHealthTone(status) {
         case "critical":
         case "high":
         case "review":
+        case "delicate":
             return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-200 dark:border-amber-800";
         case "attention":
         case "watch":
+        case "sensitive":
             return "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/20 dark:text-sky-200 dark:border-sky-800";
         case "info":
+        case "care":
             return "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-200 dark:border-indigo-800";
         case "paused":
+        case "unknown":
             return "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-300 dark:border-slate-700";
         default:
             return "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800";
+    }
+}
+
+function getNumberQualityLabel(level, t) {
+    switch (String(level || "").toLowerCase()) {
+        case "delicate":
+            return translateOr(t, 'agency.reliability.number_quality_delicate', 'Delicada');
+        case "sensitive":
+            return translateOr(t, 'agency.reliability.number_quality_sensitive', 'Sensible');
+        case "care":
+            return translateOr(t, 'agency.reliability.number_quality_care', 'A cuidar');
+        case "good":
+            return translateOr(t, 'agency.reliability.number_quality_good', 'Buena');
+        default:
+            return translateOr(t, 'agency.reliability.number_quality_unknown', 'Aun sin historial');
     }
 }
 
@@ -2308,6 +2327,20 @@ export default function AgencyDashboard({ token, onLogout }) {
             const totalSlots = Number(linkedLocation?.total_slots) || connectedSlotCount;
             const metaRiskLevel = String(entry.meta_risk_level || 'healthy').toLowerCase();
             const numberQualityLevel = String(entry.number_quality_level || 'unknown').toLowerCase();
+            const numberQualityCounts = {
+                delicate: Number(entry.number_quality_delicate_slots) || 0,
+                sensitive: Number(entry.number_quality_sensitive_slots) || 0,
+                care: Number(entry.number_quality_care_slots) || 0,
+                good: Number(entry.number_quality_good_slots) || 0,
+                unknown: Number(entry.number_quality_unknown_slots) || 0
+            };
+            const qualitySummaryItems = ['delicate', 'sensitive', 'care', 'good', 'unknown']
+                .map((level) => ({
+                    level,
+                    count: numberQualityCounts[level],
+                    label: getNumberQualityLabel(level, t)
+                }))
+                .filter((item) => item.count > 0);
             const replyStrikes = Number(entry.reply_strikes) || 0;
             const operationalState = (metaRiskLevel === 'critical' || metaRiskLevel === 'high')
                 ? 'review'
@@ -2319,24 +2352,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                 : (operationalState === 'watch'
                     ? translateOr(t, 'agency.reliability.ban_risk_medium', 'Medio')
                     : translateOr(t, 'agency.reliability.ban_risk_low', 'Bajo'));
-            const qualityLabel = numberQualityLevel === 'delicate'
-                ? translateOr(t, 'agency.reliability.number_quality_delicate', 'Delicada')
-                : (numberQualityLevel === 'sensitive'
-                    ? translateOr(t, 'agency.reliability.number_quality_sensitive', 'Sensible')
-                    : (numberQualityLevel === 'care'
-                        ? translateOr(t, 'agency.reliability.number_quality_care', 'A cuidar')
-                        : (numberQualityLevel === 'good'
-                            ? translateOr(t, 'agency.reliability.number_quality_good', 'Buena')
-                            : translateOr(t, 'agency.reliability.number_quality_unknown', 'Aun sin historial'))));
             const suggestedAction = (operationalState === 'review' || numberQualityLevel === 'delicate')
-                ? translateOr(t, 'agency.reliability.action_review', 'Baja la cantidad de mensajes y evita insistir a clientes que no responden para no parecer spam.')
+                ? translateOr(t, 'agency.reliability.action_review', 'Revisa los numeros mas delicados y baja el ritmo en esos slots antes de seguir enviando.')
                 : ((operationalState === 'watch' || numberQualityLevel === 'sensitive')
-                    ? translateOr(t, 'agency.reliability.action_watch', 'Trata de mandar menos mensajes seguidos y enfocate mas en clientes que si responden.')
+                    ? translateOr(t, 'agency.reliability.action_watch', 'Conviene moderar los numeros que mas escriben a clientes que no responden y evitar insistir.')
                     : (numberQualityLevel === 'care'
-                        ? translateOr(t, 'agency.reliability.action_care', 'Mantene un ritmo moderado y evita repetir el mismo mensaje a muchos clientes seguidos.')
+                        ? translateOr(t, 'agency.reliability.action_care', 'Mantene un ritmo moderado en los numeros con mas volumen y evita repetir el mismo mensaje.')
                         : (numberQualityLevel === 'unknown'
                             ? translateOr(t, 'agency.reliability.action_unknown', 'Todavia no hay suficiente historial. Conviene empezar con poco volumen y revisar la respuesta.')
-                            : translateOr(t, 'agency.reliability.action_stable', 'Puedes seguir igual, pero evita mandar muchos mensajes seguidos al mismo cliente.'))));
+                            : translateOr(t, 'agency.reliability.action_stable', 'La mayoria de los numeros se ve estable. Igual conviene evitar rafagas muy agresivas.'))));
 
             return {
                 locationId: String(entry.location_id || ''),
@@ -2351,7 +2375,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 metaRiskLevel,
                 operationalState,
                 operationalStateLabel,
-                qualityLabel,
+                qualitySummaryItems,
                 suggestedAction,
                 onClick: linkedLocation ? () => setSelectedLocation(linkedLocation) : null
             };
@@ -3230,7 +3254,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     sent: t('agency.reliability.table_sent') || 'Enviados',
                                                     replies: t('agency.reliability.table_no_replies') || 'No respondieron',
                                                     slots: t('agency.reliability.table_slots') || 'Slots',
-                                                    quality: t('agency.reliability.table_quality') || 'Calidad del numero',
+                                                    quality: t('agency.reliability.table_quality') || 'Calidad por numero',
                                                     action: t('agency.reliability.table_action') || 'Recomendacion'
                                                 }}
                                                 noSampleText={t('agency.reliability.no_sample_short') || 'Sin muestra'}
@@ -4614,7 +4638,22 @@ const ReliabilityAccountsTable = ({
                                         <p className="font-semibold text-gray-900 dark:text-white">{item.connectedSlotCount}/{item.totalSlots || item.connectedSlotCount}</p>
                                     </td>
                                     <td className="px-4 py-4 align-top">
-                                        <p className="font-semibold text-gray-900 dark:text-white">{item.qualityLabel}</p>
+                                        <div className="min-w-[190px] flex flex-wrap gap-1.5">
+                                            {Array.isArray(item.qualitySummaryItems) && item.qualitySummaryItems.length > 0 ? (
+                                                item.qualitySummaryItems.map((summary) => (
+                                                    <span
+                                                        key={`${item.locationId}-${summary.level}`}
+                                                        className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${getHealthTone(summary.level)}`}
+                                                    >
+                                                        {summary.label}: {summary.count}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${getHealthTone('unknown')}`}>
+                                                    {noSampleText}
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-4 py-4 align-top">
                                         <p className="text-sm text-gray-600 dark:text-gray-300">{item.suggestedAction}</p>
