@@ -28,6 +28,7 @@ import {
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
 const DEFAULT_GHL_INSTALL_PATH = "/integration/6968d10f1f0b9e6b537024cd";
+const RELIABILITY_PAGE_SIZE = 10;
 const DEFAULT_INSTALL_APP_URL =
     import.meta.env.DEFAULT_INSTALL_APP_URL || `https://app.gohighlevel.com${DEFAULT_GHL_INSTALL_PATH}`;
 const CHATWOOT_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
@@ -120,17 +121,15 @@ function toFiniteMetric(value, fallback = 0) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function formatReplyCoverage(engagedCount, contactedCount, replyRate) {
-    return `${engagedCount} de ${contactedCount} clientes respondieron (${replyRate}%)`;
-}
-
 function getHealthTone(status) {
     switch (String(status || "").toLowerCase()) {
         case "blocked":
         case "critical":
         case "high":
+        case "review":
             return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-200 dark:border-amber-800";
         case "attention":
+        case "watch":
             return "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/20 dark:text-sky-200 dark:border-sky-800";
         case "info":
             return "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-200 dark:border-indigo-800";
@@ -138,21 +137,6 @@ function getHealthTone(status) {
             return "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-300 dark:border-slate-700";
         default:
             return "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800";
-    }
-}
-
-function getMetaRiskLabel(level) {
-    switch (String(level || '').toLowerCase()) {
-        case 'critical':
-            return 'Prioridad';
-        case 'high':
-            return 'Revisar';
-        case 'attention':
-            return 'Seguimiento';
-        case 'info':
-            return 'Observación';
-        default:
-            return 'Estable';
     }
 }
 
@@ -285,6 +269,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         ? 'Este usuario se reutiliza para aprovisionar nuevas cuentas Waflow Mensajeria hospedadas por nosotros, acelerar el alta de inboxes y usuarios, y dejar cada cuenta lista para operar sin configuraciones manuales en cada cliente.'
         : 'This master user is reused to provision new Waflow Messaging accounts hosted by us, speed up inbox and user setup, and leave each account ready to operate without manual setup for every client.';
     const [searchTerm, setSearchTerm] = useState("");
+    const [reliabilityPage, setReliabilityPage] = useState(1);
     const [userEmail, setUserEmail] = useState("");
 
     const [isAccountSuspended, setIsAccountSuspended] = useState(false);
@@ -919,6 +904,11 @@ export default function AgencyDashboard({ token, onLogout }) {
 
         return () => clearTimeout(timer);
     }, [activeTab, accountInfo?.agencyId, storedAgencyId, AGENCY_ID, accountsFilter, searchTerm]);
+
+    useEffect(() => {
+        if (activeTab !== 'reliability') return;
+        setReliabilityPage(1);
+    }, [activeTab, accountsFilter, searchTerm]);
 
     const fetchWebhooks = async () => {
         try {
@@ -2240,7 +2230,6 @@ export default function AgencyDashboard({ token, onLogout }) {
         if (total > 0) acc.activeHours += 1;
         return acc;
     }, { sent: 0, activeHours: 0 });
-    const reliabilityPeriodHours = Number.parseInt(reliabilityOverview?.periodHours, 10) || 24;
     const reliabilityTrendPoints = reliabilityTimeline.map((point) => ({
         bucketStart: point?.bucket_start,
         sent: Number(point?.sent) || 0
@@ -2249,6 +2238,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         (max, point) => Math.max(max, point.sent),
         0
     );
+    const sent24h = Number(reliabilityTotals?.sent_24h) || timelineSummary.sent;
     const replyRate24h = toFiniteMetric(reliabilityTotals?.reply_rate_24h, 0);
     const contactedContacts24h = Number(reliabilityTotals?.contacted_contacts_24h ?? reliabilityTotals?.inbound_24h) || 0;
     const engagedContacts24h = Number(reliabilityTotals?.engaged_contacts_24h ?? reliabilityTotals?.answered_inbound_24h) || 0;
@@ -2260,35 +2250,131 @@ export default function AgencyDashboard({ token, onLogout }) {
     const metaRiskHighAccounts = Number(reliabilityTotals?.meta_risk_high_accounts) || 0;
     const metaRiskCriticalAccounts = Number(reliabilityTotals?.meta_risk_critical_accounts) || 0;
     const hasReplySample = contactedContacts24h > 0;
-    const replyReadableLabel = translateOr(t, 'agency.reliability.reply_ratio_readable', 'Clientes que respondieron 24h');
     const replyNoSampleLabel = translateOr(t, 'agency.reliability.reply_no_sample_readable', 'Todavía no hay clientes contactados para medir respuestas');
-    const replyAnsweredLabel = translateOr(t, 'agency.reliability.reply_answered_short', 'clientes respondieron');
-    const replyContactedLabel = translateOr(t, 'agency.reliability.reply_contacted_short', 'clientes contactados');
-    const replyPendingLabel = translateOr(t, 'agency.reliability.reply_pending_short', 'sin responder');
-    const metaRiskLabel = translateOr(t, 'agency.reliability.meta_risk', 'Monitoreo Meta');
-    const accountEventBars = accountActivity
+    const metaRiskLabel = translateOr(t, 'agency.reliability.meta_risk', 'Señales de calidad');
+    const overallOperationalState = (metaRiskCriticalAccounts > 0 || metaRiskHighAccounts > 0)
+        ? 'review'
+        : ((metaRiskAttentionAccounts > 0 || replyAlertAccounts > 0 || metaRiskInfoAccounts > 0) ? 'watch' : 'healthy');
+    const overallOperationalLabel = overallOperationalState === 'review'
+        ? translateOr(t, 'agency.reliability.state_review_today', 'Revisar hoy')
+        : (overallOperationalState === 'watch'
+            ? translateOr(t, 'agency.reliability.state_follow_up', 'Conviene seguirlo')
+            : translateOr(t, 'agency.reliability.state_all_good', 'Todo en orden'));
+    const overallOperationalDesc = overallOperationalState === 'review'
+        ? translateOr(t, 'agency.reliability.state_review_today_desc', 'Hay cuentas que conviene revisar hoy. Es una señal preventiva, no un bloqueo automático.')
+        : (overallOperationalState === 'watch'
+            ? translateOr(t, 'agency.reliability.state_follow_up_desc', 'Hay algunas cuentas con seguimiento recomendado, pero el panel no muestra señales graves.')
+            : translateOr(t, 'agency.reliability.state_all_good_desc', 'Las cuentas activas se ven estables dentro de la ventana observada.'));
+    const riskBreakdownItems = [
+        {
+            label: translateOr(t, 'agency.reliability.risk_observation', 'En observación'),
+            value: metaRiskInfoAccounts,
+            tone: 'info'
+        },
+        {
+            label: translateOr(t, 'agency.reliability.risk_follow_up', 'Seguimiento'),
+            value: metaRiskAttentionAccounts,
+            tone: 'attention'
+        },
+        {
+            label: translateOr(t, 'agency.reliability.risk_review_today', 'Revisar hoy'),
+            value: metaRiskHighAccounts,
+            tone: 'high'
+        },
+        {
+            label: translateOr(t, 'agency.reliability.risk_priority_today', 'Revisión preferente'),
+            value: metaRiskCriticalAccounts,
+            tone: 'review'
+        }
+    ];
+    const locationsById = new Map(
+        locations.map((loc) => [String(loc?.location_id || ''), loc])
+    );
+    const reliabilityAccountRows = accountActivity
         .map((entry) => ({
-            locationId: entry.location_id,
-            name: entry.location_name || t('agency.location.no_name'),
-            sent: Number(entry.sent) || 0,
-            totalEvents: Math.max(
-                Number(entry.total) || (Number(entry.sent) || 0),
-                Number(entry.contacted_contacts_24h ?? entry.inbound_24h) || 0
-            ),
-            replyRate: toFiniteMetric(entry.reply_rate_24h, 100),
-            contactedCount: Number(entry.contacted_contacts_24h ?? entry.inbound_24h) || 0,
-            engagedCount: Number(entry.engaged_contacts_24h ?? entry.answered_inbound_24h) || 0,
-            unansweredCount: Number(entry.unanswered_contacts_24h ?? entry.unanswered_inbound_24h) || 0,
-            replyStrikes: Number(entry.reply_strikes) || 0,
-            replyStatus: String(entry.reply_status || 'healthy').toLowerCase(),
-            replyAutoBlocked: Boolean(entry.reply_auto_blocked),
-            metaRiskLevel: String(entry.meta_risk_level || 'healthy').toLowerCase(),
-            metaRiskScore: Number(entry.meta_risk_score) || 0,
-            metaRiskSignals: Array.isArray(entry.meta_risk_signals) ? entry.meta_risk_signals : [],
-            metaRiskRecommendedAction: String(entry.meta_risk_recommended_action || '')
+            entry,
+            linkedLocation: locationsById.get(String(entry?.location_id || '')) || null
         }))
-        .filter((entry) => entry.totalEvents > 0)
-        .slice(0, 8);
+        .map(({ entry, linkedLocation }) => {
+            const productMeta = linkedLocation
+                ? getTenantProductMeta(linkedLocation)
+                : {
+                    label: translateOr(t, 'agency.reliability.unknown_channel', 'Cuenta'),
+                    badgeClassName: "bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700"
+                };
+            const contactedCount = Number(entry.contacted_contacts_24h ?? entry.inbound_24h) || 0;
+            const engagedCount = Number(entry.engaged_contacts_24h ?? entry.answered_inbound_24h) || 0;
+            const unansweredCount = Number(entry.unanswered_contacts_24h ?? entry.unanswered_inbound_24h) || 0;
+            const replyRate = toFiniteMetric(entry.reply_rate_24h, 100);
+            const connectedSlotCount = Number(entry.connected_slot_count ?? linkedLocation?.connected_slot_count) || 0;
+            const totalSlots = Number(linkedLocation?.total_slots) || connectedSlotCount;
+            const metaRiskLevel = String(entry.meta_risk_level || 'healthy').toLowerCase();
+            const replyStrikes = Number(entry.reply_strikes) || 0;
+            const operationalState = (metaRiskLevel === 'critical' || metaRiskLevel === 'high')
+                ? 'review'
+                : ((metaRiskLevel === 'attention' || metaRiskLevel === 'info' || replyStrikes > 0 || Boolean(entry.reply_auto_blocked))
+                    ? 'watch'
+                    : 'healthy');
+            const operationalStateLabel = operationalState === 'review'
+                ? translateOr(t, 'agency.reliability.state_review', 'Revisar')
+                : (operationalState === 'watch'
+                    ? translateOr(t, 'agency.reliability.state_watch', 'Seguimiento')
+                    : translateOr(t, 'agency.reliability.state_stable', 'Estable'));
+            const qualityLabel = metaRiskLevel === 'critical'
+                ? translateOr(t, 'agency.reliability.quality_critical', 'Revisión preferente')
+                : (metaRiskLevel === 'high'
+                    ? translateOr(t, 'agency.reliability.quality_high', 'Revisar hoy')
+                    : (metaRiskLevel === 'attention'
+                        ? translateOr(t, 'agency.reliability.quality_attention', 'Seguimiento')
+                        : (metaRiskLevel === 'info'
+                            ? translateOr(t, 'agency.reliability.quality_info', 'En observación')
+                            : translateOr(t, 'agency.reliability.quality_healthy', 'Estable'))));
+            const suggestedAction = String(entry.meta_risk_recommended_action || '').trim() || (
+                operationalState === 'review'
+                    ? translateOr(t, 'agency.reliability.action_review', 'Conviene revisar cadencia, copy y seguimiento antes de subir el volumen.')
+                    : (operationalState === 'watch'
+                        ? translateOr(t, 'agency.reliability.action_watch', 'Mantén seguimiento suave y revisa si las respuestas siguen entrando con normalidad.')
+                        : translateOr(t, 'agency.reliability.action_stable', 'Sin acciones urgentes por ahora.'))
+            );
+
+            return {
+                locationId: String(entry.location_id || ''),
+                name: entry.location_name || t('agency.location.no_name'),
+                channelLabel: productMeta.label,
+                channelBadgeClassName: productMeta.badgeClassName,
+                sent: Number(entry.sent) || 0,
+                replyRate,
+                contactedCount,
+                engagedCount,
+                unansweredCount,
+                connectedSlotCount,
+                totalSlots,
+                replyStrikes,
+                metaRiskLevel,
+                operationalState,
+                operationalStateLabel,
+                qualityLabel,
+                suggestedAction,
+                onClick: linkedLocation ? () => setSelectedLocation(linkedLocation) : null
+            };
+        });
+    const reliabilityTotalPages = Math.max(1, Math.ceil(reliabilityAccountRows.length / RELIABILITY_PAGE_SIZE));
+    const safeReliabilityPage = Math.min(reliabilityPage, reliabilityTotalPages);
+    const paginatedReliabilityAccounts = reliabilityAccountRows.slice(
+        (safeReliabilityPage - 1) * RELIABILITY_PAGE_SIZE,
+        safeReliabilityPage * RELIABILITY_PAGE_SIZE
+    );
+    const reliabilityRangeStart = reliabilityAccountRows.length === 0
+        ? 0
+        : ((safeReliabilityPage - 1) * RELIABILITY_PAGE_SIZE) + 1;
+    const reliabilityRangeEnd = reliabilityAccountRows.length === 0
+        ? 0
+        : Math.min(reliabilityAccountRows.length, safeReliabilityPage * RELIABILITY_PAGE_SIZE);
+    useEffect(() => {
+        if (reliabilityPage > reliabilityTotalPages) {
+            setReliabilityPage(reliabilityTotalPages);
+        }
+    }, [reliabilityPage, reliabilityTotalPages]);
     const modalCrmType = String(
         addModalCrmType || onboardingCrmType || agencyCrmType || "ghl"
     ).toLowerCase();
@@ -2896,6 +2982,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     {reliabilitySummary.connectedSlots}/{reliabilitySummary.totalSlots || 0} {t('agency.reliability.online_slots') || 'slots en línea'}
                                                 </span>
                                                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/40">
+                                                    <ShieldCheck size={12} />
+                                                    {overallOperationalLabel}
+                                                </span>
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/40">
                                                     <RefreshCw size={12} className={reliabilityLoading ? "animate-spin" : ""} />
                                                     {t('agency.reliability.last_update') || 'Actualizado'} {reliabilityLastUpdated ? formatRelativeTime(reliabilityLastUpdated) : (t('agency.reliability.none_short') || 'recién')}
                                                 </span>
@@ -2961,115 +3051,195 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             ) : (
                                 <>
-                                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                                        <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
-                                            <Send size={14} className="text-blue-500" />
-                                            {Number(reliabilityTotals?.sent_24h) || timelineSummary.sent} {t('agency.reliability.sent_24h') || 'Enviados 24h'}
-                                        </span>
-                                        <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
-                                            <MessageSquare size={14} className="text-emerald-500" />
-                                            {hasReplySample
-                                                ? `${replyReadableLabel}: ${formatReplyCoverage(engagedContacts24h, contactedContacts24h, replyRate24h)}`
-                                                : `${replyReadableLabel}: ${replyNoSampleLabel}`}
-                                        </span>
-                                        <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
-                                            <Smartphone size={14} className={replyAlertAccounts > 0 ? "text-rose-500" : "text-emerald-500"} />
-                                            {replyAlertAccounts} {t('agency.reliability.reply_alert_accounts') || 'cuentas en alerta'}
-                                        </span>
-                                        <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200">
-                                            <ShieldCheck size={14} className={metaRiskAlertAccounts > 0 ? "text-rose-500" : "text-emerald-500"} />
-                                            {metaRiskAlertAccounts} {metaRiskLabel}
-                                        </span>
-                                    </div>
-
-                                    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
-                                        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                                            <div>
-                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                    {t('agency.reliability.activity_24h') || 'Mensajes en las últimas 24 horas'}
-                                                </h4>
-                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    {t('agency.reliability.activity_24h_desc') || 'La línea azul muestra mensajes enviados durante las últimas 24 horas.'}
-                                                </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                                        <div className="rounded-3xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm p-5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-400">
+                                                        {t('agency.reliability.sent_24h') || 'Enviados 24h'}
+                                                    </p>
+                                                    <p className="mt-3 text-3xl font-black text-gray-900 dark:text-white">{sent24h}</p>
+                                                </div>
+                                                <div className="w-11 h-11 rounded-2xl bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-300 flex items-center justify-center">
+                                                    <Send size={18} />
+                                                </div>
                                             </div>
-                                            <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                {t('agency.reliability.chart_axes') || 'Hora vs cantidad de mensajes'}
+                                            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                                                {t('agency.reliability.kpi_sent_note') || 'Actividad de salida en las últimas 24 horas.'}
                                             </p>
                                         </div>
 
-                                        <div className="mt-5">
-                                            <ReliabilityLineChart
-                                                data={reliabilityTrendPoints}
-                                                maxValue={reliabilityTrendMax}
-                                                emptyLabel={t('agency.reliability.no_activity') || 'Sin mensajes recientes en este periodo.'}
-                                                seriesLabel={t('agency.reliability.sent_label') || 'Mensajes enviados'}
-                                            />
+                                        <div className="rounded-3xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm p-5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-400">
+                                                        {t('agency.reliability.clients_contacted') || 'Clientes contactados'}
+                                                    </p>
+                                                    <p className="mt-3 text-3xl font-black text-gray-900 dark:text-white">{contactedContacts24h}</p>
+                                                </div>
+                                                <div className="w-11 h-11 rounded-2xl bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-300 flex items-center justify-center">
+                                                    <Users size={18} />
+                                                </div>
+                                            </div>
+                                            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                                                {t('agency.reliability.unique_contacts_note') || 'Clientes únicos con al menos un envío.'}
+                                            </p>
+                                        </div>
+
+                                        <div className="rounded-3xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm p-5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-400">
+                                                        {t('agency.reliability.clients_replied') || 'Clientes que respondieron'}
+                                                    </p>
+                                                    <p className="mt-3 text-3xl font-black text-gray-900 dark:text-white">
+                                                        {engagedContacts24h}
+                                                        {hasReplySample && (
+                                                            <span className="text-base font-semibold text-gray-400 dark:text-gray-500">
+                                                                {` / ${contactedContacts24h}`}
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                </div>
+                                                <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-300 flex items-center justify-center">
+                                                    <MessageSquare size={18} />
+                                                </div>
+                                            </div>
+                                            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                                                {hasReplySample
+                                                    ? `${replyRate24h}% · ${t('agency.reliability.reply_rate_secondary') || 'sobre clientes contactados'}`
+                                                    : replyNoSampleLabel}
+                                            </p>
+                                        </div>
+
+                                        <div className="rounded-3xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm p-5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-400">
+                                                        {t('agency.reliability.pending_replies') || 'Pendientes de respuesta'}
+                                                    </p>
+                                                    <p className="mt-3 text-3xl font-black text-gray-900 dark:text-white">{unansweredContacts24h}</p>
+                                                </div>
+                                                <div className="w-11 h-11 rounded-2xl bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-300 flex items-center justify-center">
+                                                    <Activity size={18} />
+                                                </div>
+                                            </div>
+                                            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                                                {t('agency.reliability.pending_window_note') || 'Clientes que aún no responden dentro de la ventana observada.'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] gap-6">
+                                        <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
+                                            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                                                <div>
+                                                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                        {t('agency.reliability.activity_24h') || 'Mensajes en las últimas 24 horas'}
+                                                    </h4>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                        {t('agency.reliability.activity_24h_desc') || 'La línea azul muestra mensajes enviados durante las últimas 24 horas.'}
+                                                    </p>
+                                                </div>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                    {t('agency.reliability.chart_axes') || 'Hora vs cantidad de mensajes'}
+                                                </p>
+                                            </div>
+
+                                            <div className="mt-5">
+                                                <ReliabilityLineChart
+                                                    data={reliabilityTrendPoints}
+                                                    maxValue={reliabilityTrendMax}
+                                                    emptyLabel={t('agency.reliability.no_activity') || 'Sin mensajes recientes en este periodo.'}
+                                                    seriesLabel={t('agency.reliability.sent_label') || 'Mensajes enviados'}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
+                                            <div className="flex flex-col gap-3">
+                                                <div className={`rounded-2xl border px-4 py-4 ${getHealthTone(overallOperationalState)}`}>
+                                                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] opacity-80">
+                                                        {t('agency.reliability.overview_state_title') || 'Panorama de hoy'}
+                                                    </p>
+                                                    <p className="mt-2 text-2xl font-black">{overallOperationalLabel}</p>
+                                                    <p className="mt-2 text-sm opacity-90">{overallOperationalDesc}</p>
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                        {metaRiskLabel}
+                                                    </h4>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                        {t('agency.reliability.risk_section_desc_soft') || 'Son señales preventivas para cuidar la calidad del canal y ajustar el ritmo con tiempo.'}
+                                                    </p>
+                                                </div>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                    {t('agency.reliability.soft_note_no_block') || 'Estas señales no implican bloqueo automático.'}
+                                                </p>
+                                            </div>
+
+                                            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {riskBreakdownItems.map((item) => (
+                                                    <div key={item.label} className={`rounded-2xl border px-4 py-4 ${getHealthTone(item.tone)}`}>
+                                                        <p className="text-[11px] font-bold uppercase tracking-widest opacity-80">{item.label}</p>
+                                                        <p className="text-2xl font-extrabold mt-2">{item.value}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
 
                                     <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
-                                        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                                             <div>
                                                 <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                    {t('agency.reliability.coverage_by_account') || 'Cuentas con más movimiento'}
+                                                    {t('agency.reliability.accounts_table_title') || 'Listado de cuentas'}
                                                 </h4>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    Vista ejecutiva por cuenta: actividad, respuesta y señales operativas en un formato más visual.
+                                                    {t('agency.reliability.accounts_table_desc') || 'Vista compacta por cuenta para revisar actividad, respuesta y seguimiento sin ocupar demasiado espacio.'}
                                                 </p>
                                             </div>
-                                            {accountEventBars.length > 0 && (
-                                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-indigo-200 dark:border-indigo-900/40 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300">
-                                                    <Sparkles size={16} />
-                                                    <span className="text-sm font-semibold">
-                                                        {accountEventBars.length} cuentas visibles en monitoreo
-                                                    </span>
-                                                </div>
-                                            )}
+                                            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/40">
+                                                    <Smartphone size={12} />
+                                                    {replyAlertAccounts} {t('agency.reliability.follow_up_accounts') || 'cuentas con seguimiento'}
+                                                </span>
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/40">
+                                                    <ShieldCheck size={12} />
+                                                    {metaRiskAlertAccounts} {metaRiskLabel}
+                                                </span>
+                                            </div>
                                         </div>
 
                                         <div className="mt-5">
-                                            <ReliabilityAccountBars
-                                                data={accountEventBars}
+                                            <ReliabilityAccountsTable
+                                                data={paginatedReliabilityAccounts}
                                                 emptyLabel={t('agency.reliability.all_good_desc') || 'Aún no hay cuentas con movimiento en este filtro.'}
-                                                sentText={t('agency.reliability.sent_short') || 'enviados'}
-                                                replyRatioText={replyReadableLabel}
-                                                replyNoSampleText={replyNoSampleLabel}
-                                                replyStrikeText={t('agency.reliability.reply_strike') || 'strike'}
-                                                replyAnsweredText={replyAnsweredLabel}
-                                                replyContactedText={replyContactedLabel}
-                                                replyPendingText={replyPendingLabel}
-                                                metaRiskText={metaRiskLabel}
+                                                page={safeReliabilityPage}
+                                                totalPages={reliabilityTotalPages}
+                                                rangeStart={reliabilityRangeStart}
+                                                rangeEnd={reliabilityRangeEnd}
+                                                totalItems={reliabilityAccountRows.length}
+                                                onPageChange={setReliabilityPage}
+                                                showingText={t('agency.reliability.showing_accounts') || 'Mostrando'}
+                                                ofText={t('agency.reliability.of') || 'de'}
+                                                previousText={t('agency.reliability.prev_page') || 'Anterior'}
+                                                nextText={t('agency.reliability.next_page') || 'Siguiente'}
+                                                columns={{
+                                                    account: t('agency.reliability.table_account') || 'Cuenta',
+                                                    channel: t('agency.reliability.table_channel') || 'Canal',
+                                                    state: t('agency.reliability.table_state') || 'Estado',
+                                                    sent: t('agency.reliability.table_sent') || 'Enviados',
+                                                    replies: t('agency.reliability.table_replies') || 'Respondieron',
+                                                    pending: t('agency.reliability.table_pending') || 'Pendientes',
+                                                    slots: t('agency.reliability.table_slots') || 'Slots',
+                                                    quality: t('agency.reliability.table_quality') || 'Calidad',
+                                                    action: t('agency.reliability.table_action') || 'Acción'
+                                                }}
+                                                noSampleText={t('agency.reliability.no_sample_short') || 'Sin muestra'}
+                                                strikeText={t('agency.reliability.reply_strike') || 'strike'}
+                                                strikesText={t('agency.reliability.reply_strikes') || 'strikes'}
                                             />
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 md:p-6">
-                                        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                                            <div>
-                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                    {metaRiskLabel}
-                                                </h4>
-                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    Indicadores preventivos para ajustar cadencia, seguimiento y copy antes de escalar el volumen.
-                                                </p>
-                                            </div>
-                                            <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                Fase 1: visible en monitoreo, sin bloqueo automático.
-                                            </p>
-                                        </div>
-
-                                        <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-3">
-                                            {[
-                                                { label: 'Observación', value: metaRiskInfoAccounts, tone: 'info' },
-                                                { label: 'Seguimiento', value: metaRiskAttentionAccounts, tone: 'attention' },
-                                                { label: 'Revisar', value: metaRiskHighAccounts, tone: 'high' },
-                                                { label: 'Prioridad', value: metaRiskCriticalAccounts, tone: 'critical' }
-                                            ].map((item) => (
-                                                <div key={item.label} className={`rounded-2xl border px-4 py-4 ${getHealthTone(item.tone)}`}>
-                                                    <p className="text-[11px] font-bold uppercase tracking-widest opacity-80">{item.label}</p>
-                                                    <p className="text-2xl font-extrabold mt-2">{item.value}</p>
-                                                </div>
-                                            ))}
                                         </div>
                                     </div>
                                 </>
@@ -4368,17 +4538,23 @@ const ReliabilityLineChart = ({ data, maxValue, emptyLabel, seriesLabel }) => {
     );
 };
 
-const ReliabilityAccountBars = ({
+const ReliabilityAccountsTable = ({
     data,
     emptyLabel,
-    sentText,
-    replyRatioText,
-    replyNoSampleText,
-    replyStrikeText,
-    replyAnsweredText,
-    replyContactedText,
-    replyPendingText,
-    metaRiskText
+    page,
+    totalPages,
+    rangeStart,
+    rangeEnd,
+    totalItems,
+    onPageChange,
+    showingText,
+    ofText,
+    previousText,
+    nextText,
+    columns,
+    noSampleText,
+    strikeText,
+    strikesText
 }) => {
     if (!Array.isArray(data) || data.length === 0) {
         return (
@@ -4388,192 +4564,108 @@ const ReliabilityAccountBars = ({
         );
     }
 
-    const maxValue = Math.max(1, ...data.map((item) => Number(item?.totalEvents) || 0));
-    const overviewCards = [
-        {
-            label: 'Cuentas activas',
-            value: data.length,
-            caption: 'con movimiento hoy',
-            icon: Activity,
-            tone: 'healthy'
-        },
-        {
-            label: 'Con muestra',
-            value: data.filter((item) => (Number(item?.contactedCount) || 0) > 0).length,
-            caption: 'ya permiten medir respuesta',
-            icon: MessageSquare,
-            tone: data.some((item) => (Number(item?.contactedCount) || 0) > 0) ? 'healthy' : 'paused'
-        },
-        {
-            label: 'Con respuestas',
-            value: data.filter((item) => (Number(item?.engagedCount) || 0) > 0).length,
-            caption: 'clientes interactuaron',
-            icon: MessageSquare,
-            tone: data.some((item) => (Number(item?.engagedCount) || 0) > 0) ? 'healthy' : 'paused'
-        },
-        {
-            label: metaRiskText || 'Monitoreo Meta',
-            value: data.filter((item) => {
-                const metaRiskLevel = String(item?.metaRiskLevel || 'healthy').toLowerCase();
-                return metaRiskLevel !== 'healthy' || (Number(item?.replyStrikes) || 0) > 0;
-            }).length,
-            caption: 'cuentas a vigilar',
-            icon: ShieldCheck,
-            tone: data.some((item) => String(item?.metaRiskLevel || 'healthy').toLowerCase() !== 'healthy')
-                ? 'attention'
-                : (data.some((item) => (Number(item?.replyStrikes) || 0) > 0) ? 'attention' : 'healthy')
-        }
-    ];
-
     return (
-        <div className="space-y-5">
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-                {overviewCards.map((card) => {
-                    const Icon = card.icon;
-                    return (
-                        <div key={card.label} className={`rounded-2xl border px-4 py-4 ${getHealthTone(card.tone)}`}>
-                            <div className="flex items-start justify-between gap-3">
-                                <div>
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] opacity-75">{card.label}</p>
-                                    <p className="mt-2 text-3xl font-black leading-none">{card.value}</p>
-                                </div>
-                                <div className="w-10 h-10 rounded-2xl bg-white/70 dark:bg-black/20 flex items-center justify-center">
-                                    <Icon size={18} />
-                                </div>
-                            </div>
-                            <p className="mt-3 text-xs opacity-80">{card.caption}</p>
-                        </div>
-                    );
-                })}
-            </div>
+        <div className="space-y-4">
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                    <thead>
+                        <tr className="text-left text-[11px] font-bold uppercase tracking-[0.24em] text-gray-400">
+                            <th className="px-4 py-3">{columns.account}</th>
+                            <th className="px-4 py-3">{columns.channel}</th>
+                            <th className="px-4 py-3">{columns.state}</th>
+                            <th className="px-4 py-3">{columns.sent}</th>
+                            <th className="px-4 py-3">{columns.replies}</th>
+                            <th className="px-4 py-3">{columns.pending}</th>
+                            <th className="px-4 py-3">{columns.slots}</th>
+                            <th className="px-4 py-3">{columns.quality}</th>
+                            <th className="px-4 py-3 min-w-[220px]">{columns.action}</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+                        {data.map((item) => {
+                            const replySample = (Number(item?.contactedCount) || 0) > 0;
+                            const rowInteractive = typeof item?.onClick === 'function';
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {data.map((item) => {
-                const percent = Math.max(8, Math.round(((Number(item?.totalEvents) || 0) / maxValue) * 100));
-                const strikeCount = Number(item?.replyStrikes) || 0;
-                const hasReplySample = (Number(item?.contactedCount) || 0) > 0;
-                const statusTone = item?.replyAutoBlocked
-                    ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800"
-                    : strikeCount > 0
-                        ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
-                        : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800";
-                const ratioText = hasReplySample
-                    ? `${replyRatioText}: ${formatReplyCoverage(Number(item?.engagedCount) || 0, Number(item?.contactedCount) || 0, toFiniteMetric(item?.replyRate, 0))}`
-                    : `${replyRatioText}: ${replyNoSampleText}`;
-                const detailText = hasReplySample
-                    ? `${Number(item?.contactedCount) || 0} ${replyContactedText} · ${Number(item?.unansweredCount) || 0} ${replyPendingText}`
-                    : `${Number(item?.engagedCount) || 0} ${replyAnsweredText}`;
-                const metaRiskLevel = String(item?.metaRiskLevel || 'healthy').toLowerCase();
-                const metaRiskTone = getHealthTone(metaRiskLevel);
-                const topMetaRiskSignal = Array.isArray(item?.metaRiskSignals) ? item.metaRiskSignals[0] : null;
-                const responseHeadline = hasReplySample
-                    ? `${toFiniteMetric(item?.replyRate, 0)}%`
-                    : 'Sin muestra';
-                const responseDetail = hasReplySample
-                    ? `${Number(item?.engagedCount) || 0} de ${Number(item?.contactedCount) || 0} respondieron`
-                    : replyNoSampleText;
-                const primaryTone = metaRiskLevel !== 'healthy'
-                    ? 'bg-gradient-to-r from-sky-500 via-cyan-400 to-amber-300'
-                    : strikeCount > 0
-                        ? 'bg-gradient-to-r from-slate-400 to-amber-300'
-                        : 'bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400';
-                const primaryStateTone = metaRiskLevel !== 'healthy' ? metaRiskTone : statusTone;
-                const StateIcon = metaRiskLevel !== 'healthy'
-                    ? ShieldCheck
-                    : strikeCount > 0
-                        ? AlertTriangle
-                        : CheckCircle2;
-                const stateTitle = metaRiskLevel !== 'healthy'
-                    ? `${metaRiskText || 'Monitoreo Meta'} · ${getMetaRiskLabel(metaRiskLevel)}`
-                    : strikeCount > 0
-                        ? `${replyStrikeText} ${strikeCount}/3`
-                        : 'Operación estable';
-                const stateBody = topMetaRiskSignal
-                    ? `${topMetaRiskSignal.title}: ${topMetaRiskSignal.summary}`
-                    : metaRiskLevel !== 'healthy'
-                        ? (item?.metaRiskRecommendedAction || 'Se detectaron señales preventivas que conviene revisar con calma.')
-                        : strikeCount > 0
-                            ? ratioText
-                            : 'Sin señales relevantes en esta cuenta durante la ventana observada.';
-                const stateAction = metaRiskLevel !== 'healthy' && item?.metaRiskRecommendedAction
-                    ? item.metaRiskRecommendedAction
-                    : null;
-
-                return (
-                    <div key={item.locationId} className="overflow-hidden rounded-[28px] border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
-                        <div className={`h-1.5 w-full ${primaryTone}`} />
-                        <div className="p-5 md:p-6 space-y-5">
-                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                                <div className="min-w-0">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-gray-400">Cuenta monitoreada</p>
-                                    <h5 className="mt-2 text-2xl font-black text-gray-900 dark:text-white truncate">{item.name}</h5>
-                                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                        Actividad, respuesta y señales operativas en una sola vista.
-                                    </p>
-                                </div>
-                                <div className="shrink-0 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/40 px-4 py-3 min-w-[132px]">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-400">Movimiento</p>
-                                    <p className="mt-2 text-3xl font-black text-gray-900 dark:text-white leading-none">{item.totalEvents}</p>
-                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">últimas 24 horas</p>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-blue-50/70 dark:bg-blue-950/20 p-4">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-blue-500">Enviados</p>
-                                    <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{item.sent}</p>
-                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{sentText}</p>
-                                </div>
-                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-emerald-50/70 dark:bg-emerald-950/20 p-4">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-500">Respuesta</p>
-                                    <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{responseHeadline}</p>
-                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{responseDetail}</p>
-                                </div>
-                                <div className={`rounded-2xl border p-4 ${primaryStateTone}`}>
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] opacity-80">Monitoreo</p>
-                                    <p className="mt-2 text-xl font-black leading-tight">{metaRiskLevel !== 'healthy' ? getMetaRiskLabel(metaRiskLevel) : (strikeCount > 0 ? `${strikeCount}/3` : 'OK')}</p>
-                                    <p className="mt-2 text-xs opacity-80">
-                                        {metaRiskLevel !== 'healthy'
-                                            ? (metaRiskText || 'Monitoreo Meta')
-                                            : (strikeCount > 0 ? `${replyStrikeText}` : 'Sin alertas')}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/30 p-4">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                        <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-400">Intensidad relativa</p>
-                                        <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">Comparada con la cuenta más activa del filtro</p>
-                                    </div>
-                                    <span className="text-lg font-black text-gray-900 dark:text-white">{percent}%</span>
-                                </div>
-                                <div className="mt-4 h-4 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                                    <div className={`h-full rounded-full ${primaryTone}`} style={{ width: `${percent}%` }} />
-                                </div>
-                                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{detailText}</p>
-                            </div>
-
-                            <div className={`rounded-2xl border p-4 ${primaryStateTone}`}>
-                                <div className="flex items-start gap-3">
-                                    <div className="w-10 h-10 rounded-2xl bg-white/70 dark:bg-black/20 flex items-center justify-center shrink-0">
-                                        <StateIcon size={18} />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="font-bold">{stateTitle}</p>
-                                        <p className="mt-1 text-sm opacity-90">{stateBody}</p>
-                                        {stateAction && (
-                                            <p className="mt-3 text-xs font-medium opacity-80">
-                                                Sugerencia: {stateAction}
+                            return (
+                                <tr
+                                    key={item.locationId}
+                                    onClick={rowInteractive ? item.onClick : undefined}
+                                    className={rowInteractive
+                                        ? "cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-800/30 transition-colors"
+                                        : ""}
+                                >
+                                    <td className="px-4 py-4 align-top">
+                                        <div className="min-w-[180px]">
+                                            <p className="font-semibold text-gray-900 dark:text-white">{item.name}</p>
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.locationId}</p>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 align-top">
+                                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${item.channelBadgeClassName}`}>
+                                            {item.channelLabel}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-4 align-top">
+                                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getHealthTone(item.operationalState)}`}>
+                                            {item.operationalStateLabel}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-4 align-top font-semibold text-gray-900 dark:text-white">{item.sent}</td>
+                                    <td className="px-4 py-4 align-top">
+                                        <div className="min-w-[110px]">
+                                            <p className="font-semibold text-gray-900 dark:text-white">
+                                                {replySample ? `${item.engagedCount}/${item.contactedCount}` : noSampleText}
+                                            </p>
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                {replySample ? `${item.replyRate}%` : ''}
+                                            </p>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 align-top font-semibold text-gray-900 dark:text-white">{item.unansweredCount}</td>
+                                    <td className="px-4 py-4 align-top">
+                                        <p className="font-semibold text-gray-900 dark:text-white">{item.connectedSlotCount}/{item.totalSlots || item.connectedSlotCount}</p>
+                                    </td>
+                                    <td className="px-4 py-4 align-top">
+                                        <p className="font-semibold text-gray-900 dark:text-white">{item.qualityLabel}</p>
+                                        {item.replyStrikes > 0 && (
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                {item.replyStrikes} {item.replyStrikes === 1 ? strikeText : strikesText}
                                             </p>
                                         )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-            })}
+                                    </td>
+                                    <td className="px-4 py-4 align-top">
+                                        <p className="text-sm text-gray-600 dark:text-gray-300">{item.suggestedAction}</p>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-gray-100 dark:border-gray-800 pt-4 md:flex-row md:items-center md:justify-between">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {`${showingText} ${rangeStart}-${rangeEnd} ${ofText} ${totalItems}`}
+                </p>
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => onPageChange(Math.max(1, page - 1))}
+                        disabled={page <= 1}
+                        className="inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-semibold text-gray-600 dark:text-gray-200 transition hover:border-indigo-300 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {previousText}
+                    </button>
+                    <span className="px-2 text-sm text-gray-500 dark:text-gray-400">{page}/{totalPages}</span>
+                    <button
+                        type="button"
+                        onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+                        disabled={page >= totalPages}
+                        className="inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-semibold text-gray-600 dark:text-gray-200 transition hover:border-indigo-300 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {nextText}
+                    </button>
+                </div>
             </div>
         </div>
     );
