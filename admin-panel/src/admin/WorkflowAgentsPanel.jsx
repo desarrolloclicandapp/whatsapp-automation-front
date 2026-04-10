@@ -291,7 +291,11 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             toast.success(t("workflow_agents.test_success"));
             await loadWorkspace(selectedLocationId, false);
         } catch (error) {
-            toast.error(t("workflow_agents.test_error"), { description: error.message });
+            const rawMessage = String(error?.message || "").trim();
+            const missingKeyMessage = rawMessage.includes("No hay OpenAI API key disponible")
+                ? buildMissingCredentialMessage()
+                : rawMessage;
+            toast.error(t("workflow_agents.test_error"), { description: missingKeyMessage || t("workflow_agents.test_error") });
         } finally {
             setTesting(false);
         }
@@ -311,6 +315,28 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const activeCount = agents.filter((agent) => agent.status === "active").length;
     const selectedAgent = agents.find((agent) => agent.id === editingAgentId) || null;
     const ghlIntegration = catalog.find((item) => item.key === "ghl") || null;
+    const slotsWithOpenAiKey = slots.filter((slot) => slot?.has_openai_api_key);
+    const hasAgencyOpenAiKey = credentials?.has_agency_openai_key === true;
+    const hasAnySlotOpenAiKey = slotsWithOpenAiKey.length > 0;
+    const selectedSlot = slots.find((slot) => String(slot.slot_id) === String(form.slot_id || ""));
+    const selectedSlotHasOpenAiKey = !!selectedSlot?.has_openai_api_key;
+    const slotsWithOpenAiKeyLabel = slotsWithOpenAiKey
+        .map((slot) => slot?.slot_name || `${t("workflow_agents.slot_prefix")} ${slot?.slot_id}`)
+        .filter(Boolean)
+        .join(", ");
+
+    const buildMissingCredentialMessage = () => {
+        if (hasAgencyOpenAiKey) {
+            return t("workflow_agents.test_error_missing_key_fallback");
+        }
+        if (form.slot_id && !selectedSlotHasOpenAiKey) {
+            return t("workflow_agents.test_error_missing_key_selected_slot");
+        }
+        if (!form.slot_id && hasAnySlotOpenAiKey) {
+            return t("workflow_agents.test_error_missing_key_slot");
+        }
+        return t("workflow_agents.test_error_missing_key");
+    };
 
     const filteredAgents = useMemo(() => {
         const safeQuery = String(agentQuery || "").trim().toLowerCase();
@@ -379,6 +405,26 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                     </div>
                 </div>
             </div>
+
+            {(!hasAgencyOpenAiKey || hasAnySlotOpenAiKey) ? (
+                <div className="rounded-3xl border border-amber-200 bg-amber-50/80 px-5 py-4 text-sm text-amber-900 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
+                    <div className="font-semibold">
+                        {!hasAgencyOpenAiKey && !hasAnySlotOpenAiKey
+                            ? t("workflow_agents.credentials_help_missing_title")
+                            : t("workflow_agents.credentials_help_slot_title")}
+                    </div>
+                    <div className="mt-1 leading-6">
+                        {!hasAgencyOpenAiKey && !hasAnySlotOpenAiKey
+                            ? t("workflow_agents.credentials_help_missing_body")
+                            : t("workflow_agents.credentials_help_slot_body")}
+                    </div>
+                    {hasAnySlotOpenAiKey ? (
+                        <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                            {t("workflow_agents.credentials_help_available_slots")} {slotsWithOpenAiKeyLabel || "-"}
+                        </div>
+                    ) : null}
+                </div>
+            ) : null}
 
             <div className="grid gap-6 xl:grid-cols-[320px,1fr]">
                 <aside className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -539,6 +585,15 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                 <option key={slot.slot_id} value={slot.slot_id}>{slot.slot_name} ({t("workflow_agents.slot_prefix")} {slot.slot_id})</option>
                                             ))}
                                         </select>
+                                        {!hasAgencyOpenAiKey && hasAnySlotOpenAiKey ? (
+                                            <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                                                {form.slot_id
+                                                    ? (selectedSlotHasOpenAiKey
+                                                        ? t("workflow_agents.credentials_help_slot_selected")
+                                                        : t("workflow_agents.credentials_help_slot_missing_for_selected"))
+                                                    : t("workflow_agents.credentials_help_slot_pick")}
+                                            </div>
+                                        ) : null}
                                     </div>
                                     <div>
                                         <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_model")}</label>
