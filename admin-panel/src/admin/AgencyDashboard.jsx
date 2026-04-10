@@ -8,6 +8,7 @@ import SubscriptionBlocker from './SubscriptionBlocker';
 import ExpiryPopup from './ExpiryPopup'; // ✅ Importar Popup
 import InactiveUserModal from './InactiveUserModal'; // ✅ Importar Modal Inactivo
 import InteractiveMessageBuilder from './InteractiveMessageBuilder';
+import WorkflowAgentsPanel from './WorkflowAgentsPanel';
 import ThemeToggle from '../components/ThemeToggle';
 import LanguageSelector from '../components/LanguageSelector'; 
 import { useLanguage } from '../context/LanguageContext'; 
@@ -372,6 +373,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     // Integration filter for accounts list
     const [accountsFilter, setAccountsFilter] = useState("all"); // "all" | "ghl" | "waflow" | "chatwoot"
     const [settingsSection, setSettingsSection] = useState("guide");
+    const [builderSection, setBuilderSection] = useState("agents");
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -3619,7 +3621,44 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     )}
 
-                    {activeTab === 'builder' && <InteractiveMessageBuilder />}
+                    {activeTab === 'builder' && (
+                        <div className="space-y-6">
+                            <div className="flex flex-wrap gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setBuilderSection('agents')}
+                                    className={`rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
+                                        builderSection === 'agents'
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+                                    }`}
+                                >
+                                    {t('agency.builder.tab_agents') || 'Agentes GHL'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setBuilderSection('interactive')}
+                                    className={`rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
+                                        builderSection === 'interactive'
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+                                    }`}
+                                >
+                                    {t('agency.builder.tab_interactive') || 'Mensajes interactivos'}
+                                </button>
+                            </div>
+
+                            {builderSection === 'agents' ? (
+                                <WorkflowAgentsPanel
+                                    locations={locations}
+                                    onUnauthorized={onLogout}
+                                    token={token}
+                                />
+                            ) : (
+                                <InteractiveMessageBuilder />
+                            )}
+                        </div>
+                    )}
 
                     {activeTab === 'billing' && (
                         (isGhlAgency || isChatwootAgency)
