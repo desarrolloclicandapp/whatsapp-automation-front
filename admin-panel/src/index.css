@@ -10,6 +10,60 @@ body {
   min-height: 100vh;
 }
 
+.agency-dashboard-ui {
+  --wf-scroll-thumb: rgba(148, 163, 184, 0.52);
+  --wf-scroll-thumb-hover: rgba(129, 140, 248, 0.72);
+  --wf-scroll-track: rgba(15, 23, 42, 0.32);
+  --wf-scroll-track-strong: rgba(15, 23, 42, 0.58);
+}
+
+html.light .agency-dashboard-ui {
+  --wf-scroll-thumb: rgba(148, 163, 184, 0.78);
+  --wf-scroll-thumb-hover: rgba(99, 102, 241, 0.82);
+  --wf-scroll-track: rgba(226, 232, 240, 0.92);
+  --wf-scroll-track-strong: rgba(203, 213, 225, 0.96);
+}
+
+.agency-dashboard-ui * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--wf-scroll-thumb) var(--wf-scroll-track);
+}
+
+.agency-dashboard-ui *::-webkit-scrollbar,
+.agency-dashboard-ui .wf-soft-scrollbar::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+  background: var(--wf-scroll-track);
+}
+
+.agency-dashboard-ui *::-webkit-scrollbar-track,
+.agency-dashboard-ui .wf-soft-scrollbar::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, var(--wf-scroll-track) 0%, var(--wf-scroll-track-strong) 100%);
+  border-radius: 999px;
+}
+
+.agency-dashboard-ui *::-webkit-scrollbar-thumb,
+.agency-dashboard-ui .wf-soft-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--wf-scroll-thumb);
+  border-radius: 999px;
+  border: 2px solid var(--wf-scroll-track);
+  background-clip: padding-box;
+}
+
+.agency-dashboard-ui *::-webkit-scrollbar-thumb:hover,
+.agency-dashboard-ui .wf-soft-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--wf-scroll-thumb-hover);
+  border: 2px solid var(--wf-scroll-track);
+  background-clip: padding-box;
+}
+
+.agency-dashboard-ui *::-webkit-scrollbar-button,
+.agency-dashboard-ui .wf-soft-scrollbar::-webkit-scrollbar-button {
+  display: block;
+  height: 12px;
+  background: var(--wf-scroll-track-strong);
+}
+
 /* Agency dashboard visual tuning (light mode only):
    - Stronger borders
    - More obvious hover/focus states */

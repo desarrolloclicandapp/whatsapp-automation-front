@@ -1,10 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Copy, Loader2, Play, RefreshCw, Save, Search, Trash2 } from "lucide-react";
+import { Loader2, Play, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const inputClassName = "w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
+const BASE_AGENT_MODEL_OPTIONS = [
+    { value: "gpt-4o-mini", labelKey: "workflow_agents.model_option_gpt4o_mini" },
+    { value: "gpt-4o", labelKey: "workflow_agents.model_option_gpt4o" },
+    { value: "gpt-4.1-mini", labelKey: "workflow_agents.model_option_gpt41_mini" },
+    { value: "gpt-4.1", labelKey: "workflow_agents.model_option_gpt41" }
+];
 
 function formatRunTimestamp(value) {
     if (!value) return "";
@@ -239,15 +245,6 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedLocationId]);
 
-    const handleCopy = async (value) => {
-        try {
-            await navigator.clipboard.writeText(String(value || ""));
-            toast.success(t("workflow_agents.copy_success"));
-        } catch (_) {
-            toast.error(t("workflow_agents.copy_error"));
-        }
-    };
-
     const saveSlotOpenAiKey = async (slotId, rawValue) => {
         if (!selectedLocationId || !slotId) return false;
         const safeValue = String(rawValue || "").trim();
@@ -423,6 +420,25 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const slots = Array.isArray(workspace?.slots) ? workspace.slots : [];
     const selectedLocation = locations.find((location) => String(location?.location_id || "") === selectedLocationId) || null;
     const selectedLocationName = selectedLocation?.name || selectedLocationId || "-";
+    const baseModelOptions = useMemo(
+        () => BASE_AGENT_MODEL_OPTIONS.map((option) => ({
+            ...option,
+            label: t(option.labelKey)
+        })),
+        [t]
+    );
+    const modelOptions = useMemo(() => {
+        if (!form.model || baseModelOptions.some((option) => option.value === form.model)) {
+            return baseModelOptions;
+        }
+        return [
+            {
+                value: form.model,
+                label: `${form.model} · ${t("workflow_agents.model_option_current")}`
+            },
+            ...baseModelOptions
+        ];
+    }, [baseModelOptions, form.model, t]);
     const selectedAgent = agents.find((agent) => agent.id === editingAgentId) || null;
     const selectedSlotIds = Array.isArray(form.slot_ids) ? form.slot_ids : [];
     const selectedSlots = slots.filter((slot) => selectedSlotIds.includes(String(slot.slot_id)));
@@ -449,6 +465,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             const haystack = [
                 agent?.name,
                 agent?.agent_key,
+                agent?.description,
                 agent?.model,
                 ...(Array.isArray(agent?.enabled_integrations) ? agent.enabled_integrations : [])
             ]
@@ -460,7 +477,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     }, [agentQuery, agents]);
 
     const renderAgentList = (isEditorMode = false) => (
-        <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <section className={`${isEditorMode ? "xl:sticky xl:top-6" : ""} rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900`}>
             <div className="flex items-center justify-between gap-3">
                 <div>
                     <h4 className="text-lg font-bold text-gray-900 dark:text-white">{t("workflow_agents.agent_list_title")}</h4>
@@ -506,16 +523,33 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                         key={agent.id}
                         type="button"
                         onClick={() => applyAgentToForm(agent)}
-                        className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                        className={`w-full rounded-[22px] border px-4 py-3.5 text-left transition ${
                             isEditorMode && editingAgentId === agent.id
-                                ? "border-indigo-400 bg-indigo-50/70 dark:border-indigo-700 dark:bg-indigo-900/20"
-                                : "border-gray-200 bg-gray-50/70 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/40 dark:hover:bg-gray-800"
+                                ? "border-indigo-300 bg-indigo-50/80 shadow-sm dark:border-indigo-700 dark:bg-indigo-900/20"
+                                : "border-gray-200 bg-white/80 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950/40 dark:hover:border-gray-600 dark:hover:bg-gray-800/60"
                         }`}
                     >
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                                 <div className="truncate font-bold text-gray-900 dark:text-white">{agent.name}</div>
                                 <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{agent.agent_key}</div>
+                                {agent.description ? (
+                                    <p
+                                        className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400"
+                                        style={{
+                                            display: "-webkit-box",
+                                            WebkitLineClamp: 2,
+                                            WebkitBoxOrient: "vertical",
+                                            overflow: "hidden"
+                                        }}
+                                    >
+                                        {agent.description}
+                                    </p>
+                                ) : (
+                                    <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                                        {t("workflow_agents.no_description")}
+                                    </p>
+                                )}
                             </div>
                             <StatusPill
                                 label={t(`workflow_agents.status_${agent.status}`)}
@@ -597,8 +631,10 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("workflow_agents.form_desc")}</p>
                             {editingAgentId ? (
                                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                    <span className="rounded-full border border-gray-200 px-2.5 py-1 dark:border-gray-700">{form.agent_key || "-"}</span>
-                                    <span>{form.model || "-"}</span>
+                                    <StatusPill
+                                        label={t(`workflow_agents.status_${form.status}`)}
+                                        kind={form.status === "active" ? "good" : form.status === "paused" ? "warn" : "neutral"}
+                                    />
                                     <span>{selectedSlotCount > 0 ? t("workflow_agents.slots_selected_count").replace("{count}", String(selectedSlotCount)) : t("workflow_agents.slot_not_selected")}</span>
                                 </div>
                             ) : null}
@@ -620,24 +656,14 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                 {t("workflow_agents.refresh")}
                             </button>
                             {editingAgentId ? (
-                                <>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleCopy(form.agent_key)}
-                                        className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                    >
-                                        <Copy size={15} />
-                                        {t("workflow_agents.copy_agent_id")}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDelete(selectedAgent)}
-                                        className="inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-500 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-900/20"
-                                    >
-                                        <Trash2 size={15} />
-                                        {t("workflow_agents.delete_button")}
-                                    </button>
-                                </>
+                                <button
+                                    type="button"
+                                    onClick={() => handleDelete(selectedAgent)}
+                                    className="inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-500 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-900/20"
+                                >
+                                    <Trash2 size={15} />
+                                    {t("workflow_agents.delete_button")}
+                                </button>
                             ) : null}
                         </div>
                     </div>
@@ -690,7 +716,16 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                     </div>
                                     <div>
                                         <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_model")}</label>
-                                        <input value={form.model} onChange={(event) => setForm((prev) => ({ ...prev, model: event.target.value }))} className={inputClassName} />
+                                        <select value={form.model} onChange={(event) => setForm((prev) => ({ ...prev, model: event.target.value }))} className={inputClassName}>
+                                            {modelOptions.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                            {t("workflow_agents.field_model_help")}
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_max_chars")}</label>
@@ -715,7 +750,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                             <span className="font-semibold text-gray-700 dark:text-gray-200">{t("workflow_agents.slot_scope_label")}</span>{" "}
                                             {t("workflow_agents.slot_scope_desc").replace("{account}", selectedLocationName)}
                                         </div>
-                                        <div className="mt-4 max-h-72 space-y-2 overflow-auto pr-1">
+                                        <div className="wf-soft-scrollbar mt-4 max-h-72 space-y-2 overflow-auto pr-1">
                                             {slots.length === 0 ? (
                                                 <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
                                                     {t("workflow_agents.slots_empty")}

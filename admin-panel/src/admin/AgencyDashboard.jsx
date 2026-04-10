@@ -156,8 +156,23 @@ function getNumberQualityLabel(level, t) {
         case "good":
             return translateOr(t, 'agency.reliability.number_quality_good', 'Buena');
         default:
-            return translateOr(t, 'agency.reliability.number_quality_unknown', 'Aun sin historial');
+            return translateOr(t, 'agency.reliability.number_quality_unknown', 'Sin historial');
     }
+}
+
+function getNumberQualityPreviewIdentity(preview = {}, t) {
+    const phone = String(preview?.phone_number || preview?.phoneNumber || "").trim();
+    if (phone) return phone;
+
+    const slotName = String(preview?.slot_name || preview?.slotName || "").trim();
+    if (slotName) return slotName;
+
+    const slotId = Number.parseInt(preview?.slot_id ?? preview?.slotId, 10) || 0;
+    if (slotId > 0) {
+        return `${translateOr(t, 'workflow_agents.slot_prefix', 'Slot')} ${slotId}`;
+    }
+
+    return translateOr(t, 'agency.reliability.number_preview_unknown', 'Numero sin identificar');
 }
 
 function getHealthPriority(status) {
@@ -2328,20 +2343,16 @@ export default function AgencyDashboard({ token, onLogout }) {
             const totalSlots = Number(linkedLocation?.total_slots) || connectedSlotCount;
             const metaRiskLevel = String(entry.meta_risk_level || 'healthy').toLowerCase();
             const numberQualityLevel = String(entry.number_quality_level || 'unknown').toLowerCase();
-            const numberQualityCounts = {
-                delicate: Number(entry.number_quality_delicate_slots) || 0,
-                sensitive: Number(entry.number_quality_sensitive_slots) || 0,
-                care: Number(entry.number_quality_care_slots) || 0,
-                good: Number(entry.number_quality_good_slots) || 0,
-                unknown: Number(entry.number_quality_unknown_slots) || 0
-            };
-            const qualitySummaryItems = ['delicate', 'sensitive', 'care', 'good', 'unknown']
-                .map((level) => ({
-                    level,
-                    count: numberQualityCounts[level],
-                    label: getNumberQualityLabel(level, t)
-                }))
-                .filter((item) => item.count > 0);
+            const numberQualityPreview = Array.isArray(entry.number_quality_preview)
+                ? entry.number_quality_preview
+                    .map((preview) => ({
+                        slot_id: Number(preview?.slot_id) || null,
+                        slot_name: preview?.slot_name || null,
+                        phone_number: preview?.phone_number || null,
+                        level: String(preview?.level || 'unknown').toLowerCase()
+                    }))
+                    .filter((preview) => preview.slot_id || preview.phone_number || preview.slot_name)
+                : [];
             const replyStrikes = Number(entry.reply_strikes) || 0;
             const operationalState = (metaRiskLevel === 'critical' || metaRiskLevel === 'high')
                 ? 'review'
@@ -2376,7 +2387,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 metaRiskLevel,
                 operationalState,
                 operationalStateLabel,
-                qualitySummaryItems,
+                numberQualityPreview,
                 suggestedAction,
                 onClick: linkedLocation ? () => setSelectedLocation(linkedLocation) : null
             };
@@ -4648,16 +4659,26 @@ const ReliabilityAccountsTable = ({
                                         <p className="font-semibold text-gray-900 dark:text-white">{item.connectedSlotCount}/{item.totalSlots || item.connectedSlotCount}</p>
                                     </td>
                                     <td className="px-4 py-4 align-top">
-                                        <div className="min-w-[190px] flex flex-wrap gap-1.5">
-                                            {Array.isArray(item.qualitySummaryItems) && item.qualitySummaryItems.length > 0 ? (
-                                                item.qualitySummaryItems.map((summary) => (
-                                                    <span
-                                                        key={`${item.locationId}-${summary.level}`}
-                                                        className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${getHealthTone(summary.level)}`}
-                                                    >
-                                                        {summary.label}: {summary.count}
-                                                    </span>
-                                                ))
+                                        <div className="min-w-[210px] space-y-2">
+                                            {Array.isArray(item.numberQualityPreview) && item.numberQualityPreview.length > 0 ? (
+                                                <>
+                                                    {item.numberQualityPreview.slice(0, 2).map((preview) => (
+                                                        <div key={`${item.locationId}-${preview.slot_id || preview.phone_number || preview.slot_name}`} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/40">
+                                                            <span className="min-w-0 truncate text-xs font-semibold text-gray-700 dark:text-gray-200">
+                                                                {getNumberQualityPreviewIdentity(preview, t)}
+                                                            </span>
+                                                            <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${getHealthTone(preview.level)}`}>
+                                                                {getNumberQualityLabel(preview.level, t)}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                    {item.numberQualityPreview.length > 2 ? (
+                                                        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                            {translateOr(t, 'agency.reliability.more_numbers', '+{count} mas')
+                                                                .replace('{count}', String(item.numberQualityPreview.length - 2))}
+                                                        </p>
+                                                    ) : null}
+                                                </>
                                             ) : (
                                                 <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${getHealthTone('unknown')}`}>
                                                     {noSampleText}
