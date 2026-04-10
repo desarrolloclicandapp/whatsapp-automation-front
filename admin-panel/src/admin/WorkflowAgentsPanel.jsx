@@ -151,6 +151,9 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
+    const [slotKeyDrafts, setSlotKeyDrafts] = useState({});
+    const [openSlotKeyEditorId, setOpenSlotKeyEditorId] = useState(null);
+    const [savingSlotKeyId, setSavingSlotKeyId] = useState(null);
 
     useEffect(() => {
         if (!selectedLocationId && locations.length > 0) {
@@ -229,6 +232,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             setTestMessage("");
             setTestResult(null);
             setActiveTab("general");
+            setOpenSlotKeyEditorId(null);
+            setSlotKeyDrafts({});
             loadWorkspace(selectedLocationId);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -240,6 +245,72 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             toast.success(t("workflow_agents.copy_success"));
         } catch (_) {
             toast.error(t("workflow_agents.copy_error"));
+        }
+    };
+
+    const saveSlotOpenAiKey = async (slotId, rawValue) => {
+        if (!selectedLocationId || !slotId) return false;
+        const safeValue = String(rawValue || "").trim();
+        if (!safeValue) {
+            toast.error(t("workflow_agents.slot_key_invalid"));
+            return false;
+        }
+
+        setSavingSlotKeyId(slotId);
+        try {
+            const res = await authFetch("/agency/update-slot-config", {
+                method: "POST",
+                body: JSON.stringify({
+                    locationId: selectedLocationId,
+                    slotId,
+                    openai_api_key: safeValue
+                })
+            });
+            const data = await parseResponse(res);
+            if (!res.ok || data?.error) {
+                throw new Error(data?.error || t("workflow_agents.slot_key_save_error"));
+            }
+
+            toast.success(t("workflow_agents.slot_key_saved"));
+            setSlotKeyDrafts((prev) => ({ ...prev, [slotId]: "" }));
+            setOpenSlotKeyEditorId(slotId);
+            await loadWorkspace(selectedLocationId);
+            return true;
+        } catch (error) {
+            toast.error(t("workflow_agents.slot_key_save_error"), { description: error.message });
+            return false;
+        } finally {
+            setSavingSlotKeyId(null);
+        }
+    };
+
+    const clearSlotOpenAiKey = async (slotId) => {
+        if (!selectedLocationId || !slotId) return false;
+
+        setSavingSlotKeyId(slotId);
+        try {
+            const res = await authFetch("/agency/update-slot-config", {
+                method: "POST",
+                body: JSON.stringify({
+                    locationId: selectedLocationId,
+                    slotId,
+                    openai_api_key: ""
+                })
+            });
+            const data = await parseResponse(res);
+            if (!res.ok || data?.error) {
+                throw new Error(data?.error || t("workflow_agents.slot_key_remove_error"));
+            }
+
+            toast.success(t("workflow_agents.slot_key_removed"));
+            setSlotKeyDrafts((prev) => ({ ...prev, [slotId]: "" }));
+            await loadWorkspace(selectedLocationId);
+            return true;
+        } catch (error) {
+            toast.error(t("workflow_agents.slot_key_remove_error"), { description: error.message });
+            return false;
+        } finally {
+            setSavingSlotKeyId(null);
         }
     };
 
@@ -350,6 +421,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const agents = Array.isArray(workspace?.agents) ? workspace.agents : [];
     const recentRuns = Array.isArray(workspace?.recent_runs) ? workspace.recent_runs : [];
     const slots = Array.isArray(workspace?.slots) ? workspace.slots : [];
+    const selectedLocation = locations.find((location) => String(location?.location_id || "") === selectedLocationId) || null;
+    const selectedLocationName = selectedLocation?.name || selectedLocationId || "-";
     const selectedAgent = agents.find((agent) => agent.id === editingAgentId) || null;
     const selectedSlotIds = Array.isArray(form.slot_ids) ? form.slot_ids : [];
     const selectedSlots = slots.filter((slot) => selectedSlotIds.includes(String(slot.slot_id)));
@@ -638,6 +711,10 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                     : t("workflow_agents.slot_not_selected")}
                                             </span>
                                         </div>
+                                        <div className="mt-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                                            <span className="font-semibold text-gray-700 dark:text-gray-200">{t("workflow_agents.slot_scope_label")}</span>{" "}
+                                            {t("workflow_agents.slot_scope_desc").replace("{account}", selectedLocationName)}
+                                        </div>
                                         <div className="mt-4 max-h-72 space-y-2 overflow-auto pr-1">
                                             {slots.length === 0 ? (
                                                 <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
@@ -646,8 +723,11 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                             ) : slots.map((slot) => {
                                                 const slotId = String(slot.slot_id);
                                                 const checked = selectedSlotIds.includes(slotId);
+                                                const isKeyEditorOpen = openSlotKeyEditorId === slot.slot_id;
+                                                const isSavingThisSlotKey = savingSlotKeyId === slot.slot_id;
+                                                const slotKeyDraft = slotKeyDrafts[slot.slot_id] || "";
                                                 return (
-                                                    <label
+                                                    <div
                                                         key={slotId}
                                                         className={`flex items-start gap-3 rounded-2xl border px-4 py-3 transition ${
                                                             checked
@@ -680,6 +760,57 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                             <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                                 {slot.phone_number || t("workflow_agents.slot_phone_missing")}
                                                             </div>
+                                                            <div className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                                                                {t("workflow_agents.slot_account_label")}: {selectedLocationName}
+                                                            </div>
+                                                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setOpenSlotKeyEditorId((prev) => (prev === slot.slot_id ? null : slot.slot_id))}
+                                                                    className="rounded-xl border border-gray-200 px-3 py-1.5 text-[11px] font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                                >
+                                                                    {slot.has_openai_api_key ? t("workflow_agents.slot_key_replace") : t("workflow_agents.slot_key_add")}
+                                                                </button>
+                                                                {slot.has_openai_api_key ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => clearSlotOpenAiKey(slot.slot_id)}
+                                                                        disabled={isSavingThisSlotKey}
+                                                                        className="rounded-xl border border-red-200 px-3 py-1.5 text-[11px] font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800/60 dark:text-red-300 dark:hover:bg-red-900/20"
+                                                                    >
+                                                                        {isSavingThisSlotKey ? t("workflow_agents.slot_key_saving") : t("workflow_agents.slot_key_remove")}
+                                                                    </button>
+                                                                ) : null}
+                                                            </div>
+                                                            {isKeyEditorOpen ? (
+                                                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                                    <input
+                                                                        type="password"
+                                                                        value={slotKeyDraft}
+                                                                        onChange={(event) => {
+                                                                            const nextValue = event.target.value;
+                                                                            setSlotKeyDrafts((prev) => ({ ...prev, [slot.slot_id]: nextValue }));
+                                                                        }}
+                                                                        onKeyDown={(event) => {
+                                                                            if (event.key === "Enter") {
+                                                                                event.preventDefault();
+                                                                                saveSlotOpenAiKey(slot.slot_id, slotKeyDraft);
+                                                                            }
+                                                                        }}
+                                                                        placeholder={t("workflow_agents.slot_key_placeholder")}
+                                                                        className="min-w-[220px] flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => saveSlotOpenAiKey(slot.slot_id, slotKeyDraft)}
+                                                                        disabled={isSavingThisSlotKey}
+                                                                        className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                                                    >
+                                                                        {isSavingThisSlotKey ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                                                                        {isSavingThisSlotKey ? t("workflow_agents.slot_key_saving") : t("workflow_agents.slot_key_save")}
+                                                                    </button>
+                                                                </div>
+                                                            ) : null}
                                                         </div>
                                                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                                                             slot.has_openai_api_key
@@ -688,7 +819,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                         }`}>
                                                             {slot.has_openai_api_key ? t("workflow_agents.slot_has_key") : t("workflow_agents.slot_missing_key")}
                                                         </span>
-                                                    </label>
+                                                    </div>
                                                 );
                                             })}
                                         </div>
