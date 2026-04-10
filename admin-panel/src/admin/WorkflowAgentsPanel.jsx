@@ -37,7 +37,7 @@ function buildEmptyForm(catalog = []) {
         agent_key: "",
         status: "active",
         credential_mode: "slot",
-        slot_id: "",
+        slot_ids: [],
         manual_api_key: "",
         manual_api_key_configured: false,
         clear_manual_api_key: false,
@@ -68,7 +68,9 @@ function buildFormFromAgent(agent, catalog = []) {
         agent_key: agent?.agent_key || "",
         status: agent?.status || "active",
         credential_mode: "slot",
-        slot_id: agent?.slot_id ? String(agent.slot_id) : "",
+        slot_ids: Array.isArray(agent?.slot_ids)
+            ? agent.slot_ids.map((slotId) => String(slotId))
+            : (agent?.slot_id ? [String(agent.slot_id)] : []),
         manual_api_key: "",
         manual_api_key_configured: agent?.manual_api_key_configured === true,
         clear_manual_api_key: false,
@@ -253,7 +255,9 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                 agent_key: form.agent_key,
                 status: form.status,
                 credential_mode: "slot",
-                slot_id: form.slot_id ? Number.parseInt(form.slot_id, 10) : null,
+                slot_ids: Array.isArray(form.slot_ids)
+                    ? form.slot_ids.map((slotId) => Number.parseInt(String(slotId), 10)).filter((slotId) => Number.isFinite(slotId) && slotId > 0)
+                    : [],
                 model: form.model,
                 temperature: Number.parseFloat(form.temperature || "0.4"),
                 max_output_chars: Number.parseInt(form.max_output_chars || "600", 10),
@@ -302,12 +306,18 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
 
     const handleRunTest = async () => {
         if (!editingAgentId || !selectedLocationId) return;
+        if (selectedSlotCount === 0) {
+            toast.error(t("workflow_agents.test_error"), { description: t("workflow_agents.test_error_missing_slots") });
+            return;
+        }
+
         setTesting(true);
         try {
             const res = await authFetch(`/agency/workflow-agents/${editingAgentId}/test`, {
                 method: "POST",
                 body: JSON.stringify({
                     locationId: selectedLocationId,
+                    slotId: preferredTestSlot?.slot_id || null,
                     message: testMessage || t("workflow_agents.test_placeholder"),
                     extraContext: form.description || ""
                 })
@@ -340,40 +350,21 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const agents = Array.isArray(workspace?.agents) ? workspace.agents : [];
     const recentRuns = Array.isArray(workspace?.recent_runs) ? workspace.recent_runs : [];
     const slots = Array.isArray(workspace?.slots) ? workspace.slots : [];
-    const credentials = workspace?.credentials || null;
-    const summary = workspace?.integration_summary || {};
-    const activeCount = agents.filter((agent) => agent.status === "active").length;
     const selectedAgent = agents.find((agent) => agent.id === editingAgentId) || null;
-    const ghlIntegration = catalog.find((item) => item.key === "ghl") || null;
-    const slotsWithOpenAiKey = slots.filter((slot) => slot?.has_openai_api_key);
-    const hasAgencyOpenAiKey = credentials?.has_agency_openai_key === true;
-    const hasAnySlotOpenAiKey = slotsWithOpenAiKey.length > 0;
-    const isManualCredentialMode = form.credential_mode === "manual";
-    const manualKeyReady = isManualCredentialMode && (
-        String(form.manual_api_key || "").trim().length > 0 ||
-        (form.manual_api_key_configured === true && form.clear_manual_api_key !== true)
-    );
-    const selectedSlot = slots.find((slot) => String(slot.slot_id) === String(form.slot_id || ""));
-    const selectedSlotHasOpenAiKey = !!selectedSlot?.has_openai_api_key;
-    const slotsWithOpenAiKeyLabel = slotsWithOpenAiKey
-        .map((slot) => slot?.slot_name || `${t("workflow_agents.slot_prefix")} ${slot?.slot_id}`)
-        .filter(Boolean)
-        .join(", ");
+    const selectedSlotIds = Array.isArray(form.slot_ids) ? form.slot_ids : [];
+    const selectedSlots = slots.filter((slot) => selectedSlotIds.includes(String(slot.slot_id)));
+    const selectedSlotCount = selectedSlots.length;
+    const selectedSlotsWithKeys = selectedSlots.filter((slot) => slot?.has_openai_api_key === true);
+    const selectedSlotsWithoutKeys = selectedSlots.filter((slot) => slot?.has_openai_api_key !== true);
+    const selectedSlotsWithKeysCount = selectedSlotsWithKeys.length;
+    const preferredTestSlot = selectedSlotsWithKeys[0] || selectedSlots[0] || null;
 
     const buildMissingCredentialMessage = () => {
-        if (isManualCredentialMode) {
-            return manualKeyReady
-                ? t("workflow_agents.test_error_missing_key_fallback")
-                : t("workflow_agents.test_error_missing_manual_key");
+        if (selectedSlotCount === 0) {
+            return t("workflow_agents.test_error_missing_slots");
         }
-        if (hasAgencyOpenAiKey) {
-            return t("workflow_agents.test_error_missing_key_fallback");
-        }
-        if (form.slot_id && !selectedSlotHasOpenAiKey) {
+        if (selectedSlotsWithKeysCount === 0) {
             return t("workflow_agents.test_error_missing_key_selected_slot");
-        }
-        if (!form.slot_id && hasAnySlotOpenAiKey) {
-            return t("workflow_agents.test_error_missing_key_slot");
         }
         return t("workflow_agents.test_error_missing_key");
     };
@@ -459,9 +450,9 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                             />
                         </div>
                         <div className="mt-3 flex flex-wrap gap-1.5">
-                            {agent.slot_id ? (
+                            {Array.isArray(agent.slot_ids) && agent.slot_ids.length > 0 ? (
                                 <span className="rounded-full border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                                    {t("workflow_agents.slot_prefix")} {agent.slot_id}
+                                    {t("workflow_agents.slots_selected_count").replace("{count}", String(agent.slot_ids.length))}
                                 </span>
                             ) : (
                                 <span className="text-[11px] text-gray-500 dark:text-gray-400">{t("workflow_agents.slot_not_selected")}</span>
@@ -535,7 +526,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                                     <span className="rounded-full border border-gray-200 px-2.5 py-1 dark:border-gray-700">{form.agent_key || "-"}</span>
                                     <span>{form.model || "-"}</span>
-                                    <span>{form.slot_id ? `${t("workflow_agents.slot_prefix")} ${form.slot_id}` : t("workflow_agents.slot_not_selected")}</span>
+                                    <span>{selectedSlotCount > 0 ? t("workflow_agents.slots_selected_count").replace("{count}", String(selectedSlotCount)) : t("workflow_agents.slot_not_selected")}</span>
                                 </div>
                             ) : null}
                         </div>
@@ -617,19 +608,12 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_slot")}</label>
-                                        <select
-                                            value={form.slot_id}
-                                            onChange={(event) => setForm((prev) => ({ ...prev, slot_id: event.target.value, credential_mode: "slot" }))}
-                                            className={inputClassName}
-                                        >
-                                            <option value="">{t("workflow_agents.slot_not_selected")}</option>
-                                            {slots.map((slot) => (
-                                                <option key={slot.slot_id} value={slot.slot_id}>
-                                                    {slot.slot_name} ({t("workflow_agents.slot_prefix")} {slot.slot_id}) - {slot.has_openai_api_key ? t("workflow_agents.slot_has_key") : t("workflow_agents.slot_missing_key")}
-                                                </option>
-                                            ))}
-                                        </select>
+                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_slots")}</label>
+                                        <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300">
+                                            {selectedSlotCount > 0
+                                                ? t("workflow_agents.slots_selected_count").replace("{count}", String(selectedSlotCount))
+                                                : t("workflow_agents.slot_not_selected")}
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_model")}</label>
@@ -642,17 +626,82 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                 </div>
 
                                 <div className="grid gap-4 lg:grid-cols-[1fr,220px]">
-                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300">
-                                        <div className="font-semibold text-gray-900 dark:text-white">{t("workflow_agents.credentials_box_title")}</div>
-                                        <div className="mt-2 leading-6">
-                                            {t("workflow_agents.credentials_box_slot")}
+                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 dark:border-gray-700 dark:bg-gray-800/40">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <div className="font-semibold text-gray-900 dark:text-white">{t("workflow_agents.field_slots")}</div>
+                                                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("workflow_agents.field_slots_help")}</div>
+                                            </div>
+                                            <span className="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                                                {selectedSlotCount > 0
+                                                    ? t("workflow_agents.slots_selected_count").replace("{count}", String(selectedSlotCount))
+                                                    : t("workflow_agents.slot_not_selected")}
+                                            </span>
+                                        </div>
+                                        <div className="mt-4 max-h-72 space-y-2 overflow-auto pr-1">
+                                            {slots.length === 0 ? (
+                                                <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                                                    {t("workflow_agents.slots_empty")}
+                                                </div>
+                                            ) : slots.map((slot) => {
+                                                const slotId = String(slot.slot_id);
+                                                const checked = selectedSlotIds.includes(slotId);
+                                                return (
+                                                    <label
+                                                        key={slotId}
+                                                        className={`flex items-start gap-3 rounded-2xl border px-4 py-3 transition ${
+                                                            checked
+                                                                ? "border-indigo-300 bg-indigo-50/70 dark:border-indigo-700 dark:bg-indigo-900/20"
+                                                                : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={() => {
+                                                                setForm((prev) => {
+                                                                    const prevSlotIds = Array.isArray(prev.slot_ids) ? prev.slot_ids : [];
+                                                                    const nextSlotIds = prevSlotIds.includes(slotId)
+                                                                        ? prevSlotIds.filter((value) => value !== slotId)
+                                                                        : [...prevSlotIds, slotId];
+                                                                    return {
+                                                                        ...prev,
+                                                                        slot_ids: nextSlotIds,
+                                                                        credential_mode: "slot"
+                                                                    };
+                                                                });
+                                                            }}
+                                                            className="mt-1 h-4 w-4 rounded text-indigo-600"
+                                                        />
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="font-semibold text-gray-900 dark:text-white">
+                                                                {slot.slot_name} ({t("workflow_agents.slot_prefix")} {slot.slot_id})
+                                                            </div>
+                                                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                                {slot.phone_number || t("workflow_agents.slot_phone_missing")}
+                                                            </div>
+                                                        </div>
+                                                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                                                            slot.has_openai_api_key
+                                                                ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-300"
+                                                                : "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-200"
+                                                        }`}>
+                                                            {slot.has_openai_api_key ? t("workflow_agents.slot_has_key") : t("workflow_agents.slot_missing_key")}
+                                                        </span>
+                                                    </label>
+                                                );
+                                            })}
                                         </div>
                                         <div className="mt-3 text-xs text-amber-700 dark:text-amber-300">
-                                            {form.slot_id
-                                                ? (selectedSlotHasOpenAiKey
-                                                    ? t("workflow_agents.credentials_help_slot_selected")
-                                                    : t("workflow_agents.credentials_help_slot_missing_for_selected"))
-                                                : t("workflow_agents.credentials_help_slot_pick")}
+                                            {selectedSlotCount === 0
+                                                ? t("workflow_agents.credentials_help_slot_pick")
+                                                : (selectedSlotsWithKeysCount === 0
+                                                    ? t("workflow_agents.credentials_help_slot_missing_for_selected")
+                                                    : (selectedSlotsWithKeysCount < selectedSlotCount
+                                                        ? t("workflow_agents.credentials_help_slot_partial")
+                                                            .replace("{ready}", String(selectedSlotsWithKeysCount))
+                                                            .replace("{total}", String(selectedSlotCount))
+                                                        : t("workflow_agents.credentials_help_slot_selected")))}
                                         </div>
                                     </div>
                                     <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300">
@@ -754,11 +803,39 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                             {item.key === "ghl" && binding.enabled ? (
                                                 <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 text-sm text-indigo-900 dark:border-indigo-900/40 dark:bg-indigo-900/10 dark:text-indigo-100">
                                                     <div className="font-semibold">{t("workflow_agents.integration_ghl_binding_note")}</div>
-                                                    <div className="mt-2 text-xs leading-6">
-                                                        {form.slot_id
-                                                            ? t("workflow_agents.integration_ghl_slot_bound").replace("{slot}", String(form.slot_id))
-                                                            : t("workflow_agents.integration_ghl_slot_missing")}
-                                                    </div>
+                                                    {selectedSlotCount > 0 ? (
+                                                        <>
+                                                            <div className="mt-2 text-xs leading-6">
+                                                                {t("workflow_agents.integration_ghl_slot_bound")
+                                                                    .replace("{count}", String(selectedSlotCount))}
+                                                            </div>
+                                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                                {selectedSlots.map((slot) => (
+                                                                    <span
+                                                                        key={`ghl-slot-${slot.slot_id}`}
+                                                                        className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                                                            slot.has_openai_api_key
+                                                                                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200"
+                                                                                : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200"
+                                                                        }`}
+                                                                    >
+                                                                        {slot.slot_name} ({t("workflow_agents.slot_prefix")} {slot.slot_id})
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                            {selectedSlotsWithoutKeys.length > 0 ? (
+                                                                <div className="mt-3 text-xs leading-6 text-amber-800 dark:text-amber-200">
+                                                                    {t("workflow_agents.integration_ghl_slot_partial")
+                                                                        .replace("{ready}", String(selectedSlotsWithKeysCount))
+                                                                        .replace("{total}", String(selectedSlotCount))}
+                                                                </div>
+                                                            ) : null}
+                                                        </>
+                                                    ) : (
+                                                        <div className="mt-2 text-xs leading-6">
+                                                            {t("workflow_agents.integration_ghl_slot_missing")}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ) : null}
 
