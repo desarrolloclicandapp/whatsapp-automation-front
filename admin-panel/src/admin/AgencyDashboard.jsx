@@ -373,7 +373,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     // Integration filter for accounts list
     const [accountsFilter, setAccountsFilter] = useState("all"); // "all" | "ghl" | "waflow" | "chatwoot"
     const [settingsSection, setSettingsSection] = useState("guide");
-    const [builderSection, setBuilderSection] = useState("agents");
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -2692,6 +2691,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="overview" icon={LayoutGrid} label={t('dash.nav.overview')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="billing" icon={CreditCard} label={t('dash.nav.billing')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="reliability" icon={Activity} label={t('dash.nav.reliability') || 'Confiabilidad'} branding={branding} sidebarOpen={sidebarOpen} />
+                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="agents" icon={Bot} label={t('dash.nav.agents') || "Agentes"} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="settings" icon={Settings} label={t('dash.nav.settings')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="builder" icon={Hammer} label={t('dash.nav.builder') || "Constructor"} branding={branding} sidebarOpen={sidebarOpen} />
                     <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
@@ -2705,7 +2705,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F8FAFC] dark:bg-[#0f1117]">
                 <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 z-20">
-                    <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : activeTab === 'reliability' ? (t('dash.header.reliability') || 'Confiabilidad operativa') : activeTab === 'builder' ? (t('dash.header.builder') || "Constructor") : t('dash.header.settings')}</h2></div>
+                    <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : activeTab === 'reliability' ? (t('dash.header.reliability') || 'Confiabilidad operativa') : activeTab === 'agents' ? (t('dash.header.agents') || "Agentes") : activeTab === 'builder' ? (t('dash.header.builder') || "Constructor") : t('dash.header.settings')}</h2></div>
                     <div className="flex items-center gap-4"><LanguageSelector /><ThemeToggle /><div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div></div>
                 </header>
 
@@ -3621,44 +3621,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     )}
 
-                    {activeTab === 'builder' && (
-                        <div className="space-y-6">
-                            <div className="flex flex-wrap gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setBuilderSection('agents')}
-                                    className={`rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
-                                        builderSection === 'agents'
-                                            ? 'bg-indigo-600 text-white shadow-sm'
-                                            : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                                    }`}
-                                >
-                                    {t('agency.builder.tab_agents') || 'Agentes GHL'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setBuilderSection('interactive')}
-                                    className={`rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
-                                        builderSection === 'interactive'
-                                            ? 'bg-indigo-600 text-white shadow-sm'
-                                            : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                                    }`}
-                                >
-                                    {t('agency.builder.tab_interactive') || 'Mensajes interactivos'}
-                                </button>
-                            </div>
-
-                            {builderSection === 'agents' ? (
-                                <WorkflowAgentsPanel
-                                    locations={locations}
-                                    onUnauthorized={onLogout}
-                                    token={token}
-                                />
-                            ) : (
-                                <InteractiveMessageBuilder />
-                            )}
-                        </div>
+                    {activeTab === 'agents' && (
+                        <WorkflowAgentsPanel
+                            locations={locations}
+                            onUnauthorized={onLogout}
+                            token={token}
+                        />
                     )}
+
+                    {activeTab === 'builder' && <InteractiveMessageBuilder />}
 
                     {activeTab === 'billing' && (
                         (isGhlAgency || isChatwootAgency)
