@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Loader2, Play, RefreshCw, Save, Search, Trash2 } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { FileText, Loader2, Play, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -22,6 +22,14 @@ function formatDuration(value) {
     const parsed = Number.parseInt(String(value || ""), 10);
     if (!Number.isFinite(parsed) || parsed <= 0) return "0 ms";
     return parsed < 1000 ? `${parsed} ms` : `${(parsed / 1000).toFixed(1)} s`;
+}
+
+function formatFileSize(bytes) {
+    const safeBytes = Number.parseInt(String(bytes || ""), 10);
+    if (!Number.isFinite(safeBytes) || safeBytes <= 0) return "0 KB";
+    if (safeBytes < 1024) return `${safeBytes} B`;
+    if (safeBytes < 1024 * 1024) return `${(safeBytes / 1024).toFixed(1)} KB`;
+    return `${(safeBytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function buildDefaultIntegrations(catalog = []) {
@@ -145,6 +153,7 @@ function TabButton({ active, label, onClick }) {
 
 export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, token }) {
     const { t } = useLanguage();
+    const documentInputRef = useRef(null);
     const [selectedLocationId, setSelectedLocationId] = useState("");
     const [workspace, setWorkspace] = useState(null);
     const [viewMode, setViewMode] = useState("list");
@@ -157,6 +166,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
+    const [uploadingDocuments, setUploadingDocuments] = useState(false);
     const [slotKeyDrafts, setSlotKeyDrafts] = useState({});
     const [openSlotKeyEditorId, setOpenSlotKeyEditorId] = useState(null);
     const [savingSlotKeyId, setSavingSlotKeyId] = useState(null);
@@ -193,6 +203,21 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         }
     };
 
+    const authFileFetch = async (endpoint, options = {}) => {
+        const res = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                Authorization: `Bearer ${token}`,
+                ...(options.headers || {})
+            }
+        });
+        if (res.status === 401) {
+            onUnauthorized?.();
+            throw new Error(t("agency.session_expired"));
+        }
+        return res;
+    };
+
     const applyAgentToForm = (agent, workspaceSnapshot = workspace, options = {}) => {
         const catalog = Array.isArray(workspaceSnapshot?.integration_catalog) ? workspaceSnapshot.integration_catalog : [];
         if (!agent) {
@@ -215,7 +240,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
 
     const loadWorkspace = async (locationId) => {
         const safeLocationId = String(locationId || "").trim();
-        if (!safeLocationId) return;
+        if (!safeLocationId) return null;
 
         setLoading(true);
         try {
@@ -223,8 +248,10 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             const data = await parseResponse(res);
             if (!res.ok || !data?.success) throw new Error(data?.error || t("workflow_agents.load_error"));
             setWorkspace(data);
+            return data;
         } catch (error) {
             toast.error(t("workflow_agents.load_error"), { description: error.message });
+            return null;
         } finally {
             setLoading(false);
         }
@@ -414,6 +441,65 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         setTestResult(null);
     };
 
+    const handleUploadDocuments = async (event) => {
+        const fileList = Array.from(event?.target?.files || []);
+        if (!editingAgentId || !selectedLocationId || fileList.length === 0) {
+            if (event?.target) event.target.value = "";
+            return;
+        }
+
+        const formData = new FormData();
+        fileList.forEach((file) => formData.append("documents", file));
+
+        setUploadingDocuments(true);
+        try {
+            const res = await authFileFetch(
+                `/agency/workflow-agents/${editingAgentId}/documents?locationId=${encodeURIComponent(selectedLocationId)}`,
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
+            const data = await parseResponse(res);
+            if (!res.ok || !data?.success) {
+                throw new Error(data?.error || t("workflow_agents.documents_upload_error"));
+            }
+
+            toast.success(
+                t("workflow_agents.documents_upload_success").replace(
+                    "{count}",
+                    String(Array.isArray(data?.uploaded) ? data.uploaded.length : fileList.length)
+                )
+            );
+            await loadWorkspace(selectedLocationId);
+        } catch (error) {
+            toast.error(t("workflow_agents.documents_upload_error"), { description: error.message });
+        } finally {
+            setUploadingDocuments(false);
+            if (event?.target) event.target.value = "";
+        }
+    };
+
+    const handleDeleteDocument = async (documentId) => {
+        if (!editingAgentId || !selectedLocationId || !documentId) return;
+        if (!window.confirm(t("workflow_agents.documents_delete_confirm"))) return;
+
+        try {
+            const res = await authFetch(
+                `/agency/workflow-agents/${editingAgentId}/documents/${documentId}?locationId=${encodeURIComponent(selectedLocationId)}`,
+                { method: "DELETE" }
+            );
+            const data = await parseResponse(res);
+            if (!res.ok || !data?.success) {
+                throw new Error(data?.error || t("workflow_agents.documents_delete_error"));
+            }
+            toast.success(t("workflow_agents.documents_delete_success"));
+            await loadWorkspace(selectedLocationId);
+        } catch (error) {
+            toast.error(t("workflow_agents.documents_delete_error"), { description: error.message });
+        }
+    };
+
     const catalog = Array.isArray(workspace?.integration_catalog) ? workspace.integration_catalog : [];
     const agents = Array.isArray(workspace?.agents) ? workspace.agents : [];
     const recentRuns = Array.isArray(workspace?.recent_runs) ? workspace.recent_runs : [];
@@ -447,6 +533,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const selectedSlotsWithoutKeys = selectedSlots.filter((slot) => slot?.has_openai_api_key !== true);
     const selectedSlotsWithKeysCount = selectedSlotsWithKeys.length;
     const preferredTestSlot = selectedSlotsWithKeys[0] || selectedSlots[0] || null;
+    const selectedDocuments = Array.isArray(selectedAgent?.documents) ? selectedAgent.documents : [];
 
     const buildMissingCredentialMessage = () => {
         if (selectedSlotCount === 0) {
@@ -564,6 +651,11 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                             ) : (
                                 <span className="text-[11px] text-gray-500 dark:text-gray-400">{t("workflow_agents.slot_not_selected")}</span>
                             )}
+                            {Number(agent.document_count || 0) > 0 ? (
+                                <span className="rounded-full border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                                    {t("workflow_agents.documents_count").replace("{count}", String(agent.document_count))}
+                                </span>
+                            ) : null}
                             {Array.isArray(agent.enabled_integrations) && agent.enabled_integrations.length > 0 ? (
                                 agent.enabled_integrations.map((integrationKey) => (
                                     <span
@@ -670,6 +762,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
 
                     <div className="mt-5 flex flex-wrap gap-2">
                         <TabButton active={activeTab === "general"} label={t("workflow_agents.tab_general")} onClick={() => setActiveTab("general")} />
+                        <TabButton active={activeTab === "documents"} label={t("workflow_agents.tab_documents")} onClick={() => setActiveTab("documents")} />
                         <TabButton active={activeTab === "integrations"} label={t("workflow_agents.tab_integrations")} onClick={() => setActiveTab("integrations")} />
                         <TabButton active={activeTab === "test"} label={t("workflow_agents.tab_test")} onClick={() => setActiveTab("test")} />
                         <TabButton active={activeTab === "history"} label={t("workflow_agents.tab_history")} onClick={() => setActiveTab("history")} />
@@ -916,6 +1009,92 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                     </button>
                                 </div>
                             </form>
+                        )}
+
+                        {activeTab === "documents" && (
+                            <div className="space-y-4">
+                                <div className="rounded-2xl border border-gray-200 bg-gray-50/70 px-4 py-4 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300">
+                                    <div className="font-semibold text-gray-900 dark:text-white">{t("workflow_agents.documents_title")}</div>
+                                    <div className="mt-2 leading-6">{t("workflow_agents.documents_desc")}</div>
+                                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("workflow_agents.documents_formats")}</div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-700 dark:bg-gray-900">
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        {selectedDocuments.length > 0
+                                            ? t("workflow_agents.documents_count").replace("{count}", String(selectedDocuments.length))
+                                            : t("workflow_agents.documents_empty")}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <input
+                                            ref={documentInputRef}
+                                            type="file"
+                                            accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.xml,.log,text/plain,text/markdown,text/csv,application/json,text/html,text/xml"
+                                            multiple
+                                            onChange={handleUploadDocuments}
+                                            className="hidden"
+                                        />
+                                        <button
+                                            type="button"
+                                            disabled={!editingAgentId || uploadingDocuments}
+                                            onClick={() => documentInputRef.current?.click()}
+                                            className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {uploadingDocuments ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                                            {uploadingDocuments ? t("workflow_agents.documents_uploading") : t("workflow_agents.documents_upload")}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {selectedDocuments.length === 0 ? (
+                                    <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                                        {t("workflow_agents.documents_empty")}
+                                    </div>
+                                ) : null}
+
+                                <div className="space-y-3">
+                                    {selectedDocuments.map((document) => (
+                                        <div key={document.id} className="rounded-2xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-700 dark:bg-gray-900">
+                                            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <FileText size={16} className="text-indigo-500" />
+                                                        <div className="truncate font-semibold text-gray-900 dark:text-white">{document.original_name}</div>
+                                                    </div>
+                                                    <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                                        <span>{formatFileSize(document.file_size)}</span>
+                                                        <span>{t("workflow_agents.documents_chunks").replace("{count}", String(document.chunk_count || 0))}</span>
+                                                        <span>{formatRunTimestamp(document.created_at)}</span>
+                                                    </div>
+                                                    {document.excerpt ? (
+                                                        <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{document.excerpt}</p>
+                                                    ) : null}
+                                                </div>
+                                                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                                    <StatusPill label={t("workflow_agents.documents_ready")} kind="good" />
+                                                    {document.download_url ? (
+                                                        <a
+                                                            href={document.download_url}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                        >
+                                                            {t("workflow_agents.documents_open")}
+                                                        </a>
+                                                    ) : null}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteDocument(document.id)}
+                                                        className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-800/60 dark:text-red-300 dark:hover:bg-red-900/20"
+                                                    >
+                                                        {t("workflow_agents.documents_delete")}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
 
                         {activeTab === "integrations" && (
