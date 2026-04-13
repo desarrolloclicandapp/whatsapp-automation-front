@@ -86,6 +86,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [officialConfigBySlot, setOfficialConfigBySlot] = useState({});
     const [loadingOfficialBySlot, setLoadingOfficialBySlot] = useState({});
     const [savingOfficialBySlot, setSavingOfficialBySlot] = useState({});
+    const [officialLinkMethodBySlot, setOfficialLinkMethodBySlot] = useState({});
     const [startingOfficialEmbeddedBySlot, setStartingOfficialEmbeddedBySlot] = useState({});
     const [completingOfficialEmbeddedBySlot, setCompletingOfficialEmbeddedBySlot] = useState({});
     const [officialTemplatesBySlot, setOfficialTemplatesBySlot] = useState({});
@@ -1074,6 +1075,59 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         embeddedSignupMissing: []
     });
 
+    const hydrateOfficialWhatsappState = (data = {}, previousState = null) => {
+        const previous = previousState || createEmptyOfficialWhatsappState();
+        const embeddedSignup = data?.embeddedSignup || {};
+        return {
+            ...previous,
+            loaded: true,
+            configured: !!data.configured,
+            connectionMode: data.connectionMode || 'official_api',
+            status: data.status || 'draft',
+            businessAccountId: data.businessAccountId ? String(data.businessAccountId) : "",
+            phoneNumberId: data.phoneNumberId ? String(data.phoneNumberId) : "",
+            accessToken: "",
+            accessTokenMasked: data.accessTokenMasked || "",
+            hasAccessToken: !!data.hasAccessToken,
+            webhookVerifyToken: data.webhookVerifyToken || "",
+            webhookUrl: data.webhookUrl || "",
+            verifiedAt: data.verifiedAt || null,
+            lastValidationAt: data.lastValidationAt || null,
+            lastValidationError: data.lastValidationError || "",
+            lastWebhookAt: data.lastWebhookAt || null,
+            displayPhoneNumber: data.displayPhoneNumber || "",
+            verifiedName: data.verifiedName || "",
+            qualityRating: data.qualityRating || "",
+            nameStatus: data.nameStatus || "",
+            setupSource: data.setupSource || "",
+            embeddedSignupCompletedAt: data.embeddedSignupCompletedAt || null,
+            embeddedSignupBusinessId: data.embeddedSignupBusinessId || "",
+            embeddedSignupPhone: data.embeddedSignupPhone || "",
+            embeddedSignupError: data.embeddedSignupError || "",
+            embeddedSignupEnabled: !!embeddedSignup.enabled,
+            embeddedSignupAppId: embeddedSignup.appId ? String(embeddedSignup.appId) : "",
+            embeddedSignupConfigurationId: embeddedSignup.configurationId ? String(embeddedSignup.configurationId) : "",
+            embeddedSignupSdkVersion: embeddedSignup.sdkVersion ? String(embeddedSignup.sdkVersion) : "",
+            embeddedSignupGraphVersion: embeddedSignup.graphVersion ? String(embeddedSignup.graphVersion) : "",
+            embeddedSignupSessionInfoVersion: Number(embeddedSignup.sessionInfoVersion) || 3,
+            embeddedSignupSolutionId: embeddedSignup.solutionId ? String(embeddedSignup.solutionId) : "",
+            embeddedSignupProviderTokenConfigured: embeddedSignup.providerTokenConfigured === true,
+            embeddedSignupMissing: Array.isArray(embeddedSignup.missing) ? embeddedSignup.missing : []
+        };
+    };
+
+    const resolveOfficialLinkMethod = (official = createEmptyOfficialWhatsappState()) => {
+        if (String(official.setupSource || '').trim() === 'manual') return 'manual';
+        if (
+            String(official.phoneNumberId || '').trim() ||
+            String(official.accessToken || '').trim() ||
+            String(official.accessTokenMasked || '').trim()
+        ) {
+            return 'manual';
+        }
+        return 'embedded';
+    };
+
     const createEmptyOfficialTemplateState = () => ({
         loaded: false,
         templates: [],
@@ -1515,30 +1569,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             const data = await res.json();
             const nextBusinessAccountId = data.businessAccountId ? String(data.businessAccountId) : "";
             const nextHasAccessToken = !!data.hasAccessToken;
-            const embeddedSignup = data?.embeddedSignup || {};
             setOfficialConfigBySlot(prev => ({
                 ...prev,
-                [slotId]: {
-                    loaded: true,
-                    configured: !!data.configured,
-                    connectionMode: data.connectionMode || 'official_api',
-                    status: data.status || 'draft',
-                    businessAccountId: nextBusinessAccountId,
-                    phoneNumberId: data.phoneNumberId ? String(data.phoneNumberId) : "",
-                    accessToken: "",
-                    accessTokenMasked: data.accessTokenMasked || "",
-                    hasAccessToken: nextHasAccessToken,
-                    webhookVerifyToken: data.webhookVerifyToken || "",
-                    webhookUrl: data.webhookUrl || "",
-                    verifiedAt: data.verifiedAt || null,
-                    lastValidationAt: data.lastValidationAt || null,
-                    lastValidationError: data.lastValidationError || "",
-                    lastWebhookAt: data.lastWebhookAt || null,
-                    displayPhoneNumber: data.displayPhoneNumber || "",
-                    verifiedName: data.verifiedName || "",
-                    qualityRating: data.qualityRating || "",
-                    nameStatus: data.nameStatus || ""
-                }
+                [slotId]: hydrateOfficialWhatsappState(data, prev[slotId] || previousOfficial)
             }));
             if (
                 String(previousOfficial.businessAccountId || "").trim() !== nextBusinessAccountId ||
@@ -1800,7 +1833,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 throw new Error(err.error || "No se pudo validar la configuración oficial");
             }
             const data = await res.json();
-            toast.success(t('slots.official.valid') || "WhatsApp API oficial validada");
+            if (String(data.warning || '').trim()) {
+                toast.warning(t('slots.official.valid') || "WhatsApp API oficial validada", {
+                    description: data.warning
+                });
+            } else {
+                toast.success(t('slots.official.valid') || "WhatsApp API oficial validada");
+            }
             await loadOfficialWhatsappConfig(slotId, true);
             syncSlotConnectionMode(slotId, 'official_api', {
                 ...(slots.find((slot) => slot.slot_id === slotId)?.settings?.official_api || {}),
@@ -1881,45 +1920,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res.ok) {
                 throw new Error(data.error || "No se pudo limpiar la configuracion oficial");
             }
-            const embeddedSignup = data?.embeddedSignup || {};
             toast.success(t('slots.official.cleared') || "Configuracion oficial eliminada");
             setOfficialConfigBySlot(prev => ({
                 ...prev,
-                [slotId]: {
-                    loaded: true,
-                    configured: !!data.configured,
-                    connectionMode: data.connectionMode || 'official_api',
-                    status: data.status || 'draft',
-                    businessAccountId: data.businessAccountId ? String(data.businessAccountId) : "",
-                    phoneNumberId: data.phoneNumberId ? String(data.phoneNumberId) : "",
-                    accessToken: "",
-                    accessTokenMasked: data.accessTokenMasked || "",
-                    hasAccessToken: !!data.hasAccessToken,
-                    webhookVerifyToken: data.webhookVerifyToken || "",
-                    webhookUrl: data.webhookUrl || "",
-                    verifiedAt: data.verifiedAt || null,
-                    lastValidationAt: data.lastValidationAt || null,
-                    lastValidationError: data.lastValidationError || "",
-                    lastWebhookAt: data.lastWebhookAt || null,
-                    displayPhoneNumber: data.displayPhoneNumber || "",
-                    verifiedName: data.verifiedName || "",
-                    qualityRating: data.qualityRating || "",
-                    nameStatus: data.nameStatus || "",
-                    setupSource: data.setupSource || "",
-                    embeddedSignupCompletedAt: data.embeddedSignupCompletedAt || null,
-                    embeddedSignupBusinessId: data.embeddedSignupBusinessId || "",
-                    embeddedSignupPhone: data.embeddedSignupPhone || "",
-                    embeddedSignupError: data.embeddedSignupError || "",
-                    embeddedSignupEnabled: !!embeddedSignup.enabled,
-                    embeddedSignupAppId: embeddedSignup.appId ? String(embeddedSignup.appId) : "",
-                    embeddedSignupConfigurationId: embeddedSignup.configurationId ? String(embeddedSignup.configurationId) : "",
-                    embeddedSignupSdkVersion: embeddedSignup.sdkVersion ? String(embeddedSignup.sdkVersion) : "",
-                    embeddedSignupGraphVersion: embeddedSignup.graphVersion ? String(embeddedSignup.graphVersion) : "",
-                    embeddedSignupSessionInfoVersion: Number(embeddedSignup.sessionInfoVersion) || 3,
-                    embeddedSignupSolutionId: embeddedSignup.solutionId ? String(embeddedSignup.solutionId) : "",
-                    embeddedSignupProviderTokenConfigured: embeddedSignup.providerTokenConfigured === true,
-                    embeddedSignupMissing: Array.isArray(embeddedSignup.missing) ? embeddedSignup.missing : []
-                }
+                [slotId]: hydrateOfficialWhatsappState(data, prev[slotId])
             }));
             setOfficialTemplatesBySlot(prev => ({
                 ...prev,
@@ -1936,7 +1940,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 displayPhoneNumber: data.displayPhoneNumber || "",
                 verifiedName: data.verifiedName || "",
                 qualityRating: data.qualityRating || "",
-                nameStatus: data.nameStatus || ""
+                nameStatus: data.nameStatus || "",
+                setupSource: data.setupSource || ""
             });
         } catch (e) {
             toast.error(t('slots.official.clear_error') || "Error limpiando WhatsApp API oficial", {
@@ -1996,7 +2001,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 embeddedSignupBusinessId: data.embeddedSignupBusinessId || "",
                 embeddedSignupPhone: data.embeddedSignupPhone || ""
             });
-            toast.success(t('slots.official.embedded.completed') || 'WhatsApp oficial conectado desde Meta');
+            if (String(data.warning || '').trim()) {
+                toast.warning(t('slots.official.embedded.completed') || 'WhatsApp oficial conectado desde Meta', {
+                    description: data.warning
+                });
+            } else {
+                toast.success(t('slots.official.embedded.completed') || 'WhatsApp oficial conectado desde Meta');
+            }
         } catch (e) {
             toast.error(t('slots.official.embedded.complete_error') || 'Error completando la vinculación con Meta', {
                 description: e.message
@@ -2642,6 +2653,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const embeddedMissingLabel = Array.isArray(official.embeddedSignupMissing) && official.embeddedSignupMissing.length > 0
             ? official.embeddedSignupMissing.join(', ')
             : '';
+        const resolvedLinkMethod = officialLinkMethodBySlot[slot.slot_id] || resolveOfficialLinkMethod(official);
+        const showManualMethod = resolvedLinkMethod === 'manual';
+        const canValidateOfficial = official.configured || Boolean(String(official.phoneNumberId || '').trim() && String(official.accessToken || '').trim());
+        const hasOfficialData = official.configured || Boolean(
+            String(official.phoneNumberId || '').trim() ||
+            String(official.businessAccountId || '').trim() ||
+            String(official.accessToken || '').trim() ||
+            String(official.accessTokenMasked || '').trim()
+        );
 
         return (
             <div className="max-w-3xl space-y-6">
@@ -2671,6 +2691,40 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         </div>
                     ) : (
                         <div className="space-y-5">
+                            <div className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/20 p-1.5">
+                                <div className="grid gap-2 md:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setOfficialLinkMethodBySlot((prev) => ({ ...prev, [slot.slot_id]: 'embedded' }))}
+                                        className={`rounded-[22px] px-4 py-4 text-left transition ${!showManualMethod ? 'bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm border border-emerald-200 dark:border-emerald-900/40' : 'text-gray-600 dark:text-gray-300 hover:bg-white/70 dark:hover:bg-gray-950/40'}`}
+                                    >
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600">
+                                                {t('slots.official.embedded.eyebrow') || 'Recomendado'}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm font-bold">
+                                            {t('slots.official.method.embedded') || 'Conectar con Meta'}
+                                        </p>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            {t('slots.official.embedded.desc') || 'Abre el flujo oficial de Meta dentro de Waflow para crear o vincular la cuenta, elegir el numero y dejar el slot listo sin copiar IDs ni tokens manualmente.'}
+                                        </p>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setOfficialLinkMethodBySlot((prev) => ({ ...prev, [slot.slot_id]: 'manual' }))}
+                                        className={`rounded-[22px] px-4 py-4 text-left transition ${showManualMethod ? 'bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm border border-indigo-200 dark:border-indigo-900/40' : 'text-gray-600 dark:text-gray-300 hover:bg-white/70 dark:hover:bg-gray-950/40'}`}
+                                    >
+                                        <p className="text-sm font-bold">
+                                            {t('slots.official.method.manual') || 'Cargar datos manualmente'}
+                                        </p>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            {t('slots.official.manual.helper') || 'Carga solo los datos mínimos del número. El webhook global queda del lado de WaFloW.'}
+                                        </p>
+                                    </button>
+                                </div>
+                            </div>
+                            {!showManualMethod ? (
                             <div className="rounded-3xl border border-emerald-200 dark:border-emerald-900/40 bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-emerald-950/30 dark:via-gray-900 dark:to-teal-950/20 p-5">
                                 <div className="flex flex-wrap items-start justify-between gap-4">
                                     <div className="max-w-2xl">
@@ -2716,9 +2770,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     </button>
                                 </div>
                             </div>
+                            ) : null}
 
+                            {showManualMethod ? (
                             <div className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/20 p-5">
                                 <div className="mb-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-indigo-500 mb-2">
+                                        {t('slots.official.manual.eyebrow') || 'Alternativa manual'}
+                                    </p>
                                     <h5 className="text-base font-bold text-gray-900 dark:text-white">
                                         {t('slots.official.manual.title') || 'Configuración manual avanzada'}
                                     </h5>
@@ -2836,6 +2895,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                             )}
 
                             </div>
+
+                            ) : null}
 
                             {(official.verifiedName || official.displayPhoneNumber || official.qualityRating || official.lastWebhookAt) && (
                                 <div className="grid gap-3 md:grid-cols-2">
@@ -3064,28 +3125,32 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                             ) : null}
 
                             <div className="flex flex-wrap items-center gap-2 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => validateOfficialWhatsappConfigSlot(slot.slot_id)}
-                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
-                                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition flex items-center gap-2"
-                                >
-                                    <CheckCircle2 size={16} />
-                                    {t('slots.official.validate') || 'Validar con Meta'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => saveOfficialWhatsappConfig(slot.slot_id)}
-                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
-                                    className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
-                                >
-                                    {isSavingOfficial ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                                    {t('slots.official.save') || 'Guardar'}
-                                </button>
+                                {canValidateOfficial ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => validateOfficialWhatsappConfigSlot(slot.slot_id)}
+                                        disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
+                                        className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition flex items-center gap-2"
+                                    >
+                                        <CheckCircle2 size={16} />
+                                        {t('slots.official.validate') || 'Validar con Meta'}
+                                    </button>
+                                ) : null}
+                                {showManualMethod ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => saveOfficialWhatsappConfig(slot.slot_id)}
+                                        disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
+                                        className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                    >
+                                        {isSavingOfficial ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                        {t('slots.official.save') || 'Guardar'}
+                                    </button>
+                                ) : null}
                                 <button
                                     type="button"
                                     onClick={() => clearOfficialWhatsappConfigKeepMode(slot.slot_id)}
-                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
+                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded || !hasOfficialData}
                                     className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
                                 >
                                     {t('slots.official.clear') || 'Limpiar'}
