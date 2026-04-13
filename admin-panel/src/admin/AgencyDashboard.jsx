@@ -3254,17 +3254,18 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 totalPages={reliabilityTotalPages}
                                                 rangeStart={reliabilityRangeStart}
                                                 rangeEnd={reliabilityRangeEnd}
-                                                totalItems={reliabilityAccountRows.length}
-                                                onPageChange={setReliabilityPage}
-                                                showingText={t('agency.reliability.showing_accounts') || 'Mostrando'}
-                                                ofText={t('agency.reliability.of') || 'de'}
-                                                previousText={t('agency.reliability.prev_page') || 'Anterior'}
-                                                nextText={t('agency.reliability.next_page') || 'Siguiente'}
-                                                columns={{
-                                                    account: t('agency.reliability.table_account') || 'Cuenta',
-                                                    channel: t('agency.reliability.table_channel') || 'Canal',
-                                                    state: t('agency.reliability.table_state') || 'Posible baneo',
-                                                    sent: t('agency.reliability.table_sent') || 'Enviados',
+                                            totalItems={reliabilityAccountRows.length}
+                                            onPageChange={setReliabilityPage}
+                                            showingText={t('agency.reliability.showing_accounts') || 'Mostrando'}
+                                            ofText={t('agency.reliability.of') || 'de'}
+                                            previousText={t('agency.reliability.prev_page') || 'Anterior'}
+                                            nextText={t('agency.reliability.next_page') || 'Siguiente'}
+                                            t={t}
+                                            columns={{
+                                                account: t('agency.reliability.table_account') || 'Cuenta',
+                                                channel: t('agency.reliability.table_channel') || 'Canal',
+                                                state: t('agency.reliability.table_state') || 'Posible baneo',
+                                                sent: t('agency.reliability.table_sent') || 'Enviados',
                                                     replies: t('agency.reliability.table_no_replies') || 'No respondieron',
                                                     slots: t('agency.reliability.table_slots') || 'Slots',
                                                     quality: t('agency.reliability.table_quality') || 'Calidad por numero',
@@ -4591,9 +4592,12 @@ const ReliabilityAccountsTable = ({
     ofText,
     previousText,
     nextText,
+    t,
     columns,
     noSampleText
 }) => {
+    const translate = typeof t === 'function' ? t : ((key) => key);
+
     if (!Array.isArray(data) || data.length === 0) {
         return (
             <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-5 text-sm text-gray-500 dark:text-gray-400">
@@ -4665,16 +4669,16 @@ const ReliabilityAccountsTable = ({
                                                     {item.numberQualityPreview.slice(0, 2).map((preview) => (
                                                         <div key={`${item.locationId}-${preview.slot_id || preview.phone_number || preview.slot_name}`} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/40">
                                                             <span className="min-w-0 truncate text-xs font-semibold text-gray-700 dark:text-gray-200">
-                                                                {getNumberQualityPreviewIdentity(preview, t)}
+                                                                {getNumberQualityPreviewIdentity(preview, translate)}
                                                             </span>
                                                             <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${getHealthTone(preview.level)}`}>
-                                                                {getNumberQualityLabel(preview.level, t)}
+                                                                {getNumberQualityLabel(preview.level, translate)}
                                                             </span>
                                                         </div>
                                                     ))}
                                                     {item.numberQualityPreview.length > 2 ? (
                                                         <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                                                            {translateOr(t, 'agency.reliability.more_numbers', '+{count} mas')
+                                                            {translateOr(translate, 'agency.reliability.more_numbers', '+{count} mas')
                                                                 .replace('{count}', String(item.numberQualityPreview.length - 2))}
                                                         </p>
                                                     ) : null}
