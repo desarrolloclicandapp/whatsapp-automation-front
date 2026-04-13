@@ -8,6 +8,7 @@ import SubscriptionBlocker from './SubscriptionBlocker';
 import ExpiryPopup from './ExpiryPopup'; // ✅ Importar Popup
 import InactiveUserModal from './InactiveUserModal'; // ✅ Importar Modal Inactivo
 import InteractiveMessageBuilder from './InteractiveMessageBuilder';
+import WorkflowAgentsPanel from './WorkflowAgentsPanel';
 import ThemeToggle from '../components/ThemeToggle';
 import LanguageSelector from '../components/LanguageSelector'; 
 import { useLanguage } from '../context/LanguageContext'; 
@@ -155,8 +156,23 @@ function getNumberQualityLabel(level, t) {
         case "good":
             return translateOr(t, 'agency.reliability.number_quality_good', 'Buena');
         default:
-            return translateOr(t, 'agency.reliability.number_quality_unknown', 'Aun sin historial');
+            return translateOr(t, 'agency.reliability.number_quality_unknown', 'Sin historial');
     }
+}
+
+function getNumberQualityPreviewIdentity(preview = {}, t) {
+    const phone = String(preview?.phone_number || preview?.phoneNumber || "").trim();
+    if (phone) return phone;
+
+    const slotName = String(preview?.slot_name || preview?.slotName || "").trim();
+    if (slotName) return slotName;
+
+    const slotId = Number.parseInt(preview?.slot_id ?? preview?.slotId, 10) || 0;
+    if (slotId > 0) {
+        return `${translateOr(t, 'workflow_agents.slot_prefix', 'Slot')} ${slotId}`;
+    }
+
+    return translateOr(t, 'agency.reliability.number_preview_unknown', 'Numero sin identificar');
 }
 
 function getHealthPriority(status) {
@@ -2327,20 +2343,16 @@ export default function AgencyDashboard({ token, onLogout }) {
             const totalSlots = Number(linkedLocation?.total_slots) || connectedSlotCount;
             const metaRiskLevel = String(entry.meta_risk_level || 'healthy').toLowerCase();
             const numberQualityLevel = String(entry.number_quality_level || 'unknown').toLowerCase();
-            const numberQualityCounts = {
-                delicate: Number(entry.number_quality_delicate_slots) || 0,
-                sensitive: Number(entry.number_quality_sensitive_slots) || 0,
-                care: Number(entry.number_quality_care_slots) || 0,
-                good: Number(entry.number_quality_good_slots) || 0,
-                unknown: Number(entry.number_quality_unknown_slots) || 0
-            };
-            const qualitySummaryItems = ['delicate', 'sensitive', 'care', 'good', 'unknown']
-                .map((level) => ({
-                    level,
-                    count: numberQualityCounts[level],
-                    label: getNumberQualityLabel(level, t)
-                }))
-                .filter((item) => item.count > 0);
+            const numberQualityPreview = Array.isArray(entry.number_quality_preview)
+                ? entry.number_quality_preview
+                    .map((preview) => ({
+                        slot_id: Number(preview?.slot_id) || null,
+                        slot_name: preview?.slot_name || null,
+                        phone_number: preview?.phone_number || null,
+                        level: String(preview?.level || 'unknown').toLowerCase()
+                    }))
+                    .filter((preview) => preview.slot_id || preview.phone_number || preview.slot_name)
+                : [];
             const replyStrikes = Number(entry.reply_strikes) || 0;
             const operationalState = (metaRiskLevel === 'critical' || metaRiskLevel === 'high')
                 ? 'review'
@@ -2375,7 +2387,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 metaRiskLevel,
                 operationalState,
                 operationalStateLabel,
-                qualitySummaryItems,
+                numberQualityPreview,
                 suggestedAction,
                 onClick: linkedLocation ? () => setSelectedLocation(linkedLocation) : null
             };
@@ -2690,6 +2702,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="overview" icon={LayoutGrid} label={t('dash.nav.overview')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="billing" icon={CreditCard} label={t('dash.nav.billing')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="reliability" icon={Activity} label={t('dash.nav.reliability') || 'Confiabilidad'} branding={branding} sidebarOpen={sidebarOpen} />
+                    <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="agents" icon={Bot} label={t('dash.nav.agents') || "Agentes"} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="settings" icon={Settings} label={t('dash.nav.settings')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="builder" icon={Hammer} label={t('dash.nav.builder') || "Constructor"} branding={branding} sidebarOpen={sidebarOpen} />
                     <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
@@ -2703,7 +2716,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F8FAFC] dark:bg-[#0f1117]">
                 <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 z-20">
-                    <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : activeTab === 'reliability' ? (t('dash.header.reliability') || 'Confiabilidad operativa') : activeTab === 'builder' ? (t('dash.header.builder') || "Constructor") : t('dash.header.settings')}</h2></div>
+                    <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : activeTab === 'reliability' ? (t('dash.header.reliability') || 'Confiabilidad operativa') : activeTab === 'agents' ? (t('dash.header.agents') || "Agentes") : activeTab === 'builder' ? (t('dash.header.builder') || "Constructor") : t('dash.header.settings')}</h2></div>
                     <div className="flex items-center gap-4"><LanguageSelector /><ThemeToggle /><div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div></div>
                 </header>
 
@@ -3241,17 +3254,18 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 totalPages={reliabilityTotalPages}
                                                 rangeStart={reliabilityRangeStart}
                                                 rangeEnd={reliabilityRangeEnd}
-                                                totalItems={reliabilityAccountRows.length}
-                                                onPageChange={setReliabilityPage}
-                                                showingText={t('agency.reliability.showing_accounts') || 'Mostrando'}
-                                                ofText={t('agency.reliability.of') || 'de'}
-                                                previousText={t('agency.reliability.prev_page') || 'Anterior'}
-                                                nextText={t('agency.reliability.next_page') || 'Siguiente'}
-                                                columns={{
-                                                    account: t('agency.reliability.table_account') || 'Cuenta',
-                                                    channel: t('agency.reliability.table_channel') || 'Canal',
-                                                    state: t('agency.reliability.table_state') || 'Posible baneo',
-                                                    sent: t('agency.reliability.table_sent') || 'Enviados',
+                                            totalItems={reliabilityAccountRows.length}
+                                            onPageChange={setReliabilityPage}
+                                            showingText={t('agency.reliability.showing_accounts') || 'Mostrando'}
+                                            ofText={t('agency.reliability.of') || 'de'}
+                                            previousText={t('agency.reliability.prev_page') || 'Anterior'}
+                                            nextText={t('agency.reliability.next_page') || 'Siguiente'}
+                                            t={t}
+                                            columns={{
+                                                account: t('agency.reliability.table_account') || 'Cuenta',
+                                                channel: t('agency.reliability.table_channel') || 'Canal',
+                                                state: t('agency.reliability.table_state') || 'Posible baneo',
+                                                sent: t('agency.reliability.table_sent') || 'Enviados',
                                                     replies: t('agency.reliability.table_no_replies') || 'No respondieron',
                                                     slots: t('agency.reliability.table_slots') || 'Slots',
                                                     quality: t('agency.reliability.table_quality') || 'Calidad por numero',
@@ -3617,6 +3631,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             </div>
                         </div>
+                    )}
+
+                    {activeTab === 'agents' && (
+                        <WorkflowAgentsPanel
+                            locations={locations}
+                            onUnauthorized={onLogout}
+                            token={token}
+                        />
                     )}
 
                     {activeTab === 'builder' && <InteractiveMessageBuilder />}
@@ -4570,9 +4592,12 @@ const ReliabilityAccountsTable = ({
     ofText,
     previousText,
     nextText,
+    t,
     columns,
     noSampleText
 }) => {
+    const translate = typeof t === 'function' ? t : ((key) => key);
+
     if (!Array.isArray(data) || data.length === 0) {
         return (
             <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/30 p-5 text-sm text-gray-500 dark:text-gray-400">
@@ -4638,16 +4663,26 @@ const ReliabilityAccountsTable = ({
                                         <p className="font-semibold text-gray-900 dark:text-white">{item.connectedSlotCount}/{item.totalSlots || item.connectedSlotCount}</p>
                                     </td>
                                     <td className="px-4 py-4 align-top">
-                                        <div className="min-w-[190px] flex flex-wrap gap-1.5">
-                                            {Array.isArray(item.qualitySummaryItems) && item.qualitySummaryItems.length > 0 ? (
-                                                item.qualitySummaryItems.map((summary) => (
-                                                    <span
-                                                        key={`${item.locationId}-${summary.level}`}
-                                                        className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${getHealthTone(summary.level)}`}
-                                                    >
-                                                        {summary.label}: {summary.count}
-                                                    </span>
-                                                ))
+                                        <div className="min-w-[210px] space-y-2">
+                                            {Array.isArray(item.numberQualityPreview) && item.numberQualityPreview.length > 0 ? (
+                                                <>
+                                                    {item.numberQualityPreview.slice(0, 2).map((preview) => (
+                                                        <div key={`${item.locationId}-${preview.slot_id || preview.phone_number || preview.slot_name}`} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/40">
+                                                            <span className="min-w-0 truncate text-xs font-semibold text-gray-700 dark:text-gray-200">
+                                                                {getNumberQualityPreviewIdentity(preview, translate)}
+                                                            </span>
+                                                            <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${getHealthTone(preview.level)}`}>
+                                                                {getNumberQualityLabel(preview.level, translate)}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                    {item.numberQualityPreview.length > 2 ? (
+                                                        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                            {translateOr(translate, 'agency.reliability.more_numbers', '+{count} mas')
+                                                                .replace('{count}', String(item.numberQualityPreview.length - 2))}
+                                                        </p>
+                                                    ) : null}
+                                                </>
                                             ) : (
                                                 <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${getHealthTone('unknown')}`}>
                                                     {noSampleText}
