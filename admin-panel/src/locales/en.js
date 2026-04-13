@@ -723,6 +723,8 @@ export const en = {
     "slots.official.templates.button_var": "Button",
     "slots.official.templates.header_media_url": "Header URL",
     "slots.official.templates.last_sync": "Last sync",
+    "slots.official.manual.title": "Advanced manual setup",
+    "slots.official.manual.desc": "Use this section only if you prefer to load the WABA ID, the Phone Number ID and the token manually, or if Meta requires a specific adjustment.",
     "slots.crm.title": "CRM",
     "slots.crm.desc": "Select the CRM for this subaccount",
     "slots.crm.desc_generic": "Select the CRM for this location",
