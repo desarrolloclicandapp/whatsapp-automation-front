@@ -2653,8 +2653,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const embeddedMissingLabel = Array.isArray(official.embeddedSignupMissing) && official.embeddedSignupMissing.length > 0
             ? official.embeddedSignupMissing.join(', ')
             : '';
+        const showEmbeddedMethod = official.embeddedSignupEnabled === true;
         const resolvedLinkMethod = officialLinkMethodBySlot[slot.slot_id] || resolveOfficialLinkMethod(official);
-        const showManualMethod = resolvedLinkMethod === 'manual';
+        const showManualMethod = !showEmbeddedMethod || resolvedLinkMethod === 'manual';
         const canValidateOfficial = official.configured || Boolean(String(official.phoneNumberId || '').trim() && String(official.accessToken || '').trim());
         const hasOfficialData = official.configured || Boolean(
             String(official.phoneNumberId || '').trim() ||
@@ -2691,6 +2692,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         </div>
                     ) : (
                         <div className="space-y-5">
+                            {showEmbeddedMethod ? (
                             <div className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/20 p-1.5">
                                 <div className="grid gap-2 md:grid-cols-2">
                                     <button
@@ -2724,7 +2726,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     </button>
                                 </div>
                             </div>
-                            {!showManualMethod ? (
+                            ) : null}
+                            {showEmbeddedMethod && !showManualMethod ? (
                             <div className="rounded-3xl border border-emerald-200 dark:border-emerald-900/40 bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-emerald-950/30 dark:via-gray-900 dark:to-teal-950/20 p-5">
                                 <div className="flex flex-wrap items-start justify-between gap-4">
                                     <div className="max-w-2xl">
