@@ -152,7 +152,8 @@ function TabButton({ active, label, onClick }) {
 }
 
 export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, token }) {
-    const { t } = useLanguage();
+    const languageContext = useLanguage();
+    const t = typeof languageContext?.t === "function" ? languageContext.t : ((key) => key);
     const documentInputRef = useRef(null);
     const [selectedLocationId, setSelectedLocationId] = useState("");
     const [workspace, setWorkspace] = useState(null);

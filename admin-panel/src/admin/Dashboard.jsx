@@ -96,7 +96,19 @@ export default function AdminDashboard({ token, onLogout }) {
             const safeId = encodeURIComponent(agencyId);
             const res = await authFetch(`/admin/tenants?agencyId=${safeId}`);
             const data = await res.json();
-            setSubaccounts(Array.isArray(data) ? data : []);
+            const deduped = Array.isArray(data)
+                ? Array.from(
+                    data.reduce((map, item) => {
+                        const key = String(item?.location_id || "").trim();
+                        if (!key) return map;
+                        if (!map.has(key)) {
+                            map.set(key, item);
+                        }
+                        return map;
+                    }, new Map()).values()
+                )
+                : [];
+            setSubaccounts(deduped);
         } catch (error) { console.error("Error subcuentas:", error); } finally { setLoading(false); }
     };
 
