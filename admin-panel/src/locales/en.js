@@ -412,7 +412,7 @@ export const en = {
     "workflow_agents.tab_history": "History",
     "workflow_agents.documents_title": "Agent documents",
     "workflow_agents.documents_desc": "Upload support files so the agent can use relevant fragments when replying. It does not memorize the whole file: it pulls the useful content when needed.",
-    "workflow_agents.documents_formats": "Supported formats for now: TXT, MD, CSV, JSON, HTML, XML, and LOG.",
+    "workflow_agents.documents_formats": "Supported formats for now: PDF with selectable text, TXT, MD, CSV, JSON, HTML, XML, and LOG.",
     "workflow_agents.documents_upload": "Upload documents",
     "workflow_agents.documents_uploading": "Uploading...",
     "workflow_agents.documents_upload_success": "{count} documents uploaded",

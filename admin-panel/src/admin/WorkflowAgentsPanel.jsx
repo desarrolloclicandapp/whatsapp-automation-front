@@ -1098,7 +1098,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         <input
                                             ref={documentInputRef}
                                             type="file"
-                                            accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.xml,.log,text/plain,text/markdown,text/csv,application/json,text/html,text/xml"
+                                            accept=".pdf,.txt,.md,.markdown,.csv,.json,.html,.htm,.xml,.log,application/pdf,text/plain,text/markdown,text/csv,application/json,text/html,text/xml"
                                             multiple
                                             onChange={handleUploadDocuments}
                                             className="hidden"
