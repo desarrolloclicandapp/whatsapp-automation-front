@@ -205,7 +205,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
             // 2. EL PUENTE A GHL Y CAPI: Mandamos los datos duros a n8n
             // (Reemplaza la URL por la de tu Webhook real de n8n)
             try {
-                await fetch('AQUI_PONES_LA_URL_DE_TU_WEBHOOK_DE_N8N', {
+                await fetch('https://paneln8n.clicandapp.com/webhook/metads', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
