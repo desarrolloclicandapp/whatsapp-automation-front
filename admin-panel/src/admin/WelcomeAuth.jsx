@@ -191,6 +191,38 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
             if (!updateRes.ok) throw new Error(t('auth.save_profile_error'));
 
+            // ==========================================
+            // 🚀 INICIO DE LÓGICA DE TRACKING Y N8N
+            // ==========================================
+            const savedFbclid = localStorage.getItem('waflow_fbclid');
+            const savedGclid = localStorage.getItem('waflow_gclid');
+
+            // 1. EL CANDADO: Disparamos el Píxel (Frontend) SOLO si viene de un anuncio de Meta
+            if (savedFbclid && typeof window.fbq === 'function') {
+                window.fbq('track', 'Lead');
+            }
+
+            // 2. EL PUENTE A GHL Y CAPI: Mandamos los datos duros a n8n
+            // (Reemplaza la URL por la de tu Webhook real de n8n)
+            try {
+                await fetch('AQUI_PONES_LA_URL_DE_TU_WEBHOOK_DE_N8N', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: email,
+                        phone: phone, // Lo capturaste en pasos anteriores
+                        name: name,
+                        fbclid: savedFbclid || "",
+                        gclid: savedGclid || ""
+                    })
+                });
+            } catch (webhookErr) {
+                console.error("Error enviando datos a n8n:", webhookErr);
+            }
+            // ==========================================
+            // 🏁 FIN DE LÓGICA DE TRACKING
+            // ==========================================
+
             toast.success(t('auth.account_ready'));
             onLoginSuccess({
                 token: tempToken,
