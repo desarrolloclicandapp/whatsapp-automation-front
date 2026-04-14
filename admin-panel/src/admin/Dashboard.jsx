@@ -86,7 +86,28 @@ export default function AdminDashboard({ token, onLogout }) {
         try {
             const res = await authFetch(`/admin/agencies`);
             const data = await res.json();
-            setAgencies(Array.isArray(data) ? data : []);
+            const deduped = Array.isArray(data)
+                ? Array.from(
+                    data.reduce((map, item) => {
+                        const key = String(item?.agency_id || "").trim() || String(item?.agency_name || "").trim();
+                        if (!key) return map;
+                        if (!map.has(key)) {
+                            map.set(key, item);
+                            return map;
+                        }
+                        const existing = map.get(key);
+                        map.set(key, {
+                            ...existing,
+                            ...item,
+                            agency_name: existing?.agency_name || item?.agency_name || key,
+                            total_subaccounts: Math.max(Number(existing?.total_subaccounts || 0), Number(item?.total_subaccounts || 0)),
+                            active_subaccounts: Math.max(Number(existing?.active_subaccounts || 0), Number(item?.active_subaccounts || 0))
+                        });
+                        return map;
+                    }, new Map()).values()
+                )
+                : [];
+            setAgencies(deduped);
         } catch (error) { console.error("Error agencias:", error); } finally { setLoading(false); }
     };
 

@@ -55,6 +55,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [locationName, setLocationName] = useState(location.name || "");
     const [whiteLabelEnabled, setWhiteLabelEnabled] = useState(true);
     const [tenantSettings, setTenantSettings] = useState(location.settings || {});
+    const [locationOpenAiKeyDraft, setLocationOpenAiKeyDraft] = useState("");
+    const [locationOpenAiKeyConfigured, setLocationOpenAiKeyConfigured] = useState(false);
+    const [legacySlotOpenAiKeyCount, setLegacySlotOpenAiKeyCount] = useState(0);
+    const [savingLocationOpenAiKey, setSavingLocationOpenAiKey] = useState(false);
     const [maxSubagencies, setMaxSubagencies] = useState(null);
     const [loading, setLoading] = useState(true);
     const rawFeatures = localStorage.getItem("agencyFeatures");
@@ -394,6 +398,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 setSlots(data.slots || []);
                 setHealthSummary(data.healthSummary || null);
                 setKeywords(data.keywords || []);
+                setLocationOpenAiKeyConfigured(data.openai_key_configured === true);
+                setLegacySlotOpenAiKeyCount(Number(data.legacy_slot_openai_key_count || 0));
+                setLocationOpenAiKeyDraft("");
 
                 if (data.name) setLocationName(data.name);
                 setWhiteLabelEnabled(data.settings?.white_label ?? true);
@@ -589,6 +596,31 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         } catch (e) {
             toast.error("Error guardando White Label");
             setWhiteLabelEnabled(!nextValue);
+        }
+    };
+
+    const saveLocationOpenAiKey = async (rawValue = locationOpenAiKeyDraft) => {
+        const nextValue = String(rawValue || "").trim();
+        setSavingLocationOpenAiKey(true);
+        try {
+            const res = await authFetch(`/agency/settings/${location.location_id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ openai_api_key: nextValue })
+            });
+            if (!res || !res.ok) {
+                const body = await res?.json?.().catch(() => null);
+                throw new Error(body?.error || "No se pudo guardar la OpenAI API key");
+            }
+
+            const body = await res.json();
+            setLocationOpenAiKeyConfigured(body?.openai_key_configured === true);
+            setLocationOpenAiKeyDraft("");
+            toast.success(nextValue ? "OpenAI key principal guardada" : "OpenAI key principal eliminada");
+            loadData();
+        } catch (error) {
+            toast.error(error.message || "No se pudo guardar la OpenAI key");
+        } finally {
+            setSavingLocationOpenAiKey(false);
         }
     };
 
@@ -3399,10 +3431,79 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </div>
                             )}
                         </div>
-                        <div className="flex justify-end gap-3 flex-wrap">
-                            <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
-                                <Plus size={18} /> {isChatwootMode ? (t('slots.chatwoot_inbox.new') || "Nuevo Inbox") : t('slots.new')}
-                            </button>
+                    <div className="flex justify-end gap-3 flex-wrap">
+                        <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
+                            <Plus size={18} /> {isChatwootMode ? (t('slots.chatwoot_inbox.new') || "Nuevo Inbox") : t('slots.new')}
+                        </button>
+                    </div>
+                </div>
+
+                    <div className="mb-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                            <div className="max-w-2xl">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded-xl flex items-center justify-center">
+                                        <Zap size={16} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                                            OpenAI principal
+                                        </p>
+                                        <h4 className="text-base font-bold text-gray-900 dark:text-white">
+                                            Clave general de la subcuenta
+                                        </h4>
+                                    </div>
+                                </div>
+                                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                    Esta clave se usa para todos los agentes de la subcuenta. Si la dejas vacía, Waflow seguirá usando las claves legacy por slot cuando existan.
+                                </p>
+                                {legacySlotOpenAiKeyCount > 0 && (
+                                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">
+                                        Detectamos {legacySlotOpenAiKeyCount} {legacySlotOpenAiKeyCount === 1 ? 'slot con key legacy' : 'slots con key legacy'} configurada. No se romperán mientras migras a esta clave principal.
+                                    </p>
+                                )}
+                            </div>
+                            <div className={`self-start px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${locationOpenAiKeyConfigured ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300'}`}>
+                                {locationOpenAiKeyConfigured ? 'Configurada' : 'Sin configurar'}
+                            </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-col lg:flex-row gap-3">
+                            <input
+                                type="password"
+                                value={locationOpenAiKeyDraft}
+                                onChange={(e) => setLocationOpenAiKeyDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        saveLocationOpenAiKey();
+                                    }
+                                }}
+                                autoComplete="new-password"
+                                placeholder={locationOpenAiKeyConfigured ? "•••••••••••••••• (Oculta)" : "sk-..."}
+                                className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
+                            />
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => saveLocationOpenAiKey()}
+                                    disabled={savingLocationOpenAiKey}
+                                    className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white rounded-xl font-bold transition shadow-sm flex items-center gap-2"
+                                >
+                                    {savingLocationOpenAiKey ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                    Guardar
+                                </button>
+                                {locationOpenAiKeyConfigured && (
+                                    <button
+                                        type="button"
+                                        onClick={() => saveLocationOpenAiKey("")}
+                                        disabled={savingLocationOpenAiKey}
+                                        className="px-4 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 disabled:opacity-60 rounded-xl font-bold transition"
+                                    >
+                                        Limpiar
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -3612,15 +3713,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                     <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
                                                                                         <Zap size={14} />
                                                                                     </div>
-                                                                                    OpenAI API Key (Transcripción)
+                                            OpenAI API Key legacy del slot
                                                                                 </label>
                                                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                    Configura una key única para este número. Dejar vacío para desactivar.
+                                            Solo para configuraciones antiguas o un fallback puntual. Los agentes nuevos usan la clave principal de la subcuenta.
                                                                                 </p>
                                                                             </div>
                                                                             {slot.openai_api_key && (
                                                                                 <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
-                                                                                    Conectado
+                                            Legacy
                                                                                 </span>
                                                                             )}
                                                                         </div>
@@ -4308,15 +4409,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
                                                                                     <Zap size={14} />
                                                                                 </div>
-                                                                                OpenAI API Key (Transcripción)
+                                         OpenAI API Key legacy del inbox
                                                                             </label>
                                                                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                Configura una key única para este inbox. Dejar vacío para desactivar.
+                                         Solo para configuraciones antiguas o un fallback puntual. Los agentes nuevos usan la clave principal de la subcuenta.
                                                                             </p>
                                                                         </div>
                                                                         {slot.openai_api_key && (
                                                                             <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
-                                                                                Conectado
+                                         Legacy
                                                                             </span>
                                                                         )}
                                                                     </div>
