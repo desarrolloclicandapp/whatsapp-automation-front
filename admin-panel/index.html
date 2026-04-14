@@ -20,7 +20,10 @@
           }
           if (gclid) {
             localStorage.setItem('waflow_gclid', gclid);
-          }
+          }// Parámetros UTM 
+          if (urlParams.has('utm_source')) localStorage.setItem('waflow_utm_source', urlParams.get('utm_source'));
+          if (urlParams.has('utm_medium')) localStorage.setItem('waflow_utm_medium', urlParams.get('utm_medium'));
+          if (urlParams.has('utm_campaign')) localStorage.setItem('waflow_utm_campaign', urlParams.get('utm_campaign'));
         } catch (e) {
           console.error("Error capturando parámetros:", e);
         }

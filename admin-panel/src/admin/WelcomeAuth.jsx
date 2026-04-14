@@ -196,6 +196,11 @@ export default function WelcomeAuth({ onLoginSuccess }) {
             // ==========================================
             const savedFbclid = localStorage.getItem('waflow_fbclid') || "";
             const savedGclid = localStorage.getItem('waflow_gclid') || "";
+            
+            // NUEVO: Rescatar UTMs
+            const savedUtmSource = localStorage.getItem('waflow_utm_source') || "";
+            const savedUtmMedium = localStorage.getItem('waflow_utm_medium') || "";
+            const savedUtmCampaign = localStorage.getItem('waflow_utm_campaign') || "";
 
             // 1. SIN CANDADO: Disparamos el Píxel para TODOS los leads
             if (typeof window.fbq === 'function') {
@@ -204,15 +209,18 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 
             // 2. EL PUENTE A GHL Y CAPI: Mandamos los datos a n8n
             try {
-                await fetch('https://paneln8n.clicandapp.com/webhook/metads', {
-                    method: 'POST', // <-- Asegúrate de que el nodo en n8n esté en POST
+                await fetch('TU_URL_DE_N8N_AQUI', {
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         email: email,
                         phone: phone, 
                         name: name,
                         fbclid: savedFbclid,
-                        gclid: savedGclid
+                        gclid: savedGclid,
+                        utm_source: savedUtmSource,       // <-- Nuevo
+                        utm_medium: savedUtmMedium,       // <-- Nuevo
+                        utm_campaign: savedUtmCampaign    // <-- Nuevo
                     })
                 });
             } catch (webhookErr) {
