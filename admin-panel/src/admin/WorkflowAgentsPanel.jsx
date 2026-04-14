@@ -689,13 +689,24 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                         {editingAgentId ? t("workflow_agents.test_desc") : t("workflow_agents.test_need_agent")}
                     </div>
                 </div>
-                <button
-                    type="button"
-                    onClick={handleResetTest}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                >
-                    {t("workflow_agents.reset_chat")}
-                </button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        disabled={!editingAgentId || testing}
+                        onClick={handleRunTest}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {testing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                        {t("workflow_agents.run_test")}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleResetTest}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                        {t("workflow_agents.reset_chat")}
+                    </button>
+                </div>
             </div>
 
             <div className="space-y-3 p-4">
