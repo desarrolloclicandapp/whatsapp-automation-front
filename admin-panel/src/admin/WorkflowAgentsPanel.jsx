@@ -677,30 +677,30 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
 
     const renderChatPanel = () => (
         <section className="xl:sticky xl:top-6 overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+            <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-4 py-4 dark:border-gray-800">
                 <div>
                     <div className="text-xs font-bold uppercase tracking-[0.24em] text-gray-400 dark:text-gray-500">
                         {t("workflow_agents.test_title")}
                     </div>
-                    <div className="mt-2 text-base font-bold text-gray-900 dark:text-white">
+                    <div className="mt-2 text-sm font-bold text-gray-900 dark:text-white">
                         {editingAgentId ? (form.name || t("workflow_agents.edit_agent")) : t("workflow_agents.tab_test")}
                     </div>
-                    <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
                         {editingAgentId ? t("workflow_agents.test_desc") : t("workflow_agents.test_need_agent")}
                     </div>
                 </div>
                 <button
                     type="button"
                     onClick={handleResetTest}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-3.5 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                    className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
                     {t("workflow_agents.reset_chat")}
                 </button>
             </div>
 
-            <div className="space-y-4 p-5">
-                <div className="rounded-[26px] border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-800 dark:bg-gray-950/40">
-                    <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="space-y-3 p-4">
+                <div className="rounded-[24px] border border-gray-200 bg-gray-50/80 p-3.5 dark:border-gray-800 dark:bg-gray-950/40">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
                         <StatusPill
                             label={editingAgentId ? t(`workflow_agents.status_${form.status}`) : t("workflow_agents.status_draft")}
                             kind={form.status === "active" ? "good" : form.status === "paused" ? "warn" : "neutral"}
@@ -712,7 +712,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                         ) : null}
                     </div>
 
-                    <div className="wf-soft-scrollbar min-h-[360px] max-h-[56vh] space-y-4 overflow-auto pr-1">
+                    <div className="wf-soft-scrollbar min-h-[280px] max-h-[48vh] space-y-4 overflow-auto pr-1">
                         {testMessage ? (
                             <div className="flex justify-end">
                                 <div className="max-w-[88%] rounded-[22px] bg-indigo-600 px-4 py-3 text-sm leading-6 text-white shadow-sm">
@@ -733,23 +733,23 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                 {testResult.summary ? <div className="max-w-[88%] text-xs leading-5 text-gray-500 dark:text-gray-400">{testResult.summary}</div> : null}
                             </div>
                         ) : (
-                            <div className="flex h-[280px] items-center justify-center rounded-[22px] border border-dashed border-gray-300 bg-white/70 px-5 text-center text-sm leading-6 text-gray-500 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-400">
+                            <div className="flex h-[220px] items-center justify-center rounded-[22px] border border-dashed border-gray-300 bg-white/70 px-5 text-center text-sm leading-6 text-gray-500 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-400">
                                 {t("workflow_agents.test_empty")}
                             </div>
                         )}
                     </div>
                 </div>
 
-                <div className="rounded-[26px] border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div className="rounded-[24px] border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                     <textarea
-                        rows={4}
+                        rows={3}
                         value={testMessage}
                         onChange={(event) => setTestMessage(event.target.value)}
                         placeholder={t("workflow_agents.test_placeholder")}
                         className={inputClassName}
                     />
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                        <div className="text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.test_tip")}</div>
+                        <div className="max-w-[13rem] text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.test_tip")}</div>
                         <button
                             type="button"
                             disabled={!editingAgentId || testing}
@@ -802,10 +802,9 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             {viewMode === "list" ? (
                 renderAgentList(false)
             ) : (
-                <div className="grid gap-6 xl:grid-cols-[390px,1fr]">
-                    {renderChatPanel()}
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),360px] xl:items-start">
                     <section className="overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <div className="flex flex-col gap-4 border-b border-gray-200 px-6 py-5 dark:border-gray-800 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-800 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                                 <h4 className="truncate text-xl font-bold text-gray-900 dark:text-white">
@@ -816,8 +815,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                     kind={form.status === "active" ? "good" : form.status === "paused" ? "warn" : "neutral"}
                                 />
                             </div>
-                            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">{t("workflow_agents.form_desc")}</p>
-                            <div className="mt-3 flex flex-wrap gap-2">
+                            <p className="mt-1 max-w-xl text-sm leading-6 text-gray-500 dark:text-gray-400">{t("workflow_agents.form_desc")}</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
                                 <span className="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
                                     {selectedSlotCount > 0
                                         ? t("workflow_agents.slots_selected_count").replace("{count}", String(selectedSlotCount))
@@ -832,14 +831,14 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                             <button
                                 type="button"
                                 onClick={() => applyAgentToForm(null)}
-                                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                                 {t("workflow_agents.back_to_list")}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => loadWorkspace(selectedLocationId)}
-                                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                                 {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
                                 {t("workflow_agents.refresh")}
@@ -848,7 +847,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                 <button
                                     type="button"
                                     onClick={() => handleDelete(selectedAgent)}
-                                    className="inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-500 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-900/20"
+                                    className="inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-500 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-900/20"
                                 >
                                     <Trash2 size={15} />
                                     {t("workflow_agents.delete_button")}
@@ -881,7 +880,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                 placeholder={t("workflow_agents.field_key_placeholder")}
                                                 className={inputClassName}
                                             />
-                                            <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.field_key_help")}</div>
+                                            <div className="mt-2 max-w-xl text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.field_key_help")}</div>
                                         </div>
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_status")}</label>
@@ -1168,6 +1167,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
 
                     </div>
                     </section>
+                    {renderChatPanel()}
                 </div>
             )}
         </div>
