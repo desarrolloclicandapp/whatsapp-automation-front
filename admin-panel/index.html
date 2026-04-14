@@ -1,11 +1,50 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>admin-panel</title>
-  </head>
+    <title>Waflow - WhatsApp Automation</title>
+
+    <script>
+      // 1. CAPTURA INMEDIATA: Guardamos los IDs de anuncios en localStorage
+      // Esto se ejecuta antes de que React cargue para asegurar que no se pierdan los parámetros
+      (function() {
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const fbclid = urlParams.get('fbclid');
+          const gclid = urlParams.get('gclid');
+
+          if (fbclid) {
+            localStorage.setItem('waflow_fbclid', fbclid);
+          }
+          if (gclid) {
+            localStorage.setItem('waflow_gclid', gclid);
+          }
+        } catch (e) {
+          console.error("Error capturando parámetros:", e);
+        }
+      })();
+
+      // 2. SCRIPT OFICIAL DE META PIXEL
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      
+      fbq('init', '929534969842011');
+      fbq('track', 'PageView'); // Esto mide la visita a la App
+    </script>
+    <noscript>
+      <img height="1" width="1" style="display:none"
+      src="https://www.facebook.com/tr?id=929534969842011&ev=PageView&noscript=1"
+      />
+    </noscript>
+    </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
