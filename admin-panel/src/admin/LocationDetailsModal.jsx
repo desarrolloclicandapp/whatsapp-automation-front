@@ -2682,6 +2682,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 ? (t('slots.official.pending') || 'Pendiente de validación')
                 : (t('slots.official.not_configured') || 'Sin configurar');
 
+        const effectiveStatusClassName = status === 'verified_warning'
+            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+            : statusClassName;
+        const effectiveStatusLabel = status === 'verified_warning'
+            ? (t('slots.official.verified_warning') || 'Vinculada con advertencia')
+            : statusLabel;
+
         const embeddedMissingLabel = Array.isArray(official.embeddedSignupMissing) && official.embeddedSignupMissing.length > 0
             ? official.embeddedSignupMissing.join(', ')
             : '';
@@ -2713,8 +2720,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 {t('slots.official.desc') || 'Configura este slot con la API oficial de Meta. Este modo queda enfocado en recibir y enviar mensajes desde Chatwoot o GoHighLevel, sin el panel QR ni extras del flujo Baileys.'}
                             </p>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${statusClassName}`}>
-                            {statusLabel}
+                                <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${effectiveStatusClassName}`}>
+                                    {effectiveStatusLabel}
                         </span>
                     </div>
 
@@ -3542,7 +3549,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const connectionMode = getEffectiveSlotConnectionMode(slot);
                                 const isOfficialSlotMode = connectionMode === 'official_api';
                                 const officialStatus = String(officialSlotSettings.status || '').trim().toLowerCase();
-                                const isOfficialConnected = isOfficialSlotMode && ['verified', 'active', 'connected'].includes(officialStatus);
+                                const isOfficialConnected = isOfficialSlotMode && ['verified', 'verified_warning', 'active', 'connected'].includes(officialStatus);
                                 const isConnected = isOfficialSlotMode ? isOfficialConnected : slot.is_connected === true;
                                 const connectedPhone = isOfficialSlotMode
                                     ? String(officialSlotSettings.displayPhoneNumber || slot.phone_number || '').trim()
