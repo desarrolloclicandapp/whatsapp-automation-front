@@ -897,8 +897,17 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
 
         // ✅ NUEVO: Manejar retorno de Stripe
+        // ✅ NUEVO: Manejar retorno de Stripe y Tracking de Compra
         const paymentStatus = queryParams.get("payment");
         if (paymentStatus === "success") {
+            // 🚀 INICIO TRACKING COMPRA (Navegador)
+            if (typeof window.fbq === 'function') {
+                // Disparamos la compra. El valor lo mandamos en 0 porque el monto exacto 
+                // lo enviará tu servidor (n8n) para evitar que el usuario manipule la URL.
+                window.fbq('track', 'Purchase', { currency: 'USD', value: 0 }); 
+            }
+            // 🏁 FIN TRACKING
+
             toast.success(t('agency.payment.success'), { duration: 6000 });
             // Limpiar URL
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -907,7 +916,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             // Limpiar URL
             window.history.replaceState({}, document.title, window.location.pathname);
         }
-
         return () => {
             cancelled = true;
         };
