@@ -3454,24 +3454,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     </div>
                                     <div>
                                         <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
-                                            OpenAI principal
+                                            OpenAI
                                         </p>
                                         <h4 className="text-base font-bold text-gray-900 dark:text-white">
-                                            Clave general de la subcuenta
+                                            Clave principal
                                         </h4>
                                     </div>
                                 </div>
                                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                                    Esta clave se usa para todos los agentes de la subcuenta. Si la dejas vacía, Waflow seguirá usando las claves legacy por slot cuando existan.
+                                    Para todos los agentes de esta subcuenta.
                                 </p>
-                                {legacySlotOpenAiKeyCount > 0 && (
-                                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">
-                                        Detectamos {legacySlotOpenAiKeyCount} {legacySlotOpenAiKeyCount === 1 ? 'slot con key legacy' : 'slots con key legacy'} configurada. No se romperán mientras migras a esta clave principal.
-                                    </p>
-                                )}
                             </div>
                             <div className={`self-start px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${locationOpenAiKeyConfigured ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300'}`}>
-                                {locationOpenAiKeyConfigured ? 'Configurada' : 'Sin configurar'}
+                                {locationOpenAiKeyConfigured ? 'Activa' : 'Pendiente'}
                             </div>
                         </div>
 
