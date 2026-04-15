@@ -867,15 +867,6 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                 {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
                                 {t("workflow_agents.refresh")}
                             </button>
-                            <button
-                                type="button"
-                                onClick={handleRunTest}
-                                disabled={!editingAgentId || testing}
-                                className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                {testing ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
-                                {t("workflow_agents.run_test")}
-                            </button>
                             {editingAgentId ? (
                                 <button
                                     type="button"
