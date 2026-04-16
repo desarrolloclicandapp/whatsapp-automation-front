@@ -1198,8 +1198,16 @@ export default function AgencyDashboard({ token, onLogout }) {
             String(onboardingCrmType || "").toLowerCase() === "waflow_crm" &&
             onboardingConnectionType === "waflow_crm_self";
         const primaryIdentity = getHostedWaflowPrimaryIdentity();
+        const suggestedHostedAccountName = String(primaryIdentity.name || "").trim();
+        const shouldClearSuggestedName =
+            Boolean(suggestedHostedAccountName) &&
+            existingWaflowInboxNames.has(suggestedHostedAccountName.toLowerCase());
         const timer = setTimeout(() => {
-            setAddModalName(isHostedSelfFlow ? primaryIdentity.name : "");
+            setAddModalName(
+                isHostedSelfFlow
+                    ? (shouldClearSuggestedName ? "" : suggestedHostedAccountName)
+                    : ""
+            );
             setAddModalInboxName("");
             setAddModalClientEmail("");
             setAddModalClientPassword("");
@@ -1210,7 +1218,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
         }, 60);
         return () => clearTimeout(timer);
-    }, [showAddModal]);
+    }, [showAddModal, onboardingCrmType, onboardingConnectionType, locations]);
 
     const confirmAddLocationModal = async (e) => {
         e.preventDefault();
@@ -1238,9 +1246,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             !isExternalChatwoot &&
             currentOnboardingType === "waflow_crm" &&
             onboardingConnectionType === "waflow_crm_self";
-        const effectiveAccountName = isWaflowSelfFlow
-            ? (safeName || hostedPrimaryName)
-            : safeName;
+        const effectiveAccountName = safeName;
         const effectiveClientEmail = isWaflowSelfFlow
             ? hostedPrimaryEmail
             : safeClientEmail;
@@ -2237,6 +2243,12 @@ export default function AgencyDashboard({ token, onLogout }) {
         loc,
         ...getLocationRuntimeMeta(loc)
     }));
+    const existingWaflowInboxNames = new Set(
+        locations
+            .filter((loc) => resolveTenantProductType(loc) === 'chatwoot')
+            .map((loc) => String(loc?.name || '').trim().toLowerCase())
+            .filter(Boolean)
+    );
     const filteredLocationCards = filteredLocations.map((loc) => ({
         loc,
         ...getLocationRuntimeMeta(loc)
@@ -3870,6 +3882,28 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     </p>
                                                 </div>
                                             </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-emerald-900 dark:text-emerald-200 mb-2">
+                                                    {t('agency.onboarding.waflow_crm_self_modal_account_name') || "Nombre de la cuenta"}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={addModalName}
+                                                    onChange={(e) => setAddModalName(e.target.value)}
+                                                    placeholder={t('agency.onboarding.waflow_crm_self_modal_account_placeholder') || "Ej: Operaciones Viraltia"}
+                                                    name="cw_account_name"
+                                                    autoComplete="off"
+                                                    required
+                                                    autoFocus
+                                                    className="w-full px-4 py-3 bg-white/90 dark:bg-gray-900/60 border border-emerald-200 dark:border-emerald-800/60 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-shadow"
+                                                />
+                                                {Boolean(hostedWaflowPrimaryName) &&
+                                                    existingWaflowInboxNames.has(hostedWaflowPrimaryName.toLowerCase()) && (
+                                                        <p className="mt-2 text-xs text-emerald-800/80 dark:text-emerald-300">
+                                                            {t('agency.onboarding.waflow_crm_self_modal_name_conflict') || "Ese nombre ya existe. Elige otro para esta cuenta."}
+                                                        </p>
+                                                    )}
+                                            </div>
                                         </div>
                                     )}
                                     {isChatwootModal && (
@@ -4045,7 +4079,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             type="submit"
                                             disabled={
                                                 isAddingLocation ||
-                                                (isWaflowCrmSelfModal ? !addModalInboxName.trim() : !addModalName.trim())
+                                                (isWaflowCrmSelfModal
+                                                    ? (!addModalName.trim() || !addModalInboxName.trim())
+                                                    : !addModalName.trim())
                                             }
                                             className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:hover:translate-y-0 flex items-center justify-center gap-2"
                                         >
