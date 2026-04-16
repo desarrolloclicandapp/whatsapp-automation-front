@@ -57,7 +57,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
 
     // DETERMINAR QUÉ PLANES MOSTRAR EL EN CATÁLOGO
     let availablePlans = [];
-    let showLifetimeOption = !hasLifetime; // Si ya lo tiene, no mostrarlo para comprar otra vez
+    let showLifetimeOption = false;
 
     if (hasLifetime) {
         // Usuario Lifetime -> Planes con Descuento pero LIMITADOS en Slots
@@ -141,12 +141,28 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
         setLoading(true);
         try {
             const res = await fetch(`${API_URL}/payments/subscribe`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ priceId })
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                body: JSON.stringify({ priceId })
             });
             const data = await res.json();
-            if (data.url) window.location.href = data.url;
-            else toast.error("Error: " + (data.error || t('sub.toast.error_unknown')));
-        } catch { toast.error(t('sub.toast.error_connection')); } finally { setLoading(false); }
+            
+            if (data.url) {
+                // 🚀 INICIO TRACKING INITIATE CHECKOUT (Navegador)
+                if (typeof window.fbq === 'function') {
+                    window.fbq('track', 'InitiateCheckout', { content_name: planName, currency: 'USD' });
+                }
+                // 🏁 FIN TRACKING
+                
+                window.location.href = data.url;
+            } else {
+                toast.error("Error: " + (data.error || t('sub.toast.error_unknown')));
+            }
+        } catch { 
+            toast.error(t('sub.toast.error_connection')); 
+        } finally { 
+            setLoading(false); 
+        }
     };
 
     // ✅ NUEVO: Confirmar pago directo con tarjeta guardada

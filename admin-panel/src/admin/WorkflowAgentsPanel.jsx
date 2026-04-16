@@ -50,7 +50,7 @@ function buildEmptyForm(catalog = []) {
         name: "",
         agent_key: "",
         status: "active",
-        credential_mode: "slot",
+        credential_mode: "location",
         slot_ids: [],
         manual_api_key: "",
         manual_api_key_configured: false,
@@ -81,10 +81,8 @@ function buildFormFromAgent(agent, catalog = []) {
         name: agent?.name || "",
         agent_key: agent?.agent_key || "",
         status: agent?.status || "active",
-        credential_mode: "slot",
-        slot_ids: Array.isArray(agent?.slot_ids)
-            ? agent.slot_ids.map((slotId) => String(slotId))
-            : (agent?.slot_id ? [String(agent.slot_id)] : []),
+        credential_mode: "location",
+        slot_ids: [],
         manual_api_key: "",
         manual_api_key_configured: agent?.manual_api_key_configured === true,
         clear_manual_api_key: false,
@@ -153,10 +151,10 @@ function TabButton({ active, label, onClick }) {
 
 function EditorSection({ title, description, children, className = "" }) {
     return (
-        <section className={`rounded-[26px] border border-gray-200 bg-gray-50/75 p-5 dark:border-gray-800 dark:bg-gray-950/40 ${className}`}>
-            <div className="mb-4">
+        <section className={`rounded-[24px] border border-gray-200 bg-gray-50/75 p-4 dark:border-gray-800 dark:bg-gray-950/40 ${className}`}>
+            <div className="mb-3">
                 <h5 className="text-sm font-bold text-gray-900 dark:text-white">{title}</h5>
-                {description ? <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">{description}</p> : null}
+                {description ? <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{description}</p> : null}
             </div>
             {children}
         </section>
@@ -176,13 +174,14 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const [agentQuery, setAgentQuery] = useState("");
     const [testMessage, setTestMessage] = useState("");
     const [testResult, setTestResult] = useState(null);
+    const [testConversation, setTestConversation] = useState([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
+    const [resettingMemory, setResettingMemory] = useState(false);
     const [uploadingDocuments, setUploadingDocuments] = useState(false);
-    const [slotKeyDrafts, setSlotKeyDrafts] = useState({});
-    const [openSlotKeyEditorId, setOpenSlotKeyEditorId] = useState(null);
-    const [savingSlotKeyId, setSavingSlotKeyId] = useState(null);
+    const [locationKeyDraft, setLocationKeyDraft] = useState("");
+    const [savingLocationKey, setSavingLocationKey] = useState(false);
 
     useEffect(() => {
         if (!selectedLocationId && locations.length > 0) {
@@ -238,6 +237,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             setForm(buildEmptyForm(catalog));
             setTestMessage("");
             setTestResult(null);
+            setTestConversation([]);
             setActiveTab("general");
             setViewMode(options.openEditor === true ? "editor" : "list");
             return;
@@ -247,6 +247,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         setForm(buildFormFromAgent(agent, catalog));
         setTestMessage("");
         setTestResult(null);
+        setTestConversation([]);
         setActiveTab("general");
         setViewMode("editor");
     };
@@ -277,77 +278,72 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             setForm(buildEmptyForm());
             setTestMessage("");
             setTestResult(null);
+            setTestConversation([]);
             setActiveTab("general");
-            setOpenSlotKeyEditorId(null);
-            setSlotKeyDrafts({});
+            setLocationKeyDraft("");
             loadWorkspace(selectedLocationId);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedLocationId]);
 
-    const saveSlotOpenAiKey = async (slotId, rawValue) => {
-        if (!selectedLocationId || !slotId) return false;
+    const saveLocationOpenAiKey = async (rawValue) => {
+        if (!selectedLocationId) return false;
         const safeValue = String(rawValue || "").trim();
         if (!safeValue) {
-            toast.error(t("workflow_agents.slot_key_invalid"));
+            toast.error(t("workflow_agents.location_key_invalid"));
             return false;
         }
 
-        setSavingSlotKeyId(slotId);
+        setSavingLocationKey(true);
         try {
-            const res = await authFetch("/agency/update-slot-config", {
-                method: "POST",
+            const res = await authFetch(`/agency/settings/${encodeURIComponent(selectedLocationId)}`, {
+                method: "PUT",
                 body: JSON.stringify({
-                    locationId: selectedLocationId,
-                    slotId,
                     openai_api_key: safeValue
                 })
             });
             const data = await parseResponse(res);
             if (!res.ok || data?.error) {
-                throw new Error(data?.error || t("workflow_agents.slot_key_save_error"));
+                throw new Error(data?.error || t("workflow_agents.location_key_save_error"));
             }
 
-            toast.success(t("workflow_agents.slot_key_saved"));
-            setSlotKeyDrafts((prev) => ({ ...prev, [slotId]: "" }));
-            setOpenSlotKeyEditorId(slotId);
+            toast.success(t("workflow_agents.location_key_saved"));
+            setLocationKeyDraft("");
             await loadWorkspace(selectedLocationId);
             return true;
         } catch (error) {
-            toast.error(t("workflow_agents.slot_key_save_error"), { description: error.message });
+            toast.error(t("workflow_agents.location_key_save_error"), { description: error.message });
             return false;
         } finally {
-            setSavingSlotKeyId(null);
+            setSavingLocationKey(false);
         }
     };
 
-    const clearSlotOpenAiKey = async (slotId) => {
-        if (!selectedLocationId || !slotId) return false;
+    const clearLocationOpenAiKey = async () => {
+        if (!selectedLocationId) return false;
 
-        setSavingSlotKeyId(slotId);
+        setSavingLocationKey(true);
         try {
-            const res = await authFetch("/agency/update-slot-config", {
-                method: "POST",
+            const res = await authFetch(`/agency/settings/${encodeURIComponent(selectedLocationId)}`, {
+                method: "PUT",
                 body: JSON.stringify({
-                    locationId: selectedLocationId,
-                    slotId,
                     openai_api_key: ""
                 })
             });
             const data = await parseResponse(res);
             if (!res.ok || data?.error) {
-                throw new Error(data?.error || t("workflow_agents.slot_key_remove_error"));
+                throw new Error(data?.error || t("workflow_agents.location_key_remove_error"));
             }
 
-            toast.success(t("workflow_agents.slot_key_removed"));
-            setSlotKeyDrafts((prev) => ({ ...prev, [slotId]: "" }));
+            toast.success(t("workflow_agents.location_key_removed"));
+            setLocationKeyDraft("");
             await loadWorkspace(selectedLocationId);
             return true;
         } catch (error) {
-            toast.error(t("workflow_agents.slot_key_remove_error"), { description: error.message });
+            toast.error(t("workflow_agents.location_key_remove_error"), { description: error.message });
             return false;
         } finally {
-            setSavingSlotKeyId(null);
+            setSavingLocationKey(false);
         }
     };
 
@@ -362,10 +358,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                 name: form.name,
                 agent_key: form.agent_key,
                 status: form.status,
-                credential_mode: "slot",
-                slot_ids: Array.isArray(form.slot_ids)
-                    ? form.slot_ids.map((slotId) => Number.parseInt(String(slotId), 10)).filter((slotId) => Number.isFinite(slotId) && slotId > 0)
-                    : [],
+                credential_mode: "location",
+                slot_ids: [],
                 model: form.model,
                 temperature: Number.parseFloat(form.temperature || "0.4"),
                 max_output_chars: Number.parseInt(form.max_output_chars || "600", 10),
@@ -414,10 +408,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
 
     const handleRunTest = async () => {
         if (!editingAgentId || !selectedLocationId) return;
-        if (selectedSlotCount === 0) {
-            toast.error(t("workflow_agents.test_error"), { description: t("workflow_agents.test_error_missing_slots") });
-            return;
-        }
+        const nextMessage = String(testMessage || "").trim() || t("workflow_agents.test_placeholder");
 
         setTesting(true);
         try {
@@ -425,9 +416,9 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                 method: "POST",
                 body: JSON.stringify({
                     locationId: selectedLocationId,
-                    slotId: preferredTestSlot?.slot_id || null,
-                    message: testMessage || t("workflow_agents.test_placeholder"),
-                    extraContext: form.description || ""
+                    message: nextMessage,
+                    extraContext: form.description || "",
+                    channel: "manual_test"
                 })
             });
             const data = await parseResponse(res);
@@ -436,6 +427,12 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                 throw new Error(data?.error || t("workflow_agents.test_error"));
             }
             setTestResult(data.result || null);
+            setTestConversation((prev) => [
+                ...prev,
+                { role: "user", text: nextMessage },
+                { role: "assistant", text: data?.result?.reply_text || "-" }
+            ]);
+            setTestMessage("");
             toast.success(t("workflow_agents.test_success"));
             await loadWorkspace(selectedLocationId);
         } catch (error) {
@@ -449,9 +446,31 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         }
     };
 
-    const handleResetTest = () => {
+    const handleResetTest = async () => {
+        if (editingAgentId && selectedLocationId) {
+            setResettingMemory(true);
+            try {
+                const res = await authFetch(`/agency/workflow-agents/${editingAgentId}/reset-memory`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        locationId: selectedLocationId,
+                        source: "manual_test"
+                    })
+                });
+                const data = await parseResponse(res);
+                if (!res.ok || !data?.success) {
+                    throw new Error(data?.error || t("workflow_agents.memory_reset_error"));
+                }
+                toast.success(t("workflow_agents.memory_reset_success"));
+            } catch (error) {
+                toast.error(t("workflow_agents.memory_reset_error"), { description: error.message });
+            } finally {
+                setResettingMemory(false);
+            }
+        }
         setTestMessage("");
         setTestResult(null);
+        setTestConversation([]);
     };
 
     const handleUploadDocuments = async (event) => {
@@ -516,8 +535,13 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const catalog = Array.isArray(workspace?.integration_catalog) ? workspace.integration_catalog : [];
     const agents = Array.isArray(workspace?.agents) ? workspace.agents : [];
     const slots = Array.isArray(workspace?.slots) ? workspace.slots : [];
-    const selectedLocation = locations.find((location) => String(location?.location_id || "") === selectedLocationId) || null;
-    const selectedLocationName = selectedLocation?.name || selectedLocationId || "-";
+    const locationHasOpenAiKey = workspace?.credentials?.has_location_openai_key === true;
+    const agencyHasOpenAiKey = workspace?.credentials?.has_agency_openai_key === true;
+    const legacySlotKeyCount = slots.filter((slot) => slot?.has_openai_api_key === true).length;
+    const usingLegacySlotKeys = !locationHasOpenAiKey && legacySlotKeyCount > 0;
+    const accountCredentialSource = locationHasOpenAiKey
+        ? "location"
+        : (usingLegacySlotKeys ? "slot" : (agencyHasOpenAiKey ? "agency" : "missing"));
     const baseModelOptions = useMemo(
         () => BASE_AGENT_MODEL_OPTIONS.map((option) => ({
             ...option,
@@ -538,21 +562,17 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         ];
     }, [baseModelOptions, form.model, t]);
     const selectedAgent = agents.find((agent) => agent.id === editingAgentId) || null;
-    const selectedSlotIds = Array.isArray(form.slot_ids) ? form.slot_ids : [];
-    const selectedSlots = slots.filter((slot) => selectedSlotIds.includes(String(slot.slot_id)));
-    const selectedSlotCount = selectedSlots.length;
-    const selectedSlotsWithKeys = selectedSlots.filter((slot) => slot?.has_openai_api_key === true);
-    const selectedSlotsWithoutKeys = selectedSlots.filter((slot) => slot?.has_openai_api_key !== true);
-    const selectedSlotsWithKeysCount = selectedSlotsWithKeys.length;
-    const preferredTestSlot = selectedSlotsWithKeys[0] || selectedSlots[0] || null;
     const selectedDocuments = Array.isArray(selectedAgent?.documents) ? selectedAgent.documents : [];
 
     const buildMissingCredentialMessage = () => {
-        if (selectedSlotCount === 0) {
-            return t("workflow_agents.test_error_missing_slots");
+        if (locationHasOpenAiKey) {
+            return t("workflow_agents.location_key_ready");
         }
-        if (selectedSlotsWithKeysCount === 0) {
-            return t("workflow_agents.test_error_missing_key_selected_slot");
+        if (usingLegacySlotKeys) {
+            return t("workflow_agents.test_error_legacy_slot_key");
+        }
+        if (agencyHasOpenAiKey) {
+            return t("workflow_agents.test_error_agency_key_fallback");
         }
         return t("workflow_agents.test_error_missing_key");
     };
@@ -656,13 +676,9 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                             />
                         </div>
                         <div className="mt-3 flex flex-wrap gap-1.5">
-                            {Array.isArray(agent.slot_ids) && agent.slot_ids.length > 0 ? (
-                                <span className="rounded-full border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                                    {t("workflow_agents.slots_selected_count").replace("{count}", String(agent.slot_ids.length))}
-                                </span>
-                            ) : (
-                                <span className="text-[11px] text-gray-500 dark:text-gray-400">{t("workflow_agents.slot_not_selected")}</span>
-                            )}
+                            <span className="rounded-full border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                                {t("workflow_agents.account_scope_badge")}
+                            </span>
                             {Number(agent.document_count || 0) > 0 ? (
                                 <span className="rounded-full border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
                                     {t("workflow_agents.documents_count").replace("{count}", String(agent.document_count))}
@@ -677,89 +693,99 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
 
     const renderChatPanel = () => (
         <section className="xl:sticky xl:top-6 overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+            <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-4 py-3.5 dark:border-gray-800">
                 <div>
                     <div className="text-xs font-bold uppercase tracking-[0.24em] text-gray-400 dark:text-gray-500">
                         {t("workflow_agents.test_title")}
                     </div>
-                    <div className="mt-2 text-base font-bold text-gray-900 dark:text-white">
+                    <div className="mt-1.5 text-sm font-bold text-gray-900 dark:text-white">
                         {editingAgentId ? (form.name || t("workflow_agents.edit_agent")) : t("workflow_agents.tab_test")}
                     </div>
-                    <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="mt-0.5 text-xs leading-5 text-gray-500 dark:text-gray-400">
                         {editingAgentId ? t("workflow_agents.test_desc") : t("workflow_agents.test_need_agent")}
                     </div>
                 </div>
-                <button
-                    type="button"
-                    onClick={handleResetTest}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-3.5 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                >
-                    {t("workflow_agents.reset_chat")}
-                </button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        disabled={!editingAgentId || testing}
+                        onClick={handleRunTest}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {testing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                        {t("workflow_agents.run_test")}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleResetTest}
+                        disabled={!editingAgentId || resettingMemory}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                        {resettingMemory ? <Loader2 size={14} className="animate-spin" /> : null}
+                        {t("workflow_agents.reset_chat")}
+                    </button>
+                </div>
             </div>
 
-            <div className="space-y-4 p-5">
-                <div className="rounded-[26px] border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-800 dark:bg-gray-950/40">
-                    <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="space-y-3 p-4">
+                <div className="rounded-[24px] border border-gray-200 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+                    <div className="mb-2.5 flex flex-wrap items-center gap-2">
                         <StatusPill
                             label={editingAgentId ? t(`workflow_agents.status_${form.status}`) : t("workflow_agents.status_draft")}
                             kind={form.status === "active" ? "good" : form.status === "paused" ? "warn" : "neutral"}
                         />
-                        {preferredTestSlot ? (
+                        <span className="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                            {t("workflow_agents.account_scope_badge")}
+                        </span>
+                        {Number(testResult?.memory_messages_used || 0) > 0 ? (
                             <span className="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                                {preferredTestSlot.slot_name}
+                                {t("workflow_agents.memory_badge").replace("{count}", String(testResult.memory_messages_used))}
                             </span>
                         ) : null}
                     </div>
 
-                    <div className="wf-soft-scrollbar min-h-[360px] max-h-[56vh] space-y-4 overflow-auto pr-1">
-                        {testMessage ? (
-                            <div className="flex justify-end">
-                                <div className="max-w-[88%] rounded-[22px] bg-indigo-600 px-4 py-3 text-sm leading-6 text-white shadow-sm">
-                                    {testMessage}
+                    <div className="wf-soft-scrollbar min-h-[240px] max-h-[42vh] space-y-3.5 overflow-auto pr-1">
+                        {testConversation.length > 0 ? (
+                            testConversation.map((entry, index) => (
+                                <div key={`${entry.role}-${index}`} className={`flex ${entry.role === "user" ? "justify-end" : "justify-start"}`}>
+                                    <div
+                                        className={`max-w-[88%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm ${
+                                            entry.role === "user"
+                                                ? "bg-indigo-600 text-white"
+                                                : "border border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                        }`}
+                                    >
+                                        {entry.text}
+                                    </div>
                                 </div>
-                            </div>
+                            ))
                         ) : null}
 
                         {testResult ? (
-                            <div className="space-y-3">
+                            <div className="space-y-2.5">
                                 <div className="flex items-center gap-2">
                                     <StatusPill label={getRunStatusLabel(t, testResult.status)} kind={testResult.status === "completed" ? "good" : "warn"} />
                                     <span className="text-xs text-gray-500 dark:text-gray-400">{testResult.intent || "general"}</span>
                                 </div>
-                                <div className="max-w-[88%] rounded-[22px] border border-gray-200 bg-white px-4 py-3 text-sm leading-6 text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                                    {testResult.reply_text || "-"}
-                                </div>
                                 {testResult.summary ? <div className="max-w-[88%] text-xs leading-5 text-gray-500 dark:text-gray-400">{testResult.summary}</div> : null}
                             </div>
-                        ) : (
-                            <div className="flex h-[280px] items-center justify-center rounded-[22px] border border-dashed border-gray-300 bg-white/70 px-5 text-center text-sm leading-6 text-gray-500 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-400">
+                        ) : testConversation.length === 0 ? (
+                            <div className="flex h-[200px] items-center justify-center rounded-[22px] border border-dashed border-gray-300 bg-white/70 px-5 text-center text-sm leading-6 text-gray-500 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-400">
                                 {t("workflow_agents.test_empty")}
                             </div>
-                        )}
+                        ) : null}
                     </div>
                 </div>
 
-                <div className="rounded-[26px] border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div className="rounded-[24px] border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900">
                     <textarea
-                        rows={4}
+                        rows={3}
                         value={testMessage}
                         onChange={(event) => setTestMessage(event.target.value)}
                         placeholder={t("workflow_agents.test_placeholder")}
                         className={inputClassName}
                     />
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                        <div className="text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.test_tip")}</div>
-                        <button
-                            type="button"
-                            disabled={!editingAgentId || testing}
-                            onClick={handleRunTest}
-                            className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {testing ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                            {t("workflow_agents.run_test")}
-                        </button>
-                    </div>
+                    <div className="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.test_tip")}</div>
                 </div>
             </div>
         </section>
@@ -802,10 +828,9 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             {viewMode === "list" ? (
                 renderAgentList(false)
             ) : (
-                <div className="grid gap-6 xl:grid-cols-[390px,1fr]">
-                    {renderChatPanel()}
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr),340px] xl:items-start">
                     <section className="overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <div className="flex flex-col gap-4 border-b border-gray-200 px-6 py-5 dark:border-gray-800 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-800 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                                 <h4 className="truncate text-xl font-bold text-gray-900 dark:text-white">
@@ -816,12 +841,10 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                     kind={form.status === "active" ? "good" : form.status === "paused" ? "warn" : "neutral"}
                                 />
                             </div>
-                            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">{t("workflow_agents.form_desc")}</p>
-                            <div className="mt-3 flex flex-wrap gap-2">
+                            <p className="mt-1 max-w-xl text-sm leading-6 text-gray-500 dark:text-gray-400">{t("workflow_agents.form_desc")}</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
                                 <span className="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                                    {selectedSlotCount > 0
-                                        ? t("workflow_agents.slots_selected_count").replace("{count}", String(selectedSlotCount))
-                                        : t("workflow_agents.slot_not_selected")}
+                                    {t("workflow_agents.account_scope_badge")}
                                 </span>
                                 <span className="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
                                     {t("workflow_agents.documents_count").replace("{count}", String(selectedDocuments.length))}
@@ -832,14 +855,14 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                             <button
                                 type="button"
                                 onClick={() => applyAgentToForm(null)}
-                                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                                 {t("workflow_agents.back_to_list")}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => loadWorkspace(selectedLocationId)}
-                                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                                 {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
                                 {t("workflow_agents.refresh")}
@@ -848,7 +871,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                 <button
                                     type="button"
                                     onClick={() => handleDelete(selectedAgent)}
-                                    className="inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-500 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-900/20"
+                                    className="inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-500 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-900/20"
                                 >
                                     <Trash2 size={15} />
                                     {t("workflow_agents.delete_button")}
@@ -881,7 +904,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                 placeholder={t("workflow_agents.field_key_placeholder")}
                                                 className={inputClassName}
                                             />
-                                            <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.field_key_help")}</div>
+                                            <div className="mt-2 max-w-xl text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.field_key_help")}</div>
                                         </div>
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_status")}</label>
@@ -926,129 +949,66 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                     </label>
                                 </EditorSection>
 
-                                <EditorSection title={t("workflow_agents.section_slots_title")} description={t("workflow_agents.section_slots_desc")}>
-                                    <div className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-                                        <span className="font-semibold text-gray-700 dark:text-gray-200">{t("workflow_agents.slot_scope_label")}</span>{" "}
-                                        {t("workflow_agents.slot_scope_desc").replace("{account}", selectedLocationName)}
-                                    </div>
-                                    <div className="wf-soft-scrollbar mt-4 max-h-[30rem] space-y-2 overflow-auto pr-1">
-                                        {slots.length === 0 ? (
-                                            <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                                                {t("workflow_agents.slots_empty")}
-                                            </div>
-                                        ) : slots.map((slot) => {
-                                            const slotId = String(slot.slot_id);
-                                            const checked = selectedSlotIds.includes(slotId);
-                                            const isKeyEditorOpen = openSlotKeyEditorId === slot.slot_id;
-                                            const isSavingThisSlotKey = savingSlotKeyId === slot.slot_id;
-                                            const slotKeyDraft = slotKeyDrafts[slot.slot_id] || "";
-                                            return (
-                                                <div
-                                                    key={slotId}
-                                                    className={`flex items-start gap-3 rounded-[22px] border px-4 py-3 transition ${
-                                                        checked
-                                                            ? "border-indigo-300 bg-indigo-50/70 dark:border-indigo-700 dark:bg-indigo-900/20"
-                                                            : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
-                                                    }`}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={checked}
-                                                        onChange={() => {
-                                                            setForm((prev) => {
-                                                                const prevSlotIds = Array.isArray(prev.slot_ids) ? prev.slot_ids : [];
-                                                                const nextSlotIds = prevSlotIds.includes(slotId)
-                                                                    ? prevSlotIds.filter((value) => value !== slotId)
-                                                                    : [...prevSlotIds, slotId];
-                                                                return {
-                                                                    ...prev,
-                                                                    slot_ids: nextSlotIds,
-                                                                    credential_mode: "slot"
-                                                                };
-                                                            });
-                                                        }}
-                                                        className="mt-1 h-4 w-4 rounded text-indigo-600"
-                                                    />
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="font-semibold text-gray-900 dark:text-white">
-                                                            {slot.slot_name} ({t("workflow_agents.slot_prefix")} {slot.slot_id})
-                                                        </div>
-                                                        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                            {slot.phone_number || t("workflow_agents.slot_phone_missing")}
-                                                        </div>
-                                                        <div className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
-                                                            {t("workflow_agents.slot_account_label")}: {selectedLocationName}
-                                                        </div>
-                                                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setOpenSlotKeyEditorId((prev) => (prev === slot.slot_id ? null : slot.slot_id))}
-                                                                className="rounded-xl border border-gray-200 px-3 py-1.5 text-[11px] font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                                            >
-                                                                {slot.has_openai_api_key ? t("workflow_agents.slot_key_replace") : t("workflow_agents.slot_key_add")}
-                                                            </button>
-                                                            {slot.has_openai_api_key ? (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => clearSlotOpenAiKey(slot.slot_id)}
-                                                                    disabled={isSavingThisSlotKey}
-                                                                    className="rounded-xl border border-red-200 px-3 py-1.5 text-[11px] font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800/60 dark:text-red-300 dark:hover:bg-red-900/20"
-                                                                >
-                                                                    {isSavingThisSlotKey ? t("workflow_agents.slot_key_saving") : t("workflow_agents.slot_key_remove")}
-                                                                </button>
-                                                            ) : null}
-                                                        </div>
-                                                        {isKeyEditorOpen ? (
-                                                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                                                                <input
-                                                                    type="password"
-                                                                    value={slotKeyDraft}
-                                                                    onChange={(event) => {
-                                                                        const nextValue = event.target.value;
-                                                                        setSlotKeyDrafts((prev) => ({ ...prev, [slot.slot_id]: nextValue }));
-                                                                    }}
-                                                                    onKeyDown={(event) => {
-                                                                        if (event.key === "Enter") {
-                                                                            event.preventDefault();
-                                                                            saveSlotOpenAiKey(slot.slot_id, slotKeyDraft);
-                                                                        }
-                                                                    }}
-                                                                    placeholder={t("workflow_agents.slot_key_placeholder")}
-                                                                    className="min-w-[220px] flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => saveSlotOpenAiKey(slot.slot_id, slotKeyDraft)}
-                                                                    disabled={isSavingThisSlotKey}
-                                                                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-                                                                >
-                                                                    {isSavingThisSlotKey ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                                                                    {isSavingThisSlotKey ? t("workflow_agents.slot_key_saving") : t("workflow_agents.slot_key_save")}
-                                                                </button>
-                                                            </div>
-                                                        ) : null}
-                                                    </div>
-                                                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                                                        slot.has_openai_api_key
-                                                            ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-300"
-                                                            : "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-200"
-                                                    }`}>
-                                                        {slot.has_openai_api_key ? t("workflow_agents.slot_has_key") : t("workflow_agents.slot_missing_key")}
-                                                    </span>
+                                <EditorSection title={t("workflow_agents.section_account_ai_title")} description={t("workflow_agents.section_account_ai_desc")}>
+                                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr),240px]">
+                                        <div>
+                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_location_api_key")}</label>
+                                            <input
+                                                type="password"
+                                                value={locationKeyDraft}
+                                                onChange={(event) => setLocationKeyDraft(event.target.value)}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === "Enter") {
+                                                        event.preventDefault();
+                                                        saveLocationOpenAiKey(locationKeyDraft);
+                                                    }
+                                                }}
+                                                placeholder={t("workflow_agents.location_key_placeholder")}
+                                                className={inputClassName}
+                                            />
+                                            <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.location_key_help")}</div>
+                                        </div>
+                                        <div className="flex flex-col gap-3">
+                                            <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-900">
+                                                <div className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                                                    {t("workflow_agents.credentials_box_title")}
                                                 </div>
-                                            );
-                                        })}
+                                                <div className="mt-2">
+                                                    <StatusPill
+                                                        label={t(`workflow_agents.credential_source_${accountCredentialSource}`)}
+                                                        kind={accountCredentialSource === "missing" ? "warn" : "good"}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => saveLocationOpenAiKey(locationKeyDraft)}
+                                                    disabled={savingLocationKey}
+                                                    className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                                >
+                                                    {savingLocationKey ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                                                    {savingLocationKey ? t("workflow_agents.location_key_saving") : t("workflow_agents.location_key_save")}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={clearLocationOpenAiKey}
+                                                    disabled={savingLocationKey || (!locationHasOpenAiKey && !usingLegacySlotKeys)}
+                                                    className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800/60 dark:text-red-300 dark:hover:bg-red-900/20"
+                                                >
+                                                    {t("workflow_agents.location_key_remove")}
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/10 dark:text-amber-300">
-                                        {selectedSlotCount === 0
-                                            ? t("workflow_agents.credentials_help_slot_pick")
-                                            : (selectedSlotsWithKeysCount === 0
-                                                ? t("workflow_agents.credentials_help_slot_missing_for_selected")
-                                                : (selectedSlotsWithKeysCount < selectedSlotCount
-                                                    ? t("workflow_agents.credentials_help_slot_partial")
-                                                        .replace("{ready}", String(selectedSlotsWithKeysCount))
-                                                        .replace("{total}", String(selectedSlotCount))
-                                                    : t("workflow_agents.credentials_help_slot_selected")))}
+                                        {locationHasOpenAiKey
+                                            ? t("workflow_agents.location_key_ready")
+                                            : (usingLegacySlotKeys
+                                                ? t("workflow_agents.location_key_legacy_fallback").replace("{count}", String(legacySlotKeyCount))
+                                                : (agencyHasOpenAiKey
+                                                    ? t("workflow_agents.location_key_agency_fallback")
+                                                    : t("workflow_agents.location_key_missing")))}
                                     </div>
                                 </EditorSection>
 
@@ -1168,6 +1128,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
 
                     </div>
                     </section>
+                    {renderChatPanel()}
                 </div>
             )}
         </div>

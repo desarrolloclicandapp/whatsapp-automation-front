@@ -292,17 +292,17 @@ export default function AgencyDashboard({ token, onLogout }) {
     const isGhlAgency = agencyCrmType === "ghl";
     const isChatwootAgency = agencyCrmType === "chatwoot";
     const isCrmLocked = Boolean(accountInfo?.crm_type);
-    const crmLabelMap = { ghl: "GoHighLevel", waflow: "WaFloW", chatwoot: "Chatwoot", odoo: "Odoo" };
+    const crmLabelMap = { ghl: "GoHighLevel", waflow: "WaFloW", chatwoot: "Waflow Inbox", odoo: "Odoo" };
     const activeCrmLabel = crmLabelMap[agencyCrmType] || agencyCrmType.toUpperCase();
     const isSpanish = language === 'es';
     const onboardingCardTitles = {
         ghl: 'GoHighLevel',
         waflow: isSpanish ? 'Waflow Inbox' : 'Waflow Inbox',
-        chatwoot: isSpanish ? 'Tu Chatwoot' : 'Your Chatwoot',
+        chatwoot: isSpanish ? 'Waflow Inbox' : 'Waflow Inbox',
     };
     const chatwootMasterBenefitCopy = isSpanish
-        ? 'Este usuario se reutiliza para aprovisionar nuevas cuentas Waflow Mensajeria hospedadas por nosotros, acelerar el alta de inboxes y usuarios, y dejar cada cuenta lista para operar sin configuraciones manuales en cada cliente.'
-        : 'This master user is reused to provision new Waflow Messaging accounts hosted by us, speed up inbox and user setup, and leave each account ready to operate without manual setup for every client.';
+        ? 'Este usuario habilita nuevas cuentas Waflow Inbox hospedadas por nosotros.'
+        : 'This user provisions new Waflow Inbox accounts hosted by us.';
     const [searchTerm, setSearchTerm] = useState("");
     const [reliabilityPage, setReliabilityPage] = useState(1);
     const [userEmail, setUserEmail] = useState("");
@@ -897,8 +897,17 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
 
         // ✅ NUEVO: Manejar retorno de Stripe
+        // ✅ NUEVO: Manejar retorno de Stripe y Tracking de Compra
         const paymentStatus = queryParams.get("payment");
         if (paymentStatus === "success") {
+            // 🚀 INICIO TRACKING COMPRA (Navegador)
+            if (typeof window.fbq === 'function') {
+                // Disparamos la compra. El valor lo mandamos en 0 porque el monto exacto 
+                // lo enviará tu servidor (n8n) para evitar que el usuario manipule la URL.
+                window.fbq('track', 'Purchase', { currency: 'USD', value: 0 }); 
+            }
+            // 🏁 FIN TRACKING
+
             toast.success(t('agency.payment.success'), { duration: 6000 });
             // Limpiar URL
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -907,7 +916,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             // Limpiar URL
             window.history.replaceState({}, document.title, window.location.pathname);
         }
-
         return () => {
             cancelled = true;
         };
@@ -1388,7 +1396,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
             toast.success(
                 isChatwootView
-                    ? (t('dash.chatwoot_accounts.created') || "Cuenta Chatwoot creada")
+                    ? (t('dash.chatwoot_accounts.created') || "Cuenta Waflow Inbox creada")
                     : (t('dash.locations.created') || "Location creada"),
                 { id: loadingId }
             );
@@ -2097,7 +2105,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </div>
                 <div className={gridClass}>
                     {renderCard("ghl", "GoHighLevel", t('agency.integrations.ghl_desc'), Globe, { showOpen: true, onOpen: openGhlPortal })}
-                    {renderCard("chatwoot", "Chatwoot", t('agency.integrations.chatwoot_desc'), MessageSquareText, { showOpen: true, onOpen: openChatwootPortal })}
+                    {renderCard("chatwoot", "Waflow Inbox", t('agency.integrations.chatwoot_desc'), MessageSquareText, { showOpen: true, onOpen: openChatwootPortal })}
                 </div>
                 {renderSelectedConfigPanel()}
             </div>
@@ -2234,7 +2242,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: activeLocationRows.length },
         { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: activeLocationRows.filter((l) => resolveTenantProductType(l) === 'ghl').length },
         { id: 'waflow', label: 'WaFloW', icon: Sparkles, count: activeLocationRows.filter((l) => resolveTenantProductType(l) === 'waflow').length },
-        { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: activeLocationRows.filter((l) => resolveTenantProductType(l) === 'chatwoot').length }
+        { id: 'chatwoot', label: 'Waflow Inbox', icon: MessageSquare, count: activeLocationRows.filter((l) => resolveTenantProductType(l) === 'chatwoot').length }
     ];
     const reliabilityBaseCards = filteredLocationCards.filter((entry) => entry.connectedSlotCount > 0);
     const reliabilitySummary = reliabilityBaseCards.reduce((acc, entry) => {
@@ -2250,7 +2258,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: locations.length },
         { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: locations.filter((l) => resolveTenantProductType(l) === 'ghl').length },
         { id: 'waflow', label: 'WaFloW', icon: Sparkles, count: locations.filter((l) => resolveTenantProductType(l) === 'waflow').length },
-        { id: 'chatwoot', label: 'Chatwoot', icon: MessageSquare, count: locations.filter((l) => resolveTenantProductType(l) === 'chatwoot').length }
+        { id: 'chatwoot', label: 'Waflow Inbox', icon: MessageSquare, count: locations.filter((l) => resolveTenantProductType(l) === 'chatwoot').length }
     ];
     const reliabilityTotalAccounts = reliabilityBaseCards.length;
     const reliabilityTimeline = Array.isArray(reliabilityOverview?.timeline) ? reliabilityOverview.timeline : [];
@@ -2964,7 +2972,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             <Plus size={20} className="text-gray-300 group-hover:text-indigo-600" />
                                                         </div>
                                                         <p className="text-xs font-medium text-gray-500">
-                                                            {isGhlAgency ? t('agency.location.empty_title') : (t('dash.chatwoot_accounts.new_empty') || "Nueva Cuenta Chatwoot")}
+                                                            {isGhlAgency ? t('agency.location.empty_title') : (t('dash.chatwoot_accounts.new_empty') || "Nueva cuenta Waflow Inbox")}
                                                         </p>
                                                     </div>
                                                 ))}
@@ -3345,7 +3353,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             {isChatwootAgency && (
                                                 <li className="flex gap-2">
                                                     <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                                                    <span>{t('agency.settings_guide.required_chatwoot_master') || "Configurar Usuario Maestro de Chatwoot (sin esto no podrás aprovisionar cuentas hosted)."}</span>
+                                                    <span>{t('agency.settings_guide.required_chatwoot_master') || "Configurar usuario maestro de Waflow Inbox."}</span>
                                                 </li>
                                             )}
                                         </ul>
@@ -3743,7 +3751,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         className="w-5 h-5 text-indigo-600 rounded bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 focus:ring-indigo-500"
                                                     />
                                                     <label htmlFor="cw_external_toggle" className="text-sm font-bold text-indigo-900 dark:text-indigo-200 cursor-pointer user-select-none">
-                                                        Bring Your Own Chatwoot (BYOC)
+                                                        Conectar inbox externo
                                                     </label>
                                                 </div>
                                             )}
@@ -3751,16 +3759,16 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             {addModalChatwootExternal ? (
                                                 <div className="space-y-4 pt-2 border-t border-gray-200 dark:border-gray-700">
                                                     <p className="text-xs text-gray-500 mb-2">
-                                                        Conecta Waflow a un Chatwoot alojado externamente.
+                                                        Conecta tu Waflow Inbox externo.
                                                     </p>
                                                     <div>
                                                         <div className="mb-2 flex items-center gap-2">
                                                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                                                URL de Chatwoot
+                                                                URL del inbox
                                                             </label>
                                                             <InlineInfoHint
-                                                                ariaLabel="Ayuda para URL de Chatwoot"
-                                                                text={t('agency.onboarding.chatwoot_url_help') || 'Usa el dominio base donde inicias sesion en Chatwoot. Ejemplo: https://chat.tuempresa.com. No pegues rutas internas ni links del widget.'}
+                                                                ariaLabel="Ayuda para URL del inbox"
+                                                                text={t('agency.onboarding.chatwoot_url_help') || 'Usa el dominio base de tu inbox. Ejemplo: https://chat.tuempresa.com.'}
                                                             />
                                                         </div>
                                                         <input
@@ -3777,8 +3785,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                                 Account ID
                                                             </label>
                                                             <InlineInfoHint
-                                                                ariaLabel="Ayuda para Account ID de Chatwoot"
-                                                                text={t('agency.onboarding.chatwoot_account_id_help') || 'Abre la cuenta que quieres conectar y copia el numero que aparece en la URL despues de /app/accounts/. Tambien suele verse en la configuracion de la cuenta.'}
+                                                                ariaLabel="Ayuda para Account ID"
+                                                                text={t('agency.onboarding.chatwoot_account_id_help') || 'Abre la cuenta y copia el numero que aparece despues de /app/accounts/.'}
                                                             />
                                                         </div>
                                                         <input
@@ -3792,11 +3800,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     <div>
                                                         <div className="mb-2 flex items-center gap-2">
                                                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                                                Access Token de API
+                                                                Access Token
                                                             </label>
                                                             <InlineInfoHint
-                                                                ariaLabel="Ayuda para Access Token de API de Chatwoot"
-                                                                text={t('agency.onboarding.chatwoot_api_token_help') || 'Entra con un usuario administrador de esa cuenta y copia su access token personal desde el perfil o ajustes de usuario. Usa el api_access_token, no el inbox token ni un webhook token.'}
+                                                                ariaLabel="Ayuda para Access Token"
+                                                                text={t('agency.onboarding.chatwoot_api_token_help') || 'Usa el api_access_token de un usuario administrador.'}
                                                             />
                                                         </div>
                                                         <input
@@ -3812,7 +3820,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <>
                                             <div>
                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                                    {t('dash.chatwoot_accounts.inbox_prompt') || "Nombre del primer Telefono"}
+                                                    {t('dash.chatwoot_accounts.inbox_prompt') || "Nombre del primer inbox"}
                                                 </label>
                                                 <input
                                                     type="text"
@@ -3922,7 +3930,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { resetOnboardingWizard(); setShowOnboarding(false); }}>
                             <div
                                 className={`bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full mx-4 overflow-hidden ${
-                                    onboardingStep === 0 ? "max-w-6xl" : "max-w-lg"
+                                    onboardingStep === 0 ? "max-w-5xl" : "max-w-lg"
                                 }`}
                                 onClick={e => e.stopPropagation()}
                             >
@@ -3942,8 +3950,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                                             {onboardingStep === 0 && (t('agency.onboarding.title') || 'Nueva Cuenta')}
                                             {onboardingStep === 1 && onboardingCrmType === 'ghl' && 'GoHighLevel'}
-                                            {onboardingStep === 1 && onboardingCrmType === 'waflow_crm' && onboardingConnectionType !== 'chatwoot_setup_master' && (t('agency.onboarding.waflow_crm_title') || 'Waflow Mensajeria')}
-                                            {onboardingStep === 1 && (onboardingCrmType === 'chatwoot' || onboardingCrmType === 'waflow_crm') && onboardingConnectionType === 'chatwoot_setup_master' && (t('dash.chatwoot_master.title') || 'Usuario Maestro de Chatwoot')}
+                                            {onboardingStep === 1 && onboardingCrmType === 'waflow_crm' && onboardingConnectionType !== 'chatwoot_setup_master' && (t('agency.onboarding.waflow_crm_title') || 'Waflow Inbox')}
+                                            {onboardingStep === 1 && (onboardingCrmType === 'chatwoot' || onboardingCrmType === 'waflow_crm') && onboardingConnectionType === 'chatwoot_setup_master' && (t('dash.chatwoot_master.title') || 'Usuario maestro de Waflow Inbox')}
                                         </h3>
                                     </div>
                                     <button onClick={() => { resetOnboardingWizard(); setShowOnboarding(false); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 transition">
@@ -3961,18 +3969,20 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-2">
                                                 {t('agency.onboarding.choose_integration') || 'Elige el tipo de integración para la nueva cuenta'}
                                             </p>
-                                            <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-1">
-                                                {t('agency.onboarding.choose_integration_summary') || 'Elige la experiencia ideal para cada cliente. Puedes crear cuentas mixtas dentro de la misma agencia.'}
-                                            </p>
+                                            {Boolean(t('agency.onboarding.choose_integration_summary')) && (
+                                                <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                    {t('agency.onboarding.choose_integration_summary')}
+                                                </p>
+                                            )}
 
-                                            <div className="mt-10 grid grid-cols-1 items-stretch gap-7 md:grid-cols-3 md:gap-8">
+                                            <div className="mt-10 grid grid-cols-1 items-stretch gap-7 md:grid-cols-2 md:gap-8">
                                                 <button
                                                     onClick={() => goToOnboardingConnectionStep('ghl')}
                                                     onMouseEnter={() => setOnboardingHoveredCard('ghl')}
                                                     onMouseLeave={() => setOnboardingHoveredCard(null)}
                                                     onFocus={() => setOnboardingHoveredCard('ghl')}
                                                     onBlur={() => setOnboardingHoveredCard(null)}
-                                                    className={`group flex h-full min-h-[29rem] flex-col rounded-[28px] border-[3px] p-7 text-left transition-all duration-200 ${
+                                                    className={`group flex h-full min-h-[23rem] flex-col rounded-[28px] border-[3px] p-7 text-left transition-all duration-200 ${
                                                         onboardingHoveredCard === 'ghl'
                                                             ? 'border-blue-600 dark:border-blue-400 bg-blue-50/60 dark:bg-blue-900/20 shadow-[0_14px_30px_rgba(37,99,235,0.25)] -translate-y-0.5'
                                                             : onboardingHoveredCard
@@ -4009,8 +4019,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_1') || 'Pipeline y CRM en un solo lugar'}</span></li>
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_2') || 'Automatizaciones y campañas'}</span></li>
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_3') || 'Instalación rápida de Waflow'}</span></li>
-                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_4') || 'Mayor control comercial del cliente'}</span></li>
-                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_5') || 'Escalable para múltiples subcuentas'}</span></li>
                                                     </ul>
                                                 </button>
 
@@ -4020,7 +4028,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     onMouseLeave={() => setOnboardingHoveredCard(null)}
                                                     onFocus={() => setOnboardingHoveredCard('waflow_crm')}
                                                     onBlur={() => setOnboardingHoveredCard(null)}
-                                                    className={`group relative flex h-full min-h-[29rem] flex-col rounded-[28px] border-[3px] p-7 text-left transition-all duration-200 ${
+                                                    className={`group relative flex h-full min-h-[23rem] flex-col rounded-[28px] border-[3px] p-7 text-left transition-all duration-200 ${
                                                         onboardingHoveredCard === 'waflow_crm'
                                                             ? 'border-emerald-600 dark:border-emerald-400 bg-emerald-50/60 dark:bg-emerald-900/20 shadow-[0_14px_30px_rgba(5,150,105,0.22)] -translate-y-0.5'
                                                             : onboardingHoveredCard
@@ -4060,56 +4068,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_1') || 'Cuenta lista para operar en minutos'}</span></li>
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_2') || 'WhatsApp, inboxes y usuarios en un solo flujo'}</span></li>
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_3') || 'Operación diaria dentro de Waflow'}</span></li>
-                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_4') || 'Infraestructura administrada por nuestro equipo'}</span></li>
-                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_5') || 'Ideal para agencias que quieren marca propia'}</span></li>
-                                                    </ul>
-                                                </button>
-
-                                                <button
-                                                    onClick={openOnboardingChatwootByocFlow}
-                                                    onMouseEnter={() => setOnboardingHoveredCard('chatwoot')}
-                                                    onMouseLeave={() => setOnboardingHoveredCard(null)}
-                                                    onFocus={() => setOnboardingHoveredCard('chatwoot')}
-                                                    onBlur={() => setOnboardingHoveredCard(null)}
-                                                    className={`group flex h-full min-h-[29rem] flex-col rounded-[28px] border-[3px] p-7 text-left transition-all duration-200 ${
-                                                        onboardingHoveredCard === 'chatwoot'
-                                                            ? 'border-violet-600 dark:border-violet-400 bg-violet-50/60 dark:bg-violet-900/20 shadow-[0_14px_30px_rgba(124,58,237,0.25)] -translate-y-0.5'
-                                                            : onboardingHoveredCard
-                                                                ? 'opacity-75 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900'
-                                                                : 'border-gray-900 dark:border-gray-200 bg-white dark:bg-gray-900 hover:border-violet-500 dark:hover:border-violet-400 hover:shadow-[0_10px_24px_rgba(139,92,246,0.2)]'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center gap-3 justify-between">
-                                                        <span className={`inline-flex items-center px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-md border ${
-                                                            onboardingHoveredCard === 'chatwoot'
-                                                                ? 'bg-violet-600 text-white border-violet-600'
-                                                                : 'bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
-                                                        }`}>
-                                                            {onboardingHoveredCard === 'chatwoot' ? (t('agency.onboarding.card_selected') || 'Seleccionado') : (t('agency.onboarding.card_select') || 'Seleccionar')}
-                                                        </span>
-                                                        <ChevronRight size={18} className={`shrink-0 transition ${
-                                                            onboardingHoveredCard === 'chatwoot'
-                                                                ? 'text-violet-600 dark:text-violet-300'
-                                                                : 'text-gray-300 group-hover:text-violet-500'
-                                                        }`} />
-                                                    </div>
-                                                    <div className="mt-5 flex items-center gap-4">
-                                                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-900/30 shrink-0">
-                                                            <MessageSquare size={20} className="text-violet-600 dark:text-violet-400" />
-                                                        </div>
-                                                        <h5 className="text-[1.75rem] leading-[1.05] font-extrabold tracking-tight uppercase text-gray-900 dark:text-white">
-                                                            {onboardingCardTitles.chatwoot}
-                                                        </h5>
-                                                    </div>
-                                                    <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
-                                                        {t('agency.onboarding.benefits_title_chatwoot') || 'Listado de beneficios'}
-                                                    </p>
-                                                    <ul className="mt-4 space-y-3 text-[15px] leading-7 text-gray-800 dark:text-gray-200">
-                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_1') || 'Bandeja omnicanal colaborativa'}</span></li>
-                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_2') || 'Asignación por equipo e inbox'}</span></li>
-                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_3') || 'Conexión nativa con WhatsApp'}</span></li>
-                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_4') || 'Contexto completo por conversación'}</span></li>
-                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-violet-600 shrink-0" /><span>{t('agency.onboarding.chatwoot_benefit_5') || 'Ideal para equipos de soporte/operación'}</span></li>
                                                     </ul>
                                                 </button>
                                             </div>

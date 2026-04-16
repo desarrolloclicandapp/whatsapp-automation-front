@@ -55,6 +55,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [locationName, setLocationName] = useState(location.name || "");
     const [whiteLabelEnabled, setWhiteLabelEnabled] = useState(true);
     const [tenantSettings, setTenantSettings] = useState(location.settings || {});
+    const [locationOpenAiKeyDraft, setLocationOpenAiKeyDraft] = useState("");
+    const [locationOpenAiKeyConfigured, setLocationOpenAiKeyConfigured] = useState(false);
+    const [savingLocationOpenAiKey, setSavingLocationOpenAiKey] = useState(false);
     const [maxSubagencies, setMaxSubagencies] = useState(null);
     const [loading, setLoading] = useState(true);
     const rawFeatures = localStorage.getItem("agencyFeatures");
@@ -105,6 +108,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [ghlAccessInfo, setGhlAccessInfo] = useState(null);
     const [loadingGhlAccess, setLoadingGhlAccess] = useState(false);
     const [showGhlAccessModal, setShowGhlAccessModal] = useState(false);
+    const [showAccountSettingsModal, setShowAccountSettingsModal] = useState(false);
     const [chatwootAccessInfo, setChatwootAccessInfo] = useState(null);
     const [loadingChatwootAccess, setLoadingChatwootAccess] = useState(false);
     const [showChatwootAccessModal, setShowChatwootAccessModal] = useState(false);
@@ -394,6 +398,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 setSlots(data.slots || []);
                 setHealthSummary(data.healthSummary || null);
                 setKeywords(data.keywords || []);
+                setLocationOpenAiKeyConfigured(data.openai_key_configured === true);
+                setLocationOpenAiKeyDraft("");
 
                 if (data.name) setLocationName(data.name);
                 setWhiteLabelEnabled(data.settings?.white_label ?? true);
@@ -589,6 +595,31 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         } catch (e) {
             toast.error("Error guardando White Label");
             setWhiteLabelEnabled(!nextValue);
+        }
+    };
+
+    const saveLocationOpenAiKey = async (rawValue = locationOpenAiKeyDraft) => {
+        const nextValue = String(rawValue || "").trim();
+        setSavingLocationOpenAiKey(true);
+        try {
+            const res = await authFetch(`/agency/settings/${location.location_id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ openai_api_key: nextValue })
+            });
+            if (!res || !res.ok) {
+                const body = await res?.json?.().catch(() => null);
+                throw new Error(body?.error || "No se pudo guardar la OpenAI API key");
+            }
+
+            const body = await res.json();
+            setLocationOpenAiKeyConfigured(body?.openai_key_configured === true);
+            setLocationOpenAiKeyDraft("");
+            toast.success(nextValue ? "OpenAI key principal guardada" : "OpenAI key principal eliminada");
+            loadData();
+        } catch (error) {
+            toast.error(error.message || "No se pudo guardar la OpenAI key");
+        } finally {
+            setSavingLocationOpenAiKey(false);
         }
     };
 
@@ -1034,9 +1065,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         apiTokenMasked: "",
         hasApiToken: false,
         hasWebhookSecret: false,
-        showAdvancedDetails: false,
-        csatEnabled: false,
-        csatMessage: ""
+        showAdvancedDetails: false
     });
 
     const createEmptyOfficialWhatsappState = () => ({
@@ -1516,6 +1545,24 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         return components;
     };
 
+    const templateRequiresHeaderMedia = (template = {}) => {
+        const rawComponents = Array.isArray(template?.components) ? template.components : [];
+        return rawComponents.some((component) => {
+            const componentType = String(component?.type || "").trim().toUpperCase();
+            const componentFormat = String(component?.format || "").trim().toUpperCase();
+            return componentType === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(componentFormat);
+        });
+    };
+
+    const buildOfficialTemplateDemoValues = (template = {}) => {
+        const values = {};
+        getOfficialTemplateParameterFields(template).forEach((field, index) => {
+            if (field.valueType === 'media') return;
+            values[field.key] = `demo ${index + 1}`;
+        });
+        return values;
+    };
+
     const syncSlotConnectionMode = (slotId, nextMode, officialConfig = undefined) => {
         setSlots(prev => prev.map(slot => {
             if (slot.slot_id !== slotId) return slot;
@@ -1696,7 +1743,42 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             return;
         }
 
-        let components = [];
+        if (templateRequiresHeaderMedia(selectedTemplate)) {
+            toast.error(t('slots.official.templates.media_not_supported') || 'Este template requiere media');
+            return;
+        }
+
+        const demoValues = buildOfficialTemplateDemoValues(selectedTemplate);
+        let components = buildOfficialTemplateComponents(selectedTemplate, demoValues);
+        if (true) {
+            setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: true }));
+            try {
+                const response = await authFetch(`/agency/whatsapp-official/send-template`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        locationId: location.location_id,
+                        slotId,
+                        targetPhone: safeTargetPhone,
+                        templateName: selectedTemplate.name,
+                        languageCode: selectedTemplate.language,
+                        components
+                    })
+                });
+                if (!response) return;
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.error || (t('slots.official.templates.send_error') || 'No se pudo enviar el template'));
+                }
+                toast.success(t('slots.official.templates.send_success') || 'Template enviado');
+            } catch (e) {
+                toast.error(t('slots.official.templates.send_error') || 'Error enviando template', {
+                    description: e.message
+                });
+            } finally {
+                setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: false }));
+            }
+            return;
+        }
         const safeComponentsJson = String(templateState.componentsJson || '').trim();
         if (safeComponentsJson) {
             try {
@@ -2210,9 +2292,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     apiTokenMasked: data.apiTokenMasked || "",
                     hasApiToken: !!data.hasApiToken,
                     hasWebhookSecret: !!data.hasWebhookSecret,
-                    showAdvancedDetails: !!prev[slotId]?.showAdvancedDetails,
-                    csatEnabled: Boolean(data.csatEnabled),
-                    csatMessage: data.csatMessage || ""
+                    showAdvancedDetails: !!prev[slotId]?.showAdvancedDetails
                 }
             }));
             if (data.hasGlobalConfig) {
@@ -2314,9 +2394,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             locationId: location.location_id,
             slotId,
             accountId: parsedAccount,
-            inboxId: parsedInbox,
-            csatEnabled: Boolean(current.csatEnabled),
-            csatMessage: String(current.csatMessage || "").trim()
+            inboxId: parsedInbox
         };
         if (chatwootUrl) payload.chatwootUrl = chatwootUrl;
         if (apiToken) payload.apiToken = apiToken;
@@ -2650,6 +2728,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 ? (t('slots.official.pending') || 'Pendiente de validación')
                 : (t('slots.official.not_configured') || 'Sin configurar');
 
+        const effectiveStatusClassName = status === 'verified_warning'
+            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+            : statusClassName;
+        const effectiveStatusLabel = status === 'verified_warning'
+            ? (t('slots.official.verified_warning') || 'Vinculada con advertencia')
+            : statusLabel;
+
         const embeddedMissingLabel = Array.isArray(official.embeddedSignupMissing) && official.embeddedSignupMissing.length > 0
             ? official.embeddedSignupMissing.join(', ')
             : '';
@@ -2681,8 +2766,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 {t('slots.official.desc') || 'Configura este slot con la API oficial de Meta. Este modo queda enfocado en recibir y enviar mensajes desde Chatwoot o GoHighLevel, sin el panel QR ni extras del flujo Baileys.'}
                             </p>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${statusClassName}`}>
-                            {statusLabel}
+                                <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${effectiveStatusClassName}`}>
+                                    {effectiveStatusLabel}
                         </span>
                     </div>
 
@@ -3057,7 +3142,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                             </div>
                                         </div>
 
-                                        {selectedTemplate ? (
+                                        {false ? (
                                             <div className="space-y-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950/50 p-4">
                                                 {templateFields.length > 0 ? (
                                                     <div className="grid gap-3 md:grid-cols-2">
@@ -3330,6 +3415,86 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     </div>
                 )}
 
+                {showAccountSettingsModal && (
+                    <div
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        onClick={() => setShowAccountSettingsModal(false)}
+                    >
+                        <div
+                            className="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-800 flex items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Cuenta</p>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Configuración</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Ajustes base de esta subcuenta.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAccountSettingsModal(false)}
+                                    className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-400 hover:text-gray-600"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-6">
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/40 p-5">
+                                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-widest text-gray-400">OpenAI</p>
+                                            <h4 className="mt-1 text-base font-bold text-gray-900 dark:text-white">Clave principal</h4>
+                                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Para todos los agentes de esta subcuenta.</p>
+                                        </div>
+                                        <div className={`self-start px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${locationOpenAiKeyConfigured ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300'}`}>
+                                            {locationOpenAiKeyConfigured ? 'Activa' : 'Pendiente'}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                                        <input
+                                            type="password"
+                                            value={locationOpenAiKeyDraft}
+                                            onChange={(e) => setLocationOpenAiKeyDraft(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    saveLocationOpenAiKey();
+                                                }
+                                            }}
+                                            autoComplete="new-password"
+                                            placeholder={locationOpenAiKeyConfigured ? "••••••••••••••••" : "sk-..."}
+                                            className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => saveLocationOpenAiKey()}
+                                                disabled={savingLocationOpenAiKey}
+                                                className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white rounded-xl font-bold transition shadow-sm flex items-center gap-2"
+                                            >
+                                                {savingLocationOpenAiKey ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                Guardar
+                                            </button>
+                                            {locationOpenAiKeyConfigured && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => saveLocationOpenAiKey("")}
+                                                    disabled={savingLocationOpenAiKey}
+                                                    className="px-4 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 disabled:opacity-60 rounded-xl font-bold transition"
+                                                >
+                                                    Limpiar
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* BODY */}
                 <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50 dark:bg-black/20">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
@@ -3381,6 +3546,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         </button>
                                     </>
                                 )}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAccountSettingsModal(true)}
+                                    className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                                    aria-label="Configuración de cuenta"
+                                    title="Configuración de cuenta"
+                                >
+                                    <Settings size={18} />
+                                </button>
                             </div>
 
                             {canWhiteLabel && !isChatwootMode && (
@@ -3399,12 +3573,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </div>
                             )}
                         </div>
-                        <div className="flex justify-end gap-3 flex-wrap">
-                            <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
-                                <Plus size={18} /> {isChatwootMode ? (t('slots.chatwoot_inbox.new') || "Nuevo Inbox") : t('slots.new')}
-                            </button>
-                        </div>
+                    <div className="flex justify-end gap-3 flex-wrap">
+                        <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
+                            <Plus size={18} /> {isChatwootMode ? (t('slots.chatwoot_inbox.new') || "Nuevo Inbox") : t('slots.new')}
+                        </button>
                     </div>
+                </div>
 
                     {healthSummary && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
@@ -3441,7 +3615,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const connectionMode = getEffectiveSlotConnectionMode(slot);
                                 const isOfficialSlotMode = connectionMode === 'official_api';
                                 const officialStatus = String(officialSlotSettings.status || '').trim().toLowerCase();
-                                const isOfficialConnected = isOfficialSlotMode && ['verified', 'active', 'connected'].includes(officialStatus);
+                                const isOfficialConnected = isOfficialSlotMode && ['verified', 'verified_warning', 'active', 'connected'].includes(officialStatus);
                                 const isConnected = isOfficialSlotMode ? isOfficialConnected : slot.is_connected === true;
                                 const connectedPhone = isOfficialSlotMode
                                     ? String(officialSlotSettings.displayPhoneNumber || slot.phone_number || '').trim()
@@ -3612,15 +3786,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                     <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
                                                                                         <Zap size={14} />
                                                                                     </div>
-                                                                                    OpenAI API Key (Transcripción)
+                                            OpenAI API Key legacy del slot
                                                                                 </label>
                                                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                    Configura una key única para este número. Dejar vacío para desactivar.
+                                            Solo para configuraciones antiguas o un fallback puntual. Los agentes nuevos usan la clave principal de la subcuenta.
                                                                                 </p>
                                                                             </div>
                                                                             {slot.openai_api_key && (
                                                                                 <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
-                                                                                    Conectado
+                                            Legacy
                                                                                 </span>
                                                                             )}
                                                                         </div>
@@ -3963,14 +4137,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.custom_attrs_title') || "Atributos sincronizados"}</p>
                                                                                     <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{t('slots.chatwoot.custom_attrs_desc') || "Se actualizan slot, tipo de chat, grupo, origen del lead y último preview del contacto."}</p>
                                                                                 </div>
-                                                                                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
-                                                                                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.csat_title') || "CSAT automático"}</p>
-                                                                                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                                                                                        {chatwoot.csatEnabled
-                                                                                            ? (t('slots.chatwoot.csat_enabled_summary') || "Activo al resolver conversaciones directas.")
-                                                                                            : (t('slots.chatwoot.csat_disabled_summary') || "Desactivado. Puedes activarlo en la configuración del slot.")}
-                                                                                    </p>
-                                                                                </div>
                                                                             </div>
                                                                             <div className="pt-1">
                                                                                 <button
@@ -4244,63 +4410,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             )}
                                                             {isChatwootMode && (
                                                                 <>
-                                                                {(() => {
-                                                                    const chatwoot = chatwootConfigBySlot[slot.slot_id] || createEmptyChatwootState();
-                                                                    const isLoadingChatwoot = !!loadingChatwootBySlot[slot.slot_id];
-                                                                    const isSavingChatwoot = !!savingChatwootBySlot[slot.slot_id];
-                                                                    return (
-                                                                        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                            <div className="flex justify-between items-start mb-4 gap-4">
-                                                                                <div>
-                                                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                                                                        <div className="w-6 h-6 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded flex items-center justify-center">
-                                                                                            <Star size={14} />
-                                                                                        </div>
-                                                                                        {t('slots.chatwoot.csat_title') || "CSAT automático"}
-                                                                                    </label>
-                                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                        {t('slots.chatwoot.csat_desc') || "Envía una encuesta 1-5 cuando la conversación se marca como resuelta. Solo aplica a conversaciones directas."}
-                                                                                    </p>
-                                                                                </div>
-                                                                                <label className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
-                                                                                    <input
-                                                                                        type="checkbox"
-                                                                                        checked={Boolean(chatwoot.csatEnabled)}
-                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "csatEnabled", e.target.checked)}
-                                                                                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                                                    />
-                                                                                    <span>{chatwoot.csatEnabled ? (t('common.enabled') || "Activo") : (t('common.disabled') || "Inactivo")}</span>
-                                                                                </label>
-                                                                            </div>
-
-                                                                            <div>
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.csat_message') || "Mensaje de encuesta"}</label>
-                                                                                <textarea
-                                                                                    rows={4}
-                                                                                    value={chatwoot.csatMessage || ""}
-                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "csatMessage", e.target.value)}
-                                                                                    placeholder={t('slots.chatwoot.csat_message_placeholder') || "Gracias por contactar con nuestro equipo. ¿Cómo calificarías la atención recibida del 1 al 5?"}
-                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
-                                                                                />
-                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{t('slots.chatwoot.csat_hint') || "El contacto debe responder con un número entre 1 y 5. El último valor queda visible dentro del dashboard app."}</p>
-                                                                            </div>
-
-                                                                            <div className="flex justify-end pt-1">
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => saveChatwootConfig(slot.slot_id)}
-                                                                                    disabled={isSavingChatwoot || isLoadingChatwoot}
-                                                                                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
-                                                                                >
-                                                                                    <Save size={16} />
-                                                                                    {isSavingChatwoot
-                                                                                        ? (t('common.saving') || "Guardando...")
-                                                                                        : (t('common.save') || "Guardar")}
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })()}
                                                                 <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                     <div className="flex justify-between items-start mb-4">
                                                                         <div>
@@ -4308,15 +4417,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
                                                                                     <Zap size={14} />
                                                                                 </div>
-                                                                                OpenAI API Key (Transcripción)
+                                         OpenAI API Key legacy del inbox
                                                                             </label>
                                                                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                Configura una key única para este inbox. Dejar vacío para desactivar.
+                                         Solo para configuraciones antiguas o un fallback puntual. Los agentes nuevos usan la clave principal de la subcuenta.
                                                                             </p>
                                                                         </div>
                                                                         {slot.openai_api_key && (
                                                                             <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
-                                                                                Conectado
+                                         Legacy
                                                                             </span>
                                                                         )}
                                                                     </div>

@@ -86,9 +86,23 @@ export default function SubscriptionModal({ onClose, token, accountInfo, blockin
                 body: JSON.stringify({ priceId })
             });
             const data = await res.json();
-            if (data.url) window.location.href = data.url;
-            else alert("Error: " + (data.error || "Fallo al iniciar pago"));
-        } catch (e) { alert("Error de conexión"); } finally { setLoading(false); }
+            
+            if (data.url) {
+                // 🚀 INICIO TRACKING INITIATE CHECKOUT (Navegador)
+                if (typeof window.fbq === 'function') {
+                    window.fbq('track', 'InitiateCheckout', { content_name: 'Addon Extra', currency: 'USD' });
+                }
+                // 🏁 FIN TRACKING
+                
+                window.location.href = data.url;
+            } else {
+                alert("Error: " + (data.error || "Fallo al iniciar pago"));
+            }
+        } catch (e) { 
+            alert("Error de conexión"); 
+        } finally { 
+            setLoading(false); 
+        }
     };
 
     // --- RENDER ---
