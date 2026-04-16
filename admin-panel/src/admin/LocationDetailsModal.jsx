@@ -57,7 +57,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [tenantSettings, setTenantSettings] = useState(location.settings || {});
     const [locationOpenAiKeyDraft, setLocationOpenAiKeyDraft] = useState("");
     const [locationOpenAiKeyConfigured, setLocationOpenAiKeyConfigured] = useState(false);
-    const [legacySlotOpenAiKeyCount, setLegacySlotOpenAiKeyCount] = useState(0);
     const [savingLocationOpenAiKey, setSavingLocationOpenAiKey] = useState(false);
     const [maxSubagencies, setMaxSubagencies] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -109,6 +108,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [ghlAccessInfo, setGhlAccessInfo] = useState(null);
     const [loadingGhlAccess, setLoadingGhlAccess] = useState(false);
     const [showGhlAccessModal, setShowGhlAccessModal] = useState(false);
+    const [showAccountSettingsModal, setShowAccountSettingsModal] = useState(false);
     const [chatwootAccessInfo, setChatwootAccessInfo] = useState(null);
     const [loadingChatwootAccess, setLoadingChatwootAccess] = useState(false);
     const [showChatwootAccessModal, setShowChatwootAccessModal] = useState(false);
@@ -399,7 +399,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 setHealthSummary(data.healthSummary || null);
                 setKeywords(data.keywords || []);
                 setLocationOpenAiKeyConfigured(data.openai_key_configured === true);
-                setLegacySlotOpenAiKeyCount(Number(data.legacy_slot_openai_key_count || 0));
                 setLocationOpenAiKeyDraft("");
 
                 if (data.name) setLocationName(data.name);
@@ -3369,6 +3368,86 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     </div>
                 )}
 
+                {showAccountSettingsModal && (
+                    <div
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        onClick={() => setShowAccountSettingsModal(false)}
+                    >
+                        <div
+                            className="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-800 flex items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Cuenta</p>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Configuración</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Ajustes base de esta subcuenta.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAccountSettingsModal(false)}
+                                    className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-400 hover:text-gray-600"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-6">
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/40 p-5">
+                                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-widest text-gray-400">OpenAI</p>
+                                            <h4 className="mt-1 text-base font-bold text-gray-900 dark:text-white">Clave principal</h4>
+                                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Para todos los agentes de esta subcuenta.</p>
+                                        </div>
+                                        <div className={`self-start px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${locationOpenAiKeyConfigured ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300'}`}>
+                                            {locationOpenAiKeyConfigured ? 'Activa' : 'Pendiente'}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                                        <input
+                                            type="password"
+                                            value={locationOpenAiKeyDraft}
+                                            onChange={(e) => setLocationOpenAiKeyDraft(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    saveLocationOpenAiKey();
+                                                }
+                                            }}
+                                            autoComplete="new-password"
+                                            placeholder={locationOpenAiKeyConfigured ? "••••••••••••••••" : "sk-..."}
+                                            className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => saveLocationOpenAiKey()}
+                                                disabled={savingLocationOpenAiKey}
+                                                className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white rounded-xl font-bold transition shadow-sm flex items-center gap-2"
+                                            >
+                                                {savingLocationOpenAiKey ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                Guardar
+                                            </button>
+                                            {locationOpenAiKeyConfigured && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => saveLocationOpenAiKey("")}
+                                                    disabled={savingLocationOpenAiKey}
+                                                    className="px-4 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 disabled:opacity-60 rounded-xl font-bold transition"
+                                                >
+                                                    Limpiar
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* BODY */}
                 <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50 dark:bg-black/20">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
@@ -3420,6 +3499,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         </button>
                                     </>
                                 )}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAccountSettingsModal(true)}
+                                    className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                                    aria-label="Configuración de cuenta"
+                                    title="Configuración de cuenta"
+                                >
+                                    <Settings size={18} />
+                                </button>
                             </div>
 
                             {canWhiteLabel && !isChatwootMode && (
@@ -3444,70 +3532,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         </button>
                     </div>
                 </div>
-
-                    <div className="mb-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
-                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                            <div className="max-w-2xl">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded-xl flex items-center justify-center">
-                                        <Zap size={16} />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
-                                            OpenAI
-                                        </p>
-                                        <h4 className="text-base font-bold text-gray-900 dark:text-white">
-                                            Clave principal
-                                        </h4>
-                                    </div>
-                                </div>
-                                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                                    Para todos los agentes de esta subcuenta.
-                                </p>
-                            </div>
-                            <div className={`self-start px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${locationOpenAiKeyConfigured ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300'}`}>
-                                {locationOpenAiKeyConfigured ? 'Activa' : 'Pendiente'}
-                            </div>
-                        </div>
-
-                        <div className="mt-4 flex flex-col lg:flex-row gap-3">
-                            <input
-                                type="password"
-                                value={locationOpenAiKeyDraft}
-                                onChange={(e) => setLocationOpenAiKeyDraft(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        saveLocationOpenAiKey();
-                                    }
-                                }}
-                                autoComplete="new-password"
-                                placeholder={locationOpenAiKeyConfigured ? "•••••••••••••••• (Oculta)" : "sk-..."}
-                                className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
-                            />
-                            <div className="flex gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => saveLocationOpenAiKey()}
-                                    disabled={savingLocationOpenAiKey}
-                                    className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white rounded-xl font-bold transition shadow-sm flex items-center gap-2"
-                                >
-                                    {savingLocationOpenAiKey ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                                    Guardar
-                                </button>
-                                {locationOpenAiKeyConfigured && (
-                                    <button
-                                        type="button"
-                                        onClick={() => saveLocationOpenAiKey("")}
-                                        disabled={savingLocationOpenAiKey}
-                                        className="px-4 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 disabled:opacity-60 rounded-xl font-bold transition"
-                                    >
-                                        Limpiar
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
 
                     {healthSummary && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
