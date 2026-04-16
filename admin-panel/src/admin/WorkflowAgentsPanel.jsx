@@ -894,11 +894,22 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                     <div className="grid gap-4 lg:grid-cols-[1.15fr,1fr,220px]">
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_name")}</label>
-                                            <input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} className={inputClassName} />
+                                            <input
+                                                name="workflow-agent-display-name"
+                                                autoComplete="off"
+                                                data-form-type="other"
+                                                value={form.name}
+                                                onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                                                className={inputClassName}
+                                            />
                                         </div>
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_key")}</label>
                                             <input
+                                                name="workflow-agent-internal-key"
+                                                autoComplete="off"
+                                                data-form-type="other"
+                                                data-lpignore="true"
                                                 value={form.agent_key}
                                                 onChange={(event) => setForm((prev) => ({ ...prev, agent_key: event.target.value }))}
                                                 placeholder={t("workflow_agents.field_key_placeholder")}
@@ -955,6 +966,10 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_location_api_key")}</label>
                                             <input
                                                 type="password"
+                                                name="workflow-location-openai-key"
+                                                autoComplete="new-password"
+                                                data-form-type="other"
+                                                data-lpignore="true"
                                                 value={locationKeyDraft}
                                                 onChange={(event) => setLocationKeyDraft(event.target.value)}
                                                 onKeyDown={(event) => {
