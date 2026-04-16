@@ -2233,11 +2233,66 @@ export default function AgencyDashboard({ token, onLogout }) {
         (loc.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
         (loc.location_id || '').toLowerCase().includes((searchTerm || '').toLowerCase())
     );
+    const allLocationRuntimeCards = locations.map((loc) => ({
+        loc,
+        ...getLocationRuntimeMeta(loc)
+    }));
     const filteredLocationCards = filteredLocations.map((loc) => ({
         loc,
         ...getLocationRuntimeMeta(loc)
     }));
+    const hasCreatedFirstAccount = locations.length > 0;
+    const hasConfiguredFirstInbox = allLocationRuntimeCards.some((entry) => entry.totalSlots > 0);
     const activeLocationRows = locations.filter((loc) => (Number.parseInt(loc?.connected_slot_count, 10) || 0) > 0);
+    const hasFirstChannelOnline = allLocationRuntimeCards.some((entry) => entry.connectedSlotCount > 0);
+    const needsQuickStartGuide = !hasCreatedFirstAccount || !hasConfiguredFirstInbox || !hasFirstChannelOnline;
+    const nextAccountToSetup =
+        allLocationRuntimeCards.find((entry) => entry.totalSlots <= 0 || entry.connectedSlotCount <= 0)?.loc ||
+        locations[0] ||
+        null;
+    const quickStartSteps = [
+        {
+            id: 'account',
+            title: t('agency.quick_start.step_account_title') || 'Crea tu cuenta',
+            desc: t('agency.quick_start.step_account_desc') || 'Abre tu primera cuenta.',
+            actionLabel: t('agency.quick_start.step_account_cta') || 'Nueva cuenta',
+            doneLabel: t('agency.quick_start.step_account_done') || 'Lista',
+            done: hasCreatedFirstAccount,
+            enabled: true,
+            onClick: () => {
+                setOnboardingStep(0);
+                setOnboardingCrmType(null);
+                setOnboardingConnectionType(null);
+                setOnboardingHoveredCard(null);
+                setShowOnboarding(true);
+            }
+        },
+        {
+            id: 'inbox',
+            title: t('agency.quick_start.step_inbox_title') || 'Añade tu inbox',
+            desc: t('agency.quick_start.step_inbox_desc') || 'Entra en Gestionar y crea el primero.',
+            actionLabel: t('agency.quick_start.step_inbox_cta') || 'Gestionar',
+            doneLabel: t('agency.quick_start.step_inbox_done') || 'Inbox listo',
+            done: hasConfiguredFirstInbox,
+            enabled: hasCreatedFirstAccount && Boolean(nextAccountToSetup),
+            onClick: () => {
+                if (nextAccountToSetup) setSelectedLocation(nextAccountToSetup);
+            }
+        },
+        {
+            id: 'online',
+            title: t('agency.quick_start.step_online_title') || 'Ponla en línea',
+            desc: t('agency.quick_start.step_online_desc') || 'Conecta el canal y valida la cuenta.',
+            actionLabel: t('agency.quick_start.step_online_cta') || 'Conectar',
+            doneLabel: t('agency.quick_start.step_online_done') || 'En línea',
+            done: hasFirstChannelOnline,
+            enabled: hasConfiguredFirstInbox && Boolean(nextAccountToSetup),
+            onClick: () => {
+                if (nextAccountToSetup) setSelectedLocation(nextAccountToSetup);
+            }
+        }
+    ];
+    const quickStartDoneCount = quickStartSteps.filter((step) => step.done).length;
     const reliabilityFilterOptions = [
         { id: 'all', label: t('agency.onboarding.filter_all') || 'Todas', icon: null, count: activeLocationRows.length },
         { id: 'ghl', label: 'GoHighLevel', icon: Globe, count: activeLocationRows.filter((l) => resolveTenantProductType(l) === 'ghl').length },
@@ -2862,6 +2917,84 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     )}
 
                                     <div>
+                                        {needsQuickStartGuide && (
+                                            <div className="mb-6 rounded-2xl border border-indigo-200 dark:border-indigo-900/40 bg-gradient-to-br from-indigo-50 via-white to-white dark:from-indigo-950/30 dark:via-gray-900 dark:to-gray-900 shadow-sm">
+                                                <div className="flex flex-col gap-4 p-5 md:p-6">
+                                                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                                        <div>
+                                                            <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                                <Sparkles size={18} className="text-indigo-500" />
+                                                                {t('agency.quick_start.title') || 'Empieza aquí'}
+                                                            </h3>
+                                                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                                                {t('agency.quick_start.desc') || 'Tres pasos para dejar lista tu primera cuenta.'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="inline-flex items-center rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-bold text-indigo-600 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300">
+                                                                {(t('agency.quick_start.progress') || '{done}/{total} listos')
+                                                                    .replace('{done}', String(quickStartDoneCount))
+                                                                    .replace('{total}', String(quickStartSteps.length))}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setActiveTab('settings');
+                                                                    setSettingsSection('guide');
+                                                                }}
+                                                                className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-600 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
+                                                            >
+                                                                <BookOpen size={13} />
+                                                                {t('agency.quick_start.open_guide') || 'Ver guía'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                                                        {quickStartSteps.map((step, index) => (
+                                                            <div
+                                                                key={step.id}
+                                                                className={`rounded-xl border p-4 transition ${
+                                                                    step.done
+                                                                        ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-900/20'
+                                                                        : 'border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-start gap-3">
+                                                                    <div
+                                                                        className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                                                                            step.done
+                                                                                ? 'bg-emerald-600 text-white'
+                                                                                : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                                                                        }`}
+                                                                    >
+                                                                        {step.done ? <CheckCircle2 size={16} /> : index + 1}
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{step.title}</p>
+                                                                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{step.desc}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="mt-4">
+                                                                    <button
+                                                                        onClick={step.onClick}
+                                                                        disabled={!step.enabled}
+                                                                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                                                                            step.done
+                                                                                ? 'border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100/80 dark:border-emerald-700 dark:bg-gray-900 dark:text-emerald-300 dark:hover:bg-emerald-900/30'
+                                                                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                                                        } disabled:cursor-not-allowed disabled:opacity-50`}
+                                                                    >
+                                                                        {step.done ? <CheckCircle2 size={14} /> : <ArrowRight size={14} />}
+                                                                        {step.done ? step.doneLabel : step.actionLabel}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="flex items-center justify-between gap-3 mb-4">
                                             <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                                                 {t('agency.onboarding.accounts_title') || 'Cuentas Activas'}

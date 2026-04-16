@@ -1474,6 +1474,22 @@ export const en = {
     "slots.official.templates.select_template": "Template",
     "slots.official.templates.select_template_placeholder": "Choose",
     "slots.official.templates.send": "Test",
-    "slots.official.templates.last_sync": "Sync"
+    "slots.official.templates.last_sync": "Sync",
+    "agency.quick_start.title": "Start here",
+    "agency.quick_start.desc": "Three steps to get your first account ready.",
+    "agency.quick_start.progress": "{done}/{total} ready",
+    "agency.quick_start.open_guide": "Open guide",
+    "agency.quick_start.step_account_title": "Create account",
+    "agency.quick_start.step_account_desc": "Open your first account.",
+    "agency.quick_start.step_account_cta": "New account",
+    "agency.quick_start.step_account_done": "Done",
+    "agency.quick_start.step_inbox_title": "Add inbox",
+    "agency.quick_start.step_inbox_desc": "Open Manage and create the first one.",
+    "agency.quick_start.step_inbox_cta": "Manage",
+    "agency.quick_start.step_inbox_done": "Inbox ready",
+    "agency.quick_start.step_online_title": "Go live",
+    "agency.quick_start.step_online_desc": "Connect the channel and validate the account.",
+    "agency.quick_start.step_online_cta": "Connect",
+    "agency.quick_start.step_online_done": "Online"
 };
 

@@ -1508,6 +1508,22 @@ export const es = {
     "slots.official.templates.select_template": "Template",
     "slots.official.templates.select_template_placeholder": "Elegir",
     "slots.official.templates.send": "Probar",
-    "slots.official.templates.last_sync": "Sync"
+    "slots.official.templates.last_sync": "Sync",
+    "agency.quick_start.title": "Empieza aquí",
+    "agency.quick_start.desc": "Tres pasos para dejar lista tu primera cuenta.",
+    "agency.quick_start.progress": "{done}/{total} listos",
+    "agency.quick_start.open_guide": "Ver guía",
+    "agency.quick_start.step_account_title": "Crea tu cuenta",
+    "agency.quick_start.step_account_desc": "Abre tu primera cuenta.",
+    "agency.quick_start.step_account_cta": "Nueva cuenta",
+    "agency.quick_start.step_account_done": "Lista",
+    "agency.quick_start.step_inbox_title": "Añade tu inbox",
+    "agency.quick_start.step_inbox_desc": "Entra en Gestionar y crea el primero.",
+    "agency.quick_start.step_inbox_cta": "Gestionar",
+    "agency.quick_start.step_inbox_done": "Inbox listo",
+    "agency.quick_start.step_online_title": "Ponla en línea",
+    "agency.quick_start.step_online_desc": "Conecta el canal y valida la cuenta.",
+    "agency.quick_start.step_online_cta": "Conectar",
+    "agency.quick_start.step_online_done": "En línea"
 };
 
