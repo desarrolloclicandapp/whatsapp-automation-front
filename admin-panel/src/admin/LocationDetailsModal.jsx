@@ -1065,9 +1065,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         apiTokenMasked: "",
         hasApiToken: false,
         hasWebhookSecret: false,
-        showAdvancedDetails: false,
-        csatEnabled: false,
-        csatMessage: ""
+        showAdvancedDetails: false
     });
 
     const createEmptyOfficialWhatsappState = () => ({
@@ -1547,6 +1545,24 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         return components;
     };
 
+    const templateRequiresHeaderMedia = (template = {}) => {
+        const rawComponents = Array.isArray(template?.components) ? template.components : [];
+        return rawComponents.some((component) => {
+            const componentType = String(component?.type || "").trim().toUpperCase();
+            const componentFormat = String(component?.format || "").trim().toUpperCase();
+            return componentType === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(componentFormat);
+        });
+    };
+
+    const buildOfficialTemplateDemoValues = (template = {}) => {
+        const values = {};
+        getOfficialTemplateParameterFields(template).forEach((field, index) => {
+            if (field.valueType === 'media') return;
+            values[field.key] = `demo ${index + 1}`;
+        });
+        return values;
+    };
+
     const syncSlotConnectionMode = (slotId, nextMode, officialConfig = undefined) => {
         setSlots(prev => prev.map(slot => {
             if (slot.slot_id !== slotId) return slot;
@@ -1727,7 +1743,42 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             return;
         }
 
-        let components = [];
+        if (templateRequiresHeaderMedia(selectedTemplate)) {
+            toast.error(t('slots.official.templates.media_not_supported') || 'Este template requiere media');
+            return;
+        }
+
+        const demoValues = buildOfficialTemplateDemoValues(selectedTemplate);
+        let components = buildOfficialTemplateComponents(selectedTemplate, demoValues);
+        if (true) {
+            setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: true }));
+            try {
+                const response = await authFetch(`/agency/whatsapp-official/send-template`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        locationId: location.location_id,
+                        slotId,
+                        targetPhone: safeTargetPhone,
+                        templateName: selectedTemplate.name,
+                        languageCode: selectedTemplate.language,
+                        components
+                    })
+                });
+                if (!response) return;
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.error || (t('slots.official.templates.send_error') || 'No se pudo enviar el template'));
+                }
+                toast.success(t('slots.official.templates.send_success') || 'Template enviado');
+            } catch (e) {
+                toast.error(t('slots.official.templates.send_error') || 'Error enviando template', {
+                    description: e.message
+                });
+            } finally {
+                setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: false }));
+            }
+            return;
+        }
         const safeComponentsJson = String(templateState.componentsJson || '').trim();
         if (safeComponentsJson) {
             try {
@@ -2241,9 +2292,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     apiTokenMasked: data.apiTokenMasked || "",
                     hasApiToken: !!data.hasApiToken,
                     hasWebhookSecret: !!data.hasWebhookSecret,
-                    showAdvancedDetails: !!prev[slotId]?.showAdvancedDetails,
-                    csatEnabled: Boolean(data.csatEnabled),
-                    csatMessage: data.csatMessage || ""
+                    showAdvancedDetails: !!prev[slotId]?.showAdvancedDetails
                 }
             }));
             if (data.hasGlobalConfig) {
@@ -2345,9 +2394,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             locationId: location.location_id,
             slotId,
             accountId: parsedAccount,
-            inboxId: parsedInbox,
-            csatEnabled: Boolean(current.csatEnabled),
-            csatMessage: String(current.csatMessage || "").trim()
+            inboxId: parsedInbox
         };
         if (chatwootUrl) payload.chatwootUrl = chatwootUrl;
         if (apiToken) payload.apiToken = apiToken;
@@ -3095,7 +3142,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                             </div>
                                         </div>
 
-                                        {selectedTemplate ? (
+                                        {false ? (
                                             <div className="space-y-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950/50 p-4">
                                                 {templateFields.length > 0 ? (
                                                     <div className="grid gap-3 md:grid-cols-2">
@@ -4090,14 +4137,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.custom_attrs_title') || "Atributos sincronizados"}</p>
                                                                                     <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{t('slots.chatwoot.custom_attrs_desc') || "Se actualizan slot, tipo de chat, grupo, origen del lead y último preview del contacto."}</p>
                                                                                 </div>
-                                                                                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
-                                                                                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.csat_title') || "CSAT automático"}</p>
-                                                                                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                                                                                        {chatwoot.csatEnabled
-                                                                                            ? (t('slots.chatwoot.csat_enabled_summary') || "Activo al resolver conversaciones directas.")
-                                                                                            : (t('slots.chatwoot.csat_disabled_summary') || "Desactivado. Puedes activarlo en la configuración del slot.")}
-                                                                                    </p>
-                                                                                </div>
                                                                             </div>
                                                                             <div className="pt-1">
                                                                                 <button
@@ -4371,63 +4410,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             )}
                                                             {isChatwootMode && (
                                                                 <>
-                                                                {(() => {
-                                                                    const chatwoot = chatwootConfigBySlot[slot.slot_id] || createEmptyChatwootState();
-                                                                    const isLoadingChatwoot = !!loadingChatwootBySlot[slot.slot_id];
-                                                                    const isSavingChatwoot = !!savingChatwootBySlot[slot.slot_id];
-                                                                    return (
-                                                                        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                            <div className="flex justify-between items-start mb-4 gap-4">
-                                                                                <div>
-                                                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                                                                        <div className="w-6 h-6 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded flex items-center justify-center">
-                                                                                            <Star size={14} />
-                                                                                        </div>
-                                                                                        {t('slots.chatwoot.csat_title') || "CSAT automático"}
-                                                                                    </label>
-                                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                        {t('slots.chatwoot.csat_desc') || "Envía una encuesta 1-5 cuando la conversación se marca como resuelta. Solo aplica a conversaciones directas."}
-                                                                                    </p>
-                                                                                </div>
-                                                                                <label className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
-                                                                                    <input
-                                                                                        type="checkbox"
-                                                                                        checked={Boolean(chatwoot.csatEnabled)}
-                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "csatEnabled", e.target.checked)}
-                                                                                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                                                    />
-                                                                                    <span>{chatwoot.csatEnabled ? (t('common.enabled') || "Activo") : (t('common.disabled') || "Inactivo")}</span>
-                                                                                </label>
-                                                                            </div>
-
-                                                                            <div>
-                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.csat_message') || "Mensaje de encuesta"}</label>
-                                                                                <textarea
-                                                                                    rows={4}
-                                                                                    value={chatwoot.csatMessage || ""}
-                                                                                    onChange={(e) => updateChatwootField(slot.slot_id, "csatMessage", e.target.value)}
-                                                                                    placeholder={t('slots.chatwoot.csat_message_placeholder') || "Gracias por contactar con nuestro equipo. ¿Cómo calificarías la atención recibida del 1 al 5?"}
-                                                                                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
-                                                                                />
-                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{t('slots.chatwoot.csat_hint') || "El contacto debe responder con un número entre 1 y 5. El último valor queda visible dentro del dashboard app."}</p>
-                                                                            </div>
-
-                                                                            <div className="flex justify-end pt-1">
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => saveChatwootConfig(slot.slot_id)}
-                                                                                    disabled={isSavingChatwoot || isLoadingChatwoot}
-                                                                                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
-                                                                                >
-                                                                                    <Save size={16} />
-                                                                                    {isSavingChatwoot
-                                                                                        ? (t('common.saving') || "Guardando...")
-                                                                                        : (t('common.save') || "Guardar")}
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })()}
                                                                 <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                     <div className="flex justify-between items-start mb-4">
                                                                         <div>

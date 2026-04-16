@@ -57,7 +57,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
 
     // DETERMINAR QUÉ PLANES MOSTRAR EL EN CATÁLOGO
     let availablePlans = [];
-    let showLifetimeOption = !hasLifetime; // Si ya lo tiene, no mostrarlo para comprar otra vez
+    let showLifetimeOption = false;
 
     if (hasLifetime) {
         // Usuario Lifetime -> Planes con Descuento pero LIMITADOS en Slots
