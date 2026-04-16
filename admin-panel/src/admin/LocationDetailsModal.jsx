@@ -3490,6 +3490,27 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         </div>
                                     </div>
                                 </div>
+
+                                {canWhiteLabel && !isChatwootMode && (
+                                    <div className="mt-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/40 p-5">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">White Label</p>
+                                                <h4 className="mt-1 text-base font-bold text-gray-900 dark:text-white">Branding</h4>
+                                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Usar branding de la agencia.</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                                                <input
+                                                    type="checkbox"
+                                                    className="sr-only peer"
+                                                    checked={whiteLabelEnabled}
+                                                    onChange={toggleWhiteLabel}
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -3557,21 +3578,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </button>
                             </div>
 
-                            {canWhiteLabel && !isChatwootMode && (
-                                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-4 shadow-sm">
-                                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
-                                        <Settings size={18} />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">White Label</p>
-                                        <p className="text-sm text-gray-600 dark:text-gray-300">Usar branding de la agencia</p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer ml-2">
-                                        <input type="checkbox" className="sr-only peer" checked={whiteLabelEnabled} onChange={toggleWhiteLabel} />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
-                                    </label>
-                                </div>
-                            )}
                         </div>
                     <div className="flex justify-end gap-3 flex-wrap">
                         <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95">
