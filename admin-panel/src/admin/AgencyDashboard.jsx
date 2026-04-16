@@ -4019,6 +4019,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_1') || 'Pipeline y CRM en un solo lugar'}</span></li>
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_2') || 'Automatizaciones y campañas'}</span></li>
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_3') || 'Instalación rápida de Waflow'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_4') || 'Perfecto para pipeline, campañas y seguimiento'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-blue-600 shrink-0" /><span>{t('agency.onboarding.ghl_benefit_5') || 'Opción disponible en marca blanca'}</span></li>
                                                     </ul>
                                                 </button>
 
@@ -4068,6 +4070,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_1') || 'Cuenta lista para operar en minutos'}</span></li>
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_2') || 'WhatsApp, inboxes y usuarios en un solo flujo'}</span></li>
                                                         <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_3') || 'Operación diaria dentro de Waflow'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_4') || 'Ideal para equipos de soporte, ventas y atención'}</span></li>
+                                                        <li className="flex gap-3"><CheckCircle2 size={14} className="mt-1 text-emerald-600 shrink-0" /><span>{t('agency.onboarding.waflow_crm_benefit_5') || 'Permite gestionar varios clientes desde una sola cuenta Maestra'}</span></li>
                                                     </ul>
                                                 </button>
                                             </div>
