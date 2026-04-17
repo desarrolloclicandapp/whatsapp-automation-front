@@ -11,6 +11,41 @@ const BASE_AGENT_MODEL_OPTIONS = [
     { value: "gpt-4.1-mini", labelKey: "workflow_agents.model_option_gpt41_mini" },
     { value: "gpt-4.1", labelKey: "workflow_agents.model_option_gpt41" }
 ];
+const DEFAULT_AGENT_BEHAVIOR = {
+    role: "",
+    tone: "",
+    objective: "",
+    guardrails: ""
+};
+const DEFAULT_AGENT_PERMISSIONS = {
+    view_appointments: true,
+    add_tags: true,
+    remove_tags: true,
+    assign_owner: true,
+    set_fields: true,
+    create_appointment: true,
+    reschedule_appointment: true,
+    cancel_appointment: true
+};
+
+function mergeAgentConfig(agent = {}) {
+    return {
+        behavior: {
+            ...DEFAULT_AGENT_BEHAVIOR,
+            ...(agent?.config?.behavior || {})
+        },
+        permissions: {
+            ...DEFAULT_AGENT_PERMISSIONS,
+            ...(agent?.config?.permissions || {})
+        },
+        calendar_scope: {
+            mode: agent?.config?.calendar_scope?.mode === "selected" ? "selected" : "all",
+            calendar_ids: Array.isArray(agent?.config?.calendar_scope?.calendar_ids)
+                ? agent.config.calendar_scope.calendar_ids.map((value) => String(value))
+                : []
+        }
+    };
+}
 
 function formatRunTimestamp(value) {
     if (!value) return "";
@@ -62,11 +97,16 @@ function buildEmptyForm(catalog = []) {
         fallback_reply: "",
         description: "",
         use_contact_context: true,
+        behavior: { ...DEFAULT_AGENT_BEHAVIOR },
+        permissions: { ...DEFAULT_AGENT_PERMISSIONS },
+        calendar_scope_mode: "all",
+        calendar_scope_ids: [],
         integrations: buildDefaultIntegrations(catalog)
     };
 }
 
 function buildFormFromAgent(agent, catalog = []) {
+    const config = mergeAgentConfig(agent);
     const integrations = buildDefaultIntegrations(catalog);
     for (const item of catalog) {
         const binding = agent?.integrations?.[item.key];
@@ -93,6 +133,12 @@ function buildFormFromAgent(agent, catalog = []) {
         fallback_reply: agent?.fallback_reply || "",
         description: agent?.description || "",
         use_contact_context: agent?.use_contact_context !== false,
+        behavior: { ...config.behavior },
+        permissions: { ...config.permissions },
+        calendar_scope_mode: config.calendar_scope.mode,
+        calendar_scope_ids: Array.isArray(config.calendar_scope.calendar_ids)
+            ? config.calendar_scope.calendar_ids.map((value) => String(value))
+            : [],
         integrations
     };
 }
@@ -367,6 +413,16 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                 fallback_reply: form.fallback_reply,
                 description: form.description,
                 use_contact_context: form.use_contact_context,
+                config: {
+                    behavior: form.behavior,
+                    permissions: form.permissions,
+                    calendar_scope: {
+                        mode: form.calendar_scope_mode === "selected" ? "selected" : "all",
+                        calendar_ids: form.calendar_scope_mode === "selected"
+                            ? form.calendar_scope_ids.map((value) => String(value))
+                            : []
+                    }
+                },
                 integrations: form.integrations
             };
 
@@ -535,6 +591,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const catalog = Array.isArray(workspace?.integration_catalog) ? workspace.integration_catalog : [];
     const agents = Array.isArray(workspace?.agents) ? workspace.agents : [];
     const slots = Array.isArray(workspace?.slots) ? workspace.slots : [];
+    const calendarsCatalog = Array.isArray(workspace?.crm_catalog?.calendars) ? workspace.crm_catalog.calendars : [];
     const locationHasOpenAiKey = workspace?.credentials?.has_location_openai_key === true;
     const agencyHasOpenAiKey = workspace?.credentials?.has_agency_openai_key === true;
     const legacySlotKeyCount = slots.filter((slot) => slot?.has_openai_api_key === true).length;
@@ -958,6 +1015,143 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         <input type="checkbox" checked={form.use_contact_context} onChange={(event) => setForm((prev) => ({ ...prev, use_contact_context: event.target.checked }))} className="h-4 w-4 rounded text-indigo-600" />
                                         {t("workflow_agents.field_use_contact_context")}
                                     </label>
+                                </EditorSection>
+
+                                <EditorSection title={t("workflow_agents.section_behavior_title")} description={t("workflow_agents.section_behavior_desc")}>
+                                    <div className="grid gap-4 lg:grid-cols-3">
+                                        <div>
+                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_role")}</label>
+                                            <input
+                                                value={form.behavior.role}
+                                                onChange={(event) => setForm((prev) => ({
+                                                    ...prev,
+                                                    behavior: { ...prev.behavior, role: event.target.value }
+                                                }))}
+                                                className={inputClassName}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_tone")}</label>
+                                            <input
+                                                value={form.behavior.tone}
+                                                onChange={(event) => setForm((prev) => ({
+                                                    ...prev,
+                                                    behavior: { ...prev.behavior, tone: event.target.value }
+                                                }))}
+                                                className={inputClassName}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_objective")}</label>
+                                            <input
+                                                value={form.behavior.objective}
+                                                onChange={(event) => setForm((prev) => ({
+                                                    ...prev,
+                                                    behavior: { ...prev.behavior, objective: event.target.value }
+                                                }))}
+                                                className={inputClassName}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="mt-4">
+                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_guardrails")}</label>
+                                        <textarea
+                                            rows={4}
+                                            value={form.behavior.guardrails}
+                                            onChange={(event) => setForm((prev) => ({
+                                                ...prev,
+                                                behavior: { ...prev.behavior, guardrails: event.target.value }
+                                            }))}
+                                            className={inputClassName}
+                                        />
+                                    </div>
+                                </EditorSection>
+
+                                <EditorSection title={t("workflow_agents.section_permissions_title")} description={t("workflow_agents.section_permissions_desc")}>
+                                    <div className="grid gap-3 lg:grid-cols-2">
+                                        {[
+                                            ["view_appointments", "workflow_agents.permission_view_appointments"],
+                                            ["add_tags", "workflow_agents.permission_add_tags"],
+                                            ["remove_tags", "workflow_agents.permission_remove_tags"],
+                                            ["assign_owner", "workflow_agents.permission_assign_owner"],
+                                            ["set_fields", "workflow_agents.permission_set_fields"],
+                                            ["create_appointment", "workflow_agents.permission_create_appointment"],
+                                            ["reschedule_appointment", "workflow_agents.permission_reschedule_appointment"],
+                                            ["cancel_appointment", "workflow_agents.permission_cancel_appointment"]
+                                        ].map(([permissionKey, labelKey]) => (
+                                            <label key={permissionKey} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={form.permissions[permissionKey] === true}
+                                                    onChange={(event) => setForm((prev) => ({
+                                                        ...prev,
+                                                        permissions: {
+                                                            ...prev.permissions,
+                                                            [permissionKey]: event.target.checked
+                                                        }
+                                                    }))}
+                                                    className="h-4 w-4 rounded text-indigo-600"
+                                                />
+                                                {t(labelKey)}
+                                            </label>
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-5">
+                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_calendar_scope")}</label>
+                                        <select
+                                            value={form.calendar_scope_mode}
+                                            onChange={(event) => setForm((prev) => ({
+                                                ...prev,
+                                                calendar_scope_mode: event.target.value,
+                                                calendar_scope_ids: event.target.value === "selected" ? prev.calendar_scope_ids : []
+                                            }))}
+                                            className={inputClassName}
+                                        >
+                                            <option value="all">{t("workflow_agents.calendar_scope_all")}</option>
+                                            <option value="selected">{t("workflow_agents.calendar_scope_selected")}</option>
+                                        </select>
+                                        <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                            {t("workflow_agents.field_calendar_scope_help")}
+                                        </div>
+                                    </div>
+
+                                    {form.calendar_scope_mode === "selected" ? (
+                                        <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                                            {calendarsCatalog.length === 0 ? (
+                                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                    {t("workflow_agents.no_calendars_available")}
+                                                </div>
+                                            ) : (
+                                                <div className="grid gap-3 lg:grid-cols-2">
+                                                    {calendarsCatalog.map((calendar) => {
+                                                        const calendarValue = String(calendar.id || calendar.name || "");
+                                                        if (!calendarValue) return null;
+                                                        const isChecked = form.calendar_scope_ids.includes(calendarValue);
+                                                        return (
+                                                            <label key={calendarValue} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isChecked}
+                                                                    onChange={(event) => setForm((prev) => ({
+                                                                        ...prev,
+                                                                        calendar_scope_ids: event.target.checked
+                                                                            ? [...prev.calendar_scope_ids, calendarValue]
+                                                                            : prev.calendar_scope_ids.filter((value) => value !== calendarValue)
+                                                                    }))}
+                                                                    className="h-4 w-4 rounded text-indigo-600"
+                                                                />
+                                                                <span className="min-w-0">
+                                                                    <span className="block font-semibold text-gray-900 dark:text-white">{calendar.name || calendar.id}</span>
+                                                                    {calendar.id ? <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{calendar.id}</span> : null}
+                                                                </span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : null}
                                 </EditorSection>
 
                                 <EditorSection title={t("workflow_agents.section_account_ai_title")} description={t("workflow_agents.section_account_ai_desc")}>
