@@ -866,6 +866,40 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
+    const syncGhlUpdate = async (code) => {
+        const safeCode = String(code || "").trim();
+        if (!safeCode) return;
+        try {
+            const res = await authFetch(`/agency/sync-ghl`, {
+                method: "POST",
+                body: JSON.stringify({
+                    locationIdToVerify: null,
+                    code: safeCode,
+                    expectedAgencyId: accountInfo?.agencyId || null,
+                    syncIntent: "update"
+                })
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data?.success) {
+                throw new Error(data?.error || t('agency.install.error'));
+            }
+
+            const syncedAgencyId = data.agencyId || data.newAgencyId || accountInfo?.agencyId || null;
+            if (syncedAgencyId) {
+                localStorage.setItem("agencyId", syncedAgencyId);
+                setStoredAgencyId(syncedAgencyId);
+            }
+
+            refreshData();
+            toast.success(data.message || "App actualizada");
+        } catch (error) {
+            toast.error(error.message || t('agency.install.error'));
+        } finally {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    };
+
 
     useEffect(() => {
         let cancelled = false;
@@ -873,6 +907,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         const locationIdParam = queryParams.get("location_id");
         const legacyInstallParam = queryParams.get("new_install");
         const oauthCode = queryParams.get("code");
+        const isGhlUpdateCallback = Boolean(oauthCode && !locationIdParam && !legacyInstallParam);
         const hasLegacyCompanyOnlyCallback = Boolean(legacyInstallParam && !locationIdParam && !oauthCode);
         const targetLocationId = locationIdParam || (oauthCode ? legacyInstallParam : "");
         console.log(`🔎 Parsed Params -> Location: ${targetLocationId}, Code: ${oauthCode ? 'PRESENT' : 'MISSING'}`);
@@ -884,6 +919,8 @@ export default function AgencyDashboard({ token, onLogout }) {
             console.warn("[Install] Legacy callback with new_install only detected. Waiting for webhook instead of calling sync-ghl.");
             window.history.replaceState({}, document.title, window.location.pathname);
             waitForLegacyInstallCompletion({ isCancelled: () => cancelled });
+        } else if (isGhlUpdateCallback && !isAutoSyncing) {
+            syncGhlUpdate(oauthCode);
         } else if ((targetLocationId || oauthCode) && !isAutoSyncing) {
             // Con OAuth code directo (marketplace), no bloqueamos esperando webhook.
             const skipInstallPolling = Boolean(oauthCode) || Boolean(legacyInstallParam && !locationIdParam) || !targetLocationId;
