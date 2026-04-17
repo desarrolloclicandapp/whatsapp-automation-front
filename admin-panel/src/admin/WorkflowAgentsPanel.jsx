@@ -226,8 +226,6 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const [testing, setTesting] = useState(false);
     const [resettingMemory, setResettingMemory] = useState(false);
     const [uploadingDocuments, setUploadingDocuments] = useState(false);
-    const [locationKeyDraft, setLocationKeyDraft] = useState("");
-    const [savingLocationKey, setSavingLocationKey] = useState(false);
 
     useEffect(() => {
         if (!selectedLocationId && locations.length > 0) {
@@ -326,72 +324,10 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             setTestResult(null);
             setTestConversation([]);
             setActiveTab("general");
-            setLocationKeyDraft("");
             loadWorkspace(selectedLocationId);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedLocationId]);
-
-    const saveLocationOpenAiKey = async (rawValue) => {
-        if (!selectedLocationId) return false;
-        const safeValue = String(rawValue || "").trim();
-        if (!safeValue) {
-            toast.error(t("workflow_agents.location_key_invalid"));
-            return false;
-        }
-
-        setSavingLocationKey(true);
-        try {
-            const res = await authFetch(`/agency/settings/${encodeURIComponent(selectedLocationId)}`, {
-                method: "PUT",
-                body: JSON.stringify({
-                    openai_api_key: safeValue
-                })
-            });
-            const data = await parseResponse(res);
-            if (!res.ok || data?.error) {
-                throw new Error(data?.error || t("workflow_agents.location_key_save_error"));
-            }
-
-            toast.success(t("workflow_agents.location_key_saved"));
-            setLocationKeyDraft("");
-            await loadWorkspace(selectedLocationId);
-            return true;
-        } catch (error) {
-            toast.error(t("workflow_agents.location_key_save_error"), { description: error.message });
-            return false;
-        } finally {
-            setSavingLocationKey(false);
-        }
-    };
-
-    const clearLocationOpenAiKey = async () => {
-        if (!selectedLocationId) return false;
-
-        setSavingLocationKey(true);
-        try {
-            const res = await authFetch(`/agency/settings/${encodeURIComponent(selectedLocationId)}`, {
-                method: "PUT",
-                body: JSON.stringify({
-                    openai_api_key: ""
-                })
-            });
-            const data = await parseResponse(res);
-            if (!res.ok || data?.error) {
-                throw new Error(data?.error || t("workflow_agents.location_key_remove_error"));
-            }
-
-            toast.success(t("workflow_agents.location_key_removed"));
-            setLocationKeyDraft("");
-            await loadWorkspace(selectedLocationId);
-            return true;
-        } catch (error) {
-            toast.error(t("workflow_agents.location_key_remove_error"), { description: error.message });
-            return false;
-        } finally {
-            setSavingLocationKey(false);
-        }
-    };
 
     const handleSave = async (event) => {
         event.preventDefault();
@@ -594,11 +530,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const calendarsCatalog = Array.isArray(workspace?.crm_catalog?.calendars) ? workspace.crm_catalog.calendars : [];
     const locationHasOpenAiKey = workspace?.credentials?.has_location_openai_key === true;
     const agencyHasOpenAiKey = workspace?.credentials?.has_agency_openai_key === true;
-    const legacySlotKeyCount = slots.filter((slot) => slot?.has_openai_api_key === true).length;
-    const usingLegacySlotKeys = !locationHasOpenAiKey && legacySlotKeyCount > 0;
-    const accountCredentialSource = locationHasOpenAiKey
-        ? "location"
-        : (usingLegacySlotKeys ? "slot" : (agencyHasOpenAiKey ? "agency" : "missing"));
+    const usingLegacySlotKeys = !locationHasOpenAiKey && slots.some((slot) => slot?.has_openai_api_key === true);
     const baseModelOptions = useMemo(
         () => BASE_AGENT_MODEL_OPTIONS.map((option) => ({
             ...option,
@@ -1027,6 +959,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                     ...prev,
                                                     behavior: { ...prev.behavior, role: event.target.value }
                                                 }))}
+                                                placeholder={t("workflow_agents.field_behavior_role_placeholder")}
                                                 className={inputClassName}
                                             />
                                         </div>
@@ -1038,6 +971,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                     ...prev,
                                                     behavior: { ...prev.behavior, tone: event.target.value }
                                                 }))}
+                                                placeholder={t("workflow_agents.field_behavior_tone_placeholder")}
                                                 className={inputClassName}
                                             />
                                         </div>
@@ -1049,6 +983,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                     ...prev,
                                                     behavior: { ...prev.behavior, objective: event.target.value }
                                                 }))}
+                                                placeholder={t("workflow_agents.field_behavior_objective_placeholder")}
                                                 className={inputClassName}
                                             />
                                         </div>
@@ -1062,6 +997,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                 ...prev,
                                                 behavior: { ...prev.behavior, guardrails: event.target.value }
                                             }))}
+                                            placeholder={t("workflow_agents.field_behavior_guardrails_placeholder")}
                                             className={inputClassName}
                                         />
                                     </div>
@@ -1154,82 +1090,15 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                     ) : null}
                                 </EditorSection>
 
-                                <EditorSection title={t("workflow_agents.section_account_ai_title")} description={t("workflow_agents.section_account_ai_desc")}>
-                                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr),240px]">
-                                        <div>
-                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_location_api_key")}</label>
-                                            <input
-                                                type="password"
-                                                name="workflow-location-openai-key"
-                                                autoComplete="new-password"
-                                                data-form-type="other"
-                                                data-lpignore="true"
-                                                value={locationKeyDraft}
-                                                onChange={(event) => setLocationKeyDraft(event.target.value)}
-                                                onKeyDown={(event) => {
-                                                    if (event.key === "Enter") {
-                                                        event.preventDefault();
-                                                        saveLocationOpenAiKey(locationKeyDraft);
-                                                    }
-                                                }}
-                                                placeholder={t("workflow_agents.location_key_placeholder")}
-                                                className={inputClassName}
-                                            />
-                                            <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.location_key_help")}</div>
-                                        </div>
-                                        <div className="flex flex-col gap-3">
-                                            <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-900">
-                                                <div className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
-                                                    {t("workflow_agents.credentials_box_title")}
-                                                </div>
-                                                <div className="mt-2">
-                                                    <StatusPill
-                                                        label={t(`workflow_agents.credential_source_${accountCredentialSource}`)}
-                                                        kind={accountCredentialSource === "missing" ? "warn" : "good"}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => saveLocationOpenAiKey(locationKeyDraft)}
-                                                    disabled={savingLocationKey}
-                                                    className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-                                                >
-                                                    {savingLocationKey ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                                                    {savingLocationKey ? t("workflow_agents.location_key_saving") : t("workflow_agents.location_key_save")}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={clearLocationOpenAiKey}
-                                                    disabled={savingLocationKey || (!locationHasOpenAiKey && !usingLegacySlotKeys)}
-                                                    className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800/60 dark:text-red-300 dark:hover:bg-red-900/20"
-                                                >
-                                                    {t("workflow_agents.location_key_remove")}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/10 dark:text-amber-300">
-                                        {locationHasOpenAiKey
-                                            ? t("workflow_agents.location_key_ready")
-                                            : (usingLegacySlotKeys
-                                                ? t("workflow_agents.location_key_legacy_fallback").replace("{count}", String(legacySlotKeyCount))
-                                                : (agencyHasOpenAiKey
-                                                    ? t("workflow_agents.location_key_agency_fallback")
-                                                    : t("workflow_agents.location_key_missing")))}
-                                    </div>
-                                </EditorSection>
-
                                 <EditorSection title={t("workflow_agents.section_prompt_title")} description={t("workflow_agents.section_prompt_desc")}>
                                     <div className="grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_prompt")}</label>
-                                            <textarea rows={11} value={form.system_prompt} onChange={(event) => setForm((prev) => ({ ...prev, system_prompt: event.target.value }))} className={inputClassName} />
+                                            <textarea rows={11} value={form.system_prompt} onChange={(event) => setForm((prev) => ({ ...prev, system_prompt: event.target.value }))} placeholder={t("workflow_agents.field_prompt_placeholder")} className={inputClassName} />
                                         </div>
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_fallback")}</label>
-                                            <textarea rows={11} value={form.fallback_reply} onChange={(event) => setForm((prev) => ({ ...prev, fallback_reply: event.target.value }))} className={inputClassName} />
+                                            <textarea rows={11} value={form.fallback_reply} onChange={(event) => setForm((prev) => ({ ...prev, fallback_reply: event.target.value }))} placeholder={t("workflow_agents.field_fallback_placeholder")} className={inputClassName} />
                                         </div>
                                     </div>
                                 </EditorSection>
