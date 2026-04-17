@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Toaster } from 'sonner';
+import ReactGA from 'react-ga4';
 import AdminDashboard from './admin/Dashboard';
 import AgencyDashboard from './admin/AgencyDashboard';
 import WelcomeAuth from './admin/WelcomeAuth';
@@ -11,6 +12,11 @@ function App() {
     const [restoreToken, setRestoreToken] = useState(localStorage.getItem("admin_restore_token"));
 
     useEffect(() => {
+        ReactGA.send({ 
+            hitType: "pageview", 
+            page: window.location.pathname, 
+            title: `App Carga - Rol: ${role || 'Deslogueado'}` 
+        });
         const params = new URLSearchParams(window.location.search);
         const locId = params.get("location_id");
         if (locId) {
@@ -47,6 +53,11 @@ function App() {
         
         setToken(data.token);
         setRole(data.role);
+        ReactGA.event({
+            category: "Autenticacion",
+            action: "Login_Exitoso",
+            label: data.role // Sabrás si fue un admin o una agencia
+        });
     };
 
     const logout = () => {
@@ -65,6 +76,10 @@ function App() {
         setRole(null);
         setRestoreToken(null);
         window.history.pushState({}, document.title, "/");
+        ReactGA.event({
+            category: "Autenticacion",
+            action: "Logout_Manual"
+        });
         window.location.reload(); // Force reload to reset favicon/title state
     };
 
@@ -90,6 +105,10 @@ function App() {
         setRole(adminRole);
         setRestoreToken(null);
         window.history.pushState({}, document.title, "/");
+        ReactGA.event({
+            category: "Seguridad_Admin",
+            action: "Restaurar_Sesion_Admin"
+        });
         window.location.reload(); // Force reload to reset favicon/title state
     };
 
