@@ -837,7 +837,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             {viewMode === "list" ? (
                 renderAgentList(false)
             ) : (
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr),340px] xl:items-start">
+                <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1.08fr),340px] xl:items-start">
+                    {renderAgentList(true)}
                     <section className="overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-800 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
