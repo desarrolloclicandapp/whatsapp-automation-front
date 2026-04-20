@@ -1127,6 +1127,7 @@ export const en = {
     "agency.integrations.openai_accounts_loading": "Loading eligible accounts...",
     "agency.integrations.openai_accounts_empty": "There are no accounts available for this action.",
     "agency.integrations.openai_accounts_empty_search": "No results for that search.",
+    "agency.integrations.openai_accounts_pick_first": "Select an account first",
     "agency.integrations.openai_accounts_status_ready": "Key set",
     "agency.integrations.openai_accounts_status_missing": "No key",
     "agency.integrations.openai_accounts_status_ready_detail": "This account already has an OpenAI key configured.",

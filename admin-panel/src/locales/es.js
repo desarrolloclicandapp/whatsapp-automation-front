@@ -1160,6 +1160,7 @@ export const es = {
     "agency.integrations.openai_accounts_loading": "Cargando cuentas elegibles...",
     "agency.integrations.openai_accounts_empty": "No hay cuentas disponibles para esta carga.",
     "agency.integrations.openai_accounts_empty_search": "No hay resultados para esa búsqueda.",
+    "agency.integrations.openai_accounts_pick_first": "Primero selecciona una cuenta",
     "agency.integrations.openai_accounts_status_ready": "Con key",
     "agency.integrations.openai_accounts_status_missing": "Sin key",
     "agency.integrations.openai_accounts_status_ready_detail": "Esta cuenta ya tiene una OpenAI key configurada.",

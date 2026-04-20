@@ -2251,6 +2251,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     || String(account?.location_id || "").toLowerCase().includes(safeSearch);
             });
             const selectedCount = integrationOpenAiSelectedIds.length;
+            const selectedAccounts = integrationOpenAiAccounts.filter((account) => integrationOpenAiSelectedIds.includes(account.location_id));
             const allFilteredSelected = filteredAccounts.length > 0 && filteredAccounts.every((account) => integrationOpenAiSelectedIds.includes(account.location_id));
 
             const toggleAccountSelection = (locationId) => {
@@ -2283,7 +2284,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 {t('agency.integrations.openai_accounts_title') || 'OpenAI para cuentas'}
                             </h4>
                             <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                {t('agency.integrations.openai_accounts_desc') || 'Pega una sola OpenAI API key y aplícala a una o varias cuentas. Las que usan WhatsApp Meta oficial no aparecen aquí.'}
+                                {t('agency.integrations.openai_accounts_desc') || 'Selecciona las cuentas, pega la key y guárdala en un solo paso. Las que usan WhatsApp Meta oficial no aparecen aquí.'}
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -2298,15 +2299,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.95fr)] gap-5 items-start">
-                        <div className="rounded-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 space-y-4 shadow-sm">
-                            <div className="flex flex-col gap-1">
+                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.9fr)] gap-4 items-start">
+                        <div className="rounded-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 space-y-4 shadow-sm">
+                            <div className="flex items-center justify-between gap-3">
                                 <div className="text-sm font-bold text-gray-900 dark:text-white">
-                                    {t('agency.integrations.openai_accounts_targets_title') || 'Selecciona las cuentas'}
+                                    1. {t('agency.integrations.openai_accounts_targets_title') || 'Selecciona las cuentas'}
                                 </div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 leading-5">
-                                    {t('agency.integrations.openai_accounts_targets_desc') || 'Elige una o varias cuentas elegibles y aplica la misma key en un solo paso.'}
-                                </p>
+                                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                    {selectedCount > 0
+                                        ? (t('agency.integrations.openai_accounts_selected') || '{count} seleccionadas').replace('{count}', String(selectedCount))
+                                        : (t('agency.integrations.openai_accounts_pick_first') || 'Marca una o varias cuentas')}
+                                </div>
                             </div>
 
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -2334,25 +2337,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3">
-                                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
-                                        {t('agency.integrations.openai_accounts_selected') || '{count} seleccionadas'}
-                                    </div>
-                                    <div className="mt-1 text-2xl font-black text-gray-900 dark:text-white">
-                                        {selectedCount}
-                                    </div>
-                                </div>
-                                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3">
-                                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
-                                        {t('agency.integrations.openai_accounts_status_ready') || 'Con key'}
-                                    </div>
-                                    <div className="mt-1 text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                                        {filteredAccounts.filter((account) => account.openai_key_configured).length}
-                                    </div>
-                                </div>
-                            </div>
-
                             {integrationOpenAiLoading ? (
                                 <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-10 text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center gap-2">
                                     <Loader2 size={16} className="animate-spin" />
@@ -2365,7 +2349,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         : (t('agency.integrations.openai_accounts_empty_search') || 'No hay resultados para esa búsqueda.')}
                                 </div>
                             ) : (
-                                <div className="max-h-80 overflow-y-auto space-y-3 pr-1">
+                                <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
                                     {filteredAccounts.map((account) => {
                                         const isSelected = integrationOpenAiSelectedIds.includes(account.location_id);
                                         const productLabel = productLabelMap[String(account?.product_type || '').toLowerCase()] || 'Cuenta';
@@ -2375,7 +2359,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 type="button"
                                                 key={account.location_id}
                                                 onClick={() => toggleAccountSelection(account.location_id)}
-                                                className={`w-full text-left rounded-xl border px-3.5 py-3 transition-all ${
+                                                className={`w-full text-left rounded-xl border px-3 py-3 transition-all ${
                                                     isSelected
                                                         ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-emerald-200 dark:ring-emerald-800'
                                                         : hasKey
@@ -2383,93 +2367,96 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             : 'border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/40 hover:border-emerald-300'
                                                 }`}
                                             >
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div className="min-w-0">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">{account.name}</span>
-                                                            <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700">
-                                                                {productLabel}
-                                                            </span>
-                                                        </div>
-                                                        <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 font-mono break-all">
-                                                            {account.location_id}
-                                                        </p>
-                                                    </div>
-                                                    <div className="flex flex-col items-end gap-2 shrink-0">
-                                                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${
-                                                            hasKey
-                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
-                                                                : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900/40 dark:text-gray-400 dark:border-gray-700'
-                                                        }`}>
-                                                            {hasKey
-                                                                ? (t('agency.integrations.openai_accounts_status_ready') || 'Con key')
-                                                                : (t('agency.integrations.openai_accounts_status_missing') || 'Sin key')}
-                                                        </span>
-                                                        <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-bold ${
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-bold shrink-0 ${
                                                             isSelected
                                                                 ? 'border-emerald-500 bg-emerald-500 text-white'
                                                                 : 'border-gray-300 dark:border-gray-600 text-transparent bg-white dark:bg-gray-900'
                                                         }`}>
                                                             ✓
                                                         </span>
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">{account.name}</span>
+                                                            <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700">
+                                                                {productLabel}
+                                                            </span>
+                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${
+                                                                hasKey
+                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                                                                    : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900/40 dark:text-gray-400 dark:border-gray-700'
+                                                            }`}>
+                                                                {hasKey && <CheckCircle2 size={11} />}
+                                                                {hasKey
+                                                                    ? (t('agency.integrations.openai_accounts_status_ready') || 'Con key')
+                                                                    : (t('agency.integrations.openai_accounts_status_missing') || 'Sin key')}
+                                                            </span>
+                                                        </div>
                                                     </div>
+                                                    <p className="text-[11px] text-gray-500 dark:text-gray-400 font-mono text-right break-all max-w-[42%]">
+                                                        {account.location_id}
+                                                    </p>
                                                 </div>
-                                                {hasKey && (
-                                                    <div className="mt-3 flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
-                                                        <CheckCircle2 size={13} />
-                                                        {t('agency.integrations.openai_accounts_status_ready_detail') || 'Esta cuenta ya tiene una OpenAI key configurada.'}
-                                                    </div>
-                                                )}
                                             </button>
                                         );
                                     })}
                                 </div>
                             )}
 
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                                {integrationOpenAiExcludedMetaCount > 0
-                                    ? (t('agency.integrations.openai_accounts_meta_excluded_help') || 'Las cuentas con al menos un número en Meta oficial quedan fuera para evitar una configuración incoherente.').replace('{count}', String(integrationOpenAiExcludedMetaCount))
-                                    : (t('agency.integrations.openai_accounts_multi_help') || 'Puedes seleccionar varias cuentas y aplicar la misma key en un solo paso.')}
-                            </p>
+                            {integrationOpenAiExcludedMetaCount > 0 && (
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                                    {(t('agency.integrations.openai_accounts_meta_excluded_help') || 'Las cuentas con al menos un número en Meta oficial quedan fuera para evitar una configuración incoherente.').replace('{count}', String(integrationOpenAiExcludedMetaCount))}
+                                </p>
+                            )}
                         </div>
 
-                        <div className="rounded-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 space-y-4 shadow-sm">
-                            <div className="flex flex-col gap-1">
-                                <div className="text-sm font-bold text-gray-900 dark:text-white">
-                                    {t('agency.integrations.openai_key_panel_title') || 'Carga la OpenAI API key'}
-                                </div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 leading-5">
-                                    {t('agency.integrations.openai_key_panel_desc') || 'La key se guarda por cuenta y se aplica solo a las seleccionadas a la izquierda.'}
-                                </p>
+                        <div className="rounded-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 space-y-4 shadow-sm">
+                            <div className="text-sm font-bold text-gray-900 dark:text-white">
+                                2. {t('agency.integrations.openai_key_panel_title') || 'Carga la OpenAI API key'}
                             </div>
 
-                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 p-4 space-y-3">
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                                        {t('agency.integrations.openai_key_label') || 'OpenAI API key'}
-                                    </label>
-                                    <div className="relative">
-                                        <Key size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                        <input
-                                            type="password"
-                                            value={integrationOpenAiKeyDraft}
-                                            onChange={(e) => setIntegrationOpenAiKeyDraft(e.target.value)}
-                                            placeholder={t('agency.integrations.openai_key_placeholder') || 'sk-...'}
-                                            autoComplete="new-password"
-                                            className="w-full pl-10 pr-4 py-3 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-shadow"
-                                        />
+                            <div className="space-y-2">
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                    {t('agency.integrations.openai_key_label') || 'OpenAI API key'}
+                                </label>
+                                <div className="relative">
+                                    <Key size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="password"
+                                        value={integrationOpenAiKeyDraft}
+                                        onChange={(e) => setIntegrationOpenAiKeyDraft(e.target.value)}
+                                        placeholder={t('agency.integrations.openai_key_placeholder') || 'sk-...'}
+                                        autoComplete="new-password"
+                                        className="w-full pl-10 pr-4 py-3 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-shadow"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 p-3 space-y-2">
+                                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
+                                    {selectedCount > 0
+                                        ? (t('agency.integrations.openai_accounts_selected') || '{count} seleccionadas').replace('{count}', String(selectedCount))
+                                        : (t('agency.integrations.openai_accounts_pick_first') || 'Primero selecciona una cuenta')}
+                                </div>
+                                {selectedAccounts.length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedAccounts.map((account) => (
+                                            <span
+                                                key={account.location_id}
+                                                className="inline-flex items-center gap-2 rounded-full border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300"
+                                            >
+                                                {account.name}
+                                            </span>
+                                        ))}
                                     </div>
-                                    <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400 leading-5">
-                                        {t('agency.integrations.openai_key_help') || 'Se guarda por cuenta. Úsalo para las cuentas que operan con agentes y no dependen de WhatsApp Meta oficial.'}
-                                    </p>
-                                </div>
-
-                                <div className="rounded-lg border border-emerald-100 dark:border-emerald-900/70 bg-emerald-50/80 dark:bg-emerald-900/10 px-3 py-2 text-[11px] leading-5 text-emerald-800 dark:text-emerald-300">
-                                    {(t('agency.integrations.openai_accounts_selected') || '{count} seleccionadas').replace('{count}', String(selectedCount))}
-                                </div>
+                                ) : (
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        {t('agency.integrations.openai_accounts_pick_first') || 'Primero selecciona una cuenta'}
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-2 pt-1">
                                 <button
                                     type="button"
                                     onClick={() => saveIntegrationOpenAiKey({ clear: false })}
@@ -2489,6 +2476,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     {t('agency.integrations.openai_key_remove_multi') || 'Quitar de seleccionadas'}
                                 </button>
                             </div>
+
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-5">
+                                {t('agency.integrations.openai_key_help') || 'Se guarda por cuenta. Úsalo para las cuentas que operan con agentes y no dependen de WhatsApp Meta oficial.'}
+                            </p>
                         </div>
                     </div>
                 </div>
