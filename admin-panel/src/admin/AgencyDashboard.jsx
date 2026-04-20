@@ -388,6 +388,13 @@ export default function AgencyDashboard({ token, onLogout }) {
     // Integration filter for accounts list
     const [accountsFilter, setAccountsFilter] = useState("all"); // "all" | "ghl" | "waflow" | "chatwoot"
     const [settingsSection, setSettingsSection] = useState("guide");
+    const [integrationOpenAiAccounts, setIntegrationOpenAiAccounts] = useState([]);
+    const [integrationOpenAiExcludedMetaCount, setIntegrationOpenAiExcludedMetaCount] = useState(0);
+    const [integrationOpenAiSelectedIds, setIntegrationOpenAiSelectedIds] = useState([]);
+    const [integrationOpenAiKeyDraft, setIntegrationOpenAiKeyDraft] = useState("");
+    const [integrationOpenAiSearch, setIntegrationOpenAiSearch] = useState("");
+    const [integrationOpenAiLoading, setIntegrationOpenAiLoading] = useState(false);
+    const [integrationOpenAiSaving, setIntegrationOpenAiSaving] = useState(false);
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -618,7 +625,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
-    const fetchAgencyLocationsSnapshot = async () => {
+    const resolveEffectiveAgencyIdForAgencyRequests = async () => {
         let effectiveAgencyId = accountInfo?.agencyId || storedAgencyId || AGENCY_ID || null;
 
         if (!effectiveAgencyId) {
@@ -633,6 +640,11 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
         }
 
+        return effectiveAgencyId || null;
+    };
+
+    const fetchAgencyLocationsSnapshot = async () => {
+        const effectiveAgencyId = await resolveEffectiveAgencyIdForAgencyRequests();
         if (!effectiveAgencyId) return [];
 
         const locRes = await authFetch(`/agency/locations?agencyId=${encodeURIComponent(effectiveAgencyId)}`);
@@ -640,6 +652,99 @@ export default function AgencyDashboard({ token, onLogout }) {
 
         const locData = await locRes.json().catch(() => []);
         return Array.isArray(locData) ? locData : [];
+    };
+
+    const fetchIntegrationOpenAiAccounts = async ({ silent = false } = {}) => {
+        if (!silent) setIntegrationOpenAiLoading(true);
+        try {
+            const effectiveAgencyId = await resolveEffectiveAgencyIdForAgencyRequests();
+            if (!effectiveAgencyId) {
+                setIntegrationOpenAiAccounts([]);
+                setIntegrationOpenAiExcludedMetaCount(0);
+                setIntegrationOpenAiSelectedIds([]);
+                return;
+            }
+
+            const res = await authFetch(`/agency/openai-eligible-accounts?agencyId=${encodeURIComponent(effectiveAgencyId)}`);
+            if (!res?.ok) {
+                const body = await parseApiResponse(res);
+                throw new Error(body?.error || (t('agency.integrations.openai_accounts_load_error') || 'No se pudo cargar la lista de cuentas.'));
+            }
+
+            const body = await res.json().catch(() => ({}));
+            const accounts = Array.isArray(body?.accounts) ? body.accounts : [];
+            setIntegrationOpenAiAccounts(accounts);
+            setIntegrationOpenAiExcludedMetaCount(Number.parseInt(body?.excluded_meta_count, 10) || 0);
+            setIntegrationOpenAiSelectedIds((prev) => prev.filter((locationId) => accounts.some((account) => account.location_id === locationId)));
+        } catch (error) {
+            console.error("Error cargando cuentas elegibles para OpenAI", error);
+            if (!silent) {
+                toast.error(error.message || (t('agency.integrations.openai_accounts_load_error') || 'No se pudo cargar la lista de cuentas.'));
+            }
+        } finally {
+            if (!silent) setIntegrationOpenAiLoading(false);
+        }
+    };
+
+    const saveIntegrationOpenAiKey = async ({ clear = false } = {}) => {
+        const selectedIds = integrationOpenAiSelectedIds.filter(Boolean);
+        if (selectedIds.length === 0) {
+            toast.error(t('agency.integrations.openai_accounts_select_error') || 'Selecciona al menos una cuenta.');
+            return;
+        }
+
+        const nextValue = clear ? "" : String(integrationOpenAiKeyDraft || "").trim();
+        if (!clear && !nextValue) {
+            toast.error(t('agency.integrations.openai_key_empty_error') || 'Pega una OpenAI API key antes de guardar.');
+            return;
+        }
+
+        setIntegrationOpenAiSaving(true);
+        const failedIds = new Set();
+        let successCount = 0;
+
+        try {
+            for (const locationId of selectedIds) {
+                try {
+                    const res = await authFetch(`/agency/settings/${locationId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ openai_api_key: nextValue })
+                    });
+                    if (!res?.ok) {
+                        const body = await parseApiResponse(res);
+                        throw new Error(body?.error || "No se pudo guardar la OpenAI key");
+                    }
+                    successCount += 1;
+                } catch (error) {
+                    failedIds.add(locationId);
+                    console.error(`Error guardando OpenAI key para ${locationId}`, error);
+                }
+            }
+
+            if (successCount > 0) {
+                setIntegrationOpenAiAccounts((prev) => prev.map((account) => (
+                    selectedIds.includes(account.location_id) && !failedIds.has(account.location_id)
+                        ? { ...account, openai_key_configured: !clear && !!nextValue }
+                        : account
+                )));
+                if (!clear) setIntegrationOpenAiKeyDraft("");
+                await refreshData();
+                await fetchIntegrationOpenAiAccounts({ silent: true });
+                toast.success(
+                    clear
+                        ? ((t('agency.integrations.openai_key_bulk_removed') || 'OpenAI key eliminada en {count} cuenta(s).').replace('{count}', String(successCount)))
+                        : ((t('agency.integrations.openai_key_bulk_saved') || 'OpenAI key aplicada en {count} cuenta(s).').replace('{count}', String(successCount)))
+                );
+            }
+
+            if (failedIds.size > 0) {
+                toast.error(
+                    (t('agency.integrations.openai_key_bulk_partial_error') || 'No se pudo actualizar {count} cuenta(s).').replace('{count}', String(failedIds.size))
+                );
+            }
+        } finally {
+            setIntegrationOpenAiSaving(false);
+        }
     };
 
     const findLegacyInstalledLocation = (snapshot, baselineIds, watchStartedAt) => {
@@ -1158,13 +1263,6 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const goBackToChatwootOnboarding = () => {
         closeAddLocationModal();
-        if (onboardingCrmType === "waflow_crm") {
-            setOnboardingStep(1);
-            setOnboardingConnectionType(null);
-            setOnboardingHoveredCard(null);
-            setShowOnboarding(true);
-            return;
-        }
         resetOnboardingWizard();
         setShowOnboarding(true);
     };
@@ -1206,9 +1304,8 @@ export default function AgencyDashboard({ token, onLogout }) {
         setOnboardingCrmType("waflow_crm");
         setOnboardingHoveredCard("waflow_crm");
         setTimeout(() => {
-            setOnboardingStep(1);
-            setOnboardingConnectionType(null);
             setOnboardingHoveredCard(null);
+            openOnboardingWaflowPrimaryFlow();
         }, 120);
     };
 
@@ -2134,6 +2231,213 @@ export default function AgencyDashboard({ token, onLogout }) {
             return null;
         };
 
+        const renderOpenAiAccountsPanel = () => {
+            if (!showContextConfig) return null;
+
+            const productLabelMap = {
+                ghl: 'GoHighLevel',
+                waflow: 'WaFloW',
+                chatwoot: 'Waflow Inbox'
+            };
+            const safeSearch = String(integrationOpenAiSearch || "").trim().toLowerCase();
+            const filteredAccounts = integrationOpenAiAccounts.filter((account) => {
+                if (!safeSearch) return true;
+                return String(account?.name || "").toLowerCase().includes(safeSearch)
+                    || String(account?.location_id || "").toLowerCase().includes(safeSearch);
+            });
+            const selectedCount = integrationOpenAiSelectedIds.length;
+            const allFilteredSelected = filteredAccounts.length > 0 && filteredAccounts.every((account) => integrationOpenAiSelectedIds.includes(account.location_id));
+
+            const toggleAccountSelection = (locationId) => {
+                setIntegrationOpenAiSelectedIds((prev) => (
+                    prev.includes(locationId)
+                        ? prev.filter((id) => id !== locationId)
+                        : [...prev, locationId]
+                ));
+            };
+
+            const selectAllFilteredAccounts = () => {
+                if (filteredAccounts.length === 0) return;
+                setIntegrationOpenAiSelectedIds((prev) => Array.from(new Set([
+                    ...prev,
+                    ...filteredAccounts.map((account) => account.location_id)
+                ])));
+            };
+
+            const clearFilteredAccounts = () => {
+                if (filteredAccounts.length === 0) return;
+                const filteredIds = new Set(filteredAccounts.map((account) => account.location_id));
+                setIntegrationOpenAiSelectedIds((prev) => prev.filter((id) => !filteredIds.has(id)));
+            };
+
+            return (
+                <div className="mt-4 rounded-2xl border-2 border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 p-5 space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                        <div>
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                                {t('agency.integrations.openai_accounts_title') || 'OpenAI para cuentas'}
+                            </h4>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                {t('agency.integrations.openai_accounts_desc') || 'Pega una sola OpenAI API key y aplícala a una o varias cuentas. Las que usan WhatsApp Meta oficial no aparecen aquí.'}
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border bg-white/80 dark:bg-gray-900/60 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700">
+                                {(t('agency.integrations.openai_accounts_selected') || '{count} seleccionadas').replace('{count}', String(selectedCount))}
+                            </span>
+                            {integrationOpenAiExcludedMetaCount > 0 && (
+                                <span className="px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800">
+                                    {(t('agency.integrations.openai_accounts_meta_excluded_badge') || '{count} con Meta oficial').replace('{count}', String(integrationOpenAiExcludedMetaCount))}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)] gap-4">
+                        <div className="rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 space-y-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                                    {t('agency.integrations.openai_key_label') || 'OpenAI API key'}
+                                </label>
+                                <div className="relative">
+                                    <Key size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="password"
+                                        value={integrationOpenAiKeyDraft}
+                                        onChange={(e) => setIntegrationOpenAiKeyDraft(e.target.value)}
+                                        placeholder={t('agency.integrations.openai_key_placeholder') || 'sk-...'}
+                                        autoComplete="new-password"
+                                        className="w-full pl-10 pr-4 py-3 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-shadow"
+                                    />
+                                </div>
+                                <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400 leading-5">
+                                    {t('agency.integrations.openai_key_help') || 'Se guarda por cuenta. Úsalo para las cuentas que operan con agentes y no dependen de WhatsApp Meta oficial.'}
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => saveIntegrationOpenAiKey({ clear: false })}
+                                    disabled={integrationOpenAiSaving || integrationOpenAiLoading || selectedCount === 0}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition disabled:opacity-60"
+                                >
+                                    {integrationOpenAiSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                                    {t('agency.integrations.openai_key_save_multi') || 'Guardar en seleccionadas'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => saveIntegrationOpenAiKey({ clear: true })}
+                                    disabled={integrationOpenAiSaving || integrationOpenAiLoading || selectedCount === 0}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-rose-200 dark:border-rose-800 text-xs font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition disabled:opacity-60"
+                                >
+                                    <X size={13} />
+                                    {t('agency.integrations.openai_key_remove_multi') || 'Quitar de seleccionadas'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 space-y-3">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <div className="relative flex-1">
+                                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        value={integrationOpenAiSearch}
+                                        onChange={(e) => setIntegrationOpenAiSearch(e.target.value)}
+                                        placeholder={t('agency.integrations.openai_accounts_search') || 'Buscar cuenta...'}
+                                        className="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-shadow"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={allFilteredSelected ? clearFilteredAccounts : selectAllFilteredAccounts}
+                                        disabled={integrationOpenAiLoading || filteredAccounts.length === 0}
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-60"
+                                    >
+                                        {allFilteredSelected
+                                            ? (t('agency.integrations.openai_accounts_clear_filtered') || 'Limpiar visibles')
+                                            : (t('agency.integrations.openai_accounts_select_filtered') || 'Seleccionar visibles')}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {integrationOpenAiLoading ? (
+                                <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-8 text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center gap-2">
+                                    <Loader2 size={16} className="animate-spin" />
+                                    {t('agency.integrations.openai_accounts_loading') || 'Cargando cuentas elegibles...'}
+                                </div>
+                            ) : filteredAccounts.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-8 text-sm text-gray-500 dark:text-gray-400">
+                                    {integrationOpenAiAccounts.length === 0
+                                        ? (t('agency.integrations.openai_accounts_empty') || 'No hay cuentas disponibles para esta carga.')
+                                        : (t('agency.integrations.openai_accounts_empty_search') || 'No hay resultados para esa búsqueda.')}
+                                </div>
+                            ) : (
+                                <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                                    {filteredAccounts.map((account) => {
+                                        const isSelected = integrationOpenAiSelectedIds.includes(account.location_id);
+                                        const productLabel = productLabelMap[String(account?.product_type || '').toLowerCase()] || 'Cuenta';
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={account.location_id}
+                                                onClick={() => toggleAccountSelection(account.location_id)}
+                                                className={`w-full text-left rounded-xl border px-3.5 py-3 transition-all ${
+                                                    isSelected
+                                                        ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20'
+                                                        : 'border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/40 hover:border-emerald-300'
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">{account.name}</span>
+                                                            <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700">
+                                                                {productLabel}
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 font-mono break-all">
+                                                            {account.location_id}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-2 shrink-0">
+                                                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${
+                                                            account.openai_key_configured
+                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                                                                : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900/40 dark:text-gray-400 dark:border-gray-700'
+                                                        }`}>
+                                                            {account.openai_key_configured
+                                                                ? (t('agency.integrations.openai_accounts_status_ready') || 'Con key')
+                                                                : (t('agency.integrations.openai_accounts_status_missing') || 'Sin key')}
+                                                        </span>
+                                                        <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-bold ${
+                                                            isSelected
+                                                                ? 'border-emerald-500 bg-emerald-500 text-white'
+                                                                : 'border-gray-300 dark:border-gray-600 text-transparent'
+                                                        }`}>
+                                                            ✓
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                                {integrationOpenAiExcludedMetaCount > 0
+                                    ? (t('agency.integrations.openai_accounts_meta_excluded_help') || 'Las cuentas con al menos un número en Meta oficial quedan fuera para evitar una configuración incoherente.').replace('{count}', String(integrationOpenAiExcludedMetaCount))
+                                    : (t('agency.integrations.openai_accounts_multi_help') || 'Puedes seleccionar varias cuentas y aplicar la misma key en un solo paso.')}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         return (
             <div className={`bg-white dark:bg-gray-900 ${panelPadding} rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm`}>
                 <div className="flex items-center justify-between mb-4">
@@ -2151,6 +2455,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     {renderCard("chatwoot", "Waflow Inbox", t('agency.integrations.chatwoot_desc'), MessageSquareText, { showOpen: true, onOpen: openChatwootPortal })}
                 </div>
                 {renderSelectedConfigPanel()}
+                {renderOpenAiAccountsPanel()}
             </div>
         );
     };
@@ -2652,6 +2957,13 @@ export default function AgencyDashboard({ token, onLogout }) {
             setSettingsSection(allSettingsSectionIds[0] || "guide");
         }
     }, [settingsSection, isGhlAgency, isChatwootAgency]);
+
+    useEffect(() => {
+        if (activeTab !== 'settings' || currentSettingsSectionId !== 'integrations') return;
+        fetchIntegrationOpenAiAccounts({
+            silent: integrationOpenAiAccounts.length > 0
+        });
+    }, [activeTab, currentSettingsSectionId, accountInfo?.agencyId, storedAgencyId, AGENCY_ID]);
 
     // ✅ Componente de Bloqueo "Glass" (Visible pero no interactivo)
     const RestrictedFeatureWrapper = ({ isRestricted, children, title }) => {
