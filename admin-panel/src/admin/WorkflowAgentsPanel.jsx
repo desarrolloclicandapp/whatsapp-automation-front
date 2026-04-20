@@ -5,6 +5,7 @@ import { useLanguage } from "../context/LanguageContext";
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const inputClassName = "w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
+const textAreaCardClassName = "w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white";
 const BASE_AGENT_MODEL_OPTIONS = [
     { value: "gpt-4o-mini", labelKey: "workflow_agents.model_option_gpt4o_mini" },
     { value: "gpt-4o", labelKey: "workflow_agents.model_option_gpt4o" },
@@ -528,6 +529,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const agents = Array.isArray(workspace?.agents) ? workspace.agents : [];
     const slots = Array.isArray(workspace?.slots) ? workspace.slots : [];
     const calendarsCatalog = Array.isArray(workspace?.crm_catalog?.calendars) ? workspace.crm_catalog.calendars : [];
+    const ghlIntegration = catalog.find((item) => item?.key === "ghl") || null;
+    const showCrmActions = ghlIntegration?.supports_execution === true && (ghlIntegration?.connected === true || ghlIntegration?.status === "ready");
     const locationHasOpenAiKey = workspace?.credentials?.has_location_openai_key === true;
     const agencyHasOpenAiKey = workspace?.credentials?.has_agency_openai_key === true;
     const usingLegacySlotKeys = !locationHasOpenAiKey && slots.some((slot) => slot?.has_openai_api_key === true);
@@ -950,145 +953,172 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                 </EditorSection>
 
                                 <EditorSection title={t("workflow_agents.section_behavior_title")} description={t("workflow_agents.section_behavior_desc")}>
-                                    <div className="grid gap-4 lg:grid-cols-3">
+                                    <div className="grid gap-4 lg:grid-cols-2">
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_role")}</label>
-                                            <input
+                                            <textarea
+                                                rows={6}
                                                 value={form.behavior.role}
                                                 onChange={(event) => setForm((prev) => ({
                                                     ...prev,
                                                     behavior: { ...prev.behavior, role: event.target.value }
                                                 }))}
                                                 placeholder={t("workflow_agents.field_behavior_role_placeholder")}
-                                                className={inputClassName}
+                                                className={textAreaCardClassName}
                                             />
                                         </div>
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_tone")}</label>
-                                            <input
+                                            <textarea
+                                                rows={6}
                                                 value={form.behavior.tone}
                                                 onChange={(event) => setForm((prev) => ({
                                                     ...prev,
                                                     behavior: { ...prev.behavior, tone: event.target.value }
                                                 }))}
                                                 placeholder={t("workflow_agents.field_behavior_tone_placeholder")}
-                                                className={inputClassName}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_objective")}</label>
-                                            <input
-                                                value={form.behavior.objective}
-                                                onChange={(event) => setForm((prev) => ({
-                                                    ...prev,
-                                                    behavior: { ...prev.behavior, objective: event.target.value }
-                                                }))}
-                                                placeholder={t("workflow_agents.field_behavior_objective_placeholder")}
-                                                className={inputClassName}
+                                                className={textAreaCardClassName}
                                             />
                                         </div>
                                     </div>
                                     <div className="mt-4">
+                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_objective")}</label>
+                                        <textarea
+                                            rows={5}
+                                            value={form.behavior.objective}
+                                            onChange={(event) => setForm((prev) => ({
+                                                ...prev,
+                                                behavior: { ...prev.behavior, objective: event.target.value }
+                                            }))}
+                                            placeholder={t("workflow_agents.field_behavior_objective_placeholder")}
+                                            className={textAreaCardClassName}
+                                        />
+                                    </div>
+                                    <div className="mt-4">
                                         <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_guardrails")}</label>
                                         <textarea
-                                            rows={4}
+                                            rows={7}
                                             value={form.behavior.guardrails}
                                             onChange={(event) => setForm((prev) => ({
                                                 ...prev,
                                                 behavior: { ...prev.behavior, guardrails: event.target.value }
                                             }))}
                                             placeholder={t("workflow_agents.field_behavior_guardrails_placeholder")}
-                                            className={inputClassName}
+                                            className={textAreaCardClassName}
                                         />
                                     </div>
                                 </EditorSection>
 
-                                <EditorSection title={t("workflow_agents.section_permissions_title")} description={t("workflow_agents.section_permissions_desc")}>
-                                    <div className="grid gap-3 lg:grid-cols-2">
-                                        {[
-                                            ["view_appointments", "workflow_agents.permission_view_appointments"],
-                                            ["add_tags", "workflow_agents.permission_add_tags"],
-                                            ["remove_tags", "workflow_agents.permission_remove_tags"],
-                                            ["assign_owner", "workflow_agents.permission_assign_owner"],
-                                            ["set_fields", "workflow_agents.permission_set_fields"],
-                                            ["create_appointment", "workflow_agents.permission_create_appointment"],
-                                            ["reschedule_appointment", "workflow_agents.permission_reschedule_appointment"],
-                                            ["cancel_appointment", "workflow_agents.permission_cancel_appointment"]
-                                        ].map(([permissionKey, labelKey]) => (
-                                            <label key={permissionKey} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={form.permissions[permissionKey] === true}
-                                                    onChange={(event) => setForm((prev) => ({
-                                                        ...prev,
-                                                        permissions: {
-                                                            ...prev.permissions,
-                                                            [permissionKey]: event.target.checked
-                                                        }
-                                                    }))}
-                                                    className="h-4 w-4 rounded text-indigo-600"
-                                                />
-                                                {t(labelKey)}
-                                            </label>
-                                        ))}
-                                    </div>
-
-                                    <div className="mt-5">
-                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_calendar_scope")}</label>
-                                        <select
-                                            value={form.calendar_scope_mode}
-                                            onChange={(event) => setForm((prev) => ({
-                                                ...prev,
-                                                calendar_scope_mode: event.target.value,
-                                                calendar_scope_ids: event.target.value === "selected" ? prev.calendar_scope_ids : []
-                                            }))}
-                                            className={inputClassName}
-                                        >
-                                            <option value="all">{t("workflow_agents.calendar_scope_all")}</option>
-                                            <option value="selected">{t("workflow_agents.calendar_scope_selected")}</option>
-                                        </select>
-                                        <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
-                                            {t("workflow_agents.field_calendar_scope_help")}
+                                {showCrmActions ? (
+                                    <EditorSection title={t("workflow_agents.section_permissions_title")} description={t("workflow_agents.section_permissions_desc")}>
+                                        <div className="grid gap-3 lg:grid-cols-2">
+                                            {[
+                                                ["view_appointments", "workflow_agents.permission_view_appointments", "workflow_agents.permission_view_appointments_desc"],
+                                                ["add_tags", "workflow_agents.permission_add_tags", "workflow_agents.permission_add_tags_desc"],
+                                                ["remove_tags", "workflow_agents.permission_remove_tags", "workflow_agents.permission_remove_tags_desc"],
+                                                ["assign_owner", "workflow_agents.permission_assign_owner", "workflow_agents.permission_assign_owner_desc"],
+                                                ["set_fields", "workflow_agents.permission_set_fields", "workflow_agents.permission_set_fields_desc"],
+                                                ["create_appointment", "workflow_agents.permission_create_appointment", "workflow_agents.permission_create_appointment_desc"],
+                                                ["reschedule_appointment", "workflow_agents.permission_reschedule_appointment", "workflow_agents.permission_reschedule_appointment_desc"],
+                                                ["cancel_appointment", "workflow_agents.permission_cancel_appointment", "workflow_agents.permission_cancel_appointment_desc"]
+                                            ].map(([permissionKey, labelKey, descKey]) => {
+                                                const enabled = form.permissions[permissionKey] === true;
+                                                return (
+                                                    <label
+                                                        key={permissionKey}
+                                                        className={`cursor-pointer rounded-2xl border px-4 py-4 transition ${
+                                                            enabled
+                                                                ? "border-indigo-400 bg-indigo-50/80 dark:border-indigo-700 dark:bg-indigo-900/20"
+                                                                : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800/80"
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={enabled}
+                                                            onChange={(event) => setForm((prev) => ({
+                                                                ...prev,
+                                                                permissions: {
+                                                                    ...prev.permissions,
+                                                                    [permissionKey]: event.target.checked
+                                                                }
+                                                            }))}
+                                                            className="hidden"
+                                                        />
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <div className="font-semibold text-gray-900 dark:text-white">{t(labelKey)}</div>
+                                                                <div className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{t(descKey)}</div>
+                                                            </div>
+                                                            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                                                                enabled
+                                                                    ? "bg-indigo-600 text-white"
+                                                                    : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300"
+                                                            }`}>
+                                                                {enabled ? t("workflow_agents.action_enabled") : t("workflow_agents.action_disabled")}
+                                                            </span>
+                                                        </div>
+                                                    </label>
+                                                );
+                                            })}
                                         </div>
-                                    </div>
 
-                                    {form.calendar_scope_mode === "selected" ? (
-                                        <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-                                            {calendarsCatalog.length === 0 ? (
-                                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                    {t("workflow_agents.no_calendars_available")}
-                                                </div>
-                                            ) : (
-                                                <div className="grid gap-3 lg:grid-cols-2">
-                                                    {calendarsCatalog.map((calendar) => {
-                                                        const calendarValue = String(calendar.id || calendar.name || "");
-                                                        if (!calendarValue) return null;
-                                                        const isChecked = form.calendar_scope_ids.includes(calendarValue);
-                                                        return (
-                                                            <label key={calendarValue} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={isChecked}
-                                                                    onChange={(event) => setForm((prev) => ({
-                                                                        ...prev,
-                                                                        calendar_scope_ids: event.target.checked
-                                                                            ? [...prev.calendar_scope_ids, calendarValue]
-                                                                            : prev.calendar_scope_ids.filter((value) => value !== calendarValue)
-                                                                    }))}
-                                                                    className="h-4 w-4 rounded text-indigo-600"
-                                                                />
-                                                                <span className="min-w-0">
-                                                                    <span className="block font-semibold text-gray-900 dark:text-white">{calendar.name || calendar.id}</span>
-                                                                    {calendar.id ? <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{calendar.id}</span> : null}
-                                                                </span>
-                                                            </label>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
+                                        <div className="mt-5">
+                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_calendar_scope")}</label>
+                                            <select
+                                                value={form.calendar_scope_mode}
+                                                onChange={(event) => setForm((prev) => ({
+                                                    ...prev,
+                                                    calendar_scope_mode: event.target.value,
+                                                    calendar_scope_ids: event.target.value === "selected" ? prev.calendar_scope_ids : []
+                                                }))}
+                                                className={inputClassName}
+                                            >
+                                                <option value="all">{t("workflow_agents.calendar_scope_all")}</option>
+                                                <option value="selected">{t("workflow_agents.calendar_scope_selected")}</option>
+                                            </select>
+                                            <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                                {t("workflow_agents.field_calendar_scope_help")}
+                                            </div>
                                         </div>
-                                    ) : null}
-                                </EditorSection>
+
+                                        {form.calendar_scope_mode === "selected" ? (
+                                            <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                                                {calendarsCatalog.length === 0 ? (
+                                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                        {t("workflow_agents.no_calendars_available")}
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid gap-3 lg:grid-cols-2">
+                                                        {calendarsCatalog.map((calendar) => {
+                                                            const calendarValue = String(calendar.id || calendar.name || "");
+                                                            if (!calendarValue) return null;
+                                                            const isChecked = form.calendar_scope_ids.includes(calendarValue);
+                                                            return (
+                                                                <label key={calendarValue} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={isChecked}
+                                                                        onChange={(event) => setForm((prev) => ({
+                                                                            ...prev,
+                                                                            calendar_scope_ids: event.target.checked
+                                                                                ? [...prev.calendar_scope_ids, calendarValue]
+                                                                                : prev.calendar_scope_ids.filter((value) => value !== calendarValue)
+                                                                        }))}
+                                                                        className="h-4 w-4 rounded text-indigo-600"
+                                                                    />
+                                                                    <span className="min-w-0">
+                                                                        <span className="block font-semibold text-gray-900 dark:text-white">{calendar.name || calendar.id}</span>
+                                                                        {calendar.id ? <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{calendar.id}</span> : null}
+                                                                    </span>
+                                                                </label>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : null}
+                                    </EditorSection>
+                                ) : null}
 
                                 <EditorSection title={t("workflow_agents.section_prompt_title")} description={t("workflow_agents.section_prompt_desc")}>
                                     <div className="grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
