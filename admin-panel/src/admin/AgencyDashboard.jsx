@@ -668,7 +668,12 @@ export default function AgencyDashboard({ token, onLogout }) {
             const res = await authFetch(`/agency/openai-eligible-accounts?agencyId=${encodeURIComponent(effectiveAgencyId)}`);
             if (!res?.ok) {
                 const body = await parseApiResponse(res);
-                throw new Error(body?.error || (t('agency.integrations.openai_accounts_load_error') || 'No se pudo cargar la lista de cuentas.'));
+                const errorMessage = body?.error || body?.rawText || (t('agency.integrations.openai_accounts_load_error') || 'No se pudo cargar la lista de cuentas.');
+                console.error("OpenAI eligible accounts request failed", {
+                    status: res?.status,
+                    body
+                });
+                throw new Error(`${errorMessage} (HTTP ${res?.status || 'unknown'})`);
             }
 
             const body = await res.json().catch(() => ({}));
