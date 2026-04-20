@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Loader2, Play, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
+import { ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -837,8 +837,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             {viewMode === "list" ? (
                 renderAgentList(false)
             ) : (
-                <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1.08fr),340px] xl:items-start">
-                    {renderAgentList(true)}
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr),340px] xl:items-start">
                     <section className="overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-800 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
@@ -867,6 +866,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                 onClick={() => applyAgentToForm(null)}
                                 className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
+                                <ChevronLeft size={16} />
                                 {t("workflow_agents.back_to_list")}
                             </button>
                             <button
