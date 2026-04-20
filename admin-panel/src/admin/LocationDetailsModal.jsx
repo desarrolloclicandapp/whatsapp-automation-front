@@ -4982,43 +4982,6 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         }
     }, [slot?.slot_id, slot?.is_connected, slot?.phone_number, slot?.suspended_by]);
 
-    // 🔥 INICIO: SCRIPT DE UNA SOLA VIDA (Solo avisa si hay al menos un número) 🔥
-    useEffect(() => {
-        // Solo disparamos si el estado general es conectado (no importa qué número sea)
-        if (status.connected) {
-            
-            // La llave ahora está atada a la cuenta (locationId), NO al número.
-            // Si conectan 5 números, esto evitará que se dispare 5 veces.
-            const llaveCache = `ghl_sync_location_${locationId}`;
-            const yaSincronizado = localStorage.getItem(llaveCache);
-
-            if (!yaSincronizado) {
-                const avisarAN8n = async () => {
-                    try {
-                        const response = await fetch('https://paneln8n.clicandapp.com/webhook/conectarnumero', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                location_id: locationId, // El ID de la cuenta en GHL
-                                status: 'Conectado'      // Simplemente avisamos que ya no está vacío
-                            })
-                        });
-
-                        // Si n8n responde con éxito (Status 200 OK)
-                        if (response.ok) {
-                            localStorage.setItem(llaveCache, 'true');
-                            console.log("✅ Cuenta marcada con número activo en GHL.");
-                        }
-                    } catch (error) {
-                        console.error("❌ Error al sincronizar con n8n.", error);
-                    }
-                };
-
-                avisarAN8n();
-            }
-        }
-    }, [status.connected, locationId]); // Quitamos el número de las dependencias
-    // 🔥 FIN DEL SCRIPT 🔥
 
     const handleConnect = async () => {
         if (!isAdminMode && (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system')) {
