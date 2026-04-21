@@ -2627,6 +2627,26 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         ""
     ).trim();
     const chatwootHeaderPassword = String(chatwootAccessInfo?.clientPassword || "").trim();
+    const openChatwootAccount = () => {
+        const directUrl = String(chatwootAccessInfo?.directLoginUrl || "").trim();
+        const dashboardUrl = chatwootHeaderDashboardUrl;
+        const fallbackUrl = chatwootHeaderLoginUrl;
+        const initialUrl = directUrl || fallbackUrl;
+        if (!initialUrl) return;
+
+        const openedWindow = window.open(initialUrl, '_blank');
+        if (!openedWindow) return;
+
+        if (directUrl && dashboardUrl && directUrl !== dashboardUrl) {
+            window.setTimeout(() => {
+                try {
+                    openedWindow.location.replace(dashboardUrl);
+                } catch (_) {
+                    window.open(dashboardUrl, '_blank', 'noopener,noreferrer');
+                }
+            }, 1800);
+        }
+    };
     const ghlHeaderOpenUrl = String(
         ghlAccessInfo?.dashboardUrl ||
         ghlAccessInfo?.loginUrl ||
@@ -3547,7 +3567,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition"
                                         >
                                             <Link2 size={16} />
-                                            Abrir Login
+                                            Abrir cuenta
                                         </button>
                                         <button
                                             type="button"
@@ -3563,12 +3583,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     <>
                                         <button
                                             type="button"
-                                            onClick={() => window.open(chatwootHeaderLoginUrl, '_blank', 'noopener,noreferrer')}
+                                            onClick={openChatwootAccount}
                                             disabled={!chatwootHeaderLoginUrl}
                                             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition"
                                         >
                                             <Link2 size={16} />
-                                            Abrir Login
+                                            Abrir cuenta
                                         </button>
                                         <button
                                             type="button"
