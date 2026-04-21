@@ -2612,7 +2612,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const chatwootHeaderLoginUrl = String(
         chatwootAccessInfo?.directLoginUrl ||
         chatwootAccessInfo?.loginUrl ||
+        chatwootAccessInfo?.baseLoginUrl ||
         (tenantSettings?.chatwoot_url ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/login` : "")
+    ).trim();
+    const chatwootHeaderDashboardUrl = String(
+        chatwootAccessInfo?.dashboardUrl ||
+        (tenantSettings?.chatwoot_url && chatwootAccessInfo?.accountId
+            ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/accounts/${chatwootAccessInfo.accountId}`
+            : "")
     ).trim();
     const chatwootHeaderEmail = String(
         chatwootAccessInfo?.clientEmail ||
@@ -2620,6 +2627,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         ""
     ).trim();
     const chatwootHeaderPassword = String(chatwootAccessInfo?.clientPassword || "").trim();
+    const openChatwootAccount = () => {
+        const targetUrl = String(chatwootHeaderLoginUrl || '').trim();
+        if (!targetUrl) {
+            toast.error('No se pudo abrir la cuenta de Chatwoot');
+            return;
+        }
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    };
     const ghlHeaderOpenUrl = String(
         ghlAccessInfo?.dashboardUrl ||
         ghlAccessInfo?.loginUrl ||
@@ -3331,6 +3346,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderLoginUrl || "No disponible")}
                                     </p>
                                 </div>
+
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Cuenta exacta</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderDashboardUrl || "No disponible")}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -3533,7 +3555,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition"
                                         >
                                             <Link2 size={16} />
-                                            Abrir Login
+                                            Abrir cuenta
                                         </button>
                                         <button
                                             type="button"
@@ -3549,12 +3571,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     <>
                                         <button
                                             type="button"
-                                            onClick={() => window.open(chatwootHeaderLoginUrl, '_blank', 'noopener,noreferrer')}
+                                            onClick={openChatwootAccount}
                                             disabled={!chatwootHeaderLoginUrl}
                                             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition"
                                         >
                                             <Link2 size={16} />
-                                            Abrir Login
+                                            Abrir cuenta
                                         </button>
                                         <button
                                             type="button"
@@ -4982,43 +5004,6 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         }
     }, [slot?.slot_id, slot?.is_connected, slot?.phone_number, slot?.suspended_by]);
 
-    // 🔥 INICIO: SCRIPT DE UNA SOLA VIDA (Solo avisa si hay al menos un número) 🔥
-    useEffect(() => {
-        // Solo disparamos si el estado general es conectado (no importa qué número sea)
-        if (status.connected) {
-            
-            // La llave ahora está atada a la cuenta (locationId), NO al número.
-            // Si conectan 5 números, esto evitará que se dispare 5 veces.
-            const llaveCache = `ghl_sync_location_${locationId}`;
-            const yaSincronizado = localStorage.getItem(llaveCache);
-
-            if (!yaSincronizado) {
-                const avisarAN8n = async () => {
-                    try {
-                        const response = await fetch('https://paneln8n.clicandapp.com/webhook/conectarnumero', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                location_id: locationId, // El ID de la cuenta en GHL
-                                status: 'Conectado'      // Simplemente avisamos que ya no está vacío
-                            })
-                        });
-
-                        // Si n8n responde con éxito (Status 200 OK)
-                        if (response.ok) {
-                            localStorage.setItem(llaveCache, 'true');
-                            console.log("✅ Cuenta marcada con número activo en GHL.");
-                        }
-                    } catch (error) {
-                        console.error("❌ Error al sincronizar con n8n.", error);
-                    }
-                };
-
-                avisarAN8n();
-            }
-        }
-    }, [status.connected, locationId]); // Quitamos el número de las dependencias
-    // 🔥 FIN DEL SCRIPT 🔥
 
     const handleConnect = async () => {
         if (!isAdminMode && (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system')) {
