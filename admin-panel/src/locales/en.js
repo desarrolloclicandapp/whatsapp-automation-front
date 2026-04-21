@@ -1580,6 +1580,9 @@ export const en = {
     "agency.quick_start.step_online_title": "Go live",
     "agency.quick_start.step_online_desc": "Connect the channel and validate the account.",
     "agency.quick_start.step_online_cta": "Connect",
-    "agency.quick_start.step_online_done": "Online"
+    "agency.quick_start.step_online_done": "Online",
+    "standalone.layout.product_messaging": "WaFloW Messaging",
+    "standalone.layout.product_crm": "WaFloW CRM",
+    "standalone.layout.messaging_connect_simulation": "Simulation: Opening QR connection modal..."
 };
 

@@ -1614,6 +1614,9 @@ export const es = {
     "agency.quick_start.step_online_title": "Ponla en línea",
     "agency.quick_start.step_online_desc": "Conecta el canal y valida la cuenta.",
     "agency.quick_start.step_online_cta": "Conectar",
-    "agency.quick_start.step_online_done": "En línea"
+    "agency.quick_start.step_online_done": "En línea",
+    "standalone.layout.product_messaging": "WaFloW Mensajeria",
+    "standalone.layout.product_crm": "WaFloW CRM",
+    "standalone.layout.messaging_connect_simulation": "Simulacion: Abriendo modal de conexion QR..."
 };
 
