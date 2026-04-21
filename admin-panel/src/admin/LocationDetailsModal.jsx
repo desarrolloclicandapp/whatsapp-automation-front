@@ -2611,8 +2611,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
     const chatwootHeaderLoginUrl = String(
         chatwootAccessInfo?.directLoginUrl ||
-        chatwootAccessInfo?.dashboardUrl ||
         chatwootAccessInfo?.loginUrl ||
+        chatwootAccessInfo?.baseLoginUrl ||
         (tenantSettings?.chatwoot_url ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/login` : "")
     ).trim();
     const chatwootHeaderDashboardUrl = String(
@@ -2627,24 +2627,23 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         ""
     ).trim();
     const chatwootHeaderPassword = String(chatwootAccessInfo?.clientPassword || "").trim();
-    const openChatwootAccount = () => {
-        const directUrl = String(chatwootAccessInfo?.directLoginUrl || "").trim();
-        const dashboardUrl = chatwootHeaderDashboardUrl;
-        const fallbackUrl = chatwootHeaderLoginUrl;
-        const initialUrl = directUrl || fallbackUrl;
-        if (!initialUrl) return;
-
-        const openedWindow = window.open(initialUrl, '_blank');
-        if (!openedWindow) return;
-
-        if (directUrl && dashboardUrl && directUrl !== dashboardUrl) {
-            window.setTimeout(() => {
-                try {
-                    openedWindow.location.replace(dashboardUrl);
-                } catch (_) {
-                    window.open(dashboardUrl, '_blank', 'noopener,noreferrer');
-                }
-            }, 1800);
+    const openChatwootAccount = async () => {
+        try {
+            const res = await authFetch(`/agency/locations/${location.location_id}/chatwoot-access-link`, {
+                method: 'POST'
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok || !body?.shareUrl) {
+                throw new Error(body?.error || 'No se pudo preparar el acceso de Chatwoot');
+            }
+            window.open(body.shareUrl, '_blank', 'noopener,noreferrer');
+        } catch (error) {
+            const fallbackUrl = String(chatwootAccessInfo?.directLoginUrl || chatwootHeaderLoginUrl || '').trim();
+            if (fallbackUrl) {
+                window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
+            } else {
+                toast.error(error.message || 'No se pudo abrir la cuenta de Chatwoot');
+            }
         }
     };
     const ghlHeaderOpenUrl = String(
