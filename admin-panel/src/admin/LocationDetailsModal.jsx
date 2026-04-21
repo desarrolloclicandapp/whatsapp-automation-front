@@ -2627,24 +2627,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         ""
     ).trim();
     const chatwootHeaderPassword = String(chatwootAccessInfo?.clientPassword || "").trim();
-    const openChatwootAccount = async () => {
-        try {
-            const res = await authFetch(`/agency/locations/${location.location_id}/chatwoot-access-link`, {
-                method: 'POST'
-            });
-            const body = await res.json().catch(() => ({}));
-            if (!res.ok || !body?.shareUrl) {
-                throw new Error(body?.error || 'No se pudo preparar el acceso de Chatwoot');
-            }
-            window.open(body.shareUrl, '_blank', 'noopener,noreferrer');
-        } catch (error) {
-            const fallbackUrl = String(chatwootAccessInfo?.directLoginUrl || chatwootHeaderLoginUrl || '').trim();
-            if (fallbackUrl) {
-                window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
-            } else {
-                toast.error(error.message || 'No se pudo abrir la cuenta de Chatwoot');
-            }
+    const openChatwootAccount = () => {
+        const targetUrl = String(chatwootHeaderLoginUrl || '').trim();
+        if (!targetUrl) {
+            toast.error('No se pudo abrir la cuenta de Chatwoot');
+            return;
         }
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
     };
     const ghlHeaderOpenUrl = String(
         ghlAccessInfo?.dashboardUrl ||
