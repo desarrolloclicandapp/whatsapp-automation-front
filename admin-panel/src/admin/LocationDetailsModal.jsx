@@ -2610,9 +2610,16 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }
     };
     const chatwootHeaderLoginUrl = String(
+        chatwootAccessInfo?.dashboardUrl ||
         chatwootAccessInfo?.directLoginUrl ||
         chatwootAccessInfo?.loginUrl ||
         (tenantSettings?.chatwoot_url ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/login` : "")
+    ).trim();
+    const chatwootHeaderDashboardUrl = String(
+        chatwootAccessInfo?.dashboardUrl ||
+        (tenantSettings?.chatwoot_url && chatwootAccessInfo?.accountId
+            ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/accounts/${chatwootAccessInfo.accountId}`
+            : "")
     ).trim();
     const chatwootHeaderEmail = String(
         chatwootAccessInfo?.clientEmail ||
@@ -3329,6 +3336,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Login</p>
                                     <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
                                         {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderLoginUrl || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Cuenta exacta</p>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderDashboardUrl || "No disponible")}
                                     </p>
                                 </div>
                             </div>
