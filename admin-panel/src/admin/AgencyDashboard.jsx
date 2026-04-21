@@ -2095,10 +2095,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
                             <div>
                                 <h4 className="text-sm font-bold text-gray-900 dark:text-white">
-                                    {((t('agency.integrations.config_for') || "Configuración de {crm}")).replace("{crm}", "Chatwoot")}
+                                    {((t('agency.integrations.config_for') || "Configuración de {crm}")).replace("{crm}", "Waflow Inbox")}
                                 </h4>
                                 <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                    {t('agency.integrations.chatwoot_config_desc') || "Define el Usuario Maestro para aprovisionar cuentas Chatwoot hospedadas automáticamente."}
+                                    Define el Usuario Maestro para aprovisionar cuentas Waflow Inbox automáticamente.
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
