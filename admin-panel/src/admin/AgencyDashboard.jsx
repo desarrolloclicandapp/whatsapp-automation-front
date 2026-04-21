@@ -4390,7 +4390,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     type="text"
                                                     value={addModalInboxName}
                                                     onChange={(e) => setAddModalInboxName(e.target.value)}
-                                                    placeholder="Ej: Soporte Principal"
+                                                    placeholder={t('dash.chatwoot_accounts.inbox_placeholder') || "Ej: Numero Principal"}
                                                     name="cw_first_inbox_name"
                                                     autoComplete="off"
                                                     autoFocus={isWaflowCrmSelfModal}
