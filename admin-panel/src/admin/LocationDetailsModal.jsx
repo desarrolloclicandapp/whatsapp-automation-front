@@ -4916,6 +4916,20 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         return null;
     };
 
+    const readResponseError = async (res, fallbackMessage) => {
+        if (!res) return fallbackMessage;
+
+        const body = await res.clone().json().catch(() => null);
+        if (body?.error) return body.error;
+        if (body?.details) return body.details;
+        if (body?.message) return body.message;
+
+        const text = await res.clone().text().catch(() => "");
+        if (text && text.trim()) return text.trim();
+
+        return fallbackMessage;
+    };
+
     const stopPolling = () => {
         if (pollInterval.current) {
             clearTimeout(pollInterval.current);
@@ -5020,7 +5034,9 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             const accessError = await readAccessError(res);
             if (applyAccessError(accessError)) return;
 
-            if (!res.ok) throw new Error('Fallo al iniciar');
+            if (!res.ok) {
+                throw new Error(await readResponseError(res, 'Fallo al iniciar'));
+            }
 
             setAccountSuspensionState(null);
             stopPolling();
@@ -5032,27 +5048,31 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                     const qrError = await readAccessError(qrRes);
                     if (applyAccessError(qrError)) return;
 
-                    if (qrRes.ok) {
-                        const data = await qrRes.json();
-                        const nextQrUpdatedAt = data.qrUpdatedAt || null;
-                        const nextQr = data.qr || null;
-                        const stillWaitingForQr = data.waitingForQr === true;
-                        setQrUpdatedAt(nextQrUpdatedAt);
-                        setQr(nextQr);
-                        if (nextQr) {
-                            sawFreshQr = true;
-                        } else if (!data.connected && sawFreshQr && !stillWaitingForQr) {
-                            setLoading(false);
-                            setQrExpired(true);
-                            stopPolling();
-                            return;
-                        }
-                        if (data.connected) {
-                            checkStatus();
-                            return; // Stop polling, checkStatus will clear the rest
-                        }
+                    if (!qrRes.ok) {
+                        throw new Error(await readResponseError(qrRes, 'No se pudo cargar el QR'));
                     }
-                } catch (e) { }
+
+                    const data = await qrRes.json();
+                    const nextQrUpdatedAt = data.qrUpdatedAt || null;
+                    const nextQr = data.qr || null;
+                    const stillWaitingForQr = data.waitingForQr === true;
+                    setQrUpdatedAt(nextQrUpdatedAt);
+                    setQr(nextQr);
+                    if (nextQr) {
+                        sawFreshQr = true;
+                    } else if (!data.connected && sawFreshQr && !stillWaitingForQr) {
+                        setLoading(false);
+                        setQrExpired(true);
+                        stopPolling();
+                        return;
+                    }
+                    if (data.connected) {
+                        checkStatus();
+                        return; // Stop polling, checkStatus will clear the rest
+                    }
+                } catch (e) {
+                    console.error('[SlotQR] Poll failed:', e);
+                }
 
                 // Adaptive delay: 3s
                 pollInterval.current = setTimeout(pollStep, 3000);
@@ -5060,7 +5080,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
 
             pollStep();
         } catch (e) {
-            toast.error('Error iniciando conexion');
+            toast.error(e.message || 'Error iniciando conexion');
             setLoading(false);
         }
     };
