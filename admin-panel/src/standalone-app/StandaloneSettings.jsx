@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Copy,
   Key,
@@ -20,6 +20,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
 
 const maskEmail = (email) => {
   const safeEmail = String(email || '').trim();
@@ -33,13 +34,11 @@ const maskEmail = (email) => {
 };
 
 export default function StandaloneSettings({
+  token,
   accountInfo,
-  onSaveInbox,
-  onSaveOpenAI,
-  onGenerateApiKey,
-  onRevokeApiKey,
-  onCreateWebhook,
-  onDeleteWebhook,
+  locationId,
+  onUnauthorized,
+  onDataChange,
 }) {
   const { t, language } = useLanguage();
   const { theme, toggleTheme } = useTheme();
@@ -67,6 +66,24 @@ export default function StandaloneSettings({
 
   const [webhooks, setWebhooks] = useState([]);
   const [showNewWebhookModal, setShowNewWebhookModal] = useState(false);
+
+  const authFetch = async (endpoint, options = {}) => {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+    });
+
+    if (response.status === 401) {
+      onUnauthorized?.();
+      throw new Error(t('agency.session_expired'));
+    }
+
+    return response;
+  };
 
   const replaceAgencyTerms = (value) => {
     const safeValue = String(value || '');
@@ -114,6 +131,59 @@ export default function StandaloneSettings({
     [t],
   );
 
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadSettingsData = async () => {
+      try {
+        setIsLoadingInbox(true);
+        const [masterResponse, keysResponse, webhooksResponse] = await Promise.all([
+          authFetch('/agency/chatwoot/master-user'),
+          authFetch('/agency/api-keys'),
+          authFetch('/agency/webhooks'),
+        ]);
+
+        if (!masterResponse.ok) {
+          const body = await masterResponse.json().catch(() => ({}));
+          throw new Error(body?.error || 'No se pudo cargar el usuario maestro');
+        }
+
+        const masterData = await masterResponse.json();
+        const keysData = keysResponse.ok ? await keysResponse.json().catch(() => ({})) : {};
+        const webhooksData = webhooksResponse.ok ? await webhooksResponse.json().catch(() => ({})) : {};
+
+        if (isCancelled) return;
+
+        setInboxConfigured(masterData?.configured === true);
+        setInboxName(masterData?.masterName || '');
+        setInboxEmail(masterData?.masterEmail || String(accountInfo?.email || ''));
+        setInboxEmailMasked(masterData?.masterEmailMasked || '');
+        setInboxPassword('');
+        setInboxVerificationPassword('');
+        setInboxTestStatus(null);
+        setOpenAiKeyConfigured(accountInfo?.openai_key_configured === true);
+        setApiKeys(Array.isArray(keysData?.keys) ? keysData.keys : []);
+        setWebhooks(Array.isArray(webhooksData?.hooks) ? webhooksData.hooks : []);
+      } catch (error) {
+        if (!isCancelled) {
+          toast.error(error?.message || 'No se pudieron cargar los ajustes de la cuenta');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingInbox(false);
+        }
+      }
+    };
+
+    if (token) {
+      loadSettingsData();
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [accountInfo?.email, accountInfo?.openai_key_configured, token]);
+
   const allSettingsSectionIds = settingsMenuGroups.flatMap((group) => group.items.map((item) => item.id));
   const currentSettingsSectionId = allSettingsSectionIds.includes(settingsSection)
     ? settingsSection
@@ -155,13 +225,18 @@ export default function StandaloneSettings({
     setIsSavingInbox(true);
 
     try {
-      if (typeof onSaveInbox === 'function') {
-        await onSaveInbox({
-          name: safeName,
-          email: safeEmail,
-          password: safePassword,
+      const response = await authFetch('/agency/chatwoot/master-user', {
+        method: 'PUT',
+        body: JSON.stringify({
+          masterName: safeName,
+          masterEmail: safeEmail,
+          masterPassword: safePassword,
           verificationPassword: inboxVerificationPassword,
-        });
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar el usuario maestro');
       }
 
       setInboxConfigured(true);
@@ -170,10 +245,10 @@ export default function StandaloneSettings({
       setInboxPassword('');
       setInboxTestStatus({
         ok: true,
-        message:
-          t('dash.chatwoot_master.test_success') || 'Conexion validada correctamente.',
+        message: t('dash.chatwoot_master.test_success') || 'Conexion validada correctamente.',
       });
       toast.success(t('standalone.settings.master_user_saved') || 'Usuario maestro de Waflow WhatsApp guardado');
+      onDataChange?.();
     } catch (error) {
       toast.error(
         error?.message || (t('standalone.settings.master_user_save_error') || 'No se pudo guardar el usuario maestro de Waflow WhatsApp'),
@@ -197,7 +272,13 @@ export default function StandaloneSettings({
     setIsTestingInbox(true);
 
     try {
-      await Promise.resolve();
+      const response = await authFetch('/agency/chatwoot/master-user/test', {
+        method: 'POST',
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success === false) {
+        throw new Error(body?.error || (t('dash.chatwoot_master.test_error') || 'No se pudo validar el Usuario Maestro.'));
+      }
       const message = t('dash.chatwoot_master.test_success') || 'Conexion validada correctamente.';
       setInboxConfigured(true);
       setInboxEmailMasked(maskEmail(safeEmail));
@@ -215,9 +296,19 @@ export default function StandaloneSettings({
   const handleReloadInboxUser = async () => {
     setIsLoadingInbox(true);
     try {
-      await Promise.resolve();
+      const response = await authFetch('/agency/chatwoot/master-user');
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo recargar el usuario maestro');
+      }
+      setInboxConfigured(body?.configured === true);
+      setInboxName(body?.masterName || '');
+      setInboxEmail(body?.masterEmail || String(accountInfo?.email || ''));
+      setInboxEmailMasked(body?.masterEmailMasked || '');
       setInboxTestStatus(null);
       toast.success(t('common.reload') || 'Recargar');
+    } catch (error) {
+      toast.error(error?.message || 'No se pudo recargar el usuario maestro');
     } finally {
       setIsLoadingInbox(false);
     }
@@ -234,12 +325,18 @@ export default function StandaloneSettings({
     setIsSavingOpenAi(true);
 
     try {
-      if (typeof onSaveOpenAI === 'function') {
-        await onSaveOpenAI({ openai_api_key: safeKey });
+      const response = await authFetch('/agency/settings', {
+        method: 'POST',
+        body: JSON.stringify({ openai_api_key: safeKey }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || (t('agency.integrations.openai_key_error') || 'No se pudo guardar la OpenAI key.'));
       }
 
       setOpenAiKeyConfigured(true);
       toast.success(t('agency.integrations.openai_key_saved') || 'OpenAI API key guardada correctamente.');
+      onDataChange?.();
     } catch (error) {
       toast.error(error?.message || (t('agency.integrations.openai_key_error') || 'No se pudo guardar la OpenAI key.'));
     } finally {
@@ -251,13 +348,19 @@ export default function StandaloneSettings({
     setIsSavingOpenAi(true);
 
     try {
-      if (typeof onSaveOpenAI === 'function') {
-        await onSaveOpenAI({ openai_api_key: '' });
+      const response = await authFetch('/agency/settings', {
+        method: 'POST',
+        body: JSON.stringify({ openai_api_key: '' }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || (t('agency.integrations.openai_key_error') || 'No se pudo guardar la OpenAI key.'));
       }
 
       setOpenAiKeyDraft('');
       setOpenAiKeyConfigured(false);
       toast.success(t('agency.integrations.openai_key_removed') || 'OpenAI API key eliminada.');
+      onDataChange?.();
     } catch (error) {
       toast.error(error?.message || (t('agency.integrations.openai_key_error') || 'No se pudo guardar la OpenAI key.'));
     } finally {
@@ -275,19 +378,26 @@ export default function StandaloneSettings({
 
     try {
       const result =
-        typeof onGenerateApiKey === 'function'
-          ? await onGenerateApiKey({ name: keyName })
-          : null;
+        await authFetch('/agency/api-keys', {
+          method: 'POST',
+          body: JSON.stringify({ keyName }),
+        }).then(async (response) => {
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(body?.error || (t('dash.settings.key_generate_error') || 'No se pudo generar la clave.'));
+          }
+          return body;
+        });
       const rawKey = String(
-        result?.rawKey || `waflow_live_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`,
+        result?.apiKey || `waflow_live_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`,
       );
       const keyPrefix = String(result?.keyPrefix || rawKey.slice(0, 12));
 
       setApiKeys((prev) => [
         {
-          id: result?.id || makeId(),
+          id: result?.keyInfo?.id || makeId(),
           key_name: keyName,
-          key_prefix: keyPrefix,
+          key_prefix: result?.keyInfo?.prefix || keyPrefix,
         },
         ...prev,
       ]);
@@ -302,8 +412,12 @@ export default function StandaloneSettings({
 
   const handleRevokeKey = async (id) => {
     try {
-      if (typeof onRevokeApiKey === 'function') {
-        await onRevokeApiKey(id);
+      const response = await authFetch(`/agency/api-keys/${id}`, {
+        method: 'DELETE',
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || (t('dash.settings.key_revoke_error') || 'No se pudo eliminar la clave.'));
       }
 
       setApiKeys((prev) => prev.filter((item) => item.id !== id));
@@ -330,11 +444,20 @@ export default function StandaloneSettings({
     }
 
     try {
-      if (typeof onCreateWebhook === 'function') {
-        await onCreateWebhook(payload);
+      const response = await authFetch('/agency/webhooks', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: payload.name,
+          targetUrl: payload.target_url,
+          events: payload.events,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || (t('agency.webhook.create_error') || 'No se pudo crear el webhook.'));
       }
 
-      setWebhooks((prev) => [payload, ...prev]);
+      setWebhooks((prev) => [body?.webhook || payload, ...prev]);
       setShowNewWebhookModal(false);
       toast.success(t('agency.webhook.created') || 'Webhook creado.');
     } catch (error) {
@@ -344,8 +467,12 @@ export default function StandaloneSettings({
 
   const handleDeleteWebhook = async (id) => {
     try {
-      if (typeof onDeleteWebhook === 'function') {
-        await onDeleteWebhook(id);
+      const response = await authFetch(`/agency/webhooks/${id}`, {
+        method: 'DELETE',
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || (t('agency.webhook.delete_error') || 'No se pudo eliminar el webhook.'));
       }
 
       setWebhooks((prev) => prev.filter((item) => item.id !== id));

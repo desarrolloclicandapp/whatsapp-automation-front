@@ -1,200 +1,153 @@
 # Standalone App Status
 
-## Resumen actual
+## Resumen ejecutivo
 
-El sandbox `src/standalone-app/` ya funciona como una segunda interfaz dentro del mismo frontend.
+El standalone ya no esta solo en modo sandbox visual. Hoy existe un circuito real de punta a punta para:
 
-Entrada por URL:
+- entrar por `/crm` o `/standalone`
+- autenticarse con el flujo standalone
+- persistir `users.interface = 'standalone'`
+- aprovisionar una cuenta monocuenta real con Waflow Inbox hosted
+- cargar overview, settings, agents y accesos desde endpoints reales
+
+El flujo agency/default sigue separado:
 
 - `/` y `/agency` -> frontend actual
 - `/crm` y `/standalone` -> frontend standalone
 
-La bifurcacion principal ya esta integrada en [App.jsx](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/App.jsx) y se apoya en `userInterface` para evitar mezclar sesiones con el frontend incorrecto.
+## Estado actual por capa
 
-## Estado por pantalla
+### Backend y base de datos
 
-### Login
+Listo:
 
-Archivo:
+- columna `users.interface` creada y backfill aplicado en `init.js`
+- auth devuelve `interface`
+- onboarding standalone llama a aprovisionamiento real
+- `GET /agency/info` ya expone:
+  - `interface`
+  - `primary_location_id`
+  - `crm_type` efectivo
 
-- [StandaloneLogin.jsx](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/standalone-app/StandaloneLogin.jsx)
+Nuevo servicio clave:
 
-Estado:
+- `whatsapp-automation/src/services/standaloneProvisioningService.js`
 
-- funcional con endpoints reales del flujo OTP
-- envia `source: 'standalone_crm'`
-- copy ya adaptado a `cuenta/account` para el standalone
+Responsabilidad:
 
-### Layout
+- crear location unica
+- aprovisionar cuenta hosted de Waflow Inbox
+- crear inbox inicial
+- crear slot inicial
+- dejar acceso del mismo usuario final configurado
 
-Archivo:
+### Frontend standalone
 
-- [StandaloneLayout.jsx](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/standalone-app/StandaloneLayout.jsx)
+Listo:
 
-Estado:
+- `StandaloneLayout.jsx` ya usa `useStandaloneWorkspace.js`
+- `StandaloneDashboard.jsx` ya usa datos reales
+- `StandaloneSlotManager.jsx` ya usa endpoints reales
+- `StandaloneSettings.jsx` ya usa endpoints reales para settings principales
+- `StandaloneAgents.jsx` ya trabaja con `locationId` real
+- `StandaloneLogin.jsx` ya entrega `interface` standalone al cerrar el flujo
 
-- sidebar colapsable
-- tabs reales conectados
-- accesos rapidos de producto
-- modal de upgrade para `WaFloW CRM`
+Se mantiene cercano al original:
 
-### Overview
+- `StandaloneSubscription.jsx`
+- `StandaloneMessageBuilder.jsx`
 
-Archivos:
+## Que ya esta operando con datos reales
 
-- [StandaloneDashboard.jsx](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/standalone-app/StandaloneDashboard.jsx)
-- [StandaloneSlotManager.jsx](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/standalone-app/StandaloneSlotManager.jsx)
+### Login / onboarding
 
-Estado:
+- OTP email
+- OTP phone
+- `source: 'standalone_crm'`
+- persistencia de `interface`
+- aprovisionamiento monocuenta al completar perfil
 
-- vista monocuenta
-- stats superiores adaptadas
-- guia rapida con 3 cards
-- gestion plana de WhatsApp sin modal previoñ
+### Workspace loader
 
-Nota:
+- `/agency/info`
+- `/agency/locations`
+- `/agency/location-details/:locationId`
+- `/agency/chatwoot/access-info`
 
-- esta parte sigue con datos mock y toasts simulados
+### Gestion de WhatsApp
 
-### Billing
-
-Archivo:
-
-- [StandaloneSubscription.jsx](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/standalone-app/StandaloneSubscription.jsx)
-
-Estado:
-
-- clon cercano del gestor original
-- usa dependencias reales del panel actual
-- pega a endpoints reales de pagos
-
-### Agents
-
-Archivo:
-
-- [StandaloneAgents.jsx](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/standalone-app/StandaloneAgents.jsx)
-
-Estado:
-
-- clon del panel original
-- simplificado para monocuenta
-- mantiene `selectedLocationId` fijo en sandbox
-
-Riesgo:
-
-- para datos reales hay que reemplazar el `demo-location-123`
+- add slot
+- QR start
+- QR/status
+- reconnect
+- soft-disconnect
+- disconnect
+- delete slot
+- official API config
+- official API validate
+- QR share link
 
 ### Settings
 
-Archivo:
+- usuario maestro
+- OpenAI
+- API keys
+- webhooks
 
-- [StandaloneSettings.jsx](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/standalone-app/StandaloneSettings.jsx)
+## Riesgos y recomendaciones
 
-Estado:
+### 1. Aprovisionamiento real en VPS
 
-- menu simplificado
-- `Waflow WhatsApp`, `Integraciones`, `Desarrolladores`, `Apariencia`
-- OpenAI reducido a una sola cuenta
-- varios guardados siguen en modo local/mock si no se inyectan handlers reales
+Lo primero a validar en entorno real es:
 
-### Builder
+- alta nueva por `/crm`
+- creacion automatica de la location
+- creacion de la cuenta hosted de Waflow Inbox
+- creacion del inbox/slot inicial
+- apertura del acceso real de Waflow Inbox
 
-Archivo:
+### 2. Dependencias de Chatwoot
 
-- [StandaloneMessageBuilder.jsx](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/standalone-app/StandaloneMessageBuilder.jsx)
+El standalone real depende de que el stack hosted de Chatwoot este sano y de que las credenciales/config del servidor esten correctas:
 
-Estado:
+- base URL
+- provisioning service
+- webhook URL publica
+- secretos/tokens necesarios
 
-- clon directo del builder original
-- mantiene preview, copy al portapapeles y comando generado
+### 3. Billing y Agents
 
-## Copy e i18n
+Ambos ya estan mucho mas cerca del original, pero conviene probarlos de punta a punta con una cuenta standalone real para confirmar:
 
-Locales afectados:
+- refresco de limites despues de billing
+- carga correcta del workspace de agents con `locationId` real
 
-- [es.js](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/locales/es.js)
-- [en.js](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/locales/en.js)
+### 4. No mezclar sessiones manualmente
 
-Estado:
+La bifurcacion por `userInterface` ya esta integrada, pero la validacion real importante es abrir:
 
-- el standalone ya usa claves `standalone.*` para copy propio
-- en la UI standalone se prioriza:
-  - `WhatsApp` en vez de `Inbox`
-  - `Cuenta/Account` en vez de `Agencia/Agency` cuando aplica
+- `/`
+- `/agency`
+- `/crm`
+- `/standalone`
 
-## Que esta real y que esta mock
-
-Mas real:
-
-- login OTP
-- bifurcacion por URL
-- billing
-- parte importante de agents
-- builder
-
-Mas mock/sandbox:
-
-- overview
-- gestor de WhatsApp del dashboard
-- shortcut de `WaFloW Mensajeria`
-- modal de upgrade de `WaFloW CRM`
-- parte de settings
-
-## Recomendaciones
-
-### 1. No asumir que overview ya esta listo para produccion real
-
-`StandaloneDashboard` y `StandaloneSlotManager` estan pensados para maquetacion y flujo visual. Antes de usarlo con clientes reales conviene conectarlo a la data del usuario autenticado y reemplazar:
-
-- slots mock
-- `isWhatsAppConnected` mock
-- acciones `toast` de QR / reconexion / desconexion
-
-### 2. Resolver el `locationId` real en agents
-
-`StandaloneAgents.jsx` todavia usa `demo-location-123`. Ese es hoy el punto tecnico mas delicado del sandbox si se quiere operacion real consistente.
-
-### 3. Revisar billing con criterio standalone
-
-Funciona, pero todavia conviene hacer una pasada de copy y semantica para validar si quedan restos de lenguaje heredado de `subagency/account/chatwoot` que no encajen con el producto final standalone.
-
-### 4. Decidir el nombre final del modulo de mensajeria
-
-Hoy conviven referencias de:
-
-- `Waflow Inbox`
-- `Waflow WhatsApp`
-- shortcut `WaFloW Mensajeria`
-
-Conviene cerrar una convencion final antes de pulir los ultimos textos para no duplicar branding.
-
-### 5. Mantener sincronizacion con `admin`
-
-Como varias pantallas son clones cercanos del panel actual, cada cambio fuerte en `src/admin/` puede exigir resincronizacion manual de:
-
-- `StandaloneSubscription`
-- `StandaloneAgents`
-- `StandaloneMessageBuilder`
-
-### 6. Seguir registrando cambios en la bitacora
-
-El historial vivo sigue en:
-
-- [STANDALONE_APP_NOTES.md](/c:/Users/info/Documents/Waflow-Frontend/whatsapp-automation-front/admin-panel/src/standalone-app/STANDALONE_APP_NOTES.md)
-
-Este documento sirve mas como foto del estado actual y checklist de riesgos.
+con sesiones distintas para confirmar que no haya rebotes raros ni pantallas cruzadas.
 
 ## Verificacion reciente
 
-Ultima validacion hecha:
+Ejecutado:
 
 - `npm run build` en `whatsapp-automation-front/admin-panel`
 
 Resultado:
 
-- build ok
+- build OK
 
-Warnings no bloqueantes que siguen presentes:
+Limitacion de verificacion:
+
+- `node --check` sobre archivos backend no se pudo usar en este entorno por un error EPERM del sandbox/Windows al resolver rutas
+
+Warnings no bloqueantes conocidos:
 
 - `noscript` dentro de `head` en `index.html`
 - bundle grande de Vite

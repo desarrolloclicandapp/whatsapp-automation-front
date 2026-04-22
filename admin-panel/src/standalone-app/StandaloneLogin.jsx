@@ -173,6 +173,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
           token: data.token,
           role: 'agency',
           agencyId: data.agencyId || data.user?.agencyId,
+          interface: data.interface || data.user?.interface || 'standalone',
         });
       } else {
         toast.info(t('auth.verification_success_whatsapp'));
@@ -235,6 +236,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
         token: tempToken,
         role: 'agency',
         agencyId: tempAgencyId,
+        interface: 'standalone',
       });
     } catch (err) {
       toast.error(err.message);

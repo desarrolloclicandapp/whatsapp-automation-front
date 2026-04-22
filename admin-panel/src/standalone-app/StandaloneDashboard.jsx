@@ -1,75 +1,37 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
+  Loader2,
   MessageSquare,
   ShieldCheck,
   Smartphone,
   Sparkles,
   Zap,
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { useLanguage } from '../context/LanguageContext';
 import StandaloneSlotManager from './StandaloneSlotManager';
 
-const createInitialSlots = () => [
-  {
-    slot_id: 1,
-    slot_name: 'WhatsApp Principal',
-    is_connected: false,
-    phone_number: '',
-    settings: {
-      connection_mode: 'qr',
-      official_api: {
-        businessAccountId: '',
-        phoneNumberId: '',
-        accessToken: '',
-        status: 'draft',
-      },
-    },
-    health: {
-      sent_24h: 0,
-      number_quality_level: 'unknown',
-    },
-  },
-  {
-    slot_id: 2,
-    slot_name: 'WhatsApp Ventas',
-    is_connected: true,
-    phone_number: '595971234567',
-    settings: {
-      connection_mode: 'official_api',
-      official_api: {
-        businessAccountId: '1234567890',
-        phoneNumberId: '10987654321',
-        accessToken: 'EAAB-demo-token',
-        status: 'verified',
-      },
-    },
-    health: {
-      sent_24h: 37,
-      number_quality_level: 'good',
-    },
-  },
-];
-
-export default function StandaloneDashboard({ accountInfo }) {
+export default function StandaloneDashboard({
+  accountInfo,
+  primaryLocation,
+  primaryLocationId,
+  locationDetails,
+  onRefresh,
+  onOpenMessagingInbox,
+  onGoToBilling,
+  token,
+  onUnauthorized,
+}) {
   const { t } = useLanguage();
-  const [mockLocation, setMockLocation] = useState(() => ({
-    location_id: 'demo-location-123',
-    name: String(accountInfo?.name || accountInfo?.email || (t('standalone.dashboard.primary_account') || 'Cuenta principal')),
-    crm_type: String(accountInfo?.crm_type || 'chatwoot').toLowerCase(),
-    settings: {
-      crm_type: String(accountInfo?.crm_type || 'chatwoot').toLowerCase(),
-    },
-    slots: createInitialSlots(),
-  }));
 
-  const slots = Array.isArray(mockLocation.slots) ? mockLocation.slots : [];
-  const connectedSlots = slots.filter((slot) => slot.is_connected === true).length;
-  const usedSlots = slots.length;
-  const maxSlots = Number(accountInfo?.limits?.max_slots || Math.max(slots.length, 3));
-  const isWhatsAppConnected = false;
+  const slots = Array.isArray(locationDetails?.slots) ? locationDetails.slots : [];
+  const healthSummary = locationDetails?.healthSummary || {};
+  const connectedSlots = Number(healthSummary.connected_slots || 0);
+  const usedSlots = Number(accountInfo?.limits?.used_slots || slots.length || 0);
+  const maxSlots = Number(accountInfo?.limits?.max_slots || 1);
+  const isWhatsAppConnected = connectedSlots > 0;
+
   const quickStartSteps = useMemo(
     () => [
       {
@@ -81,13 +43,11 @@ export default function StandaloneDashboard({ accountInfo }) {
         actionLabel: t('standalone.dashboard.quick_start_step_whatsapp_cta') || 'Gestionar',
         doneLabel: t('standalone.dashboard.quick_start_step_whatsapp_done') || 'WhatsApp listo',
         done: slots.length > 0,
-        onClick: () => {
-          document.getElementById('slot-card-1')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          toast.info(
-            t('standalone.dashboard.toast_review_whatsapp_section') ||
-              'Accion simulada en Sandbox: revisa la seccion de WhatsApp',
-          );
-        },
+        onClick: () =>
+          document.getElementById('standalone-whatsapp-manager')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          }),
       },
       {
         id: 'online',
@@ -98,13 +58,11 @@ export default function StandaloneDashboard({ accountInfo }) {
         actionLabel: t('standalone.dashboard.quick_start_step_online_cta') || 'Conectar WhatsApp',
         doneLabel: t('standalone.dashboard.quick_start_step_online_done') || 'En linea',
         done: connectedSlots > 0,
-        onClick: () => {
-          document.getElementById('slot-card-1')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          toast.info(
-            t('standalone.dashboard.toast_connect_whatsapp') ||
-              'Accion simulada en Sandbox: conecta un WhatsApp desde el panel inferior',
-          );
-        },
+        onClick: () =>
+          document.getElementById('standalone-whatsapp-manager')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          }),
       },
       {
         id: 'chat',
@@ -117,17 +75,25 @@ export default function StandaloneDashboard({ accountInfo }) {
         done: isWhatsAppConnected,
         disabled: !isWhatsAppConnected,
         icon: <MessageSquare size={14} />,
-        onClick: () => {
-          if (!isWhatsAppConnected) return;
-          window.open('https://sandbox-inbox.waflow.local', '_blank', 'noopener,noreferrer');
-        },
+        onClick: onOpenMessagingInbox,
       },
     ],
-    [connectedSlots, isWhatsAppConnected, slots.length, t],
+    [connectedSlots, isWhatsAppConnected, onOpenMessagingInbox, slots.length, t],
   );
 
   const quickStartDoneCount = quickStartSteps.filter((step) => step.done).length;
   const needsQuickStartGuide = quickStartDoneCount < quickStartSteps.length;
+
+  if (!accountInfo) {
+    return (
+      <div className="min-h-[55vh] flex items-center justify-center text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-3">
+          <Loader2 size={20} className="animate-spin" />
+          <span>{t('common.loading') || 'Cargando...'}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-right-4 space-y-6">
@@ -147,40 +113,51 @@ export default function StandaloneDashboard({ accountInfo }) {
           </div>
         </div>
 
-        <div className={`rounded-2xl p-5 border shadow-sm hover:shadow-md transition-shadow ${
-          accountInfo?.plan === 'active'
-            ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-transparent'
-            : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800'
-        }`}>
+        <div
+          className={`rounded-2xl p-5 border shadow-sm hover:shadow-md transition-shadow ${
+            accountInfo?.plan === 'active'
+              ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-transparent'
+              : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800'
+          }`}
+        >
           <div className="flex items-center justify-between mb-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-              accountInfo?.plan === 'active' ? 'bg-white/20' : 'bg-amber-100 dark:bg-amber-900/30'
-            }`}>
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                accountInfo?.plan === 'active' ? 'bg-white/20' : 'bg-amber-100 dark:bg-amber-900/30'
+              }`}
+            >
               <ShieldCheck
                 size={20}
                 className={accountInfo?.plan === 'active' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}
               />
             </div>
-            <span className={`text-xs font-medium uppercase tracking-wide ${
-              accountInfo?.plan === 'active' ? 'text-blue-200' : 'text-gray-400'
-            }`}>
+            <span
+              className={`text-xs font-medium uppercase tracking-wide ${
+                accountInfo?.plan === 'active' ? 'text-blue-200' : 'text-gray-400'
+              }`}
+            >
               {t('dash.stats.plan') || 'Plan Actual'}
             </span>
           </div>
-          <div className={`text-xl font-bold ${
-            accountInfo?.plan === 'active' ? 'text-white' : 'text-gray-900 dark:text-white'
-          }`}>
-            {accountInfo?.plan === 'active' ? (t('dash.stats.active') || 'Activo') : (t('dash.stats.trial') || 'Trial')}
+          <div
+            className={`text-xl font-bold ${
+              accountInfo?.plan === 'active' ? 'text-white' : 'text-gray-900 dark:text-white'
+            }`}
+          >
+            {accountInfo?.plan === 'active'
+              ? t('dash.stats.active') || 'Activo'
+              : t('dash.stats.trial') || 'Trial'}
           </div>
           {accountInfo?.trial_ends && (
-            <div className={`text-xs mt-1 ${
-              accountInfo?.plan === 'active' ? 'text-blue-200' : 'text-amber-600 dark:text-amber-400'
-            }`}>
+            <div
+              className={`text-xs mt-1 ${
+                accountInfo?.plan === 'active' ? 'text-blue-200' : 'text-amber-600 dark:text-amber-400'
+              }`}
+            >
               Fin: {new Date(accountInfo.trial_ends).toLocaleDateString()}
             </div>
           )}
         </div>
-
       </div>
 
       {accountInfo?.plan === 'trial' && (
@@ -199,7 +176,7 @@ export default function StandaloneDashboard({ accountInfo }) {
             </div>
           </div>
           <button
-            onClick={() => toast.info('Accion simulada en Sandbox: revisa la pestana de suscripcion')}
+            onClick={onGoToBilling}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-sm transition"
           >
             {t('standalone.dashboard.choose_plan') || 'Elegir plan'}
@@ -218,16 +195,14 @@ export default function StandaloneDashboard({ accountInfo }) {
                 </h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {t('standalone.dashboard.quick_start_desc') ||
-                    'Dos pasos para dejar listo tu primer WhatsApp en esta cuenta.'}
+                    'Tres pasos para dejar lista tu cuenta y empezar a responder mensajes.'}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="inline-flex items-center rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-bold text-indigo-600 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300">
-                  {(t('standalone.dashboard.quick_start_progress') || '{done}/{total} listos')
-                    .replace('{done}', String(quickStartDoneCount))
-                    .replace('{total}', String(quickStartSteps.length))}
-                </span>
-              </div>
+              <span className="inline-flex items-center rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-bold text-indigo-600 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300">
+                {(t('standalone.dashboard.quick_start_progress') || '{done}/{total} listos')
+                  .replace('{done}', String(quickStartDoneCount))
+                  .replace('{total}', String(quickStartSteps.length))}
+              </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -241,11 +216,13 @@ export default function StandaloneDashboard({ accountInfo }) {
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                      step.done
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
-                    }`}>
+                    <div
+                      className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                        step.done
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                      }`}
+                    >
                       {step.done ? <CheckCircle2 size={16} /> : index + 1}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -261,8 +238,8 @@ export default function StandaloneDashboard({ accountInfo }) {
                         step.disabled
                           ? 'cursor-not-allowed bg-gray-200 text-gray-500 opacity-50 dark:bg-gray-800 dark:text-gray-400'
                           : step.done
-                          ? 'border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100/80 dark:border-emerald-700 dark:bg-gray-900 dark:text-emerald-300 dark:hover:bg-emerald-900/30'
-                          : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            ? 'border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100/80 dark:border-emerald-700 dark:bg-gray-900 dark:text-emerald-300 dark:hover:bg-emerald-900/30'
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
                       }`}
                     >
                       {step.icon || (step.done ? <CheckCircle2 size={14} /> : <ArrowRight size={14} />)}
@@ -277,9 +254,14 @@ export default function StandaloneDashboard({ accountInfo }) {
       )}
 
       <StandaloneSlotManager
-        location={mockLocation}
-        initialSlots={slots}
-        onSlotsChange={(nextSlots) => setMockLocation((prev) => ({ ...prev, slots: nextSlots }))}
+        token={token}
+        locationId={primaryLocationId}
+        locationName={primaryLocation?.name || locationDetails?.name || ''}
+        crmType={locationDetails?.crmType || primaryLocation?.settings?.crm_type || accountInfo?.crm_type || 'chatwoot'}
+        slots={slots}
+        healthSummary={healthSummary}
+        onRefresh={onRefresh}
+        onUnauthorized={onUnauthorized}
       />
     </div>
   );

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import {
-  LayoutGrid,
+  Bot,
   CreditCard,
+  Hammer,
+  LayoutGrid,
   LifeBuoy,
+  Loader2,
   LogOut,
   Menu,
   Settings,
-  Hammer,
-  Bot,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -20,6 +21,7 @@ import StandaloneSubscription from './StandaloneSubscription';
 import StandaloneAgents from './StandaloneAgents';
 import StandaloneSettings from './StandaloneSettings';
 import StandaloneMessageBuilder from './StandaloneMessageBuilder';
+import useStandaloneWorkspace from './useStandaloneWorkspace';
 
 const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '34611770270';
 
@@ -27,43 +29,82 @@ export default function StandaloneLayout({
   onLogout,
   onUnauthorized,
   token,
-  accountInfo,
   onDataChange,
-  initialPlanType = 'starter',
-  initialIsWhatsAppConnected = false,
 }) {
   const { t } = useLanguage();
   const { branding } = useBranding();
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [planType] = useState(initialPlanType);
-  const [isWhatsAppConnected] = useState(initialIsWhatsAppConnected);
+
+  const {
+    accountInfo,
+    primaryLocation,
+    primaryLocationId,
+    locationDetails,
+    chatwootAccessInfo,
+    isWhatsAppConnected,
+    loading,
+    planType,
+    refreshWorkspace,
+  } = useStandaloneWorkspace({
+    token,
+    onUnauthorized: onUnauthorized || onLogout,
+  });
 
   const showsMessagingProduct = planType === 'trial' || planType === 'starter';
 
   const handleLogout = () => {
-    if (typeof onLogout === 'function') {
-      onLogout();
-    }
+    onLogout?.();
   };
 
-  const handleMessagingShortcut = () => {
-    if (isWhatsAppConnected) {
-      window.open('https://sandbox-inbox.waflow.local', '_blank', 'noopener,noreferrer');
+  const handleWorkspaceRefresh = () => {
+    refreshWorkspace();
+    onDataChange?.();
+  };
+
+  const openInbox = async () => {
+    const directUrl =
+      chatwootAccessInfo?.chatwoot?.directLoginUrl ||
+      chatwootAccessInfo?.chatwoot?.loginUrl ||
+      chatwootAccessInfo?.chatwoot?.dashboardUrl ||
+      null;
+
+    if (!directUrl) {
+      toast.error(
+        t('standalone.layout.messaging_unavailable') ||
+          'Todavia no hay acceso disponible para Waflow Inbox en esta cuenta.',
+      );
       return;
     }
 
-    toast.info(
-      t('standalone.layout.messaging_connect_simulation') ||
-        'Simulacion: Abriendo modal de conexion QR...',
-    );
+    window.open(directUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleMessagingShortcut = () => {
+    if (!isWhatsAppConnected) {
+      setActiveTab('overview');
+      document.getElementById('standalone-whatsapp-manager')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+      toast.info(
+        t('standalone.layout.messaging_connect_hint') ||
+          'Primero conecta tu WhatsApp desde el panel principal.',
+      );
+      return;
+    }
+
+    openInbox();
   };
 
   const handleCrmShortcut = () => {
     if (showsMessagingProduct) {
       setShowUpgradeModal(true);
+      return;
     }
+
+    setActiveTab('billing');
   };
 
   const handleUpgradeRedirect = () => {
@@ -83,8 +124,31 @@ export default function StandaloneLayout({
             : t('standalone.layout.header_settings') || 'Configuracion';
 
   const renderContent = () => {
+    if (loading && !accountInfo) {
+      return (
+        <div className="min-h-[60vh] flex items-center justify-center text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-3">
+            <Loader2 size={20} className="animate-spin" />
+            <span>{t('common.loading') || 'Cargando...'}</span>
+          </div>
+        </div>
+      );
+    }
+
     if (activeTab === 'overview') {
-      return <StandaloneDashboard accountInfo={accountInfo} />;
+      return (
+        <StandaloneDashboard
+          accountInfo={accountInfo}
+          primaryLocation={primaryLocation}
+          primaryLocationId={primaryLocationId}
+          locationDetails={locationDetails}
+          onRefresh={handleWorkspaceRefresh}
+          onOpenMessagingInbox={openInbox}
+          onGoToBilling={() => setActiveTab('billing')}
+          token={token}
+          onUnauthorized={onUnauthorized || onLogout}
+        />
+      );
     }
 
     if (activeTab === 'billing') {
@@ -92,29 +156,39 @@ export default function StandaloneLayout({
         <StandaloneSubscription
           token={token}
           accountInfo={accountInfo}
-          onDataChange={onDataChange}
+          onDataChange={handleWorkspaceRefresh}
           isChatwootAgency={String(accountInfo?.crm_type || '').toLowerCase() === 'chatwoot'}
         />
       );
     }
 
     if (activeTab === 'agents') {
-      return <StandaloneAgents token={token} onUnauthorized={onUnauthorized || onLogout} />;
+      return (
+        <StandaloneAgents
+          token={token}
+          locationId={primaryLocationId}
+          onUnauthorized={onUnauthorized || onLogout}
+        />
+      );
     }
 
     if (activeTab === 'settings') {
-      return <StandaloneSettings accountInfo={accountInfo} />;
+      return (
+        <StandaloneSettings
+          token={token}
+          accountInfo={accountInfo}
+          locationId={primaryLocationId}
+          onUnauthorized={onUnauthorized || onLogout}
+          onDataChange={handleWorkspaceRefresh}
+        />
+      );
     }
 
     if (activeTab === 'builder') {
       return <StandaloneMessageBuilder />;
     }
 
-    return (
-      <div className="p-8 text-gray-500 dark:text-gray-400">
-        {t('standalone.layout.current_view') || 'Contenido de la vista'}: {activeTab}
-      </div>
-    );
+    return null;
   };
 
   return (
@@ -125,15 +199,15 @@ export default function StandaloneLayout({
         <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden"
-            style={{ backgroundColor: branding?.logoUrl ? 'transparent' : (branding?.primaryColor || '#4F46E5') }}
+            style={{ backgroundColor: branding?.logoUrl ? 'transparent' : branding?.primaryColor || '#4F46E5' }}
           >
             {branding?.logoUrl ? (
               <img
                 src={branding.logoUrl}
                 alt={branding?.name || 'Brand'}
                 className="w-full h-full object-contain"
-                onError={(e) => {
-                  e.target.style.display = 'none';
+                onError={(event) => {
+                  event.target.style.display = 'none';
                 }}
               />
             ) : (
@@ -170,7 +244,7 @@ export default function StandaloneLayout({
                   onClick={handleMessagingShortcut}
                   className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300 dark:border-green-900/40 dark:hover:bg-green-900/30"
                 >
-                  <div className="w-2 h-2 rounded-full bg-green-500 shrink-0"></div>
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${isWhatsAppConnected ? 'bg-green-500' : 'bg-amber-400'}`}></div>
                   <span>{t('standalone.layout.product_messaging') || 'WaFloW Mensajeria'}</span>
                 </button>
               )}
@@ -178,7 +252,7 @@ export default function StandaloneLayout({
               <button
                 type="button"
                 onClick={handleCrmShortcut}
-                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/40"
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/40 dark:hover:bg-blue-900/30"
               >
                 <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></div>
                 <span>{t('standalone.layout.product_crm') || 'WaFloW CRM'}</span>
@@ -225,17 +299,15 @@ export default function StandaloneLayout({
 
           <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
 
-          <div className="space-y-1">
-            <a
-              href={`https://wa.me/${SUPPORT_PHONE}`}
-              target="_blank"
-              rel="noreferrer"
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10"
-            >
-              <LifeBuoy size={20} />
-              {sidebarOpen && <span>{t('standalone.layout.support') || 'Soporte'}</span>}
-            </a>
-          </div>
+          <a
+            href={`https://wa.me/${SUPPORT_PHONE}`}
+            target="_blank"
+            rel="noreferrer"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10"
+          >
+            <LifeBuoy size={20} />
+            {sidebarOpen && <span>{t('standalone.layout.support') || 'Soporte'}</span>}
+          </a>
         </div>
 
         <div className="p-4 border-t border-gray-200 dark:border-gray-800">
@@ -258,7 +330,14 @@ export default function StandaloneLayout({
             >
               <Menu size={20} />
             </button>
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{headerTitle}</h2>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{headerTitle}</h2>
+              {primaryLocation?.name && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {primaryLocation.name}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
@@ -268,7 +347,12 @@ export default function StandaloneLayout({
               className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm"
               style={{ backgroundColor: branding?.primaryColor || '#4F46E5' }}
             >
-              {t('standalone.layout.profile_initials') || 'AG'}
+              {String(accountInfo?.name || accountInfo?.email || 'WA')
+                .split(/\s+/)
+                .map((chunk) => chunk.charAt(0))
+                .join('')
+                .slice(0, 2)
+                .toUpperCase()}
             </div>
           </div>
         </header>

@@ -225,11 +225,11 @@ function EditorSection({ title, description, children, className = "" }) {
     );
 }
 
-export default function StandaloneAgents({ onUnauthorized, token }) {
+export default function StandaloneAgents({ onUnauthorized, token, locationId }) {
     const languageContext = useLanguage();
     const t = typeof languageContext?.t === "function" ? languageContext.t : ((key) => key);
     const documentInputRef = useRef(null);
-    const [selectedLocationId] = useState("demo-location-123");
+    const [selectedLocationId, setSelectedLocationId] = useState(() => String(locationId || "").trim());
     const [workspace, setWorkspace] = useState(null);
     const [viewMode, setViewMode] = useState("list");
     const [editingAgentId, setEditingAgentId] = useState(null);
@@ -326,6 +326,10 @@ export default function StandaloneAgents({ onUnauthorized, token }) {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        setSelectedLocationId(String(locationId || "").trim());
+    }, [locationId]);
 
     useEffect(() => {
         if (selectedLocationId) {
