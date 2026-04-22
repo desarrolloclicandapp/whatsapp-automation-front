@@ -18,6 +18,18 @@ La meta del trabajo fue:
 
 ## Historial resumido
 
+### Ajuste reciente: conexion real y facturacion standalone
+
+Se hizo una pasada adicional para acercar aun mas el standalone al comportamiento del panel original:
+
+- `StandaloneSlotManager.jsx` ahora incrusta la logica real del bloque QR/reconexion/pausa/desconexion/URL compartida del componente original
+- `StandaloneSettings.jsx` deja de exponer la pestaña intermedia de `Waflow WhatsApp`; el acceso operativo queda directo desde el boton lateral
+- `StandaloneLayout.jsx` sincroniza `tab` con la URL para que billing vuelva al lugar correcto
+- `StandaloneLayout.jsx` deja de forzar el catalogo/labels tipo `Chatwoot` dentro del flujo de billing
+- `whatsapp-automation/src/services/stripeService.js` ya distingue agency vs standalone para:
+  - checkout success/cancel
+  - retorno del portal de Stripe
+
 ### Etapa 1: estructura visual inicial
 
 Se crearon las bases del standalone:
@@ -134,11 +146,19 @@ Cambios principales de frontend:
   - delete slot
   - official API config/validate
   - QR share link
+- el bloque QR replica el flujo real del original:
+  - polling de QR
+  - estados de suspension de cuenta/slot
+  - reconexion
+  - pausa
+  - desconexion
+  - URL QR compartida
 
 ### Billing
 
 - se mantiene como clon cercano del gestor original
 - sigue usando dependencias reales del panel actual
+- Stripe ya vuelve a `/crm?tab=billing` cuando la cuenta pertenece a interfaz 2
 
 ### Agents
 
@@ -147,10 +167,10 @@ Cambios principales de frontend:
 
 ### Settings
 
-- Waflow WhatsApp conectado a usuario maestro real
 - OpenAI conectado a `/agency/settings`
 - API keys y webhooks conectados a endpoints reales
 - apariencia sigue la base visual del original
+- ya no se muestra una pestaña intermedia de Waflow WhatsApp dentro de la configuracion standalone
 
 ### Builder
 

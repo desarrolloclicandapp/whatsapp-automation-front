@@ -47,12 +47,13 @@ Listo:
 
 - `StandaloneLayout.jsx` ya usa `useStandaloneWorkspace.js`
 - `StandaloneDashboard.jsx` ya usa datos reales
-- `StandaloneSlotManager.jsx` ya usa endpoints reales
-- `StandaloneSettings.jsx` ya usa endpoints reales para settings principales
+- `StandaloneSlotManager.jsx` ya usa endpoints reales y ahora monta el flujo QR original dentro del standalone
+- `StandaloneSettings.jsx` ya usa endpoints reales para settings principales sin exponer una pestaña intermedia de Waflow WhatsApp
 - `StandaloneAgents.jsx` ya trabaja con `locationId` real
 - `StandaloneLogin.jsx` ya entrega `interface` standalone al cerrar el flujo
 - `App.jsx` ya revalida la interfaz operativa con `/agency/info`
 - layout/dashboard/slots/login ya no muestran copy de prueba ni claves `standalone.*` en pantalla
+- `StandaloneLayout.jsx` sincroniza tabs con query params para convivir mejor con Stripe
 
 Se mantiene cercano al original:
 
@@ -88,13 +89,19 @@ Se mantiene cercano al original:
 - official API config
 - official API validate
 - QR share link
+- el bloque QR/reconexion ahora replica el comportamiento operativo del componente original
 
 ### Settings
 
-- usuario maestro
 - OpenAI
 - API keys
 - webhooks
+
+### Billing
+
+- checkout y portal de Stripe ya distinguen `users.interface`
+- standalone vuelve a `/crm?tab=billing`
+- agency mantiene su retorno historico
 
 ## Riesgos y recomendaciones
 
@@ -123,6 +130,7 @@ Ambos ya estan mucho mas cerca del original, pero conviene probarlos de punta a 
 
 - refresco de limites despues de billing
 - carga correcta del workspace de agents con `locationId` real
+- retorno correcto desde checkout y portal a `billing` del standalone
 
 ### 4. No mezclar sessiones manualmente
 

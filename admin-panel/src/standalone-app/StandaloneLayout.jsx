@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Bot,
   CreditCard,
@@ -34,7 +34,13 @@ export default function StandaloneLayout({
 }) {
   const { t } = useLanguage();
   const { branding } = useBranding();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedTab = String(params.get('tab') || '').trim().toLowerCase();
+    return ['overview', 'billing', 'agents', 'settings', 'builder'].includes(requestedTab)
+      ? requestedTab
+      : 'overview';
+  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
@@ -55,6 +61,19 @@ export default function StandaloneLayout({
   });
 
   const showsMessagingProduct = planType === 'trial' || planType === 'starter';
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (activeTab === 'overview') {
+      params.delete('tab');
+    } else {
+      params.set('tab', activeTab);
+    }
+
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
+    window.history.replaceState({}, document.title, nextUrl);
+  }, [activeTab]);
 
   const handleLogout = () => {
     onLogout?.();
@@ -184,7 +203,7 @@ export default function StandaloneLayout({
           token={token}
           accountInfo={accountInfo}
           onDataChange={handleWorkspaceRefresh}
-          isChatwootAgency={String(accountInfo?.crm_type || '').toLowerCase() === 'chatwoot'}
+          isChatwootAgency={false}
         />
       );
     }

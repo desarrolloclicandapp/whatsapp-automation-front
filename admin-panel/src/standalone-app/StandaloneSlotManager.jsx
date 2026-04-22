@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'react-qr-code';
 import {
+  AlertTriangle,
   Copy,
   Edit2,
   Link2,
   Loader2,
+  Play,
   Plus,
   Power,
   QrCode,
@@ -179,15 +181,9 @@ export default function StandaloneSlotManager({
 
     if (getConnectionMode(expandedSlot) === 'official_api') {
       loadOfficialConfig(expandedSlot.slot_id);
-      return undefined;
     }
 
-    fetchSlotRealtime(expandedSlot.slot_id);
-    const interval = window.setInterval(() => {
-      fetchSlotRealtime(expandedSlot.slot_id);
-    }, 5000);
-
-    return () => window.clearInterval(interval);
+    return undefined;
   }, [expandedSlotId, locationId, localSlots]);
 
   const handleAddSlot = async () => {
@@ -650,15 +646,12 @@ export default function StandaloneSlotManager({
                           )}
 
                           {activeTab === 'connection' && connectionMode === 'qr' && (
-                            <QrPanel
+                            <StandaloneSlotConnectionManager
                               slot={slot}
-                              qrData={qrData}
-                              loading={qrLoadingBySlot[slotId] || isBusy}
-                              onStartQr={() => handleStartQr(slotId)}
-                              onSoftDisconnect={() => handleSoftDisconnect(slotId)}
-                              onReconnect={() => handleReconnect(slotId)}
-                              onDisconnect={() => handleDisconnect(slotId)}
-                              onCopyShareUrl={() => handleCopyShareUrl(slotId)}
+                              locationId={locationId}
+                              token={token}
+                              onUpdate={refreshAndKeepExpanded}
+                              onUnauthorized={onUnauthorized}
                             />
                           )}
 
@@ -761,6 +754,632 @@ function GeneralPanel({ slot, connectionMode, onSwitchMode }) {
           Cambiar a {connectionMode === 'official_api' ? 'Conexion QR' : 'API Oficial'}
         </button>
       </div>
+    </div>
+  );
+}
+
+function StandaloneSlotConnectionManager({
+  slot,
+  locationId,
+  token,
+  onUpdate,
+  onUnauthorized,
+}) {
+  const { t } = useLanguage();
+  const [status, setStatus] = useState({
+    connected: slot?.is_connected === true,
+    myNumber: slot?.phone_number || null,
+  });
+  const [qr, setQr] = useState(null);
+  const [qrUpdatedAt, setQrUpdatedAt] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [accountSuspensionState, setAccountSuspensionState] = useState(null);
+  const [slotSuspendedBy, setSlotSuspendedBy] = useState(slot?.suspended_by || null);
+  const [slotLockMessage, setSlotLockMessage] = useState(null);
+  const [qrExpired, setQrExpired] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
+  const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
+  const pollInterval = useRef(null);
+
+  const authFetch = async (endpoint, options = {}) => {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        ...options.headers,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.status === 401) {
+      onUnauthorized?.();
+      throw new Error(t('agency.session_expired'));
+    }
+
+    return response;
+  };
+
+  const readAccessError = async (response) => {
+    if (!response || response.status !== 403) return null;
+    const body = await response.clone().json().catch(() => null);
+    if (!body?.error) return null;
+
+    if (body.error === 'account_suspended') {
+      return {
+        kind: 'account',
+        status: body.suspension_status || 'suspended',
+        message:
+          body.message ||
+          'Tu cuenta esta suspendida. No puedes vincular numeros en este momento.',
+      };
+    }
+
+    if (body.error === 'slot_suspended') {
+      return {
+        kind: 'slot',
+        status: body.suspended_by || 'system',
+        message: body.message || 'Este slot esta temporalmente suspendido.',
+      };
+    }
+
+    if (body.error === 'admin_lock') {
+      return {
+        kind: 'admin_lock',
+        status: 'admin',
+        message:
+          body.message ||
+          'Este slot fue suspendido por administracion y no puede reconectarse.',
+      };
+    }
+
+    return null;
+  };
+
+  const stopPolling = () => {
+    if (pollInterval.current) {
+      window.clearTimeout(pollInterval.current);
+      pollInterval.current = null;
+    }
+  };
+
+  const applyAccessError = (accessError) => {
+    if (!accessError) return false;
+
+    if (accessError.kind === 'account') {
+      setAccountSuspensionState(accessError);
+    }
+
+    if (accessError.kind === 'slot' || accessError.kind === 'admin_lock') {
+      setSlotSuspendedBy(accessError.status || 'system');
+      setSlotLockMessage(accessError.message || null);
+    }
+
+    setLoading(false);
+    setQr(null);
+    setQrUpdatedAt(null);
+    setQrExpired(false);
+    stopPolling();
+    return true;
+  };
+
+  const checkStatus = async () => {
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/status`,
+      );
+      const accessError = await readAccessError(response);
+      if (applyAccessError(accessError)) return;
+
+      if (response.ok) {
+        const body = await response.json();
+        setAccountSuspensionState(null);
+        setStatus({ connected: body.connected, myNumber: body.myNumber });
+        setSlotSuspendedBy(body.suspended_by || null);
+        if (!body.suspended_by) setSlotLockMessage(null);
+
+        if (body.connected) {
+          setQr(null);
+          setQrUpdatedAt(null);
+          setLoading(false);
+          stopPolling();
+          await Promise.resolve(onUpdate?.());
+        }
+      }
+    } catch {
+      // Silent on purpose: original behavior keeps polling lightweight.
+    }
+  };
+
+  useEffect(() => {
+    checkStatus();
+    return () => stopPolling();
+  }, [locationId, slot?.slot_id]);
+
+  useEffect(() => {
+    setShareUrl('');
+    setIsGeneratingShareUrl(false);
+    setQrExpired(false);
+  }, [locationId, slot?.slot_id]);
+
+  useEffect(() => {
+    const nextConnected = slot?.is_connected === true;
+    const nextNumber = slot?.phone_number || null;
+
+    setStatus((current) => {
+      const resolvedNumber = nextNumber || current.myNumber || null;
+      if (current.connected === nextConnected && current.myNumber === resolvedNumber) {
+        return current;
+      }
+      return {
+        connected: nextConnected,
+        myNumber: resolvedNumber,
+      };
+    });
+
+    setSlotSuspendedBy(slot?.suspended_by || null);
+
+    if (nextConnected) {
+      setQr(null);
+      setQrUpdatedAt(null);
+      setQrExpired(false);
+      setLoading(false);
+      stopPolling();
+    }
+  }, [slot?.slot_id, slot?.is_connected, slot?.phone_number, slot?.suspended_by]);
+
+  const handleConnect = async () => {
+    if (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system') {
+      toast.error('Este WhatsApp esta bloqueado temporalmente');
+      return;
+    }
+
+    setLoading(true);
+    setQrExpired(false);
+    setQr(null);
+    setQrUpdatedAt(null);
+
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/start`,
+        { method: 'POST' },
+      );
+      const accessError = await readAccessError(response);
+      if (applyAccessError(accessError)) return;
+
+      if (!response.ok) throw new Error('Fallo al iniciar');
+
+      setAccountSuspensionState(null);
+      stopPolling();
+      let sawFreshQr = false;
+
+      const pollStep = async () => {
+        try {
+          const qrResponse = await authFetch(
+            `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/qr`,
+          );
+          const qrError = await readAccessError(qrResponse);
+          if (applyAccessError(qrError)) return;
+
+          if (qrResponse.ok) {
+            const data = await qrResponse.json();
+            const nextQrUpdatedAt = data.qrUpdatedAt || null;
+            const nextQr = data.qr || null;
+            const stillWaitingForQr = data.waitingForQr === true;
+            setQrUpdatedAt(nextQrUpdatedAt);
+            setQr(nextQr);
+
+            if (nextQr) {
+              sawFreshQr = true;
+            } else if (!data.connected && sawFreshQr && !stillWaitingForQr) {
+              setLoading(false);
+              setQrExpired(true);
+              stopPolling();
+              return;
+            }
+
+            if (data.connected) {
+              await checkStatus();
+              return;
+            }
+          }
+        } catch {
+          // Silent on purpose: polling will retry.
+        }
+
+        pollInterval.current = window.setTimeout(pollStep, 3000);
+      };
+
+      pollStep();
+    } catch {
+      toast.error('Error iniciando conexion');
+      setLoading(false);
+    }
+  };
+
+  const handleSoftDisconnect = async () => {
+    if (!window.confirm('Pausar este dispositivo sin borrar la sesion?')) return;
+    setLoading(true);
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/soft-disconnect`,
+        { method: 'POST' },
+      );
+      const accessError = await readAccessError(response);
+      if (applyAccessError(accessError)) return;
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || 'No se pudo pausar');
+      }
+
+      const body = await response.json().catch(() => ({}));
+      const newLock = body.suspended_by || 'agency';
+
+      setStatus({ connected: false, myNumber: status.myNumber || slot.phone_number || null });
+      setSlotSuspendedBy(newLock);
+      setSlotLockMessage(
+        newLock === 'admin'
+          ? 'Pausado por administracion. Solo admin puede reactivar.'
+          : 'Pausado por ti. Puedes reconectar sin escanear QR.',
+      );
+      setQrExpired(false);
+      setQr(null);
+      setQrUpdatedAt(null);
+      stopPolling();
+      await Promise.resolve(onUpdate?.());
+      toast.success('WhatsApp pausado');
+    } catch (error) {
+      toast.error(error.message || 'Error pausando el WhatsApp');
+    }
+    setLoading(false);
+  };
+
+  const handleReconnect = async () => {
+    if (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system') {
+      toast.error('Este WhatsApp esta bloqueado temporalmente');
+      return;
+    }
+
+    if (accountSuspensionState) {
+      toast.error('No puedes reconectar mientras tu cuenta este en gracia o suspendida');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/reconnect`,
+        { method: 'POST' },
+      );
+      const accessError = await readAccessError(response);
+      if (applyAccessError(accessError)) return;
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || 'No se pudo reconectar');
+      }
+
+      setSlotSuspendedBy(null);
+      setSlotLockMessage(null);
+      setAccountSuspensionState(null);
+      setQrExpired(false);
+      setQr(null);
+      setQrUpdatedAt(null);
+      toast.success('Reconectando...');
+
+      stopPolling();
+
+      const reconnectPollStep = async () => {
+        await checkStatus();
+        if (pollInterval.current) {
+          pollInterval.current = window.setTimeout(reconnectPollStep, 4000);
+        }
+      };
+
+      pollInterval.current = window.setTimeout(reconnectPollStep, 4000);
+      setLoading(false);
+    } catch (error) {
+      toast.error(error.message || 'Error reconectando el WhatsApp');
+      setLoading(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!window.confirm('Desconectar este dispositivo?')) return;
+    setLoading(true);
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/disconnect`,
+        { method: 'DELETE' },
+      );
+      const accessError = await readAccessError(response);
+      if (applyAccessError(accessError)) return;
+
+      if (!response.ok) throw new Error('Error desconectando');
+
+      setStatus({ connected: false, myNumber: null });
+      setSlotSuspendedBy(null);
+      setSlotLockMessage(null);
+      setQrExpired(false);
+      setQr(null);
+      setQrUpdatedAt(null);
+      stopPolling();
+      await Promise.resolve(onUpdate?.());
+      toast.success('WhatsApp desconectado');
+    } catch {
+      toast.error('Error desconectando el WhatsApp');
+    }
+    setLoading(false);
+  };
+
+  const handleGenerateShareUrl = async () => {
+    setIsGeneratingShareUrl(true);
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/qr-share-link`,
+        { method: 'POST' },
+      );
+      const accessError = await readAccessError(response);
+      if (applyAccessError(accessError)) return;
+
+      if (!response?.ok) {
+        const errorBody = await response?.json().catch(() => ({}));
+        throw new Error(errorBody?.error || 'No se pudo generar la URL QR');
+      }
+
+      const body = await response.json().catch(() => ({}));
+      if (!body?.shareUrl) throw new Error('No se pudo generar la URL QR');
+
+      setShareUrl(body.shareUrl);
+      try {
+        await navigator.clipboard.writeText(body.shareUrl);
+        toast.success(t('slots.share.link_ready') || 'URL QR generada', {
+          description:
+            t('slots.share.link_ready_slot_desc') ||
+            'Tu cliente podra abrirla y generar manualmente el QR de este slot cuando lo necesite.',
+        });
+      } catch {
+        toast.success(t('slots.share.link_ready') || 'URL QR generada', {
+          description:
+            t('slots.share.copy_hint') ||
+            'Copia la URL desde el campo para compartirla con tu cliente.',
+        });
+      }
+    } catch (error) {
+      toast.error(t('slots.share.error') || 'No se pudo generar el enlace QR', {
+        description: error.message || undefined,
+      });
+    } finally {
+      setIsGeneratingShareUrl(false);
+    }
+  };
+
+  const headerTitle =
+    slotSuspendedBy === 'admin'
+      ? 'Suspendido por Admin'
+      : slotSuspendedBy === 'system'
+        ? 'Suspendido por Sistema'
+        : slotSuspendedBy === 'agency'
+          ? 'WhatsApp pausado'
+          : status.connected
+            ? 'WhatsApp conectado'
+            : 'Vincular WhatsApp';
+
+  const headerDescription =
+    slotSuspendedBy === 'admin'
+      ? 'Este WhatsApp esta bloqueado por administracion.'
+      : slotSuspendedBy === 'system'
+        ? 'Este WhatsApp esta bloqueado temporalmente por el sistema.'
+        : slotSuspendedBy === 'agency'
+          ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
+          : status.connected
+            ? `Numero: +${status.myNumber}`
+            : 'Escanea el codigo QR para conectar.';
+
+  return (
+    <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
+      <div className="flex items-center gap-4 mb-6">
+        <div
+          className={`p-4 rounded-full ${
+            status.connected
+              ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30'
+              : 'bg-gray-100 text-gray-400 dark:bg-gray-700'
+          }`}
+        >
+          {status.connected ? <Smartphone size={32} /> : <QrCode size={32} />}
+        </div>
+        <div className="text-center md:text-left">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">{headerTitle}</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{headerDescription}</p>
+        </div>
+      </div>
+
+      {accountSuspensionState && (
+        <div className="w-full mb-5 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-4">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={18} className="text-amber-600 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                Cuenta en suspension ({accountSuspensionState.status})
+              </p>
+              <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
+                {accountSuspensionState.message}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {slotSuspendedBy === 'admin' && (
+        <div className="w-full mb-5 rounded-xl border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-700 p-4">
+          <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+            Bloqueado por administracion
+          </p>
+          <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+            {slotLockMessage || 'Contacta soporte para habilitar este WhatsApp.'}
+          </p>
+        </div>
+      )}
+
+      {slotSuspendedBy === 'agency' && (
+        <div className="w-full mb-5 rounded-xl border border-blue-300 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700 p-4">
+          <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Pausado por ti</p>
+          <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+            {slotLockMessage || 'Puedes reconectar sin QR.'}
+          </p>
+        </div>
+      )}
+
+      {slotSuspendedBy === 'system' && (
+        <div className="w-full mb-5 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-4">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+            Bloqueado por sistema
+          </p>
+          <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+            {slotLockMessage || 'Debes regularizar el estado de la cuenta para reactivar este WhatsApp.'}
+          </p>
+        </div>
+      )}
+
+      {accountSuspensionState ? (
+        <div className="w-full flex justify-center">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Reconexion bloqueada mientras la cuenta este en gracia o suspendida.
+          </p>
+        </div>
+      ) : status.connected ? (
+        <div className="w-full flex flex-col sm:flex-row gap-3 justify-center">
+          <button
+            onClick={handleSoftDisconnect}
+            disabled={loading}
+            className="bg-amber-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-700 transition flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <Power size={18} /> Pausar
+          </button>
+          <button
+            onClick={handleDisconnect}
+            disabled={loading}
+            className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <Power size={18} /> Desconectar
+          </button>
+        </div>
+      ) : slotSuspendedBy === 'agency' ? (
+        <div className="w-full flex flex-col sm:flex-row gap-3 justify-center">
+          <button
+            onClick={handleReconnect}
+            disabled={loading}
+            className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <Play size={18} /> Reconectar
+          </button>
+          <button
+            onClick={handleDisconnect}
+            disabled={loading}
+            className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <Power size={18} /> Desconectar
+          </button>
+        </div>
+      ) : slotSuspendedBy === 'admin' || slotSuspendedBy === 'system' ? (
+        <div className="w-full flex justify-center">
+          <p className="text-sm text-red-600 dark:text-red-400 font-semibold">
+            {slotSuspendedBy === 'admin'
+              ? 'Reconectar bloqueado por Admin'
+              : 'Reconectar bloqueado por Sistema'}
+          </p>
+        </div>
+      ) : (
+        <div className="w-full flex flex-col items-center">
+          {!qr && !loading && !accountSuspensionState && (
+            <div className="flex flex-col items-center gap-3">
+              {qrExpired && (
+                <p className="text-sm text-amber-700 dark:text-amber-300 text-center">
+                  El QR expiro. Pulsa de nuevo para generar uno nuevo.
+                </p>
+              )}
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                  onClick={handleConnect}
+                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2"
+                >
+                  <QrCode size={20} /> Generar Codigo QR
+                </button>
+                <button
+                  onClick={handleGenerateShareUrl}
+                  disabled={isGeneratingShareUrl}
+                  className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 disabled:opacity-60"
+                >
+                  {isGeneratingShareUrl ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <Link2 size={18} />
+                  )}
+                  {t('slots.share.generate_link') || 'Generar URL QR'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!accountSuspensionState && (qr || loading) && (
+            <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
+              <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
+                {qr ? (
+                  <QRCode value={qr} size={220} />
+                ) : (
+                  <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />
+                )}
+              </div>
+              <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">
+                {qr
+                  ? 'Escanea con WhatsApp (Expira pronto)'
+                  : slotSuspendedBy
+                    ? 'Reconectando automaticamente...'
+                    : 'Consiguiendo QR seguro...'}
+              </p>
+              <button
+                onClick={() => {
+                  setQr(null);
+                  setQrUpdatedAt(null);
+                  setLoading(false);
+                  stopPolling();
+                }}
+                className="text-gray-400 hover:text-red-500 underline text-sm transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
+
+          {!qr && shareUrl && (
+            <div className="w-full mt-5 max-w-xl">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={shareUrl}
+                  className="flex-1 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 dark:text-white outline-none text-sm font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigator.clipboard
+                      .writeText(shareUrl)
+                      .then(() => toast.success(t('slots.share.copied') || 'URL QR copiada'))
+                      .catch(() =>
+                        toast.error(t('slots.chatwoot.copy_error') || 'No se pudo copiar'),
+                      )
+                  }
+                  className="px-4 py-3 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 transition font-semibold flex items-center justify-center gap-2"
+                >
+                  <Copy size={16} />
+                  {t('slots.share.copy_link') || 'Copiar URL'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

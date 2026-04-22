@@ -43,7 +43,7 @@ export default function StandaloneSettings({
   const { t, language } = useLanguage();
   const { theme, toggleTheme } = useTheme();
 
-  const [settingsSection, setSettingsSection] = useState('inbox');
+  const [settingsSection, setSettingsSection] = useState('integrations');
 
   const [inboxConfigured, setInboxConfigured] = useState(false);
   const [inboxName, setInboxName] = useState('');
@@ -100,11 +100,6 @@ export default function StandaloneSettings({
         label: t('agency.settings_nav.operations') || 'Operacion',
         items: [
           {
-            id: 'inbox',
-            label: t('standalone.settings.whatsapp_title') || 'Waflow WhatsApp',
-            icon: MessageSquareText,
-          },
-          {
             id: 'integrations',
             label: t('agency.integrations.title') || 'Integraciones',
             icon: Link,
@@ -137,30 +132,15 @@ export default function StandaloneSettings({
     const loadSettingsData = async () => {
       try {
         setIsLoadingInbox(true);
-        const [masterResponse, keysResponse, webhooksResponse] = await Promise.all([
-          authFetch('/agency/chatwoot/master-user'),
+        const [keysResponse, webhooksResponse] = await Promise.all([
           authFetch('/agency/api-keys'),
           authFetch('/agency/webhooks'),
         ]);
-
-        if (!masterResponse.ok) {
-          const body = await masterResponse.json().catch(() => ({}));
-          throw new Error(body?.error || 'No se pudo cargar el usuario maestro');
-        }
-
-        const masterData = await masterResponse.json();
         const keysData = keysResponse.ok ? await keysResponse.json().catch(() => ({})) : {};
         const webhooksData = webhooksResponse.ok ? await webhooksResponse.json().catch(() => ({})) : {};
 
         if (isCancelled) return;
 
-        setInboxConfigured(masterData?.configured === true);
-        setInboxName(masterData?.masterName || '');
-        setInboxEmail(masterData?.masterEmail || String(accountInfo?.email || ''));
-        setInboxEmailMasked(masterData?.masterEmailMasked || '');
-        setInboxPassword('');
-        setInboxVerificationPassword('');
-        setInboxTestStatus(null);
         setOpenAiKeyConfigured(accountInfo?.openai_key_configured === true);
         setApiKeys(Array.isArray(keysData?.keys) ? keysData.keys : []);
         setWebhooks(Array.isArray(webhooksData?.hooks) ? webhooksData.hooks : []);
