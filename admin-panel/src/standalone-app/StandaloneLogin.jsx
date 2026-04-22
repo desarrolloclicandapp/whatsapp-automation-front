@@ -15,6 +15,7 @@ import LanguageSelector from '../components/LanguageSelector';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
 const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '34611770270';
+const SIGNUP_SOURCE = 'standalone_crm';
 
 export default function StandaloneLogin({ onLoginSuccess }) {
   const { systemBranding } = useBranding();
@@ -91,7 +92,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       const res = await fetch(`${API_URL}/auth/otp/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone, source: SIGNUP_SOURCE }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('auth.otp_request_error'));
@@ -112,7 +113,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       const res = await fetch(`${API_URL}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code: phoneCode, email }),
+        body: JSON.stringify({ phone, code: phoneCode, email, source: SIGNUP_SOURCE }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
@@ -140,7 +141,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       const res = await fetch(`${API_URL}/auth/otp/email/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name }),
+        body: JSON.stringify({ email, name, source: SIGNUP_SOURCE }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('auth.email_send_error'));
@@ -161,7 +162,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       const res = await fetch(`${API_URL}/auth/otp/email/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: emailCode }),
+        body: JSON.stringify({ email, code: emailCode, source: SIGNUP_SOURCE }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
@@ -195,7 +196,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${tempToken}`,
         },
-        body: JSON.stringify({ email, agencyName: name }),
+        body: JSON.stringify({ email, agencyName: name, source: SIGNUP_SOURCE }),
       });
 
       if (!updateRes.ok) throw new Error(t('auth.save_profile_error'));
@@ -492,12 +493,14 @@ export default function StandaloneLogin({ onLoginSuccess }) {
                 <div className="space-y-8 animate-in fade-in slide-in-from-right-8">
                   <div className="text-center">
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{t('auth.hello')}</h2>
-                    <p className="text-gray-500 mt-2">{t('auth.agency_name_question')}</p>
+                    <p className="text-gray-500 mt-2">
+                      {t('standalone.login.account_name_question') || 'Cual es el nombre de tu cuenta?'}
+                    </p>
                   </div>
                   <form onSubmit={finishRegistration} className="space-y-6">
                     <input
                       type="text"
-                      placeholder={t('auth.agency_name_placeholder')}
+                      placeholder={t('standalone.login.account_name_placeholder') || 'Ej: Cuenta principal'}
                       autoFocus
                       className="w-full p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white text-lg outline-none focus:ring-2 transition-all"
                       style={{ '--tw-ring-color': branding.primaryColor }}
@@ -520,10 +523,14 @@ export default function StandaloneLogin({ onLoginSuccess }) {
                 <div className="space-y-8 animate-in fade-in slide-in-from-right-8">
                   <div className="text-center">
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {ghlExists ? t('auth.join_agency') : t('auth.welcome')}
+                      {ghlExists
+                        ? (t('standalone.login.join_account') || 'Unete a tu cuenta')
+                        : t('auth.welcome')}
                     </h2>
                     <p className="text-gray-500 mt-2">
-                      {ghlExists ? t('auth.agency_exists_link') : t('auth.validate_corporate_email')}
+                      {ghlExists
+                        ? (t('standalone.login.account_exists_link') || 'Tu cuenta ya existe. Vincula tu acceso con este correo.')
+                        : t('auth.validate_corporate_email')}
                     </p>
                   </div>
                   <form onSubmit={requestEmailOtp} className="space-y-6">

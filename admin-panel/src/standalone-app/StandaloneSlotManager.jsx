@@ -86,7 +86,7 @@ export default function StandaloneSlotManager({
     const nextId = slots.reduce((max, slot) => Math.max(max, Number(slot.slot_id) || 0), 0) + 1;
     const nextSlot = {
       slot_id: nextId,
-      slot_name: `Inbox ${nextId}`,
+      slot_name: `WhatsApp ${nextId}`,
       is_connected: false,
       phone_number: '',
       settings: {
@@ -102,7 +102,7 @@ export default function StandaloneSlotManager({
     updateSlots((prev) => [...prev, nextSlot]);
     setExpandedSlotId(nextId);
     setActiveTabBySlot((prev) => ({ ...prev, [nextId]: 'general' }));
-    toast.info('Accion simulada en Sandbox: nuevo inbox creado');
+    toast.info(t('standalone.slots.toast_created') || 'Accion simulada en Sandbox: nuevo WhatsApp creado');
   };
 
   const handleDeleteSlot = (slotId) => {
@@ -110,12 +110,15 @@ export default function StandaloneSlotManager({
     if (expandedSlotId === slotId) {
       setExpandedSlotId(null);
     }
-    toast.info('Accion simulada en Sandbox: inbox eliminado');
+    toast.info(t('standalone.slots.toast_deleted') || 'Accion simulada en Sandbox: WhatsApp eliminado');
   };
 
   const handleRenameSlot = (slotId) => {
     const currentSlot = slots.find((slot) => slot.slot_id === slotId);
-    const nextName = window.prompt('Nombre del inbox', currentSlot?.slot_name || `Inbox ${slotId}`);
+    const nextName = window.prompt(
+      t('standalone.slots.prompt_name') || 'Nombre del WhatsApp',
+      currentSlot?.slot_name || `WhatsApp ${slotId}`,
+    );
     if (!nextName) return;
     updateSlot(slotId, { slot_name: nextName });
     toast.info('Accion simulada en Sandbox: nombre actualizado');
@@ -167,7 +170,9 @@ export default function StandaloneSlotManager({
         },
       });
       setQrLoadingBySlot((prev) => ({ ...prev, [slotId]: false }));
-      toast.success('Accion simulada en Sandbox: inbox marcado en linea');
+      toast.success(
+        t('standalone.slots.toast_online') || 'Accion simulada en Sandbox: WhatsApp marcado en linea',
+      );
     }, 1200);
   };
 
@@ -177,7 +182,7 @@ export default function StandaloneSlotManager({
       qr: '',
       suspended_by: 'agency',
     });
-    toast.info('Accion simulada en Sandbox: inbox pausado');
+    toast.info(t('standalone.slots.toast_paused') || 'Accion simulada en Sandbox: WhatsApp pausado');
   };
 
   const handleReconnect = (slotId) => {
@@ -187,7 +192,7 @@ export default function StandaloneSlotManager({
       phone_number:
         slots.find((slot) => slot.slot_id === slotId)?.phone_number || `59597${String(slotId).padStart(6, '0')}`,
     });
-    toast.info('Accion simulada en Sandbox: inbox reconectado');
+    toast.info(t('standalone.slots.toast_reconnected') || 'Accion simulada en Sandbox: WhatsApp reconectado');
   };
 
   const handleDisconnect = (slotId) => {
@@ -202,14 +207,17 @@ export default function StandaloneSlotManager({
         official_api: { ...OFFICIAL_EMPTY_STATE },
       },
     });
-    toast.info('Accion simulada en Sandbox: inbox desconectado');
+    toast.info(t('standalone.slots.toast_disconnected') || 'Accion simulada en Sandbox: WhatsApp desconectado');
   };
 
   const handleSaveOfficial = (slotId) => {
     const slot = slots.find((entry) => entry.slot_id === slotId);
     const official = slot?.settings?.official_api || OFFICIAL_EMPTY_STATE;
     if (!official.businessAccountId || !official.phoneNumberId || !official.accessToken) {
-      toast.error('Completa Business Account ID, Phone Number ID y Access Token');
+      toast.error(
+        t('standalone.slots.official_required_fields') ||
+          'Completa Business Account ID, Phone Number ID y Access Token',
+      );
       return;
     }
 
@@ -277,17 +285,18 @@ export default function StandaloneSlotManager({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-            Inbox Activos
+            {t('standalone.slots.title') || 'WhatsApp activos'}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Gestiona directamente tus conexiones e inboxes desde esta vista, sin modales intermedios.
+            {t('standalone.slots.desc') ||
+              'Gestiona directamente tus conexiones y numeros de WhatsApp desde esta vista, sin modales intermedios.'}
           </p>
         </div>
         <button
           onClick={handleAddSlot}
           className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition transform hover:-translate-y-0.5 active:scale-95"
         >
-          <Plus size={18} /> {t('slots.chatwoot_inbox.new') || 'Nuevo Inbox'}
+          <Plus size={18} /> {t('standalone.slots.new') || 'Nuevo WhatsApp'}
         </button>
       </div>
 
@@ -314,7 +323,7 @@ export default function StandaloneSlotManager({
         <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl bg-white dark:bg-gray-900/50">
           <Smartphone className="text-gray-300 dark:text-gray-600 w-16 h-16 mb-4" />
           <p className="text-gray-500 dark:text-gray-400 font-medium text-lg">
-            {t('slots.empty') || 'Todavia no tienes inboxes'}
+            {t('standalone.slots.empty') || 'Todavia no tienes WhatsApp conectados'}
           </p>
         </div>
       ) : (
@@ -354,7 +363,7 @@ export default function StandaloneSlotManager({
                     <div>
                       <div className="flex items-center gap-3">
                         <h3 className="font-bold text-gray-900 dark:text-white text-xl">
-                          {slot.slot_name || `Inbox ${slot.slot_id}`}
+                          {slot.slot_name || `WhatsApp ${slot.slot_id}`}
                         </h3>
                         <div className="flex gap-1">
                           <button
@@ -453,7 +462,7 @@ export default function StandaloneSlotManager({
                             <div className="max-w-2xl space-y-4">
                               <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-                                  Nombre del inbox
+                                  {t('standalone.slots.field_name') || 'Nombre del WhatsApp'}
                                 </label>
                                 <input
                                   type="text"
@@ -465,10 +474,12 @@ export default function StandaloneSlotManager({
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
                                   <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">
-                                    Tipo de conexion
+                                    {t('standalone.slots.field_connection_type') || 'Tipo de conexion'}
                                   </p>
                                   <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                                    {connectionMode === 'official_api' ? 'API Oficial de WhatsApp' : 'Conexion QR'}
+                                    {connectionMode === 'official_api'
+                                      ? (t('standalone.slots.official_title') || 'API Oficial de WhatsApp')
+                                      : (t('standalone.slots.qr_title') || 'Conexion QR')}
                                   </p>
                                 </div>
                                 <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
@@ -532,7 +543,10 @@ const TabButton = ({ active, onClick, icon, label }) => (
   </button>
 );
 
-const ConnectionModeSelector = ({ onSelect }) => (
+const ConnectionModeSelector = ({ onSelect }) => {
+  const { t } = useLanguage();
+
+  return (
   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <button
       type="button"
@@ -545,9 +559,12 @@ const ConnectionModeSelector = ({ onSelect }) => (
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-300">
         Selecciona el tipo de conexion
       </p>
-      <h4 className="mt-2 text-lg font-bold text-gray-900 dark:text-white">Conexion QR</h4>
+      <h4 className="mt-2 text-lg font-bold text-gray-900 dark:text-white">
+        {t('standalone.slots.qr_title') || 'Conexion QR'}
+      </h4>
       <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-        Vincula el numero escaneando un QR y administra su estado directamente desde el panel.
+        {t('standalone.slots.qr_desc') ||
+          'Vincula tu WhatsApp escaneando un QR y administra su estado directamente desde el panel.'}
       </p>
     </button>
 
@@ -562,13 +579,17 @@ const ConnectionModeSelector = ({ onSelect }) => (
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-300">
         Beta
       </p>
-      <h4 className="mt-2 text-lg font-bold text-gray-900 dark:text-white">API Oficial de WhatsApp</h4>
+      <h4 className="mt-2 text-lg font-bold text-gray-900 dark:text-white">
+        {t('standalone.slots.official_title') || 'API Oficial de WhatsApp'}
+      </h4>
       <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-        Configura WABA, Phone Number ID, token y webhook de Meta para operar este inbox por API oficial.
+        {t('standalone.slots.official_desc') ||
+          'Configura WABA, Phone Number ID, token y webhook de Meta para operar este WhatsApp por API oficial.'}
       </p>
     </button>
   </div>
-);
+  );
+};
 
 const MockQrConnectionPanel = ({
   slot,
@@ -579,6 +600,7 @@ const MockQrConnectionPanel = ({
   onDisconnect,
   onCopyShareUrl,
 }) => {
+  const { t } = useLanguage();
   const isPaused = slot.suspended_by === 'agency';
   const isConnected = slot.is_connected === true;
 
@@ -590,14 +612,18 @@ const MockQrConnectionPanel = ({
         </div>
         <div className="text-center md:text-left">
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            {isConnected ? 'Dispositivo Conectado' : isPaused ? 'Inbox Pausado' : 'Vincular WhatsApp'}
+            {isConnected
+              ? (t('standalone.slots.qr_connected_title') || 'WhatsApp conectado')
+              : isPaused
+                ? (t('standalone.slots.qr_paused_title') || 'WhatsApp pausado')
+                : (t('standalone.slots.qr_link_title') || 'Vincular WhatsApp')}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {isConnected
               ? `Numero: +${slot.phone_number || 'N/A'}`
               : isPaused
-                ? 'Puedes reconectar sin escanear QR.'
-                : 'Escanea el codigo QR para conectar.'}
+                ? (t('standalone.slots.qr_paused_desc') || 'Puedes reconectar sin escanear QR.')
+                : (t('standalone.slots.qr_link_desc') || 'Escanea el codigo QR para conectar.')}
           </p>
         </div>
       </div>
@@ -605,7 +631,9 @@ const MockQrConnectionPanel = ({
       {isPaused && (
         <div className="w-full mb-5 rounded-xl border border-blue-300 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700 p-4">
           <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Pausado por ti</p>
-          <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">Puedes reconectar sin QR.</p>
+          <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+            {t('standalone.slots.qr_paused_desc') || 'Puedes reconectar sin QR.'}
+          </p>
         </div>
       )}
 
@@ -616,14 +644,14 @@ const MockQrConnectionPanel = ({
             disabled={loading}
             className="bg-amber-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-700 transition flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            <Power size={18} /> Pausar
+            <Power size={18} /> {t('standalone.slots.pause') || 'Pausar'}
           </button>
           <button
             onClick={onDisconnect}
             disabled={loading}
             className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            <Power size={18} /> Desconectar
+            <Power size={18} /> {t('standalone.slots.disconnect') || 'Desconectar'}
           </button>
         </div>
       ) : isPaused ? (
@@ -633,14 +661,14 @@ const MockQrConnectionPanel = ({
             disabled={loading}
             className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            <Play size={18} /> Reconectar
+            <Play size={18} /> {t('standalone.slots.reconnect') || 'Reconectar'}
           </button>
           <button
             onClick={onDisconnect}
             disabled={loading}
             className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            <Power size={18} /> Desconectar
+            <Power size={18} /> {t('standalone.slots.disconnect') || 'Desconectar'}
           </button>
         </div>
       ) : (
@@ -652,7 +680,7 @@ const MockQrConnectionPanel = ({
                   onClick={onStartQr}
                   className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2"
                 >
-                  <QrCode size={20} /> Generar Codigo QR
+                  <QrCode size={20} /> {t('standalone.slots.generate_qr') || 'Generar codigo QR'}
                 </button>
                 {slot.share_url && (
                   <button
@@ -660,7 +688,7 @@ const MockQrConnectionPanel = ({
                     className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2"
                   >
                     <Copy size={18} />
-                    Copiar URL QR
+                    {t('standalone.slots.copy_qr_url') || 'Copiar URL QR'}
                   </button>
                 )}
               </div>
@@ -673,7 +701,9 @@ const MockQrConnectionPanel = ({
                 {slot.qr ? <QRCode value={slot.qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
               </div>
               <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">
-                {slot.qr ? 'Escanea con WhatsApp' : 'Consiguiendo QR seguro...'}
+                {slot.qr
+                  ? (t('standalone.slots.scan_whatsapp') || 'Escanea con WhatsApp')
+                  : (t('standalone.slots.loading_qr') || 'Consiguiendo QR seguro...')}
               </p>
             </div>
           )}
@@ -693,7 +723,7 @@ const MockQrConnectionPanel = ({
                   className="px-4 py-3 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 transition font-semibold flex items-center justify-center gap-2"
                 >
                   <Copy size={16} />
-                  Copiar URL
+                  {t('standalone.slots.copy_url') || 'Copiar URL'}
                 </button>
               </div>
             </div>
@@ -705,6 +735,7 @@ const MockQrConnectionPanel = ({
 };
 
 const MockOfficialApiPanel = ({ slot, official, loading, onFieldChange, onSave, onClear }) => {
+  const { t } = useLanguage();
   const isVerified = ['verified', 'verified_warning', 'active', 'connected'].includes(
     String(official.status || '').toLowerCase(),
   );
@@ -715,10 +746,11 @@ const MockOfficialApiPanel = ({ slot, official, loading, onFieldChange, onSave, 
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div>
             <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-              API Oficial de WhatsApp
+              {t('standalone.slots.official_title') || 'API Oficial de WhatsApp'}
             </h4>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Configura este inbox con Meta API y deja la conexion lista sin QR.
+              {t('standalone.slots.official_panel_desc') ||
+                'Configura este WhatsApp con Meta API y deja la conexion lista sin QR.'}
             </p>
           </div>
           <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border ${
@@ -779,7 +811,8 @@ const MockOfficialApiPanel = ({ slot, official, loading, onFieldChange, onSave, 
               Conexion simulada validada
             </p>
             <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
-              Este inbox ya figura como conectado dentro del sandbox.
+              {t('standalone.slots.official_validated_desc') ||
+                'Este WhatsApp ya figura como conectado dentro del sandbox.'}
             </p>
           </div>
         </div>

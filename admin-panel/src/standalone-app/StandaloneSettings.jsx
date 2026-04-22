@@ -84,7 +84,7 @@ export default function StandaloneSettings({
         items: [
           {
             id: 'inbox',
-            label: 'Waflow Inbox',
+            label: t('standalone.settings.whatsapp_title') || 'Waflow WhatsApp',
             icon: MessageSquareText,
           },
           {
@@ -173,9 +173,11 @@ export default function StandaloneSettings({
         message:
           t('dash.chatwoot_master.test_success') || 'Conexion validada correctamente.',
       });
-      toast.success('Usuario maestro de Waflow Inbox guardado');
+      toast.success(t('standalone.settings.master_user_saved') || 'Usuario maestro de Waflow WhatsApp guardado');
     } catch (error) {
-      toast.error(error?.message || 'No se pudo guardar el usuario maestro de Waflow Inbox');
+      toast.error(
+        error?.message || (t('standalone.settings.master_user_save_error') || 'No se pudo guardar el usuario maestro de Waflow WhatsApp'),
+      );
     } finally {
       setIsSavingInbox(false);
     }
@@ -395,10 +397,11 @@ export default function StandaloneSettings({
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                     <MessageSquareText size={24} className="text-indigo-500" />
-                    Waflow Inbox
+                    {t('standalone.settings.whatsapp_title') || 'Waflow WhatsApp'}
                   </h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Define el Usuario Maestro para aprovisionar cuentas Waflow Inbox automaticamente.
+                    {t('standalone.settings.whatsapp_desc') ||
+                      'Define el Usuario Maestro para aprovisionar cuentas Waflow WhatsApp automaticamente.'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -409,7 +412,9 @@ export default function StandaloneSettings({
                         : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800'
                     }`}
                   >
-                    {inboxConfigured ? 'Usuario maestro configurado' : 'Pendiente de configuracion'}
+                    {inboxConfigured
+                      ? (t('standalone.settings.master_user_ready') || 'Usuario maestro configurado')
+                      : (t('standalone.settings.master_user_pending') || 'Pendiente de configuracion')}
                   </span>
                 </div>
               </div>
@@ -538,7 +543,8 @@ export default function StandaloneSettings({
                   OpenAI
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Configura la OpenAI API key para esta cuenta. No necesitas seleccionar multiples subcuentas en esta interfaz.
+                  {t('standalone.settings.openai_desc') ||
+                    'Configura la OpenAI API key para esta cuenta. No necesitas seleccionar multiples cuentas en esta interfaz.'}
                 </p>
               </div>
 
@@ -549,7 +555,8 @@ export default function StandaloneSettings({
                       {t('agency.integrations.openai_key_panel_title') || 'Carga la OpenAI API key'}
                     </h4>
                     <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                      Guarda una sola key para esta cuenta y usala en los flujos que dependan de OpenAI.
+                      {t('standalone.settings.openai_panel_desc') ||
+                        'Guarda una sola key para esta cuenta y usala en los flujos que dependan de OpenAI.'}
                     </p>
                   </div>
                   <span
@@ -559,7 +566,9 @@ export default function StandaloneSettings({
                         : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900/40 dark:text-gray-400 dark:border-gray-700'
                     }`}
                   >
-                    {openAiKeyConfigured ? 'OpenAI lista' : 'Sin configurar'}
+                    {openAiKeyConfigured
+                      ? (t('standalone.settings.openai_ready') || 'OpenAI lista')
+                      : (t('standalone.settings.openai_missing') || 'Sin configurar')}
                   </span>
                 </div>
 

@@ -8,6 +8,7 @@ import {
   Settings,
   Hammer,
   Bot,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ThemeToggle from '../components/ThemeToggle';
@@ -35,6 +36,7 @@ export default function StandaloneLayout({
   const { branding } = useBranding();
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [planType] = useState(initialPlanType);
   const [isWhatsAppConnected] = useState(initialIsWhatsAppConnected);
 
@@ -56,6 +58,17 @@ export default function StandaloneLayout({
       t('standalone.layout.messaging_connect_simulation') ||
         'Simulacion: Abriendo modal de conexion QR...',
     );
+  };
+
+  const handleCrmShortcut = () => {
+    if (showsMessagingProduct) {
+      setShowUpgradeModal(true);
+    }
+  };
+
+  const handleUpgradeRedirect = () => {
+    setActiveTab('billing');
+    setShowUpgradeModal(false);
   };
 
   const headerTitle =
@@ -164,6 +177,7 @@ export default function StandaloneLayout({
 
               <button
                 type="button"
+                onClick={handleCrmShortcut}
                 className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/40"
               >
                 <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></div>
@@ -261,6 +275,51 @@ export default function StandaloneLayout({
 
         <main className="flex-1 overflow-y-auto p-6 md:p-8">{renderContent()}</main>
       </div>
+
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800">
+            <button
+              type="button"
+              onClick={() => setShowUpgradeModal(false)}
+              className="absolute right-4 top-4 rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              aria-label={t('standalone.layout.upgrade_modal.close') || 'Cerrar'}
+            >
+              <X size={18} />
+            </button>
+
+            <div className="mb-5">
+              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
+                <CreditCard size={22} />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {t('standalone.layout.upgrade_modal.title') || 'Sube de nivel'}
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                {t('standalone.layout.upgrade_modal.description') ||
+                  'Accede a funciones avanzadas de CRM, automatizaciones de ventas y gestion de leads profesional con WaFloW CRM.'}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowUpgradeModal(false)}
+                className="rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                {t('standalone.layout.upgrade_modal.close') || 'Cerrar'}
+              </button>
+              <button
+                type="button"
+                onClick={handleUpgradeRedirect}
+                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-blue-700"
+              >
+                {t('standalone.layout.upgrade_modal.cta') || 'Mejorar mi plan ahora'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

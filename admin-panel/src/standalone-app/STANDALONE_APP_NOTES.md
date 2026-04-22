@@ -286,6 +286,93 @@ Las demás pestañas siguen con placeholder temporal hasta construir sus vistas 
 
 ## Cambios recientes registrados
 
+### Integracion productiva por URL
+
+Archivos afectados:
+
+- `src/App.jsx`
+- `StandaloneLogin.jsx`
+
+Cambio aplicado:
+
+- la app ahora bifurca desde el punto de entrada de la URL
+- `/` y `/agency` mantienen el frontend actual
+- `/crm` y `/standalone` cargan el frontend standalone
+- si una sesion intenta abrir el frontend equivocado, `App.jsx` corrige la ruta antes de montar una UI incompatible
+- se empezo a persistir `userInterface` en frontend para mantener la pagina correcta entre recargas y sesiones
+
+Compatibilidad y seguridad:
+
+- el flujo actual de agencias no se reemplazo ni se reestructuro
+- los usuarios `admin` nunca montan el arbol standalone
+- el standalone sigue entrando por `StandaloneLogin` y luego por `StandaloneLayout`
+
+Preparacion de backend:
+
+- `StandaloneLogin.jsx` ahora envia `source: 'standalone_crm'` en el flujo OTP/profile
+- esto deja preparado el backend unico para distinguir el origen del alta cuando esa columna o logica se consuma de forma real
+
+### Ajuste de copy standalone
+
+Archivos afectados:
+
+- `StandaloneDashboard.jsx`
+- `StandaloneSlotManager.jsx`
+- `StandaloneSettings.jsx`
+- `StandaloneLogin.jsx`
+- `src/locales/es.js`
+- `src/locales/en.js`
+
+Cambio aplicado:
+
+- en la interfaz standalone se reemplazo el copy visible de `Inbox` por `WhatsApp`
+- tambien se reforzo el uso de `Cuenta/Account` en textos visibles del sandbox
+- se dejaron nuevas claves `standalone.*` para evitar depender del copy del panel original de agencias
+
+Resultado esperado:
+
+- overview y guia rapida hablan de `WhatsApp`
+- gestor de slots muestra `Nuevo WhatsApp`, `WhatsApp conectado`, `Vincular WhatsApp`, etc.
+- settings usa `Waflow WhatsApp` en vez de `Waflow Inbox`
+- login standalone usa textos orientados a `cuenta/account` en los pasos de alta
+
+### Tercera card en "Empieza aqui"
+
+Archivos afectados:
+
+- `StandaloneDashboard.jsx`
+- `src/locales/es.js`
+- `src/locales/en.js`
+
+Cambio aplicado:
+
+- se agrego una tercera card en la guia rapida del overview standalone
+- la nueva card invita a abrir la mensajeria con el texto `Empieza a chatear`
+- el boton `Abrir Waflow Inbox` usa una URL simulada temporal
+- se dejo un mock local `isWhatsAppConnected` para probar el estado visual habilitado o deshabilitado
+- la grilla de la guia rapida paso a 3 columnas en desktop para mantener simetria visual
+
+### Modal de upgrade en Sidebar
+
+Archivos afectados:
+
+- `StandaloneLayout.jsx`
+- `src/locales/es.js`
+- `src/locales/en.js`
+
+Cambio aplicado:
+
+- el boton azul de `WaFloW CRM` ya no queda sin accion
+- para planes `trial/starter` ahora abre un modal de upgrade dentro del mismo layout
+- el modal usa copy premium y boton principal para redirigir al tab `billing`
+- el cierre del popup se puede hacer desde la `X` superior o desde el boton secundario
+
+Comportamiento:
+
+- click en `WaFloW CRM` -> `setShowUpgradeModal(true)`
+- click en `Mejorar mi plan ahora` -> `setActiveTab('billing')` y cierre del modal
+- el modal vive solo en sandbox y no afecta al frontend original
+
 ### Resincronización tras actualización del repo
 
 Después de un `git pull`, se revisaron nuevamente los clones del sandbox contra sus equivalentes en `src/admin/`.

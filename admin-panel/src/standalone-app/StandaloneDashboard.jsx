@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
+  MessageSquare,
   ShieldCheck,
   Smartphone,
   Sparkles,
@@ -14,7 +15,7 @@ import StandaloneSlotManager from './StandaloneSlotManager';
 const createInitialSlots = () => [
   {
     slot_id: 1,
-    slot_name: 'Inbox Principal',
+    slot_name: 'WhatsApp Principal',
     is_connected: false,
     phone_number: '',
     settings: {
@@ -33,7 +34,7 @@ const createInitialSlots = () => [
   },
   {
     slot_id: 2,
-    slot_name: 'Inbox Ventas',
+    slot_name: 'WhatsApp Ventas',
     is_connected: true,
     phone_number: '595971234567',
     settings: {
@@ -56,7 +57,7 @@ export default function StandaloneDashboard({ accountInfo }) {
   const { t } = useLanguage();
   const [mockLocation, setMockLocation] = useState(() => ({
     location_id: 'demo-location-123',
-    name: String(accountInfo?.name || accountInfo?.email || 'Cuenta Principal'),
+    name: String(accountInfo?.name || accountInfo?.email || (t('standalone.dashboard.primary_account') || 'Cuenta principal')),
     crm_type: String(accountInfo?.crm_type || 'chatwoot').toLowerCase(),
     settings: {
       crm_type: String(accountInfo?.crm_type || 'chatwoot').toLowerCase(),
@@ -68,34 +69,61 @@ export default function StandaloneDashboard({ accountInfo }) {
   const connectedSlots = slots.filter((slot) => slot.is_connected === true).length;
   const usedSlots = slots.length;
   const maxSlots = Number(accountInfo?.limits?.max_slots || Math.max(slots.length, 3));
+  const isWhatsAppConnected = false;
   const quickStartSteps = useMemo(
     () => [
       {
-        id: 'inbox',
-        title: t('agency.quick_start.step_inbox_title') || 'Anade tu inbox',
-        desc: 'Crea tu primer inbox o agrega un nuevo dispositivo para esta cuenta.',
-        actionLabel: t('agency.quick_start.step_inbox_cta') || 'Gestionar',
-        doneLabel: t('agency.quick_start.step_inbox_done') || 'Inbox listo',
+        id: 'whatsapp',
+        title: t('standalone.dashboard.quick_start_step_whatsapp_title') || 'Anade tu WhatsApp',
+        desc:
+          t('standalone.dashboard.quick_start_step_whatsapp_desc') ||
+          'Crea tu primer WhatsApp o agrega un nuevo numero para esta cuenta.',
+        actionLabel: t('standalone.dashboard.quick_start_step_whatsapp_cta') || 'Gestionar',
+        doneLabel: t('standalone.dashboard.quick_start_step_whatsapp_done') || 'WhatsApp listo',
         done: slots.length > 0,
         onClick: () => {
           document.getElementById('slot-card-1')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          toast.info('Accion simulada en Sandbox: revisa la seccion de inboxes');
+          toast.info(
+            t('standalone.dashboard.toast_review_whatsapp_section') ||
+              'Accion simulada en Sandbox: revisa la seccion de WhatsApp',
+          );
         },
       },
       {
         id: 'online',
-        title: t('agency.quick_start.step_online_title') || 'Ponla en linea',
-        desc: 'Escanea el QR o configura la API oficial para dejar el inbox operativo.',
-        actionLabel: t('agency.quick_start.step_online_cta') || 'Conectar',
-        doneLabel: t('agency.quick_start.step_online_done') || 'En linea',
+        title: t('standalone.dashboard.quick_start_step_online_title') || 'Ponlo en linea',
+        desc:
+          t('standalone.dashboard.quick_start_step_online_desc') ||
+          'Escanea el QR o configura la API oficial para dejar el WhatsApp operativo.',
+        actionLabel: t('standalone.dashboard.quick_start_step_online_cta') || 'Conectar WhatsApp',
+        doneLabel: t('standalone.dashboard.quick_start_step_online_done') || 'En linea',
         done: connectedSlots > 0,
         onClick: () => {
           document.getElementById('slot-card-1')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          toast.info('Accion simulada en Sandbox: conecta un inbox desde el panel inferior');
+          toast.info(
+            t('standalone.dashboard.toast_connect_whatsapp') ||
+              'Accion simulada en Sandbox: conecta un WhatsApp desde el panel inferior',
+          );
+        },
+      },
+      {
+        id: 'chat',
+        title: t('standalone.dashboard.step3_title') || 'Empieza a chatear',
+        desc:
+          t('standalone.dashboard.step3_desc') ||
+          'Accede a tu bandeja de entrada para responder a tus clientes en tiempo real.',
+        actionLabel: t('standalone.dashboard.step3_cta') || 'Abrir Waflow Inbox',
+        doneLabel: t('standalone.dashboard.step3_done') || 'Inbox abierto',
+        done: isWhatsAppConnected,
+        disabled: !isWhatsAppConnected,
+        icon: <MessageSquare size={14} />,
+        onClick: () => {
+          if (!isWhatsAppConnected) return;
+          window.open('https://sandbox-inbox.waflow.local', '_blank', 'noopener,noreferrer');
         },
       },
     ],
-    [connectedSlots, slots.length, t],
+    [connectedSlots, isWhatsAppConnected, slots.length, t],
   );
 
   const quickStartDoneCount = quickStartSteps.filter((step) => step.done).length;
@@ -162,7 +190,9 @@ export default function StandaloneDashboard({ accountInfo }) {
               <Zap size={20} className="text-amber-600" />
             </div>
             <div>
-              <p className="font-semibold text-gray-900 dark:text-white text-sm">{t('agency.trial.title') || 'Periodo de prueba'}</p>
+              <p className="font-semibold text-gray-900 dark:text-white text-sm">
+                {t('standalone.dashboard.trial_title') || 'Periodo de prueba'}
+              </p>
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 Expira: {accountInfo?.trial_ends ? new Date(accountInfo.trial_ends).toLocaleDateString() : 'Sin fecha'}
               </p>
@@ -172,7 +202,7 @@ export default function StandaloneDashboard({ accountInfo }) {
             onClick={() => toast.info('Accion simulada en Sandbox: revisa la pestana de suscripcion')}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-sm transition"
           >
-            {t('agency.trial.choose_plan') || 'Elegir plan'}
+            {t('standalone.dashboard.choose_plan') || 'Elegir plan'}
           </button>
         </div>
       )}
@@ -184,22 +214,23 @@ export default function StandaloneDashboard({ accountInfo }) {
               <div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <Sparkles size={18} className="text-indigo-500" />
-                  {t('agency.quick_start.title') || 'Empieza aqui'}
+                  {t('standalone.dashboard.quick_start_title') || 'Empieza aqui'}
                 </h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Dos pasos para dejar listo tu primer inbox en esta cuenta.
+                  {t('standalone.dashboard.quick_start_desc') ||
+                    'Dos pasos para dejar listo tu primer WhatsApp en esta cuenta.'}
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="inline-flex items-center rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-bold text-indigo-600 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300">
-                  {(t('agency.quick_start.progress') || '{done}/{total} listos')
+                  {(t('standalone.dashboard.quick_start_progress') || '{done}/{total} listos')
                     .replace('{done}', String(quickStartDoneCount))
                     .replace('{total}', String(quickStartSteps.length))}
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {quickStartSteps.map((step, index) => (
                 <div
                   key={step.id}
@@ -225,13 +256,16 @@ export default function StandaloneDashboard({ accountInfo }) {
                   <div className="mt-4">
                     <button
                       onClick={step.onClick}
+                      disabled={step.disabled === true}
                       className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                        step.done
+                        step.disabled
+                          ? 'cursor-not-allowed bg-gray-200 text-gray-500 opacity-50 dark:bg-gray-800 dark:text-gray-400'
+                          : step.done
                           ? 'border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100/80 dark:border-emerald-700 dark:bg-gray-900 dark:text-emerald-300 dark:hover:bg-emerald-900/30'
                           : 'bg-indigo-600 text-white hover:bg-indigo-700'
                       }`}
                     >
-                      {step.done ? <CheckCircle2 size={14} /> : <ArrowRight size={14} />}
+                      {step.icon || (step.done ? <CheckCircle2 size={14} /> : <ArrowRight size={14} />)}
                       {step.done ? step.doneLabel : step.actionLabel}
                     </button>
                   </div>
