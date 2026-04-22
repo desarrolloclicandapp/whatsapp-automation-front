@@ -175,12 +175,12 @@ export default function StandaloneSettings({
     return acc;
   }, {});
   const activeSettingsSectionTitle =
-    settingsSectionTitleMap[currentSettingsSectionId] || (t('dash.header.settings') || 'Configuracion');
+    settingsSectionTitleMap[currentSettingsSectionId] || (t('dash.header.settings') || 'Configuración');
 
   const accountIdValue = String(accountInfo?.agencyId || accountInfo?.id || 'demo-account-123');
   const developerTitle = t('dash.settings.dev_title') || 'Desarrolladores';
   const developerDescription = replaceAgencyTerms(
-    t('dash.settings.dev_desc') || 'Gestiona claves API y Webhooks para integraciones.',
+    t('dash.settings.dev_desc') || 'Gestiona claves API y webhooks para integraciones.',
   );
   const developerBadge = language === 'es' ? 'Funcion Pro' : 'Pro Feature';
   const accountIdTitle = replaceAgencyTerms(t('agency.account.agency_id') || 'ID de Agencia');

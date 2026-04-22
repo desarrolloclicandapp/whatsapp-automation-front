@@ -43,6 +43,7 @@ export default function StandaloneLayout({
   });
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [liveIsWhatsAppConnected, setLiveIsWhatsAppConnected] = useState(false);
 
   const {
     accountInfo,
@@ -61,6 +62,11 @@ export default function StandaloneLayout({
   });
 
   const showsMessagingProduct = planType === 'trial' || planType === 'starter';
+  const effectiveIsWhatsAppConnected = liveIsWhatsAppConnected || isWhatsAppConnected;
+
+  useEffect(() => {
+    setLiveIsWhatsAppConnected(isWhatsAppConnected);
+  }, [isWhatsAppConnected]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -115,7 +121,7 @@ export default function StandaloneLayout({
         translateOr(
           t,
           'standalone.layout.messaging_unavailable',
-          'Todavia no hay acceso disponible para Waflow WhatsApp en esta cuenta.',
+          'Todavía no hay acceso disponible para Waflow WhatsApp en esta cuenta.',
         ),
       );
       return;
@@ -125,22 +131,6 @@ export default function StandaloneLayout({
   };
 
   const handleMessagingShortcut = () => {
-    if (!isWhatsAppConnected) {
-      setActiveTab('overview');
-      document.getElementById('standalone-whatsapp-manager')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
-      toast.info(
-        translateOr(
-          t,
-          'standalone.layout.messaging_connect_hint',
-          'Primero conecta tu WhatsApp desde el panel principal.',
-        ),
-      );
-      return;
-    }
-
     openInbox();
   };
 
@@ -162,12 +152,12 @@ export default function StandaloneLayout({
     activeTab === 'overview'
       ? translateOr(t, 'standalone.layout.header_overview', 'Panel principal')
       : activeTab === 'billing'
-        ? translateOr(t, 'standalone.layout.header_billing', 'Suscripcion')
+        ? translateOr(t, 'standalone.layout.header_billing', 'Suscripción')
         : activeTab === 'agents'
           ? translateOr(t, 'standalone.layout.header_agents', 'Agentes')
           : activeTab === 'builder'
             ? translateOr(t, 'standalone.layout.header_builder', 'Constructor de botones')
-            : translateOr(t, 'standalone.layout.header_settings', 'Configuracion');
+            : translateOr(t, 'standalone.layout.header_settings', 'Configuración');
 
   const renderContent = () => {
     if (loading && !accountInfo) {
@@ -191,6 +181,7 @@ export default function StandaloneLayout({
           onRefresh={handleWorkspaceRefresh}
           onOpenMessagingInbox={openInbox}
           onGoToBilling={() => setActiveTab('billing')}
+          onRealtimeConnectionChange={setLiveIsWhatsAppConnected}
           token={token}
           onUnauthorized={onUnauthorized || onLogout}
         />
@@ -269,7 +260,7 @@ export default function StandaloneLayout({
 
         <div className="flex-1 p-4 overflow-y-auto">
           <p className={`text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>
-            {translateOr(t, 'standalone.layout.management', 'Gestion')}
+            {translateOr(t, 'standalone.layout.management', 'Gestión')}
           </p>
 
           <SidebarItem
@@ -290,7 +281,7 @@ export default function StandaloneLayout({
                   onClick={handleMessagingShortcut}
                   className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300 dark:border-green-900/40 dark:hover:bg-green-900/30"
                 >
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${isWhatsAppConnected ? 'bg-green-500' : 'bg-amber-400'}`}></div>
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${effectiveIsWhatsAppConnected ? 'bg-green-500' : 'bg-amber-400'}`}></div>
                   <span>{translateOr(t, 'standalone.layout.product_messaging', 'Waflow WhatsApp')}</span>
                 </button>
               )}
@@ -311,7 +302,7 @@ export default function StandaloneLayout({
             setActiveTab={setActiveTab}
             id="billing"
             icon={CreditCard}
-            label={translateOr(t, 'standalone.layout.nav_billing', 'Suscripcion')}
+            label={translateOr(t, 'standalone.layout.nav_billing', 'Suscripción')}
             branding={branding}
             sidebarOpen={sidebarOpen}
           />
@@ -329,7 +320,7 @@ export default function StandaloneLayout({
             setActiveTab={setActiveTab}
             id="settings"
             icon={Settings}
-            label={translateOr(t, 'standalone.layout.nav_settings', 'Configuracion')}
+            label={translateOr(t, 'standalone.layout.nav_settings', 'Configuración')}
             branding={branding}
             sidebarOpen={sidebarOpen}
           />
@@ -362,7 +353,7 @@ export default function StandaloneLayout({
             className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all font-medium text-sm"
           >
             <LogOut size={20} />
-            {sidebarOpen && <span>{translateOr(t, 'standalone.layout.logout', 'Cerrar sesion')}</span>}
+            {sidebarOpen && <span>{translateOr(t, 'standalone.layout.logout', 'Cerrar sesión')}</span>}
           </button>
         </div>
       </aside>

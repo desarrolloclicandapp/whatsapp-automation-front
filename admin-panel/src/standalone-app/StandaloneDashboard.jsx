@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
@@ -21,31 +21,65 @@ export default function StandaloneDashboard({
   onRefresh,
   onOpenMessagingInbox,
   onGoToBilling,
+  onRealtimeConnectionChange,
   token,
   onUnauthorized,
 }) {
   const { t } = useLanguage();
 
   const slots = Array.isArray(locationDetails?.slots) ? locationDetails.slots : [];
+  const [liveSlots, setLiveSlots] = useState(slots);
+
+  useEffect(() => {
+    setLiveSlots(slots);
+  }, [slots]);
+
   const healthSummary = locationDetails?.healthSummary || {};
-  const connectedSlots = Number(healthSummary.connected_slots || 0);
-  const usedSlots = Number(accountInfo?.limits?.used_slots || slots.length || 0);
+  const connectedSlots = liveSlots.filter((slot) => slot.is_connected === true).length;
+  const usedSlots = liveSlots.length || Number(accountInfo?.limits?.used_slots || 0);
   const maxSlots = Number(accountInfo?.limits?.max_slots || 1);
   const isWhatsAppConnected = connectedSlots > 0;
 
-  const quickStartSteps = useMemo(
-    () => [
+  useEffect(() => {
+    onRealtimeConnectionChange?.(isWhatsAppConnected);
+  }, [isWhatsAppConnected, onRealtimeConnectionChange]);
+
+  const chatStep = useMemo(
+    () => ({
+      id: 'chat',
+      title: translateOr(t, 'standalone.dashboard.step3_title', 'Empieza a chatear'),
+      desc: translateOr(
+        t,
+        'standalone.dashboard.step3_desc',
+        'Abre tu panel de WhatsApp para responder a tus clientes en tiempo real.',
+      ),
+      actionLabel: translateOr(t, 'standalone.dashboard.step3_cta', 'Abrir Waflow WhatsApp'),
+      doneLabel: translateOr(t, 'standalone.dashboard.step3_done', 'WhatsApp abierto'),
+      done: isWhatsAppConnected,
+      disabled: false,
+      icon: <MessageSquare size={14} />,
+      onClick: onOpenMessagingInbox,
+    }),
+    [isWhatsAppConnected, onOpenMessagingInbox, t],
+  );
+
+  const quickStartSteps = useMemo(() => {
+    if (isWhatsAppConnected) {
+      return [chatStep];
+    }
+
+    return [
       {
         id: 'whatsapp',
-        title: translateOr(t, 'standalone.dashboard.quick_start_step_whatsapp_title', 'Anade tu WhatsApp'),
+        title: translateOr(t, 'standalone.dashboard.quick_start_step_whatsapp_title', 'Añade tu WhatsApp'),
         desc: translateOr(
           t,
           'standalone.dashboard.quick_start_step_whatsapp_desc',
-          'Crea tu primer WhatsApp o agrega un nuevo numero para esta cuenta.',
+          'Crea tu primer WhatsApp o agrega un nuevo número para esta cuenta.',
         ),
         actionLabel: translateOr(t, 'standalone.dashboard.quick_start_step_whatsapp_cta', 'Gestionar'),
         doneLabel: translateOr(t, 'standalone.dashboard.quick_start_step_whatsapp_done', 'WhatsApp listo'),
-        done: slots.length > 0,
+        done: liveSlots.length > 0,
         onClick: () =>
           document.getElementById('standalone-whatsapp-manager')?.scrollIntoView({
             behavior: 'smooth',
@@ -54,14 +88,14 @@ export default function StandaloneDashboard({
       },
       {
         id: 'online',
-        title: translateOr(t, 'standalone.dashboard.quick_start_step_online_title', 'Ponlo en linea'),
+        title: translateOr(t, 'standalone.dashboard.quick_start_step_online_title', 'Ponlo en línea'),
         desc: translateOr(
           t,
           'standalone.dashboard.quick_start_step_online_desc',
           'Escanea el QR o configura la API oficial para dejar el WhatsApp operativo.',
         ),
         actionLabel: translateOr(t, 'standalone.dashboard.quick_start_step_online_cta', 'Conectar WhatsApp'),
-        doneLabel: translateOr(t, 'standalone.dashboard.quick_start_step_online_done', 'En linea'),
+        doneLabel: translateOr(t, 'standalone.dashboard.quick_start_step_online_done', 'En línea'),
         done: connectedSlots > 0,
         onClick: () =>
           document.getElementById('standalone-whatsapp-manager')?.scrollIntoView({
@@ -69,27 +103,11 @@ export default function StandaloneDashboard({
             block: 'start',
           }),
       },
-      {
-        id: 'chat',
-        title: translateOr(t, 'standalone.dashboard.step3_title', 'Empieza a responder'),
-        desc: translateOr(
-          t,
-          'standalone.dashboard.step3_desc',
-          'Abre tu panel de WhatsApp para responder a tus clientes en tiempo real.',
-        ),
-        actionLabel: translateOr(t, 'standalone.dashboard.step3_cta', 'Abrir Waflow WhatsApp'),
-        doneLabel: translateOr(t, 'standalone.dashboard.step3_done', 'WhatsApp abierto'),
-        done: isWhatsAppConnected,
-        disabled: !isWhatsAppConnected,
-        icon: <MessageSquare size={14} />,
-        onClick: onOpenMessagingInbox,
-      },
-    ],
-    [connectedSlots, isWhatsAppConnected, onOpenMessagingInbox, slots.length, t],
-  );
+    ];
+  }, [chatStep, connectedSlots, isWhatsAppConnected, liveSlots.length, t]);
 
   const quickStartDoneCount = quickStartSteps.filter((step) => step.done).length;
-  const needsQuickStartGuide = quickStartDoneCount < quickStartSteps.length;
+  const needsQuickStartGuide = quickStartSteps.length > 0;
 
   if (!accountInfo) {
     return (
@@ -198,7 +216,7 @@ export default function StandaloneDashboard({
               <div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <Sparkles size={18} className="text-indigo-500" />
-                  {translateOr(t, 'standalone.dashboard.quick_start_title', 'Empieza aqui')}
+                  {translateOr(t, 'standalone.dashboard.quick_start_title', 'Empieza aquí')}
                 </h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {translateOr(
@@ -268,9 +286,11 @@ export default function StandaloneDashboard({
         locationId={primaryLocationId}
         locationName={primaryLocation?.name || locationDetails?.name || ''}
         crmType={locationDetails?.crmType || primaryLocation?.settings?.crm_type || accountInfo?.crm_type || 'chatwoot'}
-        slots={slots}
+        slots={liveSlots}
         healthSummary={healthSummary}
         onRefresh={onRefresh}
+        onSlotsChange={setLiveSlots}
+        onConnectionStateChange={onRealtimeConnectionChange}
         onUnauthorized={onUnauthorized}
       />
     </div>

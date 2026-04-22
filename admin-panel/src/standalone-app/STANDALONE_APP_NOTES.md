@@ -23,12 +23,17 @@ La meta del trabajo fue:
 Se hizo una pasada adicional para acercar aun mas el standalone al comportamiento del panel original:
 
 - `StandaloneSlotManager.jsx` ahora incrusta la logica real del bloque QR/reconexion/pausa/desconexion/URL compartida del componente original
+- `StandaloneSlotManager.jsx` ahora vuelve a exponer configuracion real de `SMS / Twilio` dentro del panel principal
+- `StandaloneSlotManager.jsx` emite cambios en caliente para que el overview y el shortcut lateral reaccionen apenas un numero queda conectado
 - `StandaloneSettings.jsx` deja de exponer la pestaña intermedia de `Waflow WhatsApp`; el acceso operativo queda directo desde el boton lateral
 - `StandaloneLayout.jsx` sincroniza `tab` con la URL para que billing vuelva al lugar correcto
+- `StandaloneLayout.jsx` ahora abre `Waflow WhatsApp` directamente desde el boton lateral, sin paso intermedio
 - `StandaloneLayout.jsx` deja de forzar el catalogo/labels tipo `Chatwoot` dentro del flujo de billing
 - `whatsapp-automation/src/services/stripeService.js` ya distingue agency vs standalone para:
   - checkout success/cancel
   - retorno del portal de Stripe
+- `StandaloneDashboard.jsx` ahora deja visible solo la card de `Abrir Waflow WhatsApp` cuando ya hay un numero conectado
+- se corrigio copy del standalone con mas textos en UTF-8 y tildes visibles
 
 ### Etapa 1: estructura visual inicial
 

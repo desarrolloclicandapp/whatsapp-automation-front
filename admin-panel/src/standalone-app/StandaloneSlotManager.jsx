@@ -55,6 +55,8 @@ export default function StandaloneSlotManager({
   slots,
   healthSummary,
   onRefresh,
+  onSlotsChange,
+  onConnectionStateChange,
   onUnauthorized,
 }) {
   const { t } = useLanguage();
@@ -65,12 +67,18 @@ export default function StandaloneSlotManager({
   const [qrLoadingBySlot, setQrLoadingBySlot] = useState({});
   const [officialDraftBySlot, setOfficialDraftBySlot] = useState({});
   const [officialLoadingBySlot, setOfficialLoadingBySlot] = useState({});
+  const [twilioConfigBySlot, setTwilioConfigBySlot] = useState({});
+  const [loadingTwilioBySlot, setLoadingTwilioBySlot] = useState({});
+  const [savingTwilioBySlot, setSavingTwilioBySlot] = useState({});
   const [actionLoadingBySlot, setActionLoadingBySlot] = useState({});
+  const safeCrmType = String(crmType || 'chatwoot').trim().toLowerCase();
+  const supportsSmsTab = safeCrmType === 'ghl' || safeCrmType === 'chatwoot';
 
   useEffect(() => {
     const safeSlots = Array.isArray(slots) ? slots : [];
     setLocalSlots(safeSlots);
     setExpandedSlotId((current) => current || safeSlots[0]?.slot_id || null);
+    onConnectionStateChange?.(safeSlots.some((slot) => slot.is_connected === true));
   }, [slots]);
 
   const authFetch = async (endpoint, options = {}) => {
@@ -100,6 +108,21 @@ export default function StandaloneSlotManager({
     setActionLoadingBySlot((prev) => ({ ...prev, [slotId]: value }));
   };
 
+  const applyLocalSlots = (updater) => {
+    setLocalSlots((prev) => {
+      const nextSlots = typeof updater === 'function' ? updater(prev) : updater;
+      onSlotsChange?.(nextSlots);
+      onConnectionStateChange?.(nextSlots.some((slot) => slot.is_connected === true));
+      return nextSlots;
+    });
+  };
+
+  const patchLocalSlot = (slotId, patch) => {
+    applyLocalSlots((prev) =>
+      prev.map((slot) => (slot.slot_id === slotId ? { ...slot, ...patch } : slot)),
+    );
+  };
+
   const refreshAndKeepExpanded = async () => {
     await Promise.resolve(onRefresh?.());
   };
@@ -123,7 +146,7 @@ export default function StandaloneSlotManager({
       );
       const body = await parseResponseBody(response);
       if (!response.ok) {
-        throw new Error(body?.error || 'No se pudo cargar la configuracion oficial');
+        throw new Error(body?.error || 'No se pudo cargar la configuración oficial');
       }
 
       setOfficialDraftBySlot((prev) => ({
@@ -136,7 +159,7 @@ export default function StandaloneSlotManager({
         },
       }));
     } catch (error) {
-      toast.error(error.message || 'No se pudo cargar la configuracion oficial');
+      toast.error(error.message || 'No se pudo cargar la configuración oficial');
     } finally {
       setOfficialLoadingBySlot((prev) => ({ ...prev, [slotId]: false }));
     }
@@ -179,12 +202,16 @@ export default function StandaloneSlotManager({
     const expandedSlot = localSlots.find((slot) => slot.slot_id === expandedSlotId);
     if (!expandedSlot || !locationId) return undefined;
 
+    const expandedTab = activeTabBySlot[expandedSlot.slot_id] || 'general';
     if (getConnectionMode(expandedSlot) === 'official_api') {
       loadOfficialConfig(expandedSlot.slot_id);
     }
+    if (supportsSmsTab && expandedTab === 'sms') {
+      loadTwilioConfig(expandedSlot.slot_id);
+    }
 
     return undefined;
-  }, [expandedSlotId, locationId, localSlots]);
+  }, [expandedSlotId, locationId, localSlots, activeTabBySlot, supportsSmsTab]);
 
   const handleAddSlot = async () => {
     try {
@@ -199,6 +226,19 @@ export default function StandaloneSlotManager({
       }
 
       toast.success(translateOr(t, 'standalone.slots.toast_created', 'Nuevo WhatsApp creado'));
+      if (body?.slot_id) {
+        applyLocalSlots((prev) => [
+          ...prev,
+          {
+            slot_id: body.slot_id,
+            slot_name: body.slot_name || `WhatsApp ${body.slot_id}`,
+            is_connected: false,
+            phone_number: '',
+            suspended_by: null,
+            settings: { connection_mode: 'qr' },
+          },
+        ]);
+      }
       await refreshAndKeepExpanded();
       setExpandedSlotId(body?.slot_id || expandedSlotId);
     } catch (error) {
@@ -218,6 +258,7 @@ export default function StandaloneSlotManager({
       }
 
       toast.success(translateOr(t, 'standalone.slots.toast_deleted', 'WhatsApp eliminado'));
+      applyLocalSlots((prev) => prev.filter((slot) => slot.slot_id !== slotId));
       await refreshAndKeepExpanded();
       if (expandedSlotId === slotId) {
         setExpandedSlotId(null);
@@ -253,6 +294,7 @@ export default function StandaloneSlotManager({
       }
 
       toast.success(translateOr(t, 'standalone.slots.toast_renamed', 'Nombre actualizado'));
+      patchLocalSlot(slotId, { slot_name: nextName.trim() });
       await refreshAndKeepExpanded();
     } catch (error) {
       toast.error(error.message || 'No se pudo actualizar el nombre');
@@ -414,7 +456,7 @@ export default function StandaloneSlotManager({
       });
       const saveBody = await parseResponseBody(saveResponse);
       if (!saveResponse.ok) {
-        throw new Error(saveBody?.error || 'No se pudo guardar la configuracion oficial');
+        throw new Error(saveBody?.error || 'No se pudo guardar la configuración oficial');
       }
 
       const validateResponse = await authFetch('/agency/whatsapp-official/validate', {
@@ -436,7 +478,7 @@ export default function StandaloneSlotManager({
       await refreshAndKeepExpanded();
       await loadOfficialConfig(slotId);
     } catch (error) {
-      toast.error(error.message || 'No se pudo guardar la configuracion oficial');
+      toast.error(error.message || 'No se pudo guardar la configuración oficial');
     } finally {
       updateActionLoading(slotId, false);
     }
@@ -456,14 +498,14 @@ export default function StandaloneSlotManager({
       });
       const body = await parseResponseBody(response);
       if (!response.ok) {
-        throw new Error(body?.error || 'No se pudo limpiar la configuracion oficial');
+        throw new Error(body?.error || 'No se pudo limpiar la configuración oficial');
       }
 
-      toast.success(t('slots.official.cleared') || 'Configuracion oficial eliminada');
+      toast.success(t('slots.official.cleared') || 'Configuración oficial eliminada');
       await refreshAndKeepExpanded();
       await loadOfficialConfig(slotId);
     } catch (error) {
-      toast.error(error.message || 'No se pudo limpiar la configuracion oficial');
+      toast.error(error.message || 'No se pudo limpiar la configuración oficial');
     } finally {
       updateActionLoading(slotId, false);
     }
@@ -486,6 +528,164 @@ export default function StandaloneSlotManager({
     }
   };
 
+  const loadTwilioConfig = async (slotId, forceRefresh = false) => {
+    if (!slotId || !locationId) return;
+    if (!forceRefresh && twilioConfigBySlot[slotId]) return;
+
+    setLoadingTwilioBySlot((prev) => ({ ...prev, [slotId]: true }));
+    try {
+      const response = await authFetch(
+        `/agency/twilio/config?locationId=${encodeURIComponent(locationId)}&slotId=${encodeURIComponent(slotId)}`,
+      );
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || 'No se pudo cargar Twilio');
+      }
+      const body = await response.json();
+      setTwilioConfigBySlot((prev) => ({
+        ...prev,
+        [slotId]: {
+          accountSid: '',
+          authToken: '',
+          phoneNumber: body.phoneNumber || '',
+          accountSidMasked: body.accountSidMasked || '',
+          authTokenMasked: body.authTokenMasked || '',
+          hasAuthToken: !!body.hasAuthToken,
+          configured: !!body.configured,
+        },
+      }));
+    } catch (error) {
+      toast.error('Error cargando Twilio', { description: error.message });
+    } finally {
+      setLoadingTwilioBySlot((prev) => ({ ...prev, [slotId]: false }));
+    }
+  };
+
+  const updateTwilioField = (slotId, key, value) => {
+    setTwilioConfigBySlot((prev) => {
+      const current = prev[slotId] || {
+        accountSid: '',
+        authToken: '',
+        phoneNumber: '',
+        accountSidMasked: '',
+        authTokenMasked: '',
+        hasAuthToken: false,
+        configured: false,
+      };
+      return {
+        ...prev,
+        [slotId]: {
+          ...current,
+          [key]: value,
+        },
+      };
+    });
+  };
+
+  const validateTwilioConfigSlot = async (slotId) => {
+    const current = twilioConfigBySlot[slotId] || {};
+    const payload = { locationId, slotId };
+
+    if ((current.accountSid || '').trim()) payload.accountSid = current.accountSid.trim();
+    if ((current.authToken || '').trim()) payload.authToken = current.authToken.trim();
+    if ((current.phoneNumber || '').trim()) payload.fromNumber = current.phoneNumber.trim();
+
+    const loadingId = toast.loading('Validando Twilio...');
+    try {
+      const response = await authFetch('/agency/twilio/validate', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || 'Credenciales inválidas');
+      }
+      toast.success('Twilio validado correctamente');
+      return true;
+    } catch (error) {
+      toast.error('Validación de Twilio falló', { description: error.message });
+      return false;
+    } finally {
+      toast.dismiss(loadingId);
+    }
+  };
+
+  const saveTwilioConfig = async (slotId) => {
+    const current = twilioConfigBySlot[slotId] || {};
+    const sidInput = (current.accountSid || '').trim();
+    const tokenInput = (current.authToken || '').trim();
+    const fromNumber = (current.phoneNumber || '').trim();
+
+    const sidReady = sidInput || current.accountSidMasked;
+    const tokenReady = tokenInput || current.authTokenMasked || current.hasAuthToken;
+
+    if (!sidReady || !tokenReady || !fromNumber) {
+      toast.error('Completa SID, Auth Token y número Twilio');
+      return;
+    }
+
+    const payload = {
+      locationId,
+      slotId,
+      fromNumber,
+    };
+    if (sidInput) payload.accountSid = sidInput;
+    if (tokenInput) payload.authToken = tokenInput;
+
+    setSavingTwilioBySlot((prev) => ({ ...prev, [slotId]: true }));
+    try {
+      const response = await authFetch('/agency/twilio/config', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || 'No se pudo guardar');
+      }
+      toast.success('Configuración de Twilio guardada');
+      await loadTwilioConfig(slotId, true);
+    } catch (error) {
+      toast.error('Error guardando Twilio', { description: error.message });
+    } finally {
+      setSavingTwilioBySlot((prev) => ({ ...prev, [slotId]: false }));
+    }
+  };
+
+  const clearTwilioConfig = async (slotId) => {
+    const loadingId = toast.loading('Limpiando Twilio...');
+    try {
+      const response = await authFetch('/agency/twilio/config', {
+        method: 'PUT',
+        body: JSON.stringify({
+          locationId,
+          slotId,
+          clear: true,
+        }),
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || 'No se pudo limpiar');
+      }
+      setTwilioConfigBySlot((prev) => ({
+        ...prev,
+        [slotId]: {
+          accountSid: '',
+          authToken: '',
+          phoneNumber: '',
+          accountSidMasked: '',
+          authTokenMasked: '',
+          hasAuthToken: false,
+          configured: false,
+        },
+      }));
+      toast.success('Twilio limpiado');
+    } catch (error) {
+      toast.error('Error limpiando Twilio', { description: error.message });
+    } finally {
+      toast.dismiss(loadingId);
+    }
+  };
+
   return (
     <div id="standalone-whatsapp-manager" className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -498,12 +698,12 @@ export default function StandaloneSlotManager({
               ? `${translateOr(
                   t,
                   'standalone.slots.desc',
-                  'Gestiona directamente tus conexiones y numeros de WhatsApp desde esta vista, sin modales intermedios.',
+                  'Gestiona directamente tus conexiones y números de WhatsApp desde esta vista, sin modales intermedios.',
                 )}`
               : translateOr(
                   t,
                   'standalone.slots.desc',
-                  'Gestiona directamente tus conexiones y numeros de WhatsApp desde esta vista, sin modales intermedios.',
+                  'Gestiona directamente tus conexiones y números de WhatsApp desde esta vista, sin modales intermedios.',
                 )}
           </p>
         </div>
@@ -517,7 +717,7 @@ export default function StandaloneSlotManager({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <MetricCard
-          label={translateOr(t, 'agency.reliability.online_slots', 'Slots en linea')}
+          label={translateOr(t, 'agency.reliability.online_slots', 'Slots en línea')}
           value={`${connectedCount}/${localSlots.length || 0}`}
         />
         <MetricCard
@@ -530,7 +730,7 @@ export default function StandaloneSlotManager({
         <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl bg-white dark:bg-gray-900/50">
           <Smartphone className="text-gray-300 dark:text-gray-600 w-16 h-16 mb-4" />
           <p className="text-gray-500 dark:text-gray-400 font-medium text-lg">
-            {translateOr(t, 'standalone.slots.empty', 'Todavia no tienes WhatsApp conectados')}
+            {translateOr(t, 'standalone.slots.empty', 'Todavía no tienes WhatsApp conectados')}
           </p>
         </div>
       ) : (
@@ -631,9 +831,17 @@ export default function StandaloneSlotManager({
                             label={
                               connectionMode === 'official_api'
                                 ? translateOr(t, 'standalone.slots.official_title', 'API Oficial')
-                                : translateOr(t, 'slots.tab.connection', 'Conexion')
+                                : translateOr(t, 'slots.tab.connection', 'Conexión')
                             }
                           />
+                          {supportsSmsTab && (
+                            <TabButton
+                              active={activeTab === 'sms'}
+                              onClick={() => setActiveTabBySlot((prev) => ({ ...prev, [slotId]: 'sms' }))}
+                              icon={<Smartphone size={16} />}
+                              label={translateOr(t, 'slots.tab.sms', 'SMS')}
+                            />
+                          )}
                         </div>
 
                         <div className="p-8">
@@ -651,7 +859,30 @@ export default function StandaloneSlotManager({
                               locationId={locationId}
                               token={token}
                               onUpdate={refreshAndKeepExpanded}
+                              onRealtimeStateChange={(nextState) => patchLocalSlot(slotId, nextState)}
                               onUnauthorized={onUnauthorized}
+                            />
+                          )}
+
+                          {activeTab === 'sms' && supportsSmsTab && (
+                            <SmsPanel
+                              twilio={twilioConfigBySlot[slotId] || {
+                                accountSid: '',
+                                authToken: '',
+                                phoneNumber: '',
+                                accountSidMasked: '',
+                                authTokenMasked: '',
+                                hasAuthToken: false,
+                                configured: false,
+                              }}
+                              loading={!!loadingTwilioBySlot[slotId]}
+                              saving={!!savingTwilioBySlot[slotId]}
+                              onFieldChange={(field, value) => updateTwilioField(slotId, field, value)}
+                              onValidate={() => validateTwilioConfigSlot(slotId)}
+                              onSave={() => saveTwilioConfig(slotId)}
+                              onClear={() => clearTwilioConfig(slotId)}
+                              onReload={() => loadTwilioConfig(slotId, true)}
+                              t={t}
                             />
                           )}
 
@@ -715,9 +946,9 @@ function ConnectionModeSelector({ onSelect }) {
         <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
           <QrCode size={20} />
         </div>
-        <h4 className="text-base font-bold text-gray-900 dark:text-white">Conexion QR</h4>
+        <h4 className="text-base font-bold text-gray-900 dark:text-white">Conexión QR</h4>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Escanea un QR para conectar tu numero de WhatsApp en pocos pasos.
+          Escanea un QR para conectar tu número de WhatsApp en pocos pasos.
         </p>
       </button>
 
@@ -743,7 +974,7 @@ function GeneralPanel({ slot, connectionMode, onSwitchMode }) {
     <div className="max-w-2xl space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <MetricCard label="Nombre" value={slot.slot_name || `WhatsApp ${slot.slot_id}`} />
-        <MetricCard label="Tipo de conexion" value={connectionMode === 'official_api' ? 'API Oficial' : 'QR'} />
+        <MetricCard label="Tipo de conexión" value={connectionMode === 'official_api' ? 'API Oficial' : 'QR'} />
       </div>
       <div>
         <button
@@ -751,7 +982,7 @@ function GeneralPanel({ slot, connectionMode, onSwitchMode }) {
           onClick={() => onSwitchMode(connectionMode === 'official_api' ? 'qr' : 'official_api')}
           className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-300"
         >
-          Cambiar a {connectionMode === 'official_api' ? 'Conexion QR' : 'API Oficial'}
+          Cambiar a {connectionMode === 'official_api' ? 'Conexión QR' : 'API Oficial'}
         </button>
       </div>
     </div>
@@ -763,6 +994,7 @@ function StandaloneSlotConnectionManager({
   locationId,
   token,
   onUpdate,
+  onRealtimeStateChange,
   onUnauthorized,
 }) {
   const { t } = useLanguage();
@@ -810,7 +1042,7 @@ function StandaloneSlotConnectionManager({
         status: body.suspension_status || 'suspended',
         message:
           body.message ||
-          'Tu cuenta esta suspendida. No puedes vincular numeros en este momento.',
+          'Tu cuenta está suspendida. No puedes vincular números en este momento.',
       };
     }
 
@@ -875,6 +1107,11 @@ function StandaloneSlotConnectionManager({
         setAccountSuspensionState(null);
         setStatus({ connected: body.connected, myNumber: body.myNumber });
         setSlotSuspendedBy(body.suspended_by || null);
+        onRealtimeStateChange?.({
+          is_connected: body.connected === true,
+          phone_number: body.myNumber || slot?.phone_number || '',
+          suspended_by: body.suspended_by || null,
+        });
         if (!body.suspended_by) setSlotLockMessage(null);
 
         if (body.connected) {
@@ -997,7 +1234,7 @@ function StandaloneSlotConnectionManager({
   };
 
   const handleSoftDisconnect = async () => {
-    if (!window.confirm('Pausar este dispositivo sin borrar la sesion?')) return;
+    if (!window.confirm('¿Pausar este dispositivo sin borrar la sesión?')) return;
     setLoading(true);
     try {
       const response = await authFetch(
@@ -1017,6 +1254,11 @@ function StandaloneSlotConnectionManager({
 
       setStatus({ connected: false, myNumber: status.myNumber || slot.phone_number || null });
       setSlotSuspendedBy(newLock);
+      onRealtimeStateChange?.({
+        is_connected: false,
+        phone_number: status.myNumber || slot.phone_number || '',
+        suspended_by: newLock,
+      });
       setSlotLockMessage(
         newLock === 'admin'
           ? 'Pausado por administracion. Solo admin puede reactivar.'
@@ -1099,6 +1341,11 @@ function StandaloneSlotConnectionManager({
 
       setStatus({ connected: false, myNumber: null });
       setSlotSuspendedBy(null);
+      onRealtimeStateChange?.({
+        is_connected: false,
+        phone_number: '',
+        suspended_by: null,
+      });
       setSlotLockMessage(null);
       setQrExpired(false);
       setQr(null);
@@ -1174,7 +1421,7 @@ function StandaloneSlotConnectionManager({
           ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
           : status.connected
             ? `Numero: +${status.myNumber}`
-            : 'Escanea el codigo QR para conectar.';
+            : 'Escanea el código QR para conectar.';
 
   return (
     <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
@@ -1334,7 +1581,7 @@ function StandaloneSlotConnectionManager({
                 {qr
                   ? 'Escanea con WhatsApp (Expira pronto)'
                   : slotSuspendedBy
-                    ? 'Reconectando automaticamente...'
+                    ? 'Reconectando automáticamente...'
                     : 'Consiguiendo QR seguro...'}
               </p>
               <button
@@ -1406,7 +1653,7 @@ function QrPanel({
           </div>
         ) : (
           <div className="h-[272px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-            {loading ? 'Generando QR...' : 'Todavia no hay un QR activo'}
+            {loading ? 'Generando QR...' : 'Todavía no hay un QR activo'}
           </div>
         )}
       </div>
@@ -1415,7 +1662,7 @@ function QrPanel({
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h4 className="text-base font-bold text-gray-900 dark:text-white">Conexion QR</h4>
+              <h4 className="text-base font-bold text-gray-900 dark:text-white">Conexión QR</h4>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {isConnected
                   ? `Conectado${qrData.myNumber ? ` como +${qrData.myNumber}` : ''}`
@@ -1464,6 +1711,97 @@ function OfficialPanel({ official, loading, onFieldChange, onSave, onClear }) {
       <div className="flex flex-wrap gap-3">
         <ActionButton onClick={onSave} icon={<Save size={16} />} label="Guardar y validar" disabled={loading} />
         <ActionButton onClick={onClear} icon={<Trash2 size={16} />} label="Limpiar" disabled={loading} tone="secondary" />
+      </div>
+    </div>
+  );
+}
+
+function SmsPanel({
+  twilio,
+  loading,
+  saving,
+  onFieldChange,
+  onValidate,
+  onSave,
+  onClear,
+  onReload,
+  t,
+}) {
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">
+              {t('slots.sms.title')}
+            </h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {t('slots.sms.desc')}
+            </p>
+          </div>
+          <div
+            className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${
+              twilio.configured
+                ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30'
+                : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'
+            }`}
+          >
+            {twilio.configured ? t('slots.sms.configured') : t('slots.sms.not_configured')}
+          </div>
+        </div>
+
+        <InputField
+          label={t('slots.sms.account_sid')}
+          value={twilio.accountSid || ''}
+          onChange={(value) => onFieldChange('accountSid', value)}
+        />
+
+        <InputField
+          label={t('slots.sms.auth_token')}
+          value={twilio.authToken || ''}
+          onChange={(value) => onFieldChange('authToken', value)}
+          type="password"
+        />
+
+        <InputField
+          label={t('slots.sms.phone_number')}
+          value={twilio.phoneNumber || ''}
+          onChange={(value) => onFieldChange('phoneNumber', value)}
+        />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={onValidate}
+            disabled={loading || saving}
+            className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60 transition flex items-center gap-2"
+          >
+            <Save size={16} />
+            {t('slots.sms.validate')}
+          </button>
+          <button
+            onClick={onSave}
+            disabled={loading || saving}
+            className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+          >
+            {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+            {t('slots.sms.save')}
+          </button>
+          <button
+            onClick={onClear}
+            disabled={loading || saving}
+            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
+          >
+            {t('slots.sms.clear')}
+          </button>
+          <button
+            onClick={onReload}
+            disabled={loading || saving}
+            className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
+            title={t('slots.sms.reload')}
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
     </div>
   );
