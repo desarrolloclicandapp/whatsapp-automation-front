@@ -2,12 +2,12 @@
 
 ## Resumen ejecutivo
 
-El standalone ya no esta solo en modo sandbox visual. Hoy existe un circuito real de punta a punta para:
+Hoy existe un circuito real de punta a punta para:
 
 - entrar por `/crm` o `/standalone`
 - autenticarse con el flujo standalone
 - persistir `users.interface = 'standalone'`
-- aprovisionar una cuenta monocuenta real con Waflow Inbox hosted
+- aprovisionar una cuenta monocuenta real con Waflow WhatsApp hosted
 - cargar overview, settings, agents y accesos desde endpoints reales
 
 El flujo agency/default sigue separado:
@@ -36,8 +36,8 @@ Nuevo servicio clave:
 Responsabilidad:
 
 - crear location unica
-- aprovisionar cuenta hosted de Waflow Inbox
-- crear inbox inicial
+- aprovisionar cuenta hosted de Waflow WhatsApp
+- crear acceso inicial
 - crear slot inicial
 - dejar acceso del mismo usuario final configurado
 
@@ -51,6 +51,8 @@ Listo:
 - `StandaloneSettings.jsx` ya usa endpoints reales para settings principales
 - `StandaloneAgents.jsx` ya trabaja con `locationId` real
 - `StandaloneLogin.jsx` ya entrega `interface` standalone al cerrar el flujo
+- `App.jsx` ya revalida la interfaz operativa con `/agency/info`
+- layout/dashboard/slots/login ya no muestran copy de prueba ni claves `standalone.*` en pantalla
 
 Se mantiene cercano al original:
 
@@ -104,7 +106,7 @@ Lo primero a validar en entorno real es:
 - creacion automatica de la location
 - creacion de la cuenta hosted de Waflow Inbox
 - creacion del inbox/slot inicial
-- apertura del acceso real de Waflow Inbox
+- apertura del acceso real de Waflow WhatsApp
 
 ### 2. Dependencias de Chatwoot
 
@@ -145,7 +147,7 @@ Resultado:
 
 Limitacion de verificacion:
 
-- `node --check` sobre archivos backend no se pudo usar en este entorno por un error EPERM del sandbox/Windows al resolver rutas
+- `node --check` sobre archivos backend no se pudo usar en este entorno por un error EPERM de Windows al resolver rutas
 
 Warnings no bloqueantes conocidos:
 

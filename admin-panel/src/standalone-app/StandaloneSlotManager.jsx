@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '../context/LanguageContext';
+import { translateOr } from './i18n';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
 const OFFICIAL_EMPTY_STATE = {
@@ -99,6 +100,15 @@ export default function StandaloneSlotManager({
 
   const refreshAndKeepExpanded = async () => {
     await Promise.resolve(onRefresh?.());
+  };
+
+  const runSlotRealtimePolling = (slotId, attempts = 8, delayMs = 2500) => {
+    if (!slotId || attempts <= 0) return;
+
+    window.setTimeout(async () => {
+      await fetchSlotRealtime(slotId);
+      runSlotRealtimePolling(slotId, attempts - 1, delayMs);
+    }, delayMs);
   };
 
   const loadOfficialConfig = async (slotId) => {
@@ -192,7 +202,7 @@ export default function StandaloneSlotManager({
         throw new Error(body?.error || 'No se pudo crear el WhatsApp');
       }
 
-      toast.success(t('standalone.slots.new') || 'Nuevo WhatsApp creado');
+      toast.success(translateOr(t, 'standalone.slots.toast_created', 'Nuevo WhatsApp creado'));
       await refreshAndKeepExpanded();
       setExpandedSlotId(body?.slot_id || expandedSlotId);
     } catch (error) {
@@ -211,7 +221,7 @@ export default function StandaloneSlotManager({
         throw new Error(body?.error || 'No se pudo eliminar el WhatsApp');
       }
 
-      toast.success(t('standalone.slots.toast_deleted') || 'WhatsApp eliminado');
+      toast.success(translateOr(t, 'standalone.slots.toast_deleted', 'WhatsApp eliminado'));
       await refreshAndKeepExpanded();
       if (expandedSlotId === slotId) {
         setExpandedSlotId(null);
@@ -226,7 +236,7 @@ export default function StandaloneSlotManager({
   const handleRenameSlot = async (slotId) => {
     const currentSlot = localSlots.find((slot) => slot.slot_id === slotId);
     const nextName = window.prompt(
-      t('standalone.slots.prompt_name') || 'Nombre del WhatsApp',
+      translateOr(t, 'standalone.slots.prompt_name', 'Nombre del WhatsApp'),
       currentSlot?.slot_name || `WhatsApp ${slotId}`,
     );
     if (!nextName || !nextName.trim()) return;
@@ -246,7 +256,7 @@ export default function StandaloneSlotManager({
         throw new Error(body?.error || 'No se pudo actualizar el nombre');
       }
 
-      toast.success(t('standalone.slots.toast_renamed') || 'Nombre actualizado');
+      toast.success(translateOr(t, 'standalone.slots.toast_renamed', 'Nombre actualizado'));
       await refreshAndKeepExpanded();
     } catch (error) {
       toast.error(error.message || 'No se pudo actualizar el nombre');
@@ -300,7 +310,8 @@ export default function StandaloneSlotManager({
 
       await fetchSlotRealtime(slotId);
       await refreshAndKeepExpanded();
-      toast.success(t('standalone.slots.qr_started') || 'Proceso QR iniciado');
+      runSlotRealtimePolling(slotId);
+      toast.success(translateOr(t, 'standalone.slots.qr_started', 'Proceso QR iniciado'));
     } catch (error) {
       toast.error(error.message || 'No se pudo iniciar la vinculacion QR');
     } finally {
@@ -319,7 +330,7 @@ export default function StandaloneSlotManager({
         throw new Error(body?.error || 'No se pudo pausar el WhatsApp');
       }
 
-      toast.success(t('standalone.slots.toast_paused') || 'WhatsApp pausado');
+      toast.success(translateOr(t, 'standalone.slots.toast_paused', 'WhatsApp pausado'));
       await refreshAndKeepExpanded();
     } catch (error) {
       toast.error(error.message || 'No se pudo pausar el WhatsApp');
@@ -341,7 +352,8 @@ export default function StandaloneSlotManager({
 
       await fetchSlotRealtime(slotId);
       await refreshAndKeepExpanded();
-      toast.success(t('standalone.slots.toast_reconnected') || 'WhatsApp reconectado');
+      runSlotRealtimePolling(slotId);
+      toast.success(translateOr(t, 'standalone.slots.toast_reconnected', 'WhatsApp reconectado'));
     } catch (error) {
       toast.error(error.message || 'No se pudo reconectar el WhatsApp');
     } finally {
@@ -360,7 +372,7 @@ export default function StandaloneSlotManager({
         throw new Error(body?.error || 'No se pudo desconectar el WhatsApp');
       }
 
-      toast.success(t('standalone.slots.toast_disconnected') || 'WhatsApp desconectado');
+      toast.success(translateOr(t, 'standalone.slots.toast_disconnected', 'WhatsApp desconectado'));
       await refreshAndKeepExpanded();
     } catch (error) {
       toast.error(error.message || 'No se pudo desconectar el WhatsApp');
@@ -383,8 +395,11 @@ export default function StandaloneSlotManager({
     const official = officialDraftBySlot[slotId] || OFFICIAL_EMPTY_STATE;
     if (!official.businessAccountId || !official.phoneNumberId || !official.accessToken) {
       toast.error(
-        t('standalone.slots.official_required_fields') ||
+        translateOr(
+          t,
+          'standalone.slots.official_required_fields',
           'Completa Business Account ID, Phone Number ID y Access Token',
+        ),
       );
       return;
     }
@@ -469,7 +484,7 @@ export default function StandaloneSlotManager({
       }
 
       await navigator.clipboard.writeText(body.shareUrl);
-      toast.success(t('common.copied') || 'Copiado');
+      toast.success(translateOr(t, 'common.copied', 'Copiado'));
     } catch (error) {
       toast.error(error.message || (t('slots.chatwoot.copy_error') || 'No se pudo copiar'));
     }
@@ -480,29 +495,37 @@ export default function StandaloneSlotManager({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-            {t('standalone.slots.title') || 'WhatsApp activos'}
+            {translateOr(t, 'standalone.slots.title', 'WhatsApp activos')}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {locationName
-              ? `${t('standalone.slots.desc') || 'Gestiona directamente tus conexiones y numeros de WhatsApp desde esta vista, sin modales intermedios.'}`
-              : t('standalone.slots.desc') || 'Gestiona directamente tus conexiones y numeros de WhatsApp desde esta vista, sin modales intermedios.'}
+              ? `${translateOr(
+                  t,
+                  'standalone.slots.desc',
+                  'Gestiona directamente tus conexiones y numeros de WhatsApp desde esta vista, sin modales intermedios.',
+                )}`
+              : translateOr(
+                  t,
+                  'standalone.slots.desc',
+                  'Gestiona directamente tus conexiones y numeros de WhatsApp desde esta vista, sin modales intermedios.',
+                )}
           </p>
         </div>
         <button
           onClick={handleAddSlot}
           className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition"
         >
-          <Plus size={18} /> {t('standalone.slots.new') || 'Nuevo WhatsApp'}
+          <Plus size={18} /> {translateOr(t, 'standalone.slots.new', 'Nuevo WhatsApp')}
         </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <MetricCard
-          label={t('agency.reliability.online_slots') || 'Slots en linea'}
+          label={translateOr(t, 'agency.reliability.online_slots', 'Slots en linea')}
           value={`${connectedCount}/${localSlots.length || 0}`}
         />
         <MetricCard
-          label={t('agency.reliability.sent_24h') || 'Enviados 24h'}
+          label={translateOr(t, 'agency.reliability.sent_24h', 'Enviados 24h')}
           value={String(Number(healthSummary?.sent_24h || 0))}
         />
       </div>
@@ -511,7 +534,7 @@ export default function StandaloneSlotManager({
         <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl bg-white dark:bg-gray-900/50">
           <Smartphone className="text-gray-300 dark:text-gray-600 w-16 h-16 mb-4" />
           <p className="text-gray-500 dark:text-gray-400 font-medium text-lg">
-            {t('standalone.slots.empty') || 'Todavia no tienes WhatsApp conectados'}
+            {translateOr(t, 'standalone.slots.empty', 'Todavia no tienes WhatsApp conectados')}
           </p>
         </div>
       ) : (
@@ -557,7 +580,9 @@ export default function StandaloneSlotManager({
                         </button>
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1">
-                        {slot.is_connected && slot.phone_number ? `+${slot.phone_number}` : t('slots.card.disconnected') || 'Desconectado'}
+                        {slot.is_connected && slot.phone_number
+                          ? `+${slot.phone_number}`
+                          : translateOr(t, 'slots.card.disconnected', 'Desconectado')}
                       </p>
                     </div>
                   </div>
@@ -596,7 +621,7 @@ export default function StandaloneSlotManager({
                             active={activeTab === 'general'}
                             onClick={() => setActiveTabBySlot((prev) => ({ ...prev, [slotId]: 'general' }))}
                             icon={<Settings size={16} />}
-                            label={t('slots.tab.general') || 'General'}
+                            label={translateOr(t, 'slots.tab.general', 'General')}
                           />
                           <TabButton
                             active={activeTab === (connectionMode === 'official_api' ? 'official' : 'connection')}
@@ -607,7 +632,11 @@ export default function StandaloneSlotManager({
                               }))
                             }
                             icon={connectionMode === 'official_api' ? <Link2 size={16} /> : <QrCode size={16} />}
-                            label={connectionMode === 'official_api' ? 'API Oficial' : (t('slots.tab.connection') || 'Conexion')}
+                            label={
+                              connectionMode === 'official_api'
+                                ? translateOr(t, 'standalone.slots.official_title', 'API Oficial')
+                                : translateOr(t, 'slots.tab.connection', 'Conexion')
+                            }
                           />
                         </div>
 

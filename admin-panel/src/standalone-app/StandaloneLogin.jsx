@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { useBranding } from '../context/BrandingContext';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
+import { translateOr } from './i18n';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
 const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '34611770270';
@@ -92,7 +93,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       const res = await fetch(`${API_URL}/auth/otp/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, source: SIGNUP_SOURCE }),
+        body: JSON.stringify({ phone, source: SIGNUP_SOURCE, interface: 'standalone' }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('auth.otp_request_error'));
@@ -113,7 +114,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       const res = await fetch(`${API_URL}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code: phoneCode, email, source: SIGNUP_SOURCE }),
+        body: JSON.stringify({ phone, code: phoneCode, email, source: SIGNUP_SOURCE, interface: 'standalone' }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
@@ -141,7 +142,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       const res = await fetch(`${API_URL}/auth/otp/email/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, source: SIGNUP_SOURCE }),
+        body: JSON.stringify({ email, name, source: SIGNUP_SOURCE, interface: 'standalone' }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('auth.email_send_error'));
@@ -162,7 +163,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       const res = await fetch(`${API_URL}/auth/otp/email/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: emailCode, source: SIGNUP_SOURCE }),
+        body: JSON.stringify({ email, code: emailCode, source: SIGNUP_SOURCE, interface: 'standalone' }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
@@ -197,7 +198,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${tempToken}`,
         },
-        body: JSON.stringify({ email, agencyName: name, source: SIGNUP_SOURCE }),
+        body: JSON.stringify({ email, agencyName: name, source: SIGNUP_SOURCE, interface: 'standalone' }),
       });
 
       if (!updateRes.ok) throw new Error(t('auth.save_profile_error'));
@@ -311,7 +312,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
           </h1>
 
           <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white/90 backdrop-blur-sm">
-            {t('standalone.login.clean_left_note') || 'Acceso seguro para el nuevo entorno standalone'}
+            {translateOr(t, 'standalone.login.clean_left_note', 'Acceso seguro para tu cuenta y tus WhatsApp.')}
           </div>
         </div>
       </div>
@@ -496,13 +497,13 @@ export default function StandaloneLogin({ onLoginSuccess }) {
                   <div className="text-center">
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{t('auth.hello')}</h2>
                     <p className="text-gray-500 mt-2">
-                      {t('standalone.login.account_name_question') || 'Cual es el nombre de tu cuenta?'}
+                      {translateOr(t, 'standalone.login.account_name_question', 'Cual es el nombre de tu cuenta?')}
                     </p>
                   </div>
                   <form onSubmit={finishRegistration} className="space-y-6">
                     <input
                       type="text"
-                      placeholder={t('standalone.login.account_name_placeholder') || 'Ej: Cuenta principal'}
+                      placeholder={translateOr(t, 'standalone.login.account_name_placeholder', 'Ej: Cuenta principal')}
                       autoFocus
                       className="w-full p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white text-lg outline-none focus:ring-2 transition-all"
                       style={{ '--tw-ring-color': branding.primaryColor }}
@@ -526,12 +527,16 @@ export default function StandaloneLogin({ onLoginSuccess }) {
                   <div className="text-center">
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                       {ghlExists
-                        ? (t('standalone.login.join_account') || 'Unete a tu cuenta')
+                        ? translateOr(t, 'standalone.login.join_account', 'Unete a tu cuenta')
                         : t('auth.welcome')}
                     </h2>
                     <p className="text-gray-500 mt-2">
                       {ghlExists
-                        ? (t('standalone.login.account_exists_link') || 'Tu cuenta ya existe. Vincula tu acceso con este correo.')
+                        ? translateOr(
+                            t,
+                            'standalone.login.account_exists_link',
+                            'Tu cuenta ya existe. Vincula tu acceso con este correo.',
+                          )
                         : t('auth.validate_corporate_email')}
                     </p>
                   </div>

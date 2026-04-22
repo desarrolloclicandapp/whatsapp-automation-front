@@ -10,6 +10,7 @@ import './index.css';
 
 const STANDALONE_HOME = '/crm';
 const AGENCY_HOME = '/agency';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
 
 const safeJsonParse = (value, fallback = null) => {
     if (!value) return fallback;
@@ -38,11 +39,18 @@ const getModeFromPath = (pathname = '/') => {
 const normalizeInterface = (value, fallback = 'agency') => {
     const normalized = String(value || '').trim().toLowerCase();
 
-    if (normalized === 'standalone' || normalized === 'standalone_crm' || normalized === 'crm') {
+    if (
+        normalized === 'standalone' ||
+        normalized === 'standalone_crm' ||
+        normalized === 'crm' ||
+        normalized === 'autonomo' ||
+        normalized === 'autonomous' ||
+        normalized === 'account'
+    ) {
         return 'standalone';
     }
 
-    if (normalized === 'agency') {
+    if (normalized === 'agency' || normalized === 'agencia') {
         return 'agency';
     }
 
@@ -126,6 +134,48 @@ function App() {
         window.history.replaceState({}, document.title, `${targetPath}${window.location.search}`);
         setCurrentPath(targetPath);
     }, [expectedMode, needsRouteCorrection]);
+
+    useEffect(() => {
+        if (!token || role === 'admin') return undefined;
+
+        let isCancelled = false;
+
+        const syncOperationalInterface = async () => {
+            try {
+                const response = await fetch(`${API_URL}/agency/info`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (!response.ok) return;
+
+                const data = await response.json();
+                if (isCancelled) return;
+
+                const nextInterface = normalizeInterface(
+                    data?.interface,
+                    currentMode,
+                );
+
+                if (nextInterface !== userInterface) {
+                    localStorage.setItem('userInterface', nextInterface);
+                    setUserInterface(nextInterface);
+                }
+
+                if (data?.email) localStorage.setItem('userEmail', data.email);
+                if (data?.name) localStorage.setItem('userName', data.name);
+            } catch (error) {
+                console.warn('[App] No se pudo sincronizar la interfaz operativa:', error?.message || error);
+            }
+        };
+
+        syncOperationalInterface();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [token, role, currentMode, userInterface]);
 
     const navigateTo = (nextPath, method = 'replace') => {
         if (!nextPath || nextPath === currentPath) return;

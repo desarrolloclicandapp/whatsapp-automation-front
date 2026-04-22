@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import StandaloneSlotManager from './StandaloneSlotManager';
+import { translateOr } from './i18n';
 
 export default function StandaloneDashboard({
   accountInfo,
@@ -36,12 +37,14 @@ export default function StandaloneDashboard({
     () => [
       {
         id: 'whatsapp',
-        title: t('standalone.dashboard.quick_start_step_whatsapp_title') || 'Anade tu WhatsApp',
-        desc:
-          t('standalone.dashboard.quick_start_step_whatsapp_desc') ||
+        title: translateOr(t, 'standalone.dashboard.quick_start_step_whatsapp_title', 'Anade tu WhatsApp'),
+        desc: translateOr(
+          t,
+          'standalone.dashboard.quick_start_step_whatsapp_desc',
           'Crea tu primer WhatsApp o agrega un nuevo numero para esta cuenta.',
-        actionLabel: t('standalone.dashboard.quick_start_step_whatsapp_cta') || 'Gestionar',
-        doneLabel: t('standalone.dashboard.quick_start_step_whatsapp_done') || 'WhatsApp listo',
+        ),
+        actionLabel: translateOr(t, 'standalone.dashboard.quick_start_step_whatsapp_cta', 'Gestionar'),
+        doneLabel: translateOr(t, 'standalone.dashboard.quick_start_step_whatsapp_done', 'WhatsApp listo'),
         done: slots.length > 0,
         onClick: () =>
           document.getElementById('standalone-whatsapp-manager')?.scrollIntoView({
@@ -51,12 +54,14 @@ export default function StandaloneDashboard({
       },
       {
         id: 'online',
-        title: t('standalone.dashboard.quick_start_step_online_title') || 'Ponlo en linea',
-        desc:
-          t('standalone.dashboard.quick_start_step_online_desc') ||
+        title: translateOr(t, 'standalone.dashboard.quick_start_step_online_title', 'Ponlo en linea'),
+        desc: translateOr(
+          t,
+          'standalone.dashboard.quick_start_step_online_desc',
           'Escanea el QR o configura la API oficial para dejar el WhatsApp operativo.',
-        actionLabel: t('standalone.dashboard.quick_start_step_online_cta') || 'Conectar WhatsApp',
-        doneLabel: t('standalone.dashboard.quick_start_step_online_done') || 'En linea',
+        ),
+        actionLabel: translateOr(t, 'standalone.dashboard.quick_start_step_online_cta', 'Conectar WhatsApp'),
+        doneLabel: translateOr(t, 'standalone.dashboard.quick_start_step_online_done', 'En linea'),
         done: connectedSlots > 0,
         onClick: () =>
           document.getElementById('standalone-whatsapp-manager')?.scrollIntoView({
@@ -66,12 +71,14 @@ export default function StandaloneDashboard({
       },
       {
         id: 'chat',
-        title: t('standalone.dashboard.step3_title') || 'Empieza a chatear',
-        desc:
-          t('standalone.dashboard.step3_desc') ||
-          'Accede a tu bandeja de entrada para responder a tus clientes en tiempo real.',
-        actionLabel: t('standalone.dashboard.step3_cta') || 'Abrir Waflow Inbox',
-        doneLabel: t('standalone.dashboard.step3_done') || 'Inbox abierto',
+        title: translateOr(t, 'standalone.dashboard.step3_title', 'Empieza a responder'),
+        desc: translateOr(
+          t,
+          'standalone.dashboard.step3_desc',
+          'Abre tu panel de WhatsApp para responder a tus clientes en tiempo real.',
+        ),
+        actionLabel: translateOr(t, 'standalone.dashboard.step3_cta', 'Abrir Waflow WhatsApp'),
+        doneLabel: translateOr(t, 'standalone.dashboard.step3_done', 'WhatsApp abierto'),
         done: isWhatsAppConnected,
         disabled: !isWhatsAppConnected,
         icon: <MessageSquare size={14} />,
@@ -87,11 +94,11 @@ export default function StandaloneDashboard({
   if (!accountInfo) {
     return (
       <div className="min-h-[55vh] flex items-center justify-center text-gray-500 dark:text-gray-400">
-        <div className="flex items-center gap-3">
-          <Loader2 size={20} className="animate-spin" />
-          <span>{t('common.loading') || 'Cargando...'}</span>
-        </div>
-      </div>
+            <div className="flex items-center gap-3">
+              <Loader2 size={20} className="animate-spin" />
+              <span>{translateOr(t, 'common.loading', 'Cargando...')}</span>
+            </div>
+          </div>
     );
   }
 
@@ -136,7 +143,7 @@ export default function StandaloneDashboard({
                 accountInfo?.plan === 'active' ? 'text-blue-200' : 'text-gray-400'
               }`}
             >
-              {t('dash.stats.plan') || 'Plan Actual'}
+              {translateOr(t, 'dash.stats.plan', 'Plan Actual')}
             </span>
           </div>
           <div
@@ -145,8 +152,8 @@ export default function StandaloneDashboard({
             }`}
           >
             {accountInfo?.plan === 'active'
-              ? t('dash.stats.active') || 'Activo'
-              : t('dash.stats.trial') || 'Trial'}
+              ? translateOr(t, 'dash.stats.active', 'Activo')
+              : translateOr(t, 'dash.stats.trial', 'Trial')}
           </div>
           {accountInfo?.trial_ends && (
             <div
@@ -168,7 +175,7 @@ export default function StandaloneDashboard({
             </div>
             <div>
               <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                {t('standalone.dashboard.trial_title') || 'Periodo de prueba'}
+                {translateOr(t, 'standalone.dashboard.trial_title', 'Periodo de prueba')}
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 Expira: {accountInfo?.trial_ends ? new Date(accountInfo.trial_ends).toLocaleDateString() : 'Sin fecha'}
@@ -179,7 +186,7 @@ export default function StandaloneDashboard({
             onClick={onGoToBilling}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-sm transition"
           >
-            {t('standalone.dashboard.choose_plan') || 'Elegir plan'}
+            {translateOr(t, 'standalone.dashboard.choose_plan', 'Elegir plan')}
           </button>
         </div>
       )}
@@ -191,15 +198,18 @@ export default function StandaloneDashboard({
               <div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <Sparkles size={18} className="text-indigo-500" />
-                  {t('standalone.dashboard.quick_start_title') || 'Empieza aqui'}
+                  {translateOr(t, 'standalone.dashboard.quick_start_title', 'Empieza aqui')}
                 </h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {t('standalone.dashboard.quick_start_desc') ||
-                    'Tres pasos para dejar lista tu cuenta y empezar a responder mensajes.'}
+                  {translateOr(
+                    t,
+                    'standalone.dashboard.quick_start_desc',
+                    'Tres pasos para dejar lista tu cuenta y empezar a responder mensajes.',
+                  )}
                 </p>
               </div>
               <span className="inline-flex items-center rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-bold text-indigo-600 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300">
-                {(t('standalone.dashboard.quick_start_progress') || '{done}/{total} listos')
+                {translateOr(t, 'standalone.dashboard.quick_start_progress', '{done}/{total} listos')
                   .replace('{done}', String(quickStartDoneCount))
                   .replace('{total}', String(quickStartSteps.length))}
               </span>

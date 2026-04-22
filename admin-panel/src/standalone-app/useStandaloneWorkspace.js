@@ -113,7 +113,7 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
         setChatwootAccessInfo(chatwootAccessData);
       } catch (error) {
         if (!isCancelled) {
-          toast.error(error.message || 'No se pudo cargar la interfaz standalone');
+          toast.error(error.message || 'No se pudo cargar tu panel principal');
         }
       } finally {
         if (!isCancelled) {

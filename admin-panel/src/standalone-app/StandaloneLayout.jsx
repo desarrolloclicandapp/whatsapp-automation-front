@@ -22,6 +22,7 @@ import StandaloneAgents from './StandaloneAgents';
 import StandaloneSettings from './StandaloneSettings';
 import StandaloneMessageBuilder from './StandaloneMessageBuilder';
 import useStandaloneWorkspace from './useStandaloneWorkspace';
+import { translateOr } from './i18n';
 
 const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '34611770270';
 
@@ -47,6 +48,7 @@ export default function StandaloneLayout({
     loading,
     planType,
     refreshWorkspace,
+    authFetch,
   } = useStandaloneWorkspace({
     token,
     onUnauthorized: onUnauthorized || onLogout,
@@ -64,6 +66,25 @@ export default function StandaloneLayout({
   };
 
   const openInbox = async () => {
+    try {
+      if (primaryLocationId) {
+        const accessLinkResponse = await authFetch(
+          `/agency/locations/${encodeURIComponent(primaryLocationId)}/chatwoot-access-link`,
+          { method: 'POST' },
+        );
+
+        if (accessLinkResponse?.ok) {
+          const accessLinkBody = await accessLinkResponse.json();
+          if (accessLinkBody?.shareUrl) {
+            window.open(accessLinkBody.shareUrl, '_blank', 'noopener,noreferrer');
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[StandaloneLayout] Falling back to direct access info:', error?.message || error);
+    }
+
     const directUrl =
       chatwootAccessInfo?.chatwoot?.directLoginUrl ||
       chatwootAccessInfo?.chatwoot?.loginUrl ||
@@ -72,8 +93,11 @@ export default function StandaloneLayout({
 
     if (!directUrl) {
       toast.error(
-        t('standalone.layout.messaging_unavailable') ||
-          'Todavia no hay acceso disponible para Waflow Inbox en esta cuenta.',
+        translateOr(
+          t,
+          'standalone.layout.messaging_unavailable',
+          'Todavia no hay acceso disponible para Waflow WhatsApp en esta cuenta.',
+        ),
       );
       return;
     }
@@ -89,8 +113,11 @@ export default function StandaloneLayout({
         block: 'start',
       });
       toast.info(
-        t('standalone.layout.messaging_connect_hint') ||
+        translateOr(
+          t,
+          'standalone.layout.messaging_connect_hint',
           'Primero conecta tu WhatsApp desde el panel principal.',
+        ),
       );
       return;
     }
@@ -114,24 +141,24 @@ export default function StandaloneLayout({
 
   const headerTitle =
     activeTab === 'overview'
-      ? t('standalone.layout.header_overview') || 'Panel Principal'
+      ? translateOr(t, 'standalone.layout.header_overview', 'Panel principal')
       : activeTab === 'billing'
-        ? t('standalone.layout.header_billing') || 'Suscripcion'
+        ? translateOr(t, 'standalone.layout.header_billing', 'Suscripcion')
         : activeTab === 'agents'
-          ? t('standalone.layout.header_agents') || 'Agentes'
+          ? translateOr(t, 'standalone.layout.header_agents', 'Agentes')
           : activeTab === 'builder'
-            ? t('standalone.layout.header_builder') || 'Constructor de botones'
-            : t('standalone.layout.header_settings') || 'Configuracion';
+            ? translateOr(t, 'standalone.layout.header_builder', 'Constructor de botones')
+            : translateOr(t, 'standalone.layout.header_settings', 'Configuracion');
 
   const renderContent = () => {
     if (loading && !accountInfo) {
       return (
         <div className="min-h-[60vh] flex items-center justify-center text-gray-500 dark:text-gray-400">
-          <div className="flex items-center gap-3">
-            <Loader2 size={20} className="animate-spin" />
-            <span>{t('common.loading') || 'Cargando...'}</span>
+            <div className="flex items-center gap-3">
+              <Loader2 size={20} className="animate-spin" />
+              <span>{translateOr(t, 'common.loading', 'Cargando...')}</span>
+            </div>
           </div>
-        </div>
       );
     }
 
@@ -216,14 +243,14 @@ export default function StandaloneLayout({
           </div>
           {sidebarOpen && (
             <span className="ml-3 font-bold text-gray-900 dark:text-white tracking-tight truncate">
-              {branding?.name || (t('standalone.layout.brand_name') || 'Waflow')}
+              {branding?.name || translateOr(t, 'standalone.layout.brand_name', 'Waflow')}
             </span>
           )}
         </div>
 
         <div className="flex-1 p-4 overflow-y-auto">
           <p className={`text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>
-            {t('standalone.layout.management') || 'Gestion'}
+            {translateOr(t, 'standalone.layout.management', 'Gestion')}
           </p>
 
           <SidebarItem
@@ -231,7 +258,7 @@ export default function StandaloneLayout({
             setActiveTab={setActiveTab}
             id="overview"
             icon={LayoutGrid}
-            label={t('standalone.layout.nav_overview') || 'Panel Principal'}
+            label={translateOr(t, 'standalone.layout.nav_overview', 'Panel principal')}
             branding={branding}
             sidebarOpen={sidebarOpen}
           />
@@ -245,7 +272,7 @@ export default function StandaloneLayout({
                   className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300 dark:border-green-900/40 dark:hover:bg-green-900/30"
                 >
                   <div className={`w-2 h-2 rounded-full shrink-0 ${isWhatsAppConnected ? 'bg-green-500' : 'bg-amber-400'}`}></div>
-                  <span>{t('standalone.layout.product_messaging') || 'WaFloW Mensajeria'}</span>
+                  <span>{translateOr(t, 'standalone.layout.product_messaging', 'Waflow WhatsApp')}</span>
                 </button>
               )}
 
@@ -255,7 +282,7 @@ export default function StandaloneLayout({
                 className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/40 dark:hover:bg-blue-900/30"
               >
                 <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></div>
-                <span>{t('standalone.layout.product_crm') || 'WaFloW CRM'}</span>
+                <span>{translateOr(t, 'standalone.layout.product_crm', 'Waflow CRM')}</span>
               </button>
             </div>
           )}
@@ -265,7 +292,7 @@ export default function StandaloneLayout({
             setActiveTab={setActiveTab}
             id="billing"
             icon={CreditCard}
-            label={t('standalone.layout.nav_billing') || 'Suscripcion'}
+            label={translateOr(t, 'standalone.layout.nav_billing', 'Suscripcion')}
             branding={branding}
             sidebarOpen={sidebarOpen}
           />
@@ -274,7 +301,7 @@ export default function StandaloneLayout({
             setActiveTab={setActiveTab}
             id="agents"
             icon={Bot}
-            label={t('standalone.layout.nav_agents') || 'Agentes'}
+            label={translateOr(t, 'standalone.layout.nav_agents', 'Agentes')}
             branding={branding}
             sidebarOpen={sidebarOpen}
           />
@@ -283,7 +310,7 @@ export default function StandaloneLayout({
             setActiveTab={setActiveTab}
             id="settings"
             icon={Settings}
-            label={t('standalone.layout.nav_settings') || 'Configuracion'}
+            label={translateOr(t, 'standalone.layout.nav_settings', 'Configuracion')}
             branding={branding}
             sidebarOpen={sidebarOpen}
           />
@@ -292,7 +319,7 @@ export default function StandaloneLayout({
             setActiveTab={setActiveTab}
             id="builder"
             icon={Hammer}
-            label={t('standalone.layout.nav_builder') || 'Constructor de botones'}
+            label={translateOr(t, 'standalone.layout.nav_builder', 'Constructor de botones')}
             branding={branding}
             sidebarOpen={sidebarOpen}
           />
@@ -306,7 +333,7 @@ export default function StandaloneLayout({
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10"
           >
             <LifeBuoy size={20} />
-            {sidebarOpen && <span>{t('standalone.layout.support') || 'Soporte'}</span>}
+            {sidebarOpen && <span>{translateOr(t, 'standalone.layout.support', 'Soporte')}</span>}
           </a>
         </div>
 
@@ -316,7 +343,7 @@ export default function StandaloneLayout({
             className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all font-medium text-sm"
           >
             <LogOut size={20} />
-            {sidebarOpen && <span>{t('standalone.layout.logout') || 'Cerrar sesion'}</span>}
+            {sidebarOpen && <span>{translateOr(t, 'standalone.layout.logout', 'Cerrar sesion')}</span>}
           </button>
         </div>
       </aside>
@@ -367,7 +394,7 @@ export default function StandaloneLayout({
               type="button"
               onClick={() => setShowUpgradeModal(false)}
               className="absolute right-4 top-4 rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              aria-label={t('standalone.layout.upgrade_modal.close') || 'Cerrar'}
+              aria-label={translateOr(t, 'standalone.layout.upgrade_modal.close', 'Cerrar')}
             >
               <X size={18} />
             </button>
@@ -377,11 +404,14 @@ export default function StandaloneLayout({
                 <CreditCard size={22} />
               </div>
               <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {t('standalone.layout.upgrade_modal.title') || 'Sube de nivel'}
+                {translateOr(t, 'standalone.layout.upgrade_modal.title', 'Sube de nivel')}
               </h3>
               <p className="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
-                {t('standalone.layout.upgrade_modal.description') ||
-                  'Accede a funciones avanzadas de CRM, automatizaciones de ventas y gestion de leads profesional con WaFloW CRM.'}
+                {translateOr(
+                  t,
+                  'standalone.layout.upgrade_modal.description',
+                  'Accede a funciones avanzadas de CRM, automatizaciones de ventas y gestion de leads profesional con Waflow CRM.',
+                )}
               </p>
             </div>
 
@@ -391,14 +421,14 @@ export default function StandaloneLayout({
                 onClick={() => setShowUpgradeModal(false)}
                 className="rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
               >
-                {t('standalone.layout.upgrade_modal.close') || 'Cerrar'}
+                {translateOr(t, 'standalone.layout.upgrade_modal.close', 'Cerrar')}
               </button>
               <button
                 type="button"
                 onClick={handleUpgradeRedirect}
                 className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-blue-700"
               >
-                {t('standalone.layout.upgrade_modal.cta') || 'Mejorar mi plan ahora'}
+                {translateOr(t, 'standalone.layout.upgrade_modal.cta', 'Mejorar mi plan ahora')}
               </button>
             </div>
           </div>

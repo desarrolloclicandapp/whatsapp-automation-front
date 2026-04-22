@@ -4,10 +4,10 @@
 
 Este directorio contiene la nueva interfaz standalone/CRM de Waflow, construida en paralelo al frontend actual de agencias.
 
-La meta del trabajo evoluciono en dos etapas:
+La meta del trabajo fue:
 
-- primero: crear una interfaz aislada en sandbox, sin tocar el flujo principal
-- despues: conectarla de verdad al mismo backend y a la misma base de datos, manteniendo el circuito agency intacto
+- crear una interfaz paralela sin romper el flujo principal
+- conectarla al mismo backend y a la misma base de datos, manteniendo el circuito agency intacto
 
 ## Reglas que se mantuvieron
 
@@ -18,7 +18,7 @@ La meta del trabajo evoluciono en dos etapas:
 
 ## Historial resumido
 
-### Etapa 1: sandbox visual
+### Etapa 1: estructura visual inicial
 
 Se crearon las bases del standalone:
 
@@ -68,8 +68,8 @@ Cambios principales de backend:
 Lo que hace `standaloneProvisioningService.js`:
 
 - crea la tenant/location unica del usuario standalone
-- aprovisiona una cuenta hosted de Waflow Inbox/Chatwoot
-- crea el inbox inicial
+- aprovisiona una cuenta hosted de Waflow WhatsApp/Chatwoot
+- crea el acceso inicial
 - crea el primer slot
 - deja configurado el acceso del propio usuario final
 
@@ -98,6 +98,9 @@ Cambios principales de frontend:
   - API keys
   - webhooks
 - `StandaloneLogin` ahora pasa `interface` standalone al completar el alta/login del flujo nuevo
+- `App.jsx` revalida la interfaz operativa con `/agency/info` y corrige la ruta si hace falta
+- se eliminaron rastros visibles de copy de prueba en layout, dashboard, slots y login
+- se elimino `StandalonePreviewApp.jsx`
 
 ## Estado actual por area
 
@@ -111,7 +114,7 @@ Cambios principales de frontend:
 
 - sidebar y header ya viven sobre datos reales
 - shortcuts del sidebar leen plan/estado real del workspace
-- el acceso de mensajeria abre Waflow Inbox real cuando existe acceso
+- el acceso de mensajeria intenta primero generar el link seguro real y luego hace fallback al acceso directo
 
 ### Overview
 
@@ -152,16 +155,17 @@ Cambios principales de frontend:
 ### Builder
 
 - sigue como clon cercano del builder original
-- mantiene preview y copiado de comando
+- mantiene la previsualizacion y el copiado de comando
 
 ## Pendientes conocidos
 
-- el standalone ya salio del modo mock en su flujo principal, pero todavia conviene revisar en VPS:
+- conviene revisar en VPS:
   - el aprovisionamiento real del primer workspace
-  - la apertura real de Waflow Inbox
+  - la apertura real de Waflow WhatsApp
   - el comportamiento del primer slot en trial
+- si se detectan usuarios antiguos con `interface` incorrecta, el backend ahora intenta autocorregirlos cuando el perfil y la topology coinciden con monocuenta
 - `StandaloneSubscription` y `StandaloneAgents` deberian revisarse otra vez cuando cambie fuerte su version original en `src/admin/`
-- el check de sintaxis de backend con `node --check` no se pudo usar aqui por una limitacion EPERM del entorno de Windows/sandbox, aunque el frontend si compilo correctamente
+- el check de sintaxis de backend con `node --check` no se pudo usar aqui por una limitacion EPERM del entorno de Windows, aunque el frontend si compilo correctamente
 
 ## Verificacion reciente
 
