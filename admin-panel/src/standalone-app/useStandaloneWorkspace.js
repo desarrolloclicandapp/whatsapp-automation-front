@@ -32,6 +32,7 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
   const [primaryLocationId, setPrimaryLocationId] = useState(null);
   const [locationDetails, setLocationDetails] = useState(null);
   const [chatwootAccessInfo, setChatwootAccessInfo] = useState(null);
+  const [ghlAccessInfo, setGhlAccessInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -93,9 +94,10 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
           return;
         }
 
-        const [detailsResponse, chatwootAccessResponse] = await Promise.all([
+        const [detailsResponse, chatwootAccessResponse, ghlAccessResponse] = await Promise.all([
           authFetch(`/agency/location-details/${encodeURIComponent(resolvedPrimaryLocationId)}`),
           authFetch(`/agency/chatwoot/access-info?locationId=${encodeURIComponent(resolvedPrimaryLocationId)}`),
+          authFetch(`/agency/ghl/access-info?locationId=${encodeURIComponent(resolvedPrimaryLocationId)}`),
         ]);
 
         if (!detailsResponse.ok) {
@@ -107,10 +109,14 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
         const chatwootAccessData = chatwootAccessResponse.ok
           ? await parseJsonResponse(chatwootAccessResponse)
           : null;
+        const ghlAccessData = ghlAccessResponse.ok
+          ? await parseJsonResponse(ghlAccessResponse)
+          : null;
 
         if (isCancelled) return;
         setLocationDetails(detailsData);
         setChatwootAccessInfo(chatwootAccessData);
+        setGhlAccessInfo(ghlAccessData);
       } catch (error) {
         if (!isCancelled) {
           toast.error(error.message || 'No se pudo cargar tu panel principal');
@@ -149,6 +155,7 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
     primaryLocationId,
     locationDetails,
     chatwootAccessInfo,
+    ghlAccessInfo,
     isWhatsAppConnected,
     loading,
     planType,

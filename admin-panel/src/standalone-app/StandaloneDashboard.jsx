@@ -20,6 +20,7 @@ export default function StandaloneDashboard({
   locationDetails,
   onRefresh,
   onOpenMessagingInbox,
+  onOpenAccount,
   onGoToBilling,
   onRealtimeConnectionChange,
   token,
@@ -291,6 +292,7 @@ export default function StandaloneDashboard({
         onRefresh={onRefresh}
         onSlotsChange={setLiveSlots}
         onConnectionStateChange={onRealtimeConnectionChange}
+        onOpenAccount={onOpenAccount}
         onUnauthorized={onUnauthorized}
       />
     </div>

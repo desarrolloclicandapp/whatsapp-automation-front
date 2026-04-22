@@ -43,7 +43,7 @@ export default function StandaloneSettings({
   const { t, language } = useLanguage();
   const { theme, toggleTheme } = useTheme();
 
-  const [settingsSection, setSettingsSection] = useState('integrations');
+  const [settingsSection, setSettingsSection] = useState('general');
 
   const [inboxConfigured, setInboxConfigured] = useState(false);
   const [inboxName, setInboxName] = useState('');
@@ -66,6 +66,12 @@ export default function StandaloneSettings({
 
   const [webhooks, setWebhooks] = useState([]);
   const [showNewWebhookModal, setShowNewWebhookModal] = useState(false);
+  const [locationDetails, setLocationDetails] = useState(null);
+  const [proxyConfigBySlot, setProxyConfigBySlot] = useState({});
+  const [loadingProxyBySlot, setLoadingProxyBySlot] = useState({});
+  const [savingProxyBySlot, setSavingProxyBySlot] = useState({});
+  const [elevenVoicesBySlot, setElevenVoicesBySlot] = useState({});
+  const [loadingElevenVoicesBySlot, setLoadingElevenVoicesBySlot] = useState({});
 
   const authFetch = async (endpoint, options = {}) => {
     const response = await fetch(`${API_URL}${endpoint}`, {
@@ -100,6 +106,11 @@ export default function StandaloneSettings({
         label: t('agency.settings_nav.operations') || 'Operacion',
         items: [
           {
+            id: 'general',
+            label: t('agency.settings_nav.general') || 'General',
+            icon: Save,
+          },
+          {
             id: 'integrations',
             label: t('agency.integrations.title') || 'Integraciones',
             icon: Link,
@@ -132,18 +143,27 @@ export default function StandaloneSettings({
     const loadSettingsData = async () => {
       try {
         setIsLoadingInbox(true);
-        const [keysResponse, webhooksResponse] = await Promise.all([
+        const requests = [
           authFetch('/agency/api-keys'),
           authFetch('/agency/webhooks'),
-        ]);
+        ];
+        if (locationId) {
+          requests.push(authFetch(`/agency/location-details/${encodeURIComponent(locationId)}`));
+        }
+
+        const [keysResponse, webhooksResponse, locationDetailsResponse] = await Promise.all(requests);
         const keysData = keysResponse.ok ? await keysResponse.json().catch(() => ({})) : {};
         const webhooksData = webhooksResponse.ok ? await webhooksResponse.json().catch(() => ({})) : {};
+        const locationData = locationDetailsResponse?.ok
+          ? await locationDetailsResponse.json().catch(() => ({}))
+          : null;
 
         if (isCancelled) return;
 
         setOpenAiKeyConfigured(accountInfo?.openai_key_configured === true);
         setApiKeys(Array.isArray(keysData?.keys) ? keysData.keys : []);
         setWebhooks(Array.isArray(webhooksData?.hooks) ? webhooksData.hooks : []);
+        setLocationDetails(locationData);
       } catch (error) {
         if (!isCancelled) {
           toast.error(error?.message || 'No se pudieron cargar los ajustes de la cuenta');
@@ -162,7 +182,18 @@ export default function StandaloneSettings({
     return () => {
       isCancelled = true;
     };
-  }, [accountInfo?.email, accountInfo?.openai_key_configured, token]);
+  }, [accountInfo?.email, accountInfo?.openai_key_configured, token, locationId]);
+
+  useEffect(() => {
+    if (settingsSection !== 'integrations') return;
+    const safeSlots = Array.isArray(locationDetails?.slots) ? locationDetails.slots : [];
+    safeSlots.forEach((slot) => {
+      loadProxyConfig(slot.slot_id);
+      if (slot.elevenlabs_api_key) {
+        loadElevenVoices(slot.slot_id);
+      }
+    });
+  }, [settingsSection, locationDetails?.slots]);
 
   const allSettingsSectionIds = settingsMenuGroups.flatMap((group) => group.items.map((item) => item.id));
   const currentSettingsSectionId = allSettingsSectionIds.includes(settingsSection)
@@ -176,6 +207,18 @@ export default function StandaloneSettings({
   }, {});
   const activeSettingsSectionTitle =
     settingsSectionTitleMap[currentSettingsSectionId] || (t('dash.header.settings') || 'Configuración');
+
+  const locationSlots = Array.isArray(locationDetails?.slots) ? locationDetails.slots : [];
+  const keywordsBySlotId = useMemo(() => {
+    const map = new Map();
+    const rows = Array.isArray(locationDetails?.keywords) ? locationDetails.keywords : [];
+    rows.forEach((keyword) => {
+      const slotId = Number.parseInt(String(keyword?.slot_id || 0), 10);
+      if (!map.has(slotId)) map.set(slotId, []);
+      map.get(slotId).push(keyword);
+    });
+    return map;
+  }, [locationDetails?.keywords]);
 
   const accountIdValue = String(accountInfo?.agencyId || accountInfo?.id || 'demo-account-123');
   const developerTitle = t('dash.settings.dev_title') || 'Desarrolladores';
@@ -345,6 +388,321 @@ export default function StandaloneSettings({
       toast.error(error?.message || (t('agency.integrations.openai_key_error') || 'No se pudo guardar la OpenAI key.'));
     } finally {
       setIsSavingOpenAi(false);
+    }
+  };
+
+  const refreshLocationDetails = async () => {
+    if (!locationId) return;
+    const response = await authFetch(`/agency/location-details/${encodeURIComponent(locationId)}`);
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.error || 'No se pudo recargar la configuración');
+    }
+    setLocationDetails(body);
+    return body;
+  };
+
+  const patchLocationSlot = (slotId, patch) => {
+    setLocationDetails((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        slots: Array.isArray(current.slots)
+          ? current.slots.map((slot) => (slot.slot_id === slotId ? { ...slot, ...patch } : slot))
+          : current.slots,
+      };
+    });
+  };
+
+  const patchLocationSlotSettings = (slotId, nextSettings) => {
+    patchLocationSlot(slotId, { settings: nextSettings });
+  };
+
+  const updateSlotSettings = async (slotId, nextSettings) => {
+    patchLocationSlotSettings(slotId, nextSettings);
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slotId)}/settings`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ settings: nextSettings }),
+        },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar la configuración del WhatsApp');
+      }
+      onDataChange?.();
+    } catch (error) {
+      toast.error(error.message || 'No se pudo guardar la configuración del WhatsApp');
+      await refreshLocationDetails().catch(() => {});
+    }
+  };
+
+  const toggleSlotSetting = (slotId, key, currentSettings = {}) => {
+    updateSlotSettings(slotId, {
+      ...currentSettings,
+      [key]: !currentSettings[key],
+    });
+  };
+
+  const changeSlotSetting = (slotId, key, value, currentSettings = {}) => {
+    updateSlotSettings(slotId, {
+      ...currentSettings,
+      [key]: value,
+    });
+  };
+
+  const changeSlotPriority = async (slotId, priority) => {
+    try {
+      const response = await authFetch('/agency/update-slot-config', {
+        method: 'POST',
+        body: JSON.stringify({
+          locationId,
+          slotId,
+          priority: Number.parseInt(String(priority), 10),
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar la prioridad');
+      }
+
+      patchLocationSlot(slotId, { priority: Number.parseInt(String(priority), 10) });
+      toast.success('Orden de envío actualizado');
+      onDataChange?.();
+    } catch (error) {
+      toast.error(error.message || 'No se pudo guardar la prioridad');
+      await refreshLocationDetails().catch(() => {});
+    }
+  };
+
+  const handleAddKeyword = async (event, slotId) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const keyword = String(formData.get('keyword') || '').trim();
+    const tag = String(formData.get('tag') || '').trim();
+    if (!keyword || !tag) return;
+
+    try {
+      const response = await authFetch('/agency/keywords', {
+        method: 'POST',
+        body: JSON.stringify({ locationId, slotId, keyword, tag }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar la regla');
+      }
+
+      event.currentTarget.reset();
+      await refreshLocationDetails();
+      toast.success('Regla guardada');
+    } catch (error) {
+      toast.error(error.message || 'No se pudo guardar la regla');
+    }
+  };
+
+  const handleDeleteKeyword = async (keywordId) => {
+    try {
+      const response = await authFetch(`/agency/keywords/${keywordId}`, { method: 'DELETE' });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo eliminar la regla');
+      }
+
+      await refreshLocationDetails();
+      toast.success('Regla eliminada');
+    } catch (error) {
+      toast.error(error.message || 'No se pudo eliminar la regla');
+    }
+  };
+
+  const loadProxyConfig = async (slotId, forceRefresh = false) => {
+    if (!slotId || !locationId) return;
+    if (!forceRefresh && proxyConfigBySlot[slotId]) return;
+
+    setLoadingProxyBySlot((prev) => ({ ...prev, [slotId]: true }));
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slotId)}/proxy`,
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo cargar el proxy');
+      }
+
+      const proxy = body?.proxy || null;
+      setProxyConfigBySlot((prev) => ({
+        ...prev,
+        [slotId]: {
+          configured: !!body?.configured,
+          host: proxy?.host || '',
+          port: proxy?.port ? String(proxy.port) : '',
+          username: proxy?.username || '',
+          password: '',
+          passwordMasked: proxy?.passwordMasked || '',
+          hasPassword: !!proxy?.hasPassword,
+          protocol: proxy?.protocol || 'http',
+        },
+      }));
+    } catch (error) {
+      toast.error(error.message || 'No se pudo cargar el proxy');
+    } finally {
+      setLoadingProxyBySlot((prev) => ({ ...prev, [slotId]: false }));
+    }
+  };
+
+  const updateProxyField = (slotId, key, value) => {
+    setProxyConfigBySlot((prev) => ({
+      ...prev,
+      [slotId]: {
+        ...(prev[slotId] || {
+          configured: false,
+          host: '',
+          port: '',
+          username: '',
+          password: '',
+          passwordMasked: '',
+          hasPassword: false,
+          protocol: 'http',
+        }),
+        [key]: value,
+      },
+    }));
+  };
+
+  const saveProxyConfig = async (slotId) => {
+    const current = proxyConfigBySlot[slotId] || {};
+    setSavingProxyBySlot((prev) => ({ ...prev, [slotId]: true }));
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slotId)}/proxy`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            protocol: current.protocol || 'http',
+            host: String(current.host || '').trim(),
+            port: current.port ? Number.parseInt(String(current.port), 10) : null,
+            username: String(current.username || '').trim(),
+            password: String(current.password || '').trim() || undefined,
+          }),
+        },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar el proxy');
+      }
+
+      toast.success('Proxy guardado');
+      await loadProxyConfig(slotId, true);
+      await refreshLocationDetails();
+    } catch (error) {
+      toast.error(error.message || 'No se pudo guardar el proxy');
+    } finally {
+      setSavingProxyBySlot((prev) => ({ ...prev, [slotId]: false }));
+    }
+  };
+
+  const clearProxyConfig = async (slotId) => {
+    setSavingProxyBySlot((prev) => ({ ...prev, [slotId]: true }));
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slotId)}/proxy`,
+        { method: 'DELETE' },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo limpiar el proxy');
+      }
+
+      setProxyConfigBySlot((prev) => ({
+        ...prev,
+        [slotId]: {
+          configured: false,
+          host: '',
+          port: '',
+          username: '',
+          password: '',
+          passwordMasked: '',
+          hasPassword: false,
+          protocol: 'http',
+        },
+      }));
+      await refreshLocationDetails();
+      toast.success('Proxy eliminado');
+    } catch (error) {
+      toast.error(error.message || 'No se pudo limpiar el proxy');
+    } finally {
+      setSavingProxyBySlot((prev) => ({ ...prev, [slotId]: false }));
+    }
+  };
+
+  const loadElevenVoices = async (slotId, forceRefresh = false) => {
+    if (!slotId) return;
+    if (!forceRefresh && elevenVoicesBySlot[slotId]) return;
+    setLoadingElevenVoicesBySlot((prev) => ({ ...prev, [slotId]: true }));
+    try {
+      const response = await authFetch(
+        `/agency/elevenlabs/voices?locationId=${encodeURIComponent(locationId)}&slotId=${encodeURIComponent(slotId)}${forceRefresh ? '&refresh=1' : ''}`,
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudieron cargar las voces');
+      }
+      setElevenVoicesBySlot((prev) => ({ ...prev, [slotId]: Array.isArray(body?.voices) ? body.voices : [] }));
+    } catch (error) {
+      toast.error(error.message || 'No se pudieron cargar las voces');
+    } finally {
+      setLoadingElevenVoicesBySlot((prev) => ({ ...prev, [slotId]: false }));
+    }
+  };
+
+  const saveElevenApiKey = async (slotId, apiKey) => {
+    try {
+      const response = await authFetch('/agency/update-slot-config', {
+        method: 'POST',
+        body: JSON.stringify({
+          locationId,
+          slotId,
+          elevenlabs_api_key: String(apiKey || '').trim(),
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar la API key');
+      }
+      await refreshLocationDetails();
+      if (String(apiKey || '').trim()) {
+        await loadElevenVoices(slotId, true);
+      } else {
+        setElevenVoicesBySlot((prev) => ({ ...prev, [slotId]: [] }));
+      }
+      toast.success('API key de ElevenLabs guardada');
+      return true;
+    } catch (error) {
+      toast.error(error.message || 'No se pudo guardar la API key');
+      return false;
+    }
+  };
+
+  const saveElevenVoice = async (slotId, voiceId) => {
+    try {
+      const response = await authFetch('/agency/update-slot-config', {
+        method: 'POST',
+        body: JSON.stringify({
+          locationId,
+          slotId,
+          elevenlabs_voice_id: String(voiceId || '').trim(),
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar la voz por defecto');
+      }
+      await refreshLocationDetails();
+      toast.success('Voz por defecto guardada');
+    } catch (error) {
+      toast.error(error.message || 'No se pudo guardar la voz por defecto');
     }
   };
 

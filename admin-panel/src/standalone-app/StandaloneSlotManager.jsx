@@ -15,9 +15,13 @@ import {
   Settings,
   Smartphone,
   Trash2,
+  User,
+  Users,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '../context/LanguageContext';
+import { useSocket } from '../hooks/useSocket';
 import { translateOr } from './i18n';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
@@ -57,9 +61,11 @@ export default function StandaloneSlotManager({
   onRefresh,
   onSlotsChange,
   onConnectionStateChange,
+  onOpenAccount,
   onUnauthorized,
 }) {
   const { t } = useLanguage();
+  const socket = useSocket();
   const [localSlots, setLocalSlots] = useState(() => (Array.isArray(slots) ? slots : []));
   const [expandedSlotId, setExpandedSlotId] = useState(null);
   const [activeTabBySlot, setActiveTabBySlot] = useState({});
@@ -71,6 +77,12 @@ export default function StandaloneSlotManager({
   const [loadingTwilioBySlot, setLoadingTwilioBySlot] = useState({});
   const [savingTwilioBySlot, setSavingTwilioBySlot] = useState({});
   const [actionLoadingBySlot, setActionLoadingBySlot] = useState({});
+  const [groupsBySlot, setGroupsBySlot] = useState({});
+  const [groupsLoadingBySlot, setGroupsLoadingBySlot] = useState({});
+  const [chatwootAccessInfo, setChatwootAccessInfo] = useState(null);
+  const [ghlAccessInfo, setGhlAccessInfo] = useState(null);
+  const [loadingAccessInfo, setLoadingAccessInfo] = useState(false);
+  const [showAccountInfoModal, setShowAccountInfoModal] = useState(false);
   const safeCrmType = String(crmType || 'chatwoot').trim().toLowerCase();
   const supportsSmsTab = safeCrmType === 'ghl' || safeCrmType === 'chatwoot';
 
@@ -80,6 +92,28 @@ export default function StandaloneSlotManager({
     setExpandedSlotId((current) => current || safeSlots[0]?.slot_id || null);
     onConnectionStateChange?.(safeSlots.some((slot) => slot.is_connected === true));
   }, [slots]);
+
+  useEffect(() => {
+    loadAccessInfo();
+  }, [locationId, safeCrmType]);
+
+  useEffect(() => {
+    if (!socket || !locationId) return undefined;
+
+    socket.emit('join_room', locationId);
+
+    const handleEvent = (payload) => {
+      if (payload?.locationId !== locationId) return;
+      if (payload?.type === 'connection' && payload?.status === 'open') {
+        refreshAndKeepExpanded();
+      }
+    };
+
+    socket.on('wa_event', handleEvent);
+    return () => {
+      socket.off('wa_event', handleEvent);
+    };
+  }, [locationId, socket]);
 
   const authFetch = async (endpoint, options = {}) => {
     const response = await fetch(`${API_URL}${endpoint}`, {
@@ -97,6 +131,145 @@ export default function StandaloneSlotManager({
     }
 
     return response;
+  };
+
+  const updateSettingsBackend = async (slotId, newSettings) => {
+    patchLocalSlot(slotId, { settings: newSettings });
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slotId)}/settings`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ settings: newSettings }),
+        },
+      );
+      const body = await parseResponseBody(response);
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar la configuración');
+      }
+    } catch (error) {
+      toast.error(error.message || 'No se pudo guardar la configuración');
+      await refreshAndKeepExpanded();
+    }
+  };
+
+  const toggleSlotSetting = (slotId, key, currentSettings = {}) => {
+    const nextSettings = {
+      ...currentSettings,
+      [key]: !currentSettings[key],
+    };
+    updateSettingsBackend(slotId, nextSettings);
+  };
+
+  const changeSlotSetting = (slotId, key, value, currentSettings = {}) => {
+    const nextSettings = {
+      ...currentSettings,
+      [key]: value,
+    };
+    updateSettingsBackend(slotId, nextSettings);
+  };
+
+  const changePriority = async (slotId, newPriority) => {
+    try {
+      const response = await authFetch('/agency/update-slot-config', {
+        method: 'POST',
+        body: JSON.stringify({
+          locationId,
+          slotId,
+          priority: Number.parseInt(String(newPriority), 10),
+        }),
+      });
+      const body = await parseResponseBody(response);
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo actualizar el orden de envío');
+      }
+
+      patchLocalSlot(slotId, { priority: Number.parseInt(String(newPriority), 10) });
+      toast.success('Orden de envío actualizado');
+      await refreshAndKeepExpanded();
+    } catch (error) {
+      toast.error(error.message || 'No se pudo actualizar el orden de envío');
+    }
+  };
+
+  const loadGroups = async (slotId) => {
+    if (!locationId || !slotId) return;
+    setGroupsLoadingBySlot((prev) => ({ ...prev, [slotId]: true }));
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slotId)}/groups`,
+      );
+      const body = await parseResponseBody(response);
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudieron cargar los grupos');
+      }
+
+      setGroupsBySlot((prev) => ({ ...prev, [slotId]: Array.isArray(body) ? body : [] }));
+    } catch (error) {
+      toast.error(error.message || 'No se pudieron cargar los grupos');
+    } finally {
+      setGroupsLoadingBySlot((prev) => ({ ...prev, [slotId]: false }));
+    }
+  };
+
+  const toggleGroupActive = (slotId, groupJid, groupName, currentSettings = {}) => {
+    const groupsConfig = currentSettings.groups || {};
+    const isActive = !(groupsConfig[groupJid]?.active);
+    const nextSettings = {
+      ...currentSettings,
+      groups: {
+        ...groupsConfig,
+        [groupJid]: {
+          active: isActive,
+          name: groupName,
+        },
+      },
+    };
+
+    updateSettingsBackend(slotId, nextSettings);
+    toast.success(isActive ? `Grupo "${groupName}" activado` : `Grupo "${groupName}" desactivado`);
+  };
+
+  const handleSyncMembers = async (slotId, groupJid) => {
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slotId)}/groups/sync-members`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ groupJid }),
+        },
+      );
+      const body = await parseResponseBody(response);
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudieron sincronizar los miembros');
+      }
+
+      toast.success('Miembros sincronizados');
+    } catch (error) {
+      toast.error(error.message || 'No se pudieron sincronizar los miembros');
+    }
+  };
+
+  const loadAccessInfo = async () => {
+    if (!locationId) return;
+    setLoadingAccessInfo(true);
+    try {
+      const [chatwootResponse, ghlResponse] = await Promise.all([
+        authFetch(`/agency/chatwoot/access-info?locationId=${encodeURIComponent(locationId)}`),
+        authFetch(`/agency/ghl/access-info?locationId=${encodeURIComponent(locationId)}`),
+      ]);
+
+      const chatwootBody = chatwootResponse.ok ? await parseResponseBody(chatwootResponse) : null;
+      const ghlBody = ghlResponse.ok ? await parseResponseBody(ghlResponse) : null;
+
+      setChatwootAccessInfo(chatwootBody?.chatwoot || null);
+      setGhlAccessInfo(ghlBody?.ghl || null);
+    } catch {
+      setChatwootAccessInfo(null);
+      setGhlAccessInfo(null);
+    } finally {
+      setLoadingAccessInfo(false);
+    }
   };
 
   const connectedCount = useMemo(
@@ -686,6 +859,31 @@ export default function StandaloneSlotManager({
     }
   };
 
+  const accountBadgeLabel = safeCrmType === 'ghl' ? 'GOHIGHLEVEL' : 'WAFLOW WHATSAPP';
+  const chatwootHeaderLoginUrl = String(
+    chatwootAccessInfo?.directLoginUrl ||
+      chatwootAccessInfo?.loginUrl ||
+      chatwootAccessInfo?.baseLoginUrl ||
+      '',
+  ).trim();
+  const chatwootHeaderDashboardUrl = String(
+    chatwootAccessInfo?.dashboardUrl || '',
+  ).trim();
+  const chatwootHeaderEmail = String(
+    chatwootAccessInfo?.clientEmail || '',
+  ).trim();
+  const chatwootHeaderPassword = String(chatwootAccessInfo?.clientPassword || '').trim();
+  const ghlHeaderOpenUrl = String(
+    ghlAccessInfo?.dashboardUrl || ghlAccessInfo?.loginUrl || 'https://app.gohighlevel.com',
+  ).trim();
+  const ghlHeaderPortalUrl = String(
+    ghlAccessInfo?.loginUrl || 'https://app.gohighlevel.com',
+  ).trim();
+  const ghlHeaderBusinessEmail = String(ghlAccessInfo?.businessEmail || '').trim();
+  const ghlHeaderBusinessPhone = String(ghlAccessInfo?.businessPhone || '').trim();
+  const ghlHeaderLocationId = String(ghlAccessInfo?.locationId || locationId || '').trim();
+  const ghlHeaderCompanyId = String(ghlAccessInfo?.companyId || '').trim();
+
   return (
     <div id="standalone-whatsapp-manager" className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -713,6 +911,44 @@ export default function StandaloneSlotManager({
         >
           <Plus size={18} /> {translateOr(t, 'standalone.slots.new', 'Nuevo WhatsApp')}
         </button>
+      </div>
+
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-[0.18em] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+            {accountBadgeLabel}
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              {locationName || 'Cuenta principal'}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {safeCrmType === 'ghl'
+                ? 'Abre directamente tu cuenta de GoHighLevel o revisa los datos de acceso.'
+                : 'Abre directamente Waflow WhatsApp o revisa los datos de acceso de tu cuenta.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenAccount?.()}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition"
+          >
+            <Link2 size={16} />
+            Abrir cuenta
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAccountInfoModal(true)}
+            disabled={loadingAccessInfo}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-60"
+          >
+            <User size={16} />
+            Info
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -842,14 +1078,31 @@ export default function StandaloneSlotManager({
                               label={translateOr(t, 'slots.tab.sms', 'SMS')}
                             />
                           )}
+                          <TabButton
+                            active={activeTab === 'groups'}
+                            onClick={() => {
+                              if (!slot.is_connected) {
+                                toast.warning('Conecta WhatsApp primero.');
+                                return;
+                              }
+                              setActiveTabBySlot((prev) => ({ ...prev, [slotId]: 'groups' }));
+                              loadGroups(slotId);
+                            }}
+                            icon={<Users size={16} />}
+                            label={translateOr(t, 'slots.tab.groups', 'Grupos')}
+                          />
                         </div>
 
                         <div className="p-8">
                           {activeTab === 'general' && (
                             <GeneralPanel
                               slot={slot}
+                              slots={localSlots}
+                              crmType={safeCrmType}
                               connectionMode={connectionMode}
                               onSwitchMode={(mode) => handleSelectConnectionMode(slot, mode)}
+                              onChangePriority={(value) => changePriority(slotId, value)}
+                              onToggleSetting={(key) => toggleSlotSetting(slotId, key, slot.settings || {})}
                             />
                           )}
 
@@ -886,6 +1139,20 @@ export default function StandaloneSlotManager({
                             />
                           )}
 
+                          {activeTab === 'groups' && (
+                            <GroupsPanel
+                              groups={groupsBySlot[slotId] || []}
+                              loading={!!groupsLoadingBySlot[slotId]}
+                              settings={slot.settings || {}}
+                              onReload={() => loadGroups(slotId)}
+                              onToggleGroup={(groupJid, groupName) =>
+                                toggleGroupActive(slotId, groupJid, groupName, slot.settings || {})
+                              }
+                              onSyncMembers={(groupJid) => handleSyncMembers(slotId, groupJid)}
+                              t={t}
+                            />
+                          )}
+
                           {activeTab === 'official' && connectionMode === 'official_api' && (
                             <OfficialPanel
                               official={officialDraft}
@@ -905,6 +1172,60 @@ export default function StandaloneSlotManager({
           })}
         </div>
       )}
+
+      {showAccountInfoModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setShowAccountInfoModal(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {safeCrmType === 'ghl' ? 'Info de acceso GoHighLevel' : 'Info de acceso Waflow WhatsApp'}
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {safeCrmType === 'ghl'
+                    ? 'Datos de referencia para abrir la cuenta desde el portal de GoHighLevel.'
+                    : 'Datos del usuario para abrir la cuenta directamente en Waflow WhatsApp.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAccountInfoModal(false)}
+                className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {safeCrmType === 'ghl' ? (
+                <>
+                  <InfoField label="Email del negocio" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderBusinessEmail || 'No disponible')} />
+                  <InfoField label="Teléfono" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderBusinessPhone || 'No disponible')} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <InfoField label="Location ID" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderLocationId || 'No disponible')} />
+                    <InfoField label="Company ID" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderCompanyId || 'No disponible')} />
+                  </div>
+                  <InfoField label="Portal" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderPortalUrl || 'No disponible')} />
+                  <InfoField label="Acceso directo" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderOpenUrl || 'No disponible')} />
+                </>
+              ) : (
+                <>
+                  <InfoField label="Email" value={loadingAccessInfo ? 'Cargando...' : (chatwootHeaderEmail || 'No disponible')} />
+                  <InfoField label="Contraseña inicial" value={loadingAccessInfo ? 'Cargando...' : (chatwootHeaderPassword || 'No disponible')} />
+                  <InfoField label="Login" value={loadingAccessInfo ? 'Cargando...' : (chatwootHeaderLoginUrl || 'No disponible')} />
+                  <InfoField label="Cuenta exacta" value={loadingAccessInfo ? 'Cargando...' : (chatwootHeaderDashboardUrl || 'No disponible')} />
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -914,6 +1235,15 @@ function MetricCard({ label, value }) {
     <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
       <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{label}</p>
       <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{value}</p>
+    </div>
+  );
+}
+
+function InfoField({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">{label}</p>
+      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">{value}</p>
     </div>
   );
 }
@@ -989,6 +1319,177 @@ function GeneralPanel({ slot, connectionMode, onSwitchMode }) {
   );
 }
 
+function SettingRow({ label, desc, checked, onChange }) {
+  return (
+    <div
+      className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer"
+      onClick={onChange}
+    >
+      <div>
+        <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{label}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
+      </div>
+      <div className={`w-10 h-6 flex items-center rounded-full p-1 transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
+        <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
+      </div>
+    </div>
+  );
+}
+
+function GeneralPanel({
+  slot,
+  slots,
+  crmType,
+  connectionMode,
+  onSwitchMode,
+  onChangePriority,
+  onToggleSetting,
+}) {
+  const settings = slot.settings || {};
+  const isGhlMode = crmType === 'ghl';
+  const currentPrio = Number.parseInt(String(slot.priority || 1), 10) || 1;
+
+  return (
+    <div className="max-w-2xl space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <MetricCard label="Nombre" value={slot.slot_name || `WhatsApp ${slot.slot_id}`} />
+        <MetricCard label="Tipo de conexión" value={connectionMode === 'official_api' ? 'API Oficial' : 'QR'} />
+      </div>
+
+      {isGhlMode && (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Orden de envío</h4>
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Prioridad:</label>
+            <select
+              className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none"
+              value={currentPrio}
+              onChange={(event) => onChangePriority(event.target.value)}
+            >
+              {Array.from({ length: slots.length }, (_, index) => index + 1).map((priority) => (
+                <option key={priority} value={priority}>
+                  {priority} {priority === 1 ? '(Alta)' : ''}
+                </option>
+              ))}
+              {currentPrio > slots.length && <option value={currentPrio}>{currentPrio}</option>}
+            </select>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        <h4 className="px-3 pt-3 text-xs font-bold text-gray-400 uppercase tracking-widest">Comportamiento</h4>
+        <div className="space-y-1">
+          <SettingRow
+            label="Etiqueta de origen"
+            desc="Muestra desde qué canal llegó la conversación."
+            checked={settings.show_source_label ?? true}
+            onChange={() => onToggleSetting('show_source_label')}
+          />
+          <SettingRow
+            label="Transcribir audios"
+            desc="Convierte audios a texto para procesos automáticos."
+            checked={settings.transcribe_audio ?? true}
+            onChange={() => onToggleSetting('transcribe_audio')}
+          />
+          <SettingRow
+            label="Crear contactos nuevos"
+            desc="Crea contactos automáticamente cuando el número no existe todavía."
+            checked={settings.create_unknown_contacts ?? true}
+            onChange={() => onToggleSetting('create_unknown_contacts')}
+          />
+          <SettingRow
+            label="Avisar si se desconecta"
+            desc="Envía una alerta cuando este WhatsApp se desconecta."
+            checked={settings.send_disconnect_message ?? true}
+            onChange={() => onToggleSetting('send_disconnect_message')}
+          />
+        </div>
+      </div>
+
+      <div>
+        <button
+          type="button"
+          onClick={() => onSwitchMode(connectionMode === 'official_api' ? 'qr' : 'official_api')}
+          className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-300"
+        >
+          Cambiar a {connectionMode === 'official_api' ? 'Conexión QR' : 'API Oficial'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GroupsPanel({ groups, loading, settings, onReload, onToggleGroup, onSyncMembers, t }) {
+  return (
+    <div className="max-w-2xl">
+      <div className="flex justify-between items-center mb-6">
+        <h4 className="font-bold text-gray-700 dark:text-gray-300">
+          {translateOr(t, 'slots.groups.detected', 'Grupos detectados')}
+        </h4>
+        <button
+          onClick={onReload}
+          className="text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 p-2 rounded-lg transition"
+        >
+          <RefreshCw size={18} />
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-10">
+          <RefreshCw className="animate-spin mx-auto text-indigo-500" />
+        </div>
+      ) : groups.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-8 text-center">
+          <p className="font-semibold text-gray-700 dark:text-gray-200">
+            {translateOr(t, 'slots.groups.empty', 'No hay grupos detectados')}
+          </p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {translateOr(t, 'slots.groups.empty_help', 'Conecta WhatsApp y vuelve a sincronizar para verlos aquí.')}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {groups.map((group) => {
+            const isActive = settings.groups?.[group.id]?.active;
+            return (
+              <div
+                key={group.id}
+                className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
+              >
+                <div>
+                  <h5 className="font-bold text-gray-800 dark:text-white">{group.subject}</h5>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {group.participants} {translateOr(t, 'slots.groups.participants', 'participantes')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={!!isActive}
+                      onChange={() => onToggleGroup(group.id, group.subject)}
+                    />
+                    <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
+                  </label>
+                  <button
+                    onClick={() => onSyncMembers(group.id)}
+                    className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg"
+                    title={translateOr(t, 'slots.groups.sync', 'Sincronizar miembros')}
+                  >
+                    <Users size={18} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StandaloneSlotConnectionManager({
   slot,
   locationId,
@@ -998,6 +1499,7 @@ function StandaloneSlotConnectionManager({
   onUnauthorized,
 }) {
   const { t } = useLanguage();
+  const socket = useSocket();
   const [status, setStatus] = useState({
     connected: slot?.is_connected === true,
     myNumber: slot?.phone_number || null,
@@ -1163,6 +1665,40 @@ function StandaloneSlotConnectionManager({
       stopPolling();
     }
   }, [slot?.slot_id, slot?.is_connected, slot?.phone_number, slot?.suspended_by]);
+
+  useEffect(() => {
+    if (!socket || !locationId || !slot?.slot_id) return undefined;
+
+    socket.emit('join_room', locationId);
+
+    const handleEvent = (payload) => {
+      if (payload?.locationId !== locationId) return;
+      if (Number(payload?.slotId) !== Number(slot.slot_id)) return;
+
+      if (payload?.type === 'qr' && payload?.data) {
+        setQr(payload.data);
+        setQrExpired(false);
+        setLoading(false);
+      }
+
+      if (payload?.type === 'connection' && payload?.status === 'open') {
+        setQr(null);
+        setQrUpdatedAt(null);
+        setQrExpired(false);
+        setLoading(false);
+        checkStatus();
+      }
+
+      if (payload?.type === 'connection' && payload?.status === 'close') {
+        checkStatus();
+      }
+    };
+
+    socket.on('wa_event', handleEvent);
+    return () => {
+      socket.off('wa_event', handleEvent);
+    };
+  }, [socket, locationId, slot?.slot_id]);
 
   const handleConnect = async () => {
     if (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system') {

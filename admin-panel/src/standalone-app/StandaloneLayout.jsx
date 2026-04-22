@@ -51,6 +51,7 @@ export default function StandaloneLayout({
     primaryLocationId,
     locationDetails,
     chatwootAccessInfo,
+    ghlAccessInfo,
     isWhatsAppConnected,
     loading,
     planType,
@@ -81,6 +82,12 @@ export default function StandaloneLayout({
     window.history.replaceState({}, document.title, nextUrl);
   }, [activeTab]);
 
+  const effectiveCrmType = String(
+    locationDetails?.crmType || primaryLocation?.settings?.crm_type || accountInfo?.crm_type || 'chatwoot',
+  )
+    .trim()
+    .toLowerCase();
+
   const handleLogout = () => {
     onLogout?.();
   };
@@ -91,30 +98,15 @@ export default function StandaloneLayout({
   };
 
   const openInbox = async () => {
-    try {
-      if (primaryLocationId) {
-        const accessLinkResponse = await authFetch(
-          `/agency/locations/${encodeURIComponent(primaryLocationId)}/chatwoot-access-link`,
-          { method: 'POST' },
-        );
-
-        if (accessLinkResponse?.ok) {
-          const accessLinkBody = await accessLinkResponse.json();
-          if (accessLinkBody?.shareUrl) {
-            window.open(accessLinkBody.shareUrl, '_blank', 'noopener,noreferrer');
-            return;
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('[StandaloneLayout] Falling back to direct access info:', error?.message || error);
-    }
-
     const directUrl =
-      chatwootAccessInfo?.chatwoot?.directLoginUrl ||
-      chatwootAccessInfo?.chatwoot?.loginUrl ||
-      chatwootAccessInfo?.chatwoot?.dashboardUrl ||
-      null;
+      effectiveCrmType === 'ghl'
+        ? ghlAccessInfo?.ghl?.dashboardUrl ||
+          ghlAccessInfo?.ghl?.loginUrl ||
+          'https://app.gohighlevel.com'
+        : chatwootAccessInfo?.chatwoot?.directLoginUrl ||
+          chatwootAccessInfo?.chatwoot?.loginUrl ||
+          chatwootAccessInfo?.chatwoot?.dashboardUrl ||
+          null;
 
     if (!directUrl) {
       toast.error(
@@ -182,6 +174,7 @@ export default function StandaloneLayout({
           onOpenMessagingInbox={openInbox}
           onGoToBilling={() => setActiveTab('billing')}
           onRealtimeConnectionChange={setLiveIsWhatsAppConnected}
+          onOpenAccount={openInbox}
           token={token}
           onUnauthorized={onUnauthorized || onLogout}
         />
