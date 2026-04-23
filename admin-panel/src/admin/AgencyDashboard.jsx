@@ -1917,15 +1917,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             window.open("https://app.gohighlevel.com", "_blank", "noopener");
         }
     };
-    const openChatwootPortal = () => {
-        // Try to open the user's own Chatwoot instance from tenant settings
-        const cwTenant = locations.find(l => {
-            const s = l.settings || {};
-            return s.crm_type === 'chatwoot' && s.chatwoot_url;
-        });
-        const cwUrl = cwTenant?.settings?.chatwoot_url || "https://www.chatwoot.com";
-        window.open(cwUrl, "_blank", "noopener");
-    };
     const handleSelectCrm = (crmType) => {
         if (isCrmLocked) {
             toast.info(t('agency.integrations.locked'));
@@ -2085,150 +2076,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 )}
                             </div>
                         </div>
-                    </div>
-                );
-            }
-
-            if (agencyCrmType === "chatwoot") {
-                return (
-                    <div className="mt-4 rounded-2xl border-2 border-indigo-200 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 p-5">
-                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
-                            <div>
-                                <h4 className="text-sm font-bold text-gray-900 dark:text-white">
-                                    {((t('agency.integrations.config_for') || "Configuración de {crm}")).replace("{crm}", "Chatwoot")}
-                                </h4>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                    {t('agency.integrations.chatwoot_config_desc') || "Define el Usuario Maestro para aprovisionar cuentas Chatwoot hospedadas automáticamente."}
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border ${
-                                    chatwootMasterConfigured
-                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
-                                        : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
-                                }`}>
-                                    {chatwootMasterConfigured
-                                        ? (t('agency.integrations.chatwoot_master_state_ready') || "Usuario maestro configurado")
-                                        : (t('agency.integrations.chatwoot_master_state_pending') || "Pendiente de configuración")}
-                                </span>
-                            </div>
-                        </div>
-
-                        <form onSubmit={handleSaveChatwootMasterUser} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                                    {t('dash.chatwoot_master.name') || "Nombre del Usuario Maestro"}
-                                </label>
-                                <input
-                                    type="text"
-                                    value={chatwootMasterName}
-                                    onChange={(e) => {
-                                        markChatwootMasterDraftDirty();
-                                        setChatwootMasterName(e.target.value);
-                                    }}
-                                    placeholder="Ej: Soporte Agencia"
-                                    autoComplete="off"
-                                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                                    {t('dash.chatwoot_master.email') || "Email del Usuario Maestro"}
-                                </label>
-                                <input
-                                    type="email"
-                                    value={chatwootMasterEmail}
-                                    onChange={(e) => {
-                                        markChatwootMasterDraftDirty();
-                                        setChatwootMasterEmail(e.target.value);
-                                    }}
-                                    placeholder="soporte@agencia.com"
-                                    autoComplete="off"
-                                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
-                                {chatwootMasterConfigured && chatwootMasterEmailMasked && (
-                                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
-                                        {(t('dash.chatwoot_master.configured_as') || "Configurado como") + ` ${chatwootMasterEmailMasked}`}
-                                    </p>
-                                )}
-                            </div>
-                            {chatwootMasterConfigured && (
-                                <div className="xl:col-span-2">
-                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                                        {t('dash.chatwoot_master.verify_password') || "Contraseña actual para verificar cambios"}
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={chatwootMasterVerificationPassword}
-                                        onChange={(e) => {
-                                            markChatwootMasterDraftDirty();
-                                            setChatwootMasterVerificationPassword(e.target.value);
-                                        }}
-                                        placeholder="••••••••"
-                                        autoComplete="current-password"
-                                        className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                    />
-                                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                                        {t('dash.chatwoot_master.verify_password_desc') || "Antes de guardar cambios, verifica con la contraseña actual del Usuario Maestro."}
-                                    </p>
-                                </div>
-                            )}
-                            <div className="xl:col-span-2">
-                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                                    {chatwootMasterConfigured
-                                        ? (t('dash.chatwoot_master.new_password') || "Nueva contraseña del Usuario Maestro")
-                                        : (t('dash.chatwoot_master.password') || "Contraseña del Usuario Maestro")}
-                                </label>
-                                <input
-                                    type="password"
-                                    value={chatwootMasterPassword}
-                                    onChange={(e) => {
-                                        markChatwootMasterDraftDirty();
-                                        setChatwootMasterPassword(e.target.value);
-                                    }}
-                                    placeholder="••••••••"
-                                    autoComplete="new-password"
-                                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
-                            </div>
-                            <div className="xl:col-span-2 flex flex-wrap justify-end gap-2">
-                                <button
-                                    type="button"
-                                    onClick={handleTestChatwootMasterUser}
-                                    disabled={isTestingChatwootMaster || isLoadingChatwootMaster}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-700 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-60 transition-colors"
-                                >
-                                    {isTestingChatwootMaster ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                                    {t('dash.chatwoot_master.test_button') || "Probar conexión"}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => fetchChatwootMasterUser({ silent: false })}
-                                    disabled={isLoadingChatwootMaster || isTestingChatwootMaster}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60 transition-colors"
-                                >
-                                    <RotateCcw size={13} />
-                                    {isLoadingChatwootMaster ? (t('common.loading') || "Cargando...") : (t('common.reload') || "Recargar")}
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSavingChatwootMaster}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition disabled:opacity-60"
-                                >
-                                    {isSavingChatwootMaster ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                                    {t('dash.chatwoot_master.save') || "Guardar Usuario Maestro"}
-                                </button>
-                            </div>
-                            {chatwootMasterTestStatus?.message && (
-                                <p className={`xl:col-span-2 text-[11px] ${
-                                    chatwootMasterTestStatus.ok
-                                        ? "text-emerald-600 dark:text-emerald-400"
-                                        : "text-rose-600 dark:text-rose-400"
-                                }`}>
-                                    {chatwootMasterTestStatus.message}
-                                </p>
-                            )}
-                        </form>
                     </div>
                 );
             }
@@ -2500,7 +2347,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </div>
                 <div className={gridClass}>
                     {renderCard("ghl", "GoHighLevel", t('agency.integrations.ghl_desc'), Globe, { showOpen: true, onOpen: openGhlPortal })}
-                    {renderCard("chatwoot", "Waflow Inbox", t('agency.integrations.chatwoot_desc'), MessageSquareText, { showOpen: true, onOpen: openChatwootPortal })}
                 </div>
                 {renderSelectedConfigPanel()}
                 {renderOpenAiAccountsPanel()}
@@ -4188,6 +4034,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                             locations={locations}
                             onUnauthorized={onLogout}
                             token={token}
+                            onOpenIntegrations={() => {
+                                setActiveTab('settings');
+                                setSettingsSection('integrations');
+                            }}
                         />
                     )}
 

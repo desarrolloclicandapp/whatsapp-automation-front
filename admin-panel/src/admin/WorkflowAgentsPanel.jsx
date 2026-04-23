@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -202,7 +202,7 @@ function EditorSection({ title, description, children, className = "" }) {
     );
 }
 
-export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, token }) {
+export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, token, onOpenIntegrations }) {
     const languageContext = useLanguage();
     const t = typeof languageContext?.t === "function" ? languageContext.t : ((key) => key);
     const documentInputRef = useRef(null);
@@ -998,6 +998,28 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                         ? t("workflow_agents.field_model_help")
                                                         : t("workflow_agents.models_require_key_help")}
                                             </div>
+                                            {!loadingModels && !hasAnyOpenAiKey && typeof onOpenIntegrations === "function" ? (
+                                                <div className="mt-3 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900/60 dark:bg-indigo-950/20">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <div className="text-xs font-bold text-indigo-900 dark:text-indigo-100">
+                                                                {t("workflow_agents.models_require_key_cta_title")}
+                                                            </div>
+                                                            <div className="mt-1 text-[11px] leading-5 text-indigo-700 dark:text-indigo-300">
+                                                                {t("workflow_agents.models_require_key_cta_desc")}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={onOpenIntegrations}
+                                                            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:text-indigo-800 dark:border-indigo-800 dark:bg-gray-900 dark:text-indigo-300 dark:hover:border-indigo-700"
+                                                        >
+                                                            {t("workflow_agents.models_require_key_cta_button")}
+                                                            <ArrowUpRight size={13} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : null}
                                         </div>
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_temperature")}</label>
