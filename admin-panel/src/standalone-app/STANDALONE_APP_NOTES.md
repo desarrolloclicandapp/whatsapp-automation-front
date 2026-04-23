@@ -172,6 +172,15 @@ Cambios principales de frontend:
 
 ### Settings
 
+- se agrego seccion `General` con:
+  - `alert_phone_number` por WhatsApp
+  - `crm_contact_tag` por WhatsApp
+  - `keywords` por WhatsApp (crear/eliminar)
+- se completo `Integraciones` con:
+  - Usuario Maestro de Waflow WhatsApp
+  - OpenAI de cuenta
+  - ElevenLabs por WhatsApp
+  - Proxy personalizado por WhatsApp
 - OpenAI conectado a `/agency/settings`
 - API keys y webhooks conectados a endpoints reales
 - apariencia sigue la base visual del original
@@ -190,12 +199,15 @@ Cambios principales de frontend:
   - el comportamiento del primer slot en trial
 - si se detectan usuarios antiguos con `interface` incorrecta, el backend ahora intenta autocorregirlos cuando el perfil y la topology coinciden con monocuenta
 - `StandaloneSubscription` y `StandaloneAgents` deberian revisarse otra vez cuando cambie fuerte su version original en `src/admin/`
-- el check de sintaxis de backend con `node --check` no se pudo usar aqui por una limitacion EPERM del entorno de Windows, aunque el frontend si compilo correctamente
+- en este entorno, `npm run build` y `node --check` estan bloqueados por EPERM (`lstat C:\\Users\\info`), por lo que la validacion final debe correrse en VPS/local del equipo
 
 ## Verificacion reciente
 
-- `npm run build` en `whatsapp-automation-front/admin-panel`
-- resultado: build OK
+- verificacion estatica:
+  - `StandaloneSlotManager.jsx` ya no tiene `GeneralPanel` duplicado
+  - QR realtime reforzado para evitar falso estado de expirado despues de conectar
+  - `StandaloneSettings.jsx` ya renderiza `General` e `Integraciones` completas con handlers reales
+  - apertura de cuenta en standalone usa `access-info` directo (sin pagina intermedia)
 
 Warnings no bloqueantes conocidos:
 

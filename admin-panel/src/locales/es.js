@@ -1698,13 +1698,13 @@ export const es = {
     "standalone.slots.loading_qr": "Consiguiendo QR seguro...",
     "standalone.slots.copy_url": "Copiar URL",
     "standalone.settings.whatsapp_title": "Waflow WhatsApp",
-    "standalone.settings.whatsapp_desc": "Define el Usuario Maestro para aprovisionar cuentas Waflow WhatsApp automaticamente.",
+    "standalone.settings.whatsapp_desc": "Define el Usuario Maestro para aprovisionar cuentas Waflow WhatsApp automáticamente.",
     "standalone.settings.master_user_ready": "Usuario maestro configurado",
-    "standalone.settings.master_user_pending": "Pendiente de configuracion",
+    "standalone.settings.master_user_pending": "Pendiente de configuración",
     "standalone.settings.master_user_saved": "Usuario maestro de Waflow WhatsApp guardado",
     "standalone.settings.master_user_save_error": "No se pudo guardar el usuario maestro de Waflow WhatsApp",
-    "standalone.settings.openai_desc": "Configura la OpenAI API key para esta cuenta. No necesitas seleccionar multiples cuentas en esta interfaz.",
-    "standalone.settings.openai_panel_desc": "Guarda una sola key para esta cuenta y usala en los flujos que dependan de OpenAI.",
+    "standalone.settings.openai_desc": "Configura la OpenAI API key para esta cuenta. No necesitas seleccionar múltiples cuentas en esta interfaz.",
+    "standalone.settings.openai_panel_desc": "Guarda una sola key para esta cuenta y úsala en los flujos que dependan de OpenAI.",
     "standalone.settings.openai_ready": "OpenAI lista",
     "standalone.settings.openai_missing": "Sin configurar"
 };

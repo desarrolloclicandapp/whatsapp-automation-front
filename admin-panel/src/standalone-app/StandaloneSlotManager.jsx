@@ -1299,26 +1299,6 @@ function ConnectionModeSelector({ onSelect }) {
   );
 }
 
-function GeneralPanel({ slot, connectionMode, onSwitchMode }) {
-  return (
-    <div className="max-w-2xl space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <MetricCard label="Nombre" value={slot.slot_name || `WhatsApp ${slot.slot_id}`} />
-        <MetricCard label="Tipo de conexión" value={connectionMode === 'official_api' ? 'API Oficial' : 'QR'} />
-      </div>
-      <div>
-        <button
-          type="button"
-          onClick={() => onSwitchMode(connectionMode === 'official_api' ? 'qr' : 'official_api')}
-          className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-300"
-        >
-          Cambiar a {connectionMode === 'official_api' ? 'Conexión QR' : 'API Oficial'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function SettingRow({ label, desc, checked, onChange }) {
   return (
     <div
@@ -1514,6 +1494,8 @@ function StandaloneSlotConnectionManager({
   const [shareUrl, setShareUrl] = useState('');
   const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
   const pollInterval = useRef(null);
+  const connectAttemptRef = useRef(0);
+  const socketConnectedRef = useRef(false);
 
   const authFetch = async (endpoint, options = {}) => {
     const response = await fetch(`${API_URL}${endpoint}`, {
@@ -1562,7 +1544,7 @@ function StandaloneSlotConnectionManager({
         status: 'admin',
         message:
           body.message ||
-          'Este slot fue suspendido por administracion y no puede reconectarse.',
+          'Este slot fue suspendido por administración y no puede reconectarse.',
       };
     }
 
@@ -1592,6 +1574,7 @@ function StandaloneSlotConnectionManager({
     setQr(null);
     setQrUpdatedAt(null);
     setQrExpired(false);
+    connectAttemptRef.current = 0;
     stopPolling();
     return true;
   };
@@ -1617,6 +1600,8 @@ function StandaloneSlotConnectionManager({
         if (!body.suspended_by) setSlotLockMessage(null);
 
         if (body.connected) {
+          socketConnectedRef.current = true;
+          connectAttemptRef.current = 0;
           setQr(null);
           setQrUpdatedAt(null);
           setLoading(false);
@@ -1658,6 +1643,8 @@ function StandaloneSlotConnectionManager({
     setSlotSuspendedBy(slot?.suspended_by || null);
 
     if (nextConnected) {
+      socketConnectedRef.current = true;
+      connectAttemptRef.current = 0;
       setQr(null);
       setQrUpdatedAt(null);
       setQrExpired(false);
@@ -1676,20 +1663,25 @@ function StandaloneSlotConnectionManager({
       if (Number(payload?.slotId) !== Number(slot.slot_id)) return;
 
       if (payload?.type === 'qr' && payload?.data) {
+        if (socketConnectedRef.current) return;
         setQr(payload.data);
         setQrExpired(false);
         setLoading(false);
       }
 
       if (payload?.type === 'connection' && payload?.status === 'open') {
+        socketConnectedRef.current = true;
+        connectAttemptRef.current = 0;
         setQr(null);
         setQrUpdatedAt(null);
         setQrExpired(false);
         setLoading(false);
+        stopPolling();
         checkStatus();
       }
 
       if (payload?.type === 'connection' && payload?.status === 'close') {
+        socketConnectedRef.current = false;
         checkStatus();
       }
     };
@@ -1710,6 +1702,7 @@ function StandaloneSlotConnectionManager({
     setQrExpired(false);
     setQr(null);
     setQrUpdatedAt(null);
+    socketConnectedRef.current = false;
 
     try {
       const response = await authFetch(
@@ -1724,8 +1717,14 @@ function StandaloneSlotConnectionManager({
       setAccountSuspensionState(null);
       stopPolling();
       let sawFreshQr = false;
+      const attemptId = Date.now();
+      connectAttemptRef.current = attemptId;
 
       const pollStep = async () => {
+        if (connectAttemptRef.current !== attemptId || socketConnectedRef.current) {
+          stopPolling();
+          return;
+        }
         try {
           const qrResponse = await authFetch(
             `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/qr`,
@@ -1735,6 +1734,10 @@ function StandaloneSlotConnectionManager({
 
           if (qrResponse.ok) {
             const data = await qrResponse.json();
+            if (connectAttemptRef.current !== attemptId || socketConnectedRef.current) {
+              stopPolling();
+              return;
+            }
             const nextQrUpdatedAt = data.qrUpdatedAt || null;
             const nextQr = data.qr || null;
             const stillWaitingForQr = data.waitingForQr === true;
@@ -1797,7 +1800,7 @@ function StandaloneSlotConnectionManager({
       });
       setSlotLockMessage(
         newLock === 'admin'
-          ? 'Pausado por administracion. Solo admin puede reactivar.'
+          ? 'Pausado por administración. Solo admin puede reactivar.'
           : 'Pausado por ti. Puedes reconectar sin escanear QR.',
       );
       setQrExpired(false);
@@ -1950,7 +1953,7 @@ function StandaloneSlotConnectionManager({
 
   const headerDescription =
     slotSuspendedBy === 'admin'
-      ? 'Este WhatsApp esta bloqueado por administracion.'
+      ? 'Este WhatsApp está bloqueado por administración.'
       : slotSuspendedBy === 'system'
         ? 'Este WhatsApp esta bloqueado temporalmente por el sistema.'
         : slotSuspendedBy === 'agency'
@@ -1996,7 +1999,7 @@ function StandaloneSlotConnectionManager({
       {slotSuspendedBy === 'admin' && (
         <div className="w-full mb-5 rounded-xl border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-700 p-4">
           <p className="text-sm font-semibold text-red-800 dark:text-red-300">
-            Bloqueado por administracion
+            Bloqueado por administración
           </p>
           <p className="text-xs text-red-700 dark:text-red-400 mt-1">
             {slotLockMessage || 'Contacta soporte para habilitar este WhatsApp.'}

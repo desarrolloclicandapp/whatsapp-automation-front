@@ -49,7 +49,10 @@ Listo:
 - `StandaloneDashboard.jsx` ya usa datos reales
 - `StandaloneSlotManager.jsx` ya usa endpoints reales y ahora monta el flujo QR original dentro del standalone
 - `StandaloneSlotManager.jsx` ya expone tambien la configuracion de `SMS / Twilio`
-- `StandaloneSettings.jsx` ya usa endpoints reales para settings principales sin exponer una pestaña intermedia de Waflow WhatsApp
+- `StandaloneSettings.jsx` ya renderiza:
+  - `General` con comportamiento/alerta/tag/keywords por WhatsApp
+  - `Integraciones` con Usuario Maestro + OpenAI + ElevenLabs + Proxy personalizado
+- `StandaloneSettings.jsx` no expone una pestaña intermedia de Waflow WhatsApp
 - `StandaloneAgents.jsx` ya trabaja con `locationId` real
 - `StandaloneLogin.jsx` ya entrega `interface` standalone al cerrar el flujo
 - `App.jsx` ya revalida la interfaz operativa con `/agency/info`
@@ -97,7 +100,11 @@ Se mantiene cercano al original:
 
 ### Settings
 
+- Usuario Maestro de Waflow WhatsApp
 - OpenAI
+- ElevenLabs por WhatsApp
+- Proxy personalizado por WhatsApp
+- alertas/tags/keywords por WhatsApp
 - API keys
 - webhooks
 
@@ -149,17 +156,16 @@ con sesiones distintas para confirmar que no haya rebotes raros ni pantallas cru
 
 ## Verificacion reciente
 
-Ejecutado:
+En este entorno, la validacion por build/check quedo limitada por:
 
-- `npm run build` en `whatsapp-automation-front/admin-panel`
+- `EPERM: lstat C:\\Users\\info` al ejecutar `npm run build`
+- misma limitacion para `node --check`
 
-Resultado:
+Verificado por inspeccion estatica:
 
-- build OK
-
-Limitacion de verificacion:
-
-- `node --check` sobre archivos backend no se pudo usar en este entorno por un error EPERM de Windows al resolver rutas
+- no hay `GeneralPanel` duplicado en `StandaloneSlotManager.jsx`
+- QR realtime mantiene prioridad de evento `connection:open` frente a polling
+- `StandaloneSettings.jsx` ya usa handlers reales en UI (General + Integraciones)
 
 Warnings no bloqueantes conocidos:
 

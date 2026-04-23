@@ -72,6 +72,7 @@ export default function StandaloneSettings({
   const [savingProxyBySlot, setSavingProxyBySlot] = useState({});
   const [elevenVoicesBySlot, setElevenVoicesBySlot] = useState({});
   const [loadingElevenVoicesBySlot, setLoadingElevenVoicesBySlot] = useState({});
+  const [elevenKeyDraftBySlot, setElevenKeyDraftBySlot] = useState({});
 
   const authFetch = async (endpoint, options = {}) => {
     const response = await fetch(`${API_URL}${endpoint}`, {
@@ -198,7 +199,7 @@ export default function StandaloneSettings({
   const allSettingsSectionIds = settingsMenuGroups.flatMap((group) => group.items.map((item) => item.id));
   const currentSettingsSectionId = allSettingsSectionIds.includes(settingsSection)
     ? settingsSection
-    : (allSettingsSectionIds[0] || 'inbox');
+    : (allSettingsSectionIds[0] || 'general');
   const settingsSectionTitleMap = settingsMenuGroups.reduce((acc, group) => {
     group.items.forEach((item) => {
       acc[item.id] = item.label;
@@ -209,6 +210,7 @@ export default function StandaloneSettings({
     settingsSectionTitleMap[currentSettingsSectionId] || (t('dash.header.settings') || 'Configuración');
 
   const locationSlots = Array.isArray(locationDetails?.slots) ? locationDetails.slots : [];
+  const isGhlMode = String(locationDetails?.crmType || accountInfo?.crm_type || '').trim().toLowerCase() === 'ghl';
   const keywordsBySlotId = useMemo(() => {
     const map = new Map();
     const rows = Array.isArray(locationDetails?.keywords) ? locationDetails.keywords : [];
@@ -241,7 +243,7 @@ export default function StandaloneSettings({
     const safePassword = String(inboxPassword || '');
 
     if (!safeName || !safeEmail || !safePassword) {
-      toast.error(t('dash.chatwoot_master.required') || 'Completa nombre, email y contrasena del usuario maestro.');
+      toast.error(t('dash.chatwoot_master.required') || 'Completa nombre, email y contraseña del usuario maestro.');
       return;
     }
 
@@ -336,6 +338,11 @@ export default function StandaloneSettings({
       setIsLoadingInbox(false);
     }
   };
+
+  useEffect(() => {
+    if (!token) return;
+    handleReloadInboxUser();
+  }, [token]);
 
   const handleSaveOpenAi = async () => {
     const safeKey = String(openAiKeyDraft || '').trim();
@@ -856,20 +863,182 @@ export default function StandaloneSettings({
         </aside>
 
         <div className="space-y-6">
-          {currentSettingsSectionId === 'inbox' && (
-            <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                    <MessageSquareText size={24} className="text-indigo-500" />
-                    {t('standalone.settings.whatsapp_title') || 'Waflow WhatsApp'}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {t('standalone.settings.whatsapp_desc') ||
-                      'Define el Usuario Maestro para aprovisionar cuentas Waflow WhatsApp automaticamente.'}
-                  </p>
+          {currentSettingsSectionId === 'general' && (
+            <div className="space-y-5">
+              <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">General por WhatsApp</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Configura comportamiento, alertas, tags y keywords de cada WhatsApp conectado.
+                </p>
+              </div>
+
+              {locationSlots.length === 0 && (
+                <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 text-center text-sm text-gray-500 dark:text-gray-400">
+                  No hay WhatsApp disponibles para configurar en esta cuenta.
                 </div>
-                <div className="flex items-center gap-2">
+              )}
+
+              {locationSlots.map((slot) => {
+                const slotId = slot.slot_id;
+                const settings = slot.settings || {};
+                const slotKeywords = keywordsBySlotId.get(slotId) || [];
+                const currentPrio = Number.parseInt(String(slot.priority || 1), 10) || 1;
+
+                return (
+                  <div
+                    key={`general-slot-${slotId}`}
+                    className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-base font-bold text-gray-900 dark:text-white">
+                        {slot.slot_name || `WhatsApp ${slotId}`}
+                      </h4>
+                      <span className="px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
+                        {slot.is_connected ? 'Conectado' : 'Desconectado'}
+                      </span>
+                    </div>
+
+                    {isGhlMode && (
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                          Orden de envío
+                        </label>
+                        <select
+                          value={currentPrio}
+                          onChange={(event) => changeSlotPriority(slotId, event.target.value)}
+                          className="w-full max-w-[220px] p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          {Array.from({ length: Math.max(locationSlots.length, currentPrio) }, (_, index) => index + 1).map((priority) => (
+                            <option key={priority} value={priority}>
+                              {priority} {priority === 1 ? '(Alta)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-800">
+                      <SettingsSwitchRow
+                        label={t('slots.settings.source_label') || 'Etiqueta de origen'}
+                        description={t('slots.settings.source_desc') || 'Muestra desde qué canal llegó la conversación.'}
+                        checked={settings.show_source_label ?? true}
+                        onChange={() => toggleSlotSetting(slotId, 'show_source_label', settings)}
+                      />
+                      <SettingsSwitchRow
+                        label={t('slots.settings.transcribe') || 'Transcribir audios'}
+                        description={t('slots.settings.transcribe_desc') || 'Convierte audios en texto para automatizaciones.'}
+                        checked={settings.transcribe_audio ?? true}
+                        onChange={() => toggleSlotSetting(slotId, 'transcribe_audio', settings)}
+                      />
+                      <SettingsSwitchRow
+                        label={t('slots.settings.create_contacts') || 'Crear contactos nuevos'}
+                        description={t('slots.settings.create_contacts_desc') || 'Crea contactos automáticamente cuando no existen.'}
+                        checked={settings.create_unknown_contacts ?? true}
+                        onChange={() => toggleSlotSetting(slotId, 'create_unknown_contacts', settings)}
+                      />
+                      <SettingsSwitchRow
+                        label={t('slots.settings.alert_disconnect') || 'Avisar si se desconecta'}
+                        description={t('slots.settings.alert_disconnect_desc') || 'Envía una alerta cuando este WhatsApp se desconecta.'}
+                        checked={settings.send_disconnect_message ?? true}
+                        onChange={() => toggleSlotSetting(slotId, 'send_disconnect_message', settings)}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                          Número de alerta
+                        </label>
+                        <input
+                          type="text"
+                          defaultValue={String(settings.alert_phone_number || '')}
+                          placeholder="+1 555 000 0000"
+                          onBlur={(event) => changeSlotSetting(slotId, 'alert_phone_number', event.target.value, settings)}
+                          className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                          Tag automático
+                        </label>
+                        <input
+                          type="text"
+                          defaultValue={String(settings.crm_contact_tag || settings.ghl_contact_tag || '')}
+                          placeholder="lead_whatsapp"
+                          onBlur={(event) => changeSlotSetting(slotId, 'crm_contact_tag', event.target.value, settings)}
+                          className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h5 className="text-sm font-bold text-gray-900 dark:text-white">Keywords</h5>
+                      <form onSubmit={(event) => handleAddKeyword(event, slotId)} className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <input
+                          name="keyword"
+                          placeholder="Keyword"
+                          required
+                          className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <input
+                          name="tag"
+                          placeholder="Tag"
+                          required
+                          className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button
+                          type="submit"
+                          className="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition"
+                        >
+                          <Plus size={14} /> Guardar regla
+                        </button>
+                      </form>
+                      <div className="space-y-2">
+                        {slotKeywords.map((keyword) => (
+                          <div
+                            key={keyword.id}
+                            className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-gray-200 dark:border-gray-800"
+                          >
+                            <div className="text-sm">
+                              <span className="font-semibold text-gray-900 dark:text-white">{keyword.keyword}</span>
+                              <span className="text-gray-500 dark:text-gray-400"> → {keyword.tag}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteKeyword(keyword.id)}
+                              className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1.5 rounded-lg transition"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        ))}
+                        {slotKeywords.length === 0 && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Sin reglas para este WhatsApp.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {currentSettingsSectionId === 'integrations' && (
+            <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">
+              <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                      <MessageSquareText size={22} className="text-indigo-500" />
+                      {t('standalone.settings.whatsapp_title') || 'Waflow WhatsApp'}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {t('standalone.settings.whatsapp_desc') ||
+                        'Define el Usuario Maestro para aprovisionar cuentas Waflow WhatsApp automáticamente.'}
+                    </p>
+                  </div>
                   <span
                     className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border ${
                       inboxConfigured
@@ -879,129 +1048,125 @@ export default function StandaloneSettings({
                   >
                     {inboxConfigured
                       ? (t('standalone.settings.master_user_ready') || 'Usuario maestro configurado')
-                      : (t('standalone.settings.master_user_pending') || 'Pendiente de configuracion')}
+                      : (t('standalone.settings.master_user_pending') || 'Pendiente de configuración')}
                   </span>
                 </div>
-              </div>
 
-              <form onSubmit={handleSaveInboxUser} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                    {t('dash.chatwoot_master.name') || 'Nombre del Usuario Maestro'}
-                  </label>
-                  <input
-                    type="text"
-                    value={inboxName}
-                    onChange={(event) => setInboxName(event.target.value)}
-                    placeholder="Ej: Soporte Principal"
-                    autoComplete="off"
-                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
+                <form onSubmit={handleSaveInboxUser} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                      {t('dash.chatwoot_master.name') || 'Nombre del Usuario Maestro'}
+                    </label>
+                    <input
+                      type="text"
+                      value={inboxName}
+                      onChange={(event) => setInboxName(event.target.value)}
+                      placeholder="Ej: Soporte Principal"
+                      autoComplete="off"
+                      className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                    {t('dash.chatwoot_master.email') || 'Email del Usuario Maestro'}
-                  </label>
-                  <input
-                    type="email"
-                    value={inboxEmail}
-                    onChange={(event) => setInboxEmail(event.target.value)}
-                    placeholder="soporte@empresa.com"
-                    autoComplete="off"
-                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  {inboxConfigured && inboxEmailMasked && (
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
-                      {(t('dash.chatwoot_master.configured_as') || 'Configurado como') + ` ${inboxEmailMasked}`}
-                    </p>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                      {t('dash.chatwoot_master.email') || 'Email del Usuario Maestro'}
+                    </label>
+                    <input
+                      type="email"
+                      value={inboxEmail}
+                      onChange={(event) => setInboxEmail(event.target.value)}
+                      placeholder="soporte@empresa.com"
+                      autoComplete="off"
+                      className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {inboxConfigured && inboxEmailMasked && (
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
+                        {(t('dash.chatwoot_master.configured_as') || 'Configurado como') + ` ${inboxEmailMasked}`}
+                      </p>
+                    )}
+                  </div>
+
+                  {inboxConfigured && (
+                    <div className="xl:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                        {t('dash.chatwoot_master.verify_password') || 'Contraseña actual para verificar cambios'}
+                      </label>
+                      <input
+                        type="password"
+                        value={inboxVerificationPassword}
+                        onChange={(event) => setInboxVerificationPassword(event.target.value)}
+                        placeholder="••••••••"
+                        autoComplete="current-password"
+                        className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                        {t('dash.chatwoot_master.verify_password_desc') ||
+                          'Antes de guardar cambios, verifica con la contraseña actual del Usuario Maestro.'}
+                      </p>
+                    </div>
                   )}
-                </div>
 
-                {inboxConfigured && (
                   <div className="xl:col-span-2">
                     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                      {t('dash.chatwoot_master.verify_password') || 'Contrasena actual para verificar cambios'}
+                      {inboxConfigured
+                        ? (t('dash.chatwoot_master.new_password') || 'Nueva contraseña del Usuario Maestro')
+                        : (t('dash.chatwoot_master.password') || 'Contraseña del Usuario Maestro')}
                     </label>
                     <input
                       type="password"
-                      value={inboxVerificationPassword}
-                      onChange={(event) => setInboxVerificationPassword(event.target.value)}
+                      value={inboxPassword}
+                      onChange={(event) => setInboxPassword(event.target.value)}
                       placeholder="••••••••"
-                      autoComplete="current-password"
+                      autoComplete="new-password"
                       className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                     />
-                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                      {t('dash.chatwoot_master.verify_password_desc') ||
-                        'Antes de guardar cambios, verifica con la contrasena actual del Usuario Maestro.'}
-                    </p>
                   </div>
-                )}
 
-                <div className="xl:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                    {inboxConfigured
-                      ? (t('dash.chatwoot_master.new_password') || 'Nueva contrasena del Usuario Maestro')
-                      : (t('dash.chatwoot_master.password') || 'Contrasena del Usuario Maestro')}
-                  </label>
-                  <input
-                    type="password"
-                    value={inboxPassword}
-                    onChange={(event) => setInboxPassword(event.target.value)}
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
+                  <div className="xl:col-span-2 flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={handleTestInboxUser}
+                      disabled={isTestingInbox || isLoadingInbox}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-700 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-60 transition-colors"
+                    >
+                      {isTestingInbox ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                      {t('dash.chatwoot_master.test_button') || 'Probar conexión'}
+                    </button>
 
-                <div className="xl:col-span-2 flex flex-wrap justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={handleTestInboxUser}
-                    disabled={isTestingInbox || isLoadingInbox}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-700 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-60 transition-colors"
-                  >
-                    {isTestingInbox ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                    {t('dash.chatwoot_master.test_button') || 'Probar conexion'}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handleReloadInboxUser}
+                      disabled={isLoadingInbox || isTestingInbox}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60 transition-colors"
+                    >
+                      <RefreshCw size={13} />
+                      {isLoadingInbox ? (t('common.loading') || 'Cargando...') : (t('common.reload') || 'Recargar')}
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={handleReloadInboxUser}
-                    disabled={isLoadingInbox || isTestingInbox}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60 transition-colors"
-                  >
-                    <RefreshCw size={13} />
-                    {isLoadingInbox ? (t('common.loading') || 'Cargando...') : (t('common.reload') || 'Recargar')}
-                  </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingInbox}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition disabled:opacity-60"
+                    >
+                      {isSavingInbox ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                      {t('dash.chatwoot_master.save') || 'Guardar Usuario Maestro'}
+                    </button>
+                  </div>
 
-                  <button
-                    type="submit"
-                    disabled={isSavingInbox}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition disabled:opacity-60"
-                  >
-                    {isSavingInbox ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                    {t('dash.chatwoot_master.save') || 'Guardar Usuario Maestro'}
-                  </button>
-                </div>
+                  {inboxTestStatus?.message && (
+                    <p
+                      className={`xl:col-span-2 text-[11px] ${
+                        inboxTestStatus.ok
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-rose-600 dark:text-rose-400'
+                      }`}
+                    >
+                      {inboxTestStatus.message}
+                    </p>
+                  )}
+                </form>
+              </div>
 
-                {inboxTestStatus?.message && (
-                  <p
-                    className={`xl:col-span-2 text-[11px] ${
-                      inboxTestStatus.ok
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-rose-600 dark:text-rose-400'
-                    }`}
-                  >
-                    {inboxTestStatus.message}
-                  </p>
-                )}
-              </form>
-            </div>
-          )}
-
-          {currentSettingsSectionId === 'integrations' && (
-            <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">
               <div>
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <Key size={22} className="text-emerald-500" />
@@ -1086,6 +1251,192 @@ export default function StandaloneSettings({
                   </div>
                 </div>
               </div>
+
+              {locationSlots.map((slot) => {
+                const slotId = slot.slot_id;
+                const slotName = slot.slot_name || `WhatsApp ${slotId}`;
+                const proxyConfig = proxyConfigBySlot[slotId] || {
+                  configured: false,
+                  host: '',
+                  port: '',
+                  username: '',
+                  password: '',
+                  passwordMasked: '',
+                  hasPassword: false,
+                  protocol: 'http',
+                };
+                const loadingProxy = !!loadingProxyBySlot[slotId];
+                const savingProxy = !!savingProxyBySlot[slotId];
+                const loadingVoices = !!loadingElevenVoicesBySlot[slotId];
+                const draftEleven = elevenKeyDraftBySlot[slotId] ?? '';
+                const voices = elevenVoicesBySlot[slotId] || [];
+
+                return (
+                  <div
+                    key={`integrations-slot-${slotId}`}
+                    className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-5"
+                  >
+                    <h4 className="text-base font-bold text-gray-900 dark:text-white">{slotName}</h4>
+
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h5 className="text-sm font-bold text-gray-900 dark:text-white">ElevenLabs</h5>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Configura API key y voz por defecto para este WhatsApp.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2">
+                        <input
+                          type="password"
+                          value={draftEleven}
+                          onChange={(event) =>
+                            setElevenKeyDraftBySlot((prev) => ({ ...prev, [slotId]: event.target.value }))
+                          }
+                          placeholder={slot.elevenlabs_api_key ? '••••••••••••••••' : 'sk_...'}
+                          className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const ok = await saveElevenApiKey(slotId, draftEleven);
+                            if (ok) {
+                              setElevenKeyDraftBySlot((prev) => ({ ...prev, [slotId]: '' }));
+                            }
+                          }}
+                          className="px-3 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition"
+                        >
+                          Guardar key
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await saveElevenApiKey(slotId, '');
+                            setElevenKeyDraftBySlot((prev) => ({ ...prev, [slotId]: '' }));
+                          }}
+                          className="px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                        >
+                          Limpiar
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
+                        <select
+                          value={slot.elevenlabs_voice_id || ''}
+                          disabled={!slot.elevenlabs_api_key}
+                          onChange={(event) => saveElevenVoice(slotId, event.target.value)}
+                          className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                        >
+                          <option value="">
+                            {slot.elevenlabs_api_key ? 'Sin voz por defecto' : 'Configura primero la API key'}
+                          </option>
+                          {slot.elevenlabs_voice_id && !voices.some((voice) => voice.id === slot.elevenlabs_voice_id) && (
+                            <option value={slot.elevenlabs_voice_id}>Voz actual ({slot.elevenlabs_voice_id})</option>
+                          )}
+                          {voices.map((voice) => (
+                            <option key={voice.id} value={voice.id}>
+                              {voice.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={loadingVoices || !slot.elevenlabs_api_key}
+                          onClick={() => loadElevenVoices(slotId, true)}
+                          className="px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-60 inline-flex items-center gap-2 justify-center"
+                        >
+                          <RefreshCw size={14} className={loadingVoices ? 'animate-spin' : ''} />
+                          Actualizar voces
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h5 className="text-sm font-bold text-gray-900 dark:text-white">
+                            Proxy personalizado
+                          </h5>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Define proxy por WhatsApp para enrutar conexiones salientes.
+                          </p>
+                        </div>
+                        <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${proxyConfig.configured ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>
+                          {proxyConfig.configured ? 'Configurado' : 'Sin configurar'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={proxyConfig.host || ''}
+                          onChange={(event) => updateProxyField(slotId, 'host', event.target.value)}
+                          placeholder="Host"
+                          className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <input
+                          type="number"
+                          value={proxyConfig.port || ''}
+                          onChange={(event) => updateProxyField(slotId, 'port', event.target.value)}
+                          placeholder="Port"
+                          className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <input
+                          type="text"
+                          value={proxyConfig.username || ''}
+                          onChange={(event) => updateProxyField(slotId, 'username', event.target.value)}
+                          placeholder="Username"
+                          className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <input
+                          type="password"
+                          value={proxyConfig.password || ''}
+                          onChange={(event) => updateProxyField(slotId, 'password', event.target.value)}
+                          placeholder={proxyConfig.passwordMasked || 'Password'}
+                          className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      <select
+                        value={proxyConfig.protocol || 'http'}
+                        onChange={(event) => updateProxyField(slotId, 'protocol', event.target.value)}
+                        className="w-full max-w-[180px] px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="http">http</option>
+                        <option value="socks5">socks5</option>
+                      </select>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={loadingProxy || savingProxy}
+                          onClick={() => saveProxyConfig(slotId)}
+                          className="px-3 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition disabled:opacity-60"
+                        >
+                          Guardar proxy
+                        </button>
+                        <button
+                          type="button"
+                          disabled={loadingProxy || savingProxy || !proxyConfig.configured}
+                          onClick={() => clearProxyConfig(slotId)}
+                          className="px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-60"
+                        >
+                          Limpiar proxy
+                        </button>
+                        <button
+                          type="button"
+                          disabled={loadingProxy || savingProxy}
+                          onClick={() => loadProxyConfig(slotId, true)}
+                          className="px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-60 inline-flex items-center gap-2"
+                        >
+                          <RefreshCw size={14} className={loadingProxy ? 'animate-spin' : ''} />
+                          Recargar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -1167,7 +1518,7 @@ export default function StandaloneSettings({
                         <tr className="text-xs font-bold text-gray-400 uppercase border-b dark:border-gray-700">
                           <th className="pb-3">{t('common.name') || 'Nombre'}</th>
                           <th className="pb-3">{t('common.prefix') || 'Prefijo'}</th>
-                          <th className="pb-3 text-right">{t('common.action') || 'Accion'}</th>
+                          <th className="pb-3 text-right">{t('common.action') || 'Acción'}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y dark:divide-gray-800">
@@ -1214,7 +1565,7 @@ export default function StandaloneSettings({
                         <tr className="text-xs font-bold text-gray-400 uppercase border-b dark:border-gray-700">
                           <th className="pb-3">{t('common.name') || 'Nombre'}</th>
                           <th className="pb-3">URL</th>
-                          <th className="pb-3 text-right">{t('common.action') || 'Accion'}</th>
+                          <th className="pb-3 text-right">{t('common.action') || 'Acción'}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y dark:divide-gray-800">
@@ -1398,5 +1749,31 @@ export default function StandaloneSettings({
         </div>
       </div>
     </div>
+  );
+}
+
+function SettingsSwitchRow({ label, description, checked, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className="w-full flex items-center justify-between gap-4 px-3 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition border-b border-gray-200 dark:border-gray-800 last:border-b-0"
+    >
+      <span className="text-left">
+        <span className="block text-sm font-semibold text-gray-900 dark:text-white">{label}</span>
+        <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{description}</span>
+      </span>
+      <span
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+          checked ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+            checked ? 'translate-x-6' : 'translate-x-1'
+          }`}
+        />
+      </span>
+    </button>
   );
 }
