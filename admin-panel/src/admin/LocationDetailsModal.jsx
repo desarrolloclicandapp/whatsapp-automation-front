@@ -119,6 +119,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const embeddedSignupFlowRef = useRef({
         slotId: null,
         completionSent: false,
+        missingPhoneNumberWarned: false,
         authCode: "",
         accessToken: "",
         businessAccountId: "",
@@ -331,12 +332,26 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             const flow = embeddedSignupFlowRef.current;
             if (!flow?.slotId) return;
 
+            logEmbeddedSignupDebug("window.message received", {
+                origin: event.origin,
+                data: event.data
+            });
+
             const parsed = normalizeEmbeddedSignupMessage(event.data);
-            if (!parsed) return;
+            if (!parsed) {
+                logEmbeddedSignupDebug("window.message ignored: parser returned null", {
+                    origin: event.origin,
+                    data: event.data
+                }, "warn");
+                return;
+            }
+
+            logEmbeddedSignupDebug("window.message parsed", parsed);
 
             if (parsed.status === 'cancel') {
                 setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
                 setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                logEmbeddedSignupDebug("embedded signup cancelled", parsed, "warn");
                 toast.error(t('slots.official.embedded.cancelled') || 'El asistente de Meta fue cancelado');
                 resetEmbeddedSignupFlow();
                 return;
@@ -345,6 +360,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (parsed.status === 'error') {
                 setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
                 setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                logEmbeddedSignupDebug("embedded signup error", parsed, "error");
                 toast.error(t('slots.official.embedded.error') || 'Meta devolvió un error en el Embedded Signup', {
                     description: parsed.errorMessage || undefined
                 });
@@ -362,7 +378,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!flow.completionSent && flow.phoneNumberId && (flow.authCode || flow.accessToken)) {
                 const snapshot = { ...flow };
                 flow.completionSent = true;
-                completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch(() => { });
+                logEmbeddedSignupDebug("completion requested from postMessage", snapshot);
+                completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch((error) => {
+                    logEmbeddedSignupDebug("completion failed from postMessage", {
+                        message: error?.message || String(error || "Unknown error")
+                    }, "error");
+                });
             }
         };
 
@@ -1171,6 +1192,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         embeddedSignupFlowRef.current = {
             slotId: null,
             completionSent: false,
+            missingPhoneNumberWarned: false,
             authCode: "",
             accessToken: "",
             businessAccountId: "",
@@ -1197,6 +1219,48 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         } catch (_) {
             return null;
         }
+    };
+
+    const maskEmbeddedSignupDebugValue = (value) => {
+        if (value === undefined || value === null) return value;
+        const normalized = String(value);
+        if (!normalized) return normalized;
+        if (normalized.length <= 8) return "***";
+        return `${normalized.slice(0, 4)}***${normalized.slice(-4)}`;
+    };
+
+    const sanitizeEmbeddedSignupDebugPayload = (value, depth = 0) => {
+        if (depth > 5) return "[max-depth]";
+        if (value === null || value === undefined) return value;
+        if (typeof value === "string") {
+            const parsed = safeParseJson(value);
+            return parsed ? sanitizeEmbeddedSignupDebugPayload(parsed, depth + 1) : value;
+        }
+        if (typeof value !== "object") return value;
+        if (Array.isArray(value)) {
+            return value.map(item => sanitizeEmbeddedSignupDebugPayload(item, depth + 1));
+        }
+
+        const sensitiveKeys = new Set([
+            "accessToken",
+            "access_token",
+            "code",
+            "authCode",
+            "signedRequest",
+            "signed_request"
+        ]);
+
+        return Object.entries(value).reduce((acc, [key, item]) => {
+            acc[key] = sensitiveKeys.has(key)
+                ? maskEmbeddedSignupDebugValue(item)
+                : sanitizeEmbeddedSignupDebugPayload(item, depth + 1);
+            return acc;
+        }, {});
+    };
+
+    const logEmbeddedSignupDebug = (label, payload, level = "info") => {
+        const logger = typeof console[level] === "function" ? console[level] : console.info;
+        logger(`[Meta Embedded Signup] ${label}`, sanitizeEmbeddedSignupDebugPayload(payload));
     };
 
     const deepFindFirstString = (input, keys, depth = 0) => {
@@ -2130,7 +2194,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 };
             }
 
+            logEmbeddedSignupDebug("starting fb.login", {
+                slotId,
+                configId: official.embeddedSignupConfigurationId,
+                extras
+            });
+
             fb.login((response) => {
+                logEmbeddedSignupDebug("fb.login callback", response);
                 const authResponse = response?.authResponse || null;
                 if (!authResponse) {
                     setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
@@ -2160,10 +2231,38 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
 
                 const flow = embeddedSignupFlowRef.current;
+                window.setTimeout(() => {
+                    const currentFlow = embeddedSignupFlowRef.current;
+                    if (
+                        currentFlow?.slotId === slotId &&
+                        !currentFlow.completionSent &&
+                        !currentFlow.phoneNumberId &&
+                        (currentFlow.authCode || currentFlow.accessToken) &&
+                        !currentFlow.missingPhoneNumberWarned
+                    ) {
+                        currentFlow.missingPhoneNumberWarned = true;
+                        logEmbeddedSignupDebug("auth response received but Meta did not return phoneNumberId", {
+                            response,
+                            flow: currentFlow
+                        }, "error");
+                        toast.error(
+                            t('slots.official.embedded.error') || 'Meta devolviÃ³ un error en el Embedded Signup',
+                            {
+                                description: 'Meta devolviÃ³ autenticaciÃ³n, pero no enviÃ³ phoneNumberId ni el payload final del Embedded Signup.'
+                            }
+                        );
+                    }
+                }, 2500);
+
                 if (!flow.completionSent && flow.phoneNumberId && (flow.authCode || flow.accessToken)) {
                     const snapshot = { ...flow };
                     flow.completionSent = true;
-                    completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch(() => { });
+                    logEmbeddedSignupDebug("completion requested from fb.login callback", snapshot);
+                    completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch((error) => {
+                        logEmbeddedSignupDebug("completion failed from fb.login callback", {
+                            message: error?.message || String(error || "Unknown error")
+                        }, "error");
+                    });
                 }
             }, {
                 config_id: official.embeddedSignupConfigurationId,
