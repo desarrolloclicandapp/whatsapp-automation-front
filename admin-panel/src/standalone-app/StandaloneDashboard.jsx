@@ -20,7 +20,6 @@ export default function StandaloneDashboard({
   locationDetails,
   onRefresh,
   onOpenMessagingInbox,
-  onOpenAccount,
   onGoToBilling,
   onRealtimeConnectionChange,
   token,
@@ -81,11 +80,13 @@ export default function StandaloneDashboard({
         actionLabel: translateOr(t, 'standalone.dashboard.quick_start_step_whatsapp_cta', 'Gestionar'),
         doneLabel: translateOr(t, 'standalone.dashboard.quick_start_step_whatsapp_done', 'WhatsApp listo'),
         done: liveSlots.length > 0,
-        onClick: () =>
+        onClick: () => {
           document.getElementById('standalone-whatsapp-manager')?.scrollIntoView({
             behavior: 'smooth',
             block: 'start',
-          }),
+          });
+          window.dispatchEvent(new CustomEvent('standalone:create-whatsapp'));
+        },
       },
       {
         id: 'online',
@@ -98,11 +99,13 @@ export default function StandaloneDashboard({
         actionLabel: translateOr(t, 'standalone.dashboard.quick_start_step_online_cta', 'Conectar WhatsApp'),
         doneLabel: translateOr(t, 'standalone.dashboard.quick_start_step_online_done', 'En línea'),
         done: connectedSlots > 0,
-        onClick: () =>
+        onClick: () => {
           document.getElementById('standalone-whatsapp-manager')?.scrollIntoView({
             behavior: 'smooth',
             block: 'start',
-          }),
+          });
+          window.dispatchEvent(new CustomEvent('standalone:connect-whatsapp-qr'));
+        },
       },
     ];
   }, [chatStep, connectedSlots, isWhatsAppConnected, liveSlots.length, t]);
@@ -287,12 +290,13 @@ export default function StandaloneDashboard({
         locationId={primaryLocationId}
         locationName={primaryLocation?.name || locationDetails?.name || ''}
         crmType={locationDetails?.crmType || primaryLocation?.settings?.crm_type || accountInfo?.crm_type || 'chatwoot'}
+        maxSlots={maxSlots}
         slots={liveSlots}
         healthSummary={healthSummary}
         onRefresh={onRefresh}
         onSlotsChange={setLiveSlots}
         onConnectionStateChange={onRealtimeConnectionChange}
-        onOpenAccount={onOpenAccount}
+        onUpgradeRequest={onGoToBilling}
         onUnauthorized={onUnauthorized}
       />
     </div>

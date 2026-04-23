@@ -15,9 +15,7 @@ import {
   Settings,
   Smartphone,
   Trash2,
-  User,
   Users,
-  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '../context/LanguageContext';
@@ -56,12 +54,13 @@ export default function StandaloneSlotManager({
   locationId,
   locationName,
   crmType,
+  maxSlots = 1,
   slots,
   healthSummary,
   onRefresh,
   onSlotsChange,
   onConnectionStateChange,
-  onOpenAccount,
+  onUpgradeRequest,
   onUnauthorized,
 }) {
   const { t } = useLanguage();
@@ -79,12 +78,18 @@ export default function StandaloneSlotManager({
   const [actionLoadingBySlot, setActionLoadingBySlot] = useState({});
   const [groupsBySlot, setGroupsBySlot] = useState({});
   const [groupsLoadingBySlot, setGroupsLoadingBySlot] = useState({});
-  const [chatwootAccessInfo, setChatwootAccessInfo] = useState(null);
-  const [ghlAccessInfo, setGhlAccessInfo] = useState(null);
-  const [loadingAccessInfo, setLoadingAccessInfo] = useState(false);
-  const [showAccountInfoModal, setShowAccountInfoModal] = useState(false);
+  const [showCreateSlotModal, setShowCreateSlotModal] = useState(false);
+  const [createSlotName, setCreateSlotName] = useState('');
+  const [createSlotLoading, setCreateSlotLoading] = useState(false);
+  const [pendingQrAfterCreate, setPendingQrAfterCreate] = useState(false);
+  const [showRenameSlotModal, setShowRenameSlotModal] = useState(false);
+  const [renameSlotId, setRenameSlotId] = useState(null);
+  const [renameSlotName, setRenameSlotName] = useState('');
+  const [renameSlotLoading, setRenameSlotLoading] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const safeCrmType = String(crmType || 'chatwoot').trim().toLowerCase();
   const supportsSmsTab = safeCrmType === 'ghl' || safeCrmType === 'chatwoot';
+  const normalizedMaxSlots = Number.parseInt(String(maxSlots || 1), 10) || 1;
 
   useEffect(() => {
     const safeSlots = Array.isArray(slots) ? slots : [];
@@ -92,10 +97,6 @@ export default function StandaloneSlotManager({
     setExpandedSlotId((current) => current || safeSlots[0]?.slot_id || null);
     onConnectionStateChange?.(safeSlots.some((slot) => slot.is_connected === true));
   }, [slots]);
-
-  useEffect(() => {
-    loadAccessInfo();
-  }, [locationId, safeCrmType]);
 
   useEffect(() => {
     if (!socket || !locationId) return undefined;
@@ -250,26 +251,21 @@ export default function StandaloneSlotManager({
     }
   };
 
-  const loadAccessInfo = async () => {
-    if (!locationId) return;
-    setLoadingAccessInfo(true);
-    try {
-      const [chatwootResponse, ghlResponse] = await Promise.all([
-        authFetch(`/agency/chatwoot/access-info?locationId=${encodeURIComponent(locationId)}`),
-        authFetch(`/agency/ghl/access-info?locationId=${encodeURIComponent(locationId)}`),
-      ]);
-
-      const chatwootBody = chatwootResponse.ok ? await parseResponseBody(chatwootResponse) : null;
-      const ghlBody = ghlResponse.ok ? await parseResponseBody(ghlResponse) : null;
-
-      setChatwootAccessInfo(chatwootBody?.chatwoot || null);
-      setGhlAccessInfo(ghlBody?.ghl || null);
-    } catch {
-      setChatwootAccessInfo(null);
-      setGhlAccessInfo(null);
-    } finally {
-      setLoadingAccessInfo(false);
+  const openCreateModal = (connectAfterCreate = false) => {
+    if (localSlots.length >= normalizedMaxSlots) {
+      setShowUpgradeModal(true);
+      return;
     }
+    setCreateSlotName('');
+    setPendingQrAfterCreate(connectAfterCreate);
+    setShowCreateSlotModal(true);
+  };
+
+  const openRenameModal = (slotId) => {
+    const currentSlot = localSlots.find((slot) => slot.slot_id === slotId);
+    setRenameSlotId(slotId);
+    setRenameSlotName(currentSlot?.slot_name || `WhatsApp ${slotId}`);
+    setShowRenameSlotModal(true);
   };
 
   const connectedCount = useMemo(
@@ -386,7 +382,46 @@ export default function StandaloneSlotManager({
     return undefined;
   }, [expandedSlotId, locationId, localSlots, activeTabBySlot, supportsSmsTab]);
 
-  const handleAddSlot = async () => {
+  useEffect(() => {
+    const handleCreate = () => openCreateModal(false);
+    const handleConnectQr = () => {
+      if (localSlots.length === 0) {
+        openCreateModal(true);
+        return;
+      }
+      const targetSlot =
+        localSlots.find((slot) => slot.is_connected !== true) || localSlots[0];
+      if (!targetSlot) return;
+
+      setExpandedSlotId(targetSlot.slot_id);
+      setActiveTabBySlot((prev) => ({
+        ...prev,
+        [targetSlot.slot_id]: 'connection',
+      }));
+
+      const mode = getConnectionMode(targetSlot);
+      if (!mode) {
+        handleSelectConnectionMode(targetSlot, 'qr')
+          .then(() => handleStartQr(targetSlot.slot_id))
+          .catch(() => {});
+      } else if (mode === 'official_api') {
+        handleSelectConnectionMode(targetSlot, 'qr')
+          .then(() => handleStartQr(targetSlot.slot_id))
+          .catch(() => {});
+      } else {
+        handleStartQr(targetSlot.slot_id);
+      }
+    };
+
+    window.addEventListener('standalone:create-whatsapp', handleCreate);
+    window.addEventListener('standalone:connect-whatsapp-qr', handleConnectQr);
+    return () => {
+      window.removeEventListener('standalone:create-whatsapp', handleCreate);
+      window.removeEventListener('standalone:connect-whatsapp-qr', handleConnectQr);
+    };
+  }, [localSlots]);
+
+  const handleAddSlot = async (preferredName = '') => {
     try {
       const response = await authFetch('/agency/add-slot', {
         method: 'POST',
@@ -394,17 +429,39 @@ export default function StandaloneSlotManager({
       });
       const body = await parseResponseBody(response);
 
+      if (body?.requiresUpgrade) {
+        setShowUpgradeModal(true);
+        throw new Error(body?.error || 'Tu plan actual no permite más conexiones.');
+      }
+
       if (!response.ok || body?.success === false) {
         throw new Error(body?.error || 'No se pudo crear el WhatsApp');
       }
 
+      const createdSlotId = body?.slot_id || null;
+      const safeName = String(preferredName || '').trim();
+      if (createdSlotId && safeName) {
+        const renameResponse = await authFetch('/config-slot', {
+          method: 'POST',
+          body: JSON.stringify({
+            locationId,
+            slot: createdSlotId,
+            slotName: safeName,
+          }),
+        });
+        const renameBody = await parseResponseBody(renameResponse);
+        if (!renameResponse.ok) {
+          throw new Error(renameBody?.error || 'Se creó el WhatsApp pero no se pudo guardar el nombre');
+        }
+      }
+
       toast.success(translateOr(t, 'standalone.slots.toast_created', 'Nuevo WhatsApp creado'));
-      if (body?.slot_id) {
+      if (createdSlotId) {
         applyLocalSlots((prev) => [
           ...prev,
           {
-            slot_id: body.slot_id,
-            slot_name: body.slot_name || `WhatsApp ${body.slot_id}`,
+            slot_id: createdSlotId,
+            slot_name: safeName || body.slot_name || `WhatsApp ${createdSlotId}`,
             is_connected: false,
             phone_number: '',
             suspended_by: null,
@@ -413,9 +470,23 @@ export default function StandaloneSlotManager({
         ]);
       }
       await refreshAndKeepExpanded();
-      setExpandedSlotId(body?.slot_id || expandedSlotId);
+      setExpandedSlotId(createdSlotId || expandedSlotId);
+
+      if (pendingQrAfterCreate && createdSlotId) {
+        const newSlot = {
+          slot_id: createdSlotId,
+          settings: { connection_mode: 'qr' },
+        };
+        setPendingQrAfterCreate(false);
+        setActiveTabBySlot((prev) => ({ ...prev, [createdSlotId]: 'connection' }));
+        await handleSelectConnectionMode(newSlot, 'qr').catch(() => {});
+        await handleStartQr(createdSlotId).catch(() => {});
+      }
+
+      return createdSlotId;
     } catch (error) {
       toast.error(error.message || 'No se pudo crear el WhatsApp');
+      return null;
     }
   };
 
@@ -443,14 +514,8 @@ export default function StandaloneSlotManager({
     }
   };
 
-  const handleRenameSlot = async (slotId) => {
-    const currentSlot = localSlots.find((slot) => slot.slot_id === slotId);
-    const nextName = window.prompt(
-      translateOr(t, 'standalone.slots.prompt_name', 'Nombre del WhatsApp'),
-      currentSlot?.slot_name || `WhatsApp ${slotId}`,
-    );
-    if (!nextName || !nextName.trim()) return;
-
+  const handleRenameSlot = async (slotId, nextName) => {
+    if (!nextName || !String(nextName).trim()) return;
     updateActionLoading(slotId, true);
     try {
       const response = await authFetch('/config-slot', {
@@ -458,7 +523,7 @@ export default function StandaloneSlotManager({
         body: JSON.stringify({
           locationId,
           slot: slotId,
-          slotName: nextName.trim(),
+          slotName: String(nextName).trim(),
         }),
       });
       const body = await parseResponseBody(response);
@@ -467,12 +532,47 @@ export default function StandaloneSlotManager({
       }
 
       toast.success(translateOr(t, 'standalone.slots.toast_renamed', 'Nombre actualizado'));
-      patchLocalSlot(slotId, { slot_name: nextName.trim() });
+      patchLocalSlot(slotId, { slot_name: String(nextName).trim() });
       await refreshAndKeepExpanded();
     } catch (error) {
       toast.error(error.message || 'No se pudo actualizar el nombre');
     } finally {
       updateActionLoading(slotId, false);
+    }
+  };
+
+  const confirmCreateSlot = async () => {
+    const safeName = String(createSlotName || '').trim();
+    if (!safeName) {
+      toast.error('Escribe un nombre para tu WhatsApp.');
+      return;
+    }
+    setCreateSlotLoading(true);
+    try {
+      const createdId = await handleAddSlot(safeName);
+      if (createdId) {
+        setShowCreateSlotModal(false);
+        setCreateSlotName('');
+      }
+    } finally {
+      setCreateSlotLoading(false);
+    }
+  };
+
+  const confirmRenameSlot = async () => {
+    const safeName = String(renameSlotName || '').trim();
+    if (!renameSlotId || !safeName) {
+      toast.error('Escribe un nombre válido.');
+      return;
+    }
+    setRenameSlotLoading(true);
+    try {
+      await handleRenameSlot(renameSlotId, safeName);
+      setShowRenameSlotModal(false);
+      setRenameSlotId(null);
+      setRenameSlotName('');
+    } finally {
+      setRenameSlotLoading(false);
     }
   };
 
@@ -859,31 +959,6 @@ export default function StandaloneSlotManager({
     }
   };
 
-  const accountBadgeLabel = safeCrmType === 'ghl' ? 'GOHIGHLEVEL' : 'WAFLOW WHATSAPP';
-  const chatwootHeaderLoginUrl = String(
-    chatwootAccessInfo?.directLoginUrl ||
-      chatwootAccessInfo?.loginUrl ||
-      chatwootAccessInfo?.baseLoginUrl ||
-      '',
-  ).trim();
-  const chatwootHeaderDashboardUrl = String(
-    chatwootAccessInfo?.dashboardUrl || '',
-  ).trim();
-  const chatwootHeaderEmail = String(
-    chatwootAccessInfo?.clientEmail || '',
-  ).trim();
-  const chatwootHeaderPassword = String(chatwootAccessInfo?.clientPassword || '').trim();
-  const ghlHeaderOpenUrl = String(
-    ghlAccessInfo?.dashboardUrl || ghlAccessInfo?.loginUrl || 'https://app.gohighlevel.com',
-  ).trim();
-  const ghlHeaderPortalUrl = String(
-    ghlAccessInfo?.loginUrl || 'https://app.gohighlevel.com',
-  ).trim();
-  const ghlHeaderBusinessEmail = String(ghlAccessInfo?.businessEmail || '').trim();
-  const ghlHeaderBusinessPhone = String(ghlAccessInfo?.businessPhone || '').trim();
-  const ghlHeaderLocationId = String(ghlAccessInfo?.locationId || locationId || '').trim();
-  const ghlHeaderCompanyId = String(ghlAccessInfo?.companyId || '').trim();
-
   return (
     <div id="standalone-whatsapp-manager" className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -906,49 +981,11 @@ export default function StandaloneSlotManager({
           </p>
         </div>
         <button
-          onClick={handleAddSlot}
+          onClick={() => openCreateModal(false)}
           className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition"
         >
           <Plus size={18} /> {translateOr(t, 'standalone.slots.new', 'Nuevo WhatsApp')}
         </button>
-      </div>
-
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-[0.18em] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-            {accountBadgeLabel}
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              {locationName || 'Cuenta principal'}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {safeCrmType === 'ghl'
-                ? 'Abre directamente tu cuenta de GoHighLevel o revisa los datos de acceso.'
-                : 'Abre directamente Waflow WhatsApp o revisa los datos de acceso de tu cuenta.'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => onOpenAccount?.(expandedSlotId || localSlots[0]?.slot_id || null)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition"
-          >
-            <Link2 size={16} />
-            Abrir cuenta
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAccountInfoModal(true)}
-            disabled={loadingAccessInfo}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-60"
-          >
-            <User size={16} />
-            Info
-          </button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1004,7 +1041,7 @@ export default function StandaloneSlotManager({
                         <button
                           onClick={(event) => {
                             event.stopPropagation();
-                            handleRenameSlot(slotId);
+                            openRenameModal(slotId);
                           }}
                           className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition"
                         >
@@ -1173,55 +1210,131 @@ export default function StandaloneSlotManager({
         </div>
       )}
 
-      {showAccountInfoModal && (
+      {showCreateSlotModal && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setShowAccountInfoModal(false)}
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 backdrop-blur-sm p-4"
+          onClick={() => {
+            setShowCreateSlotModal(false);
+            setPendingQrAfterCreate(false);
+          }}
         >
           <div
-            className="w-full max-w-lg rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden"
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl p-6"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                  {safeCrmType === 'ghl' ? 'Info de acceso GoHighLevel' : 'Info de acceso Waflow WhatsApp'}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  {safeCrmType === 'ghl'
-                    ? 'Datos de referencia para abrir la cuenta desde el portal de GoHighLevel.'
-                    : 'Datos del usuario para abrir la cuenta directamente en Waflow WhatsApp.'}
-                </p>
-              </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Nuevo WhatsApp</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Escribe un nombre para identificar esta conexión.
+            </p>
+            <div className="mt-4">
+              <input
+                type="text"
+                value={createSlotName}
+                onChange={(event) => setCreateSlotName(event.target.value)}
+                placeholder="Ej: Ventas principal"
+                className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setShowAccountInfoModal(false)}
-                className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-400 hover:text-gray-600"
+                onClick={() => {
+                  setShowCreateSlotModal(false);
+                  setPendingQrAfterCreate(false);
+                }}
+                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
               >
-                <X size={20} />
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmCreateSlot}
+                disabled={createSlotLoading}
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition disabled:opacity-60 inline-flex items-center gap-2"
+              >
+                {createSlotLoading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                Crear
               </button>
             </div>
+          </div>
+        </div>
+      )}
 
-            <div className="p-6 space-y-4">
-              {safeCrmType === 'ghl' ? (
-                <>
-                  <InfoField label="Email del negocio" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderBusinessEmail || 'No disponible')} />
-                  <InfoField label="Teléfono" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderBusinessPhone || 'No disponible')} />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <InfoField label="Location ID" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderLocationId || 'No disponible')} />
-                    <InfoField label="Company ID" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderCompanyId || 'No disponible')} />
-                  </div>
-                  <InfoField label="Portal" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderPortalUrl || 'No disponible')} />
-                  <InfoField label="Acceso directo" value={loadingAccessInfo ? 'Cargando...' : (ghlHeaderOpenUrl || 'No disponible')} />
-                </>
-              ) : (
-                <>
-                  <InfoField label="Email" value={loadingAccessInfo ? 'Cargando...' : (chatwootHeaderEmail || 'No disponible')} />
-                  <InfoField label="Contraseña inicial" value={loadingAccessInfo ? 'Cargando...' : (chatwootHeaderPassword || 'No disponible')} />
-                  <InfoField label="Login" value={loadingAccessInfo ? 'Cargando...' : (chatwootHeaderLoginUrl || 'No disponible')} />
-                  <InfoField label="Cuenta exacta" value={loadingAccessInfo ? 'Cargando...' : (chatwootHeaderDashboardUrl || 'No disponible')} />
-                </>
-              )}
+      {showRenameSlotModal && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 backdrop-blur-sm p-4"
+          onClick={() => setShowRenameSlotModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Editar nombre</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Actualiza el nombre de este WhatsApp.
+            </p>
+            <div className="mt-4">
+              <input
+                type="text"
+                value={renameSlotName}
+                onChange={(event) => setRenameSlotName(event.target.value)}
+                placeholder="Ej: Soporte 1"
+                className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowRenameSlotModal(false)}
+                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmRenameSlot}
+                disabled={renameSlotLoading}
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition disabled:opacity-60 inline-flex items-center gap-2"
+              >
+                {renameSlotLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUpgradeModal && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 backdrop-blur-sm p-4"
+          onClick={() => setShowUpgradeModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Sube de plan para conectar más WhatsApp</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+              Llegaste al límite de conexiones de tu plan actual. Mejora tu plan para agregar más números.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowUpgradeModal(false)}
+                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUpgradeModal(false);
+                  onUpgradeRequest?.();
+                }}
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition"
+              >
+                Ver planes
+              </button>
             </div>
           </div>
         </div>
@@ -1235,15 +1348,6 @@ function MetricCard({ label, value }) {
     <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm">
       <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{label}</p>
       <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{value}</p>
-    </div>
-  );
-}
-
-function InfoField({ label, value }) {
-  return (
-    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
-      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">{label}</p>
-      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-all">{value}</p>
     </div>
   );
 }
@@ -1271,8 +1375,11 @@ function ConnectionModeSelector({ onSelect }) {
       <button
         type="button"
         onClick={() => onSelect('qr')}
-        className="rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+        className="relative rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
       >
+        <span className="absolute right-3 top-3 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-2 py-1 text-[10px] font-bold">
+          Inmediata, fácil y gratis
+        </span>
         <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
           <QrCode size={20} />
         </div>
@@ -1285,8 +1392,11 @@ function ConnectionModeSelector({ onSelect }) {
       <button
         type="button"
         onClick={() => onSelect('official_api')}
-        className="rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+        className="relative rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
       >
+        <span className="absolute right-3 top-3 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-1 text-[10px] font-bold">
+          Tiempo de aprobación, avanzado y costes de meta
+        </span>
         <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
           <Link2 size={20} />
         </div>
@@ -1493,6 +1603,7 @@ function StandaloneSlotConnectionManager({
   const [qrExpired, setQrExpired] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
+  const [tutorialConfirmed, setTutorialConfirmed] = useState(false);
   const pollInterval = useRef(null);
   const connectAttemptRef = useRef(0);
   const socketConnectedRef = useRef(false);
@@ -1623,6 +1734,7 @@ function StandaloneSlotConnectionManager({
     setShareUrl('');
     setIsGeneratingShareUrl(false);
     setQrExpired(false);
+    setTutorialConfirmed(false);
   }, [locationId, slot?.slot_id]);
 
   useEffect(() => {
@@ -1648,6 +1760,7 @@ function StandaloneSlotConnectionManager({
       setQr(null);
       setQrUpdatedAt(null);
       setQrExpired(false);
+      setTutorialConfirmed(true);
       setLoading(false);
       stopPolling();
     }
@@ -1960,7 +2073,7 @@ function StandaloneSlotConnectionManager({
           ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
           : status.connected
             ? `Numero: +${status.myNumber}`
-            : 'Escanea el código QR para conectar.';
+            : 'Ve a WhatsApp, Configuración, Dispositivos vinculados y luego genera el QR.';
 
   return (
     <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
@@ -2079,6 +2192,19 @@ function StandaloneSlotConnectionManager({
         <div className="w-full flex flex-col items-center">
           {!qr && !loading && !accountSuspensionState && (
             <div className="flex flex-col items-center gap-3">
+              <div className="w-full max-w-xl rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-800 p-4">
+                <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Tutorial rápido</p>
+                <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">
+                  Ve a WhatsApp, Configuración, Dispositivos vinculados. ¿Lo lograste?
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTutorialConfirmed(true)}
+                  className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition"
+                >
+                  Sí, continuar
+                </button>
+              </div>
               {qrExpired && (
                 <p className="text-sm text-amber-700 dark:text-amber-300 text-center">
                   El QR expiro. Pulsa de nuevo para generar uno nuevo.
@@ -2087,13 +2213,14 @@ function StandaloneSlotConnectionManager({
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button
                   onClick={handleConnect}
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2"
+                  disabled={!tutorialConfirmed}
+                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-60"
                 >
                   <QrCode size={20} /> Generar Codigo QR
                 </button>
                 <button
                   onClick={handleGenerateShareUrl}
-                  disabled={isGeneratingShareUrl}
+                  disabled={isGeneratingShareUrl || !tutorialConfirmed}
                   className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 disabled:opacity-60"
                 >
                   {isGeneratingShareUrl ? (
