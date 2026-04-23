@@ -109,7 +109,40 @@ export default function StandaloneLayout({
     onDataChange?.();
   };
 
-  const openInbox = async () => {
+  const resolvePreferredSlotId = (requestedSlotId = null) => {
+    const safeRequested = Number.parseInt(String(requestedSlotId || ''), 10);
+    if (Number.isFinite(safeRequested) && safeRequested > 0) return safeRequested;
+
+    const slots = Array.isArray(locationDetails?.slots) ? locationDetails.slots : [];
+    if (!slots.length) return null;
+
+    const sortedSlots = [...slots].sort((a, b) => {
+      const aPriority = Number.parseInt(String(a?.priority || 9999), 10);
+      const bPriority = Number.parseInt(String(b?.priority || 9999), 10);
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return Number.parseInt(String(a?.slot_id || 0), 10) - Number.parseInt(String(b?.slot_id || 0), 10);
+    });
+
+    const connected = sortedSlots.find((slot) => slot?.is_connected === true);
+    return Number.parseInt(String((connected || sortedSlots[0])?.slot_id || ''), 10) || null;
+  };
+
+  const openInbox = async (requestedSlotId = null) => {
+    const preferredSlotId = resolvePreferredSlotId(requestedSlotId);
+    if (effectiveCrmType !== 'ghl' && primaryLocationId && preferredSlotId) {
+      try {
+        await authFetch('/agency/chatwoot/seed-welcome', {
+          method: 'POST',
+          body: JSON.stringify({
+            locationId: primaryLocationId,
+            slotId: preferredSlotId,
+          }),
+        });
+      } catch (_) {
+        // Se continúa con apertura directa aunque falle el contexto previo.
+      }
+    }
+
     const directUrl =
       effectiveCrmType === 'ghl'
         ? ghlAccessInfo?.ghl?.dashboardUrl || ghlAccessInfo?.ghl?.loginUrl || 'https://app.gohighlevel.com'
@@ -187,7 +220,7 @@ export default function StandaloneLayout({
   };
 
   const handleMessagingShortcut = () => {
-    openInbox();
+    openInbox(null);
   };
 
   const handleCrmShortcut = () => {

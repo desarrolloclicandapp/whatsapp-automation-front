@@ -933,7 +933,7 @@ export default function StandaloneSlotManager({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => onOpenAccount?.()}
+            onClick={() => onOpenAccount?.(expandedSlotId || localSlots[0]?.slot_id || null)}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition"
           >
             <Link2 size={16} />

@@ -18,6 +18,26 @@ La meta del trabajo fue:
 
 ## Historial resumido
 
+### Cierre final aplicado: configuracion global + acceso directo con contexto
+
+Se completo el pendiente principal de producto monocuenta:
+
+- `StandaloneSettings.jsx` ahora muestra `General` global de cuenta:
+  - numero de alerta (global)
+  - tag automatico (global)
+  - keywords globales (CRUD con `slotId: null`)
+- `StandaloneSettings.jsx` ahora muestra `Integraciones` globales:
+  - Usuario Maestro Waflow WhatsApp (cuenta)
+  - OpenAI (cuenta)
+  - ElevenLabs (global)
+  - Proxy personalizado (global)
+- los bloques legacy por numero dentro de Settings quedaron desactivados para evitar referencias por inbox en `General/Integraciones`
+- `StandaloneLayout.jsx` ahora intenta abrir mensajeria con contexto de numero:
+  - resuelve `slotId` preferido
+  - llama `POST /agency/chatwoot/seed-welcome` antes de abrir (si aplica)
+  - mantiene apertura directa sin pagina intermedia
+- `StandaloneSlotManager.jsx` envia el `slotId` expandido al boton `Abrir cuenta`, para mejorar la experiencia por numero
+
 ### Ajuste final: catalogo Go/Flow/Elite + CRM directo/solicitud
 
 Se hizo un cierre de produccion en standalone para eliminar deuda visible y dejar el circuito de planes/CRM alineado:

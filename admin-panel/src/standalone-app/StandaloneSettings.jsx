@@ -1082,7 +1082,7 @@ export default function StandaloneSettings({
         </aside>
 
         <div className="space-y-6">
-          {currentSettingsSectionId === 'general' && (
+          {currentSettingsSectionId === '__legacy_general__' && (
             <div className="space-y-5">
               <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">General por WhatsApp</h3>
@@ -1244,7 +1244,7 @@ export default function StandaloneSettings({
             </div>
           )}
 
-          {currentSettingsSectionId === 'integrations' && (
+          {currentSettingsSectionId === '__legacy_integrations__' && (
             <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">
               <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -1656,6 +1656,460 @@ export default function StandaloneSettings({
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {currentSettingsSectionId === 'general' && (
+            <div className="space-y-5">
+              <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Configuración general de la cuenta</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Estos ajustes se aplican a toda la cuenta y a todos los números conectados.
+                </p>
+              </div>
+
+              <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                      Número de alerta
+                    </label>
+                    <input
+                      type="text"
+                      value={String(standaloneGlobal?.general?.alert_phone_number || '')}
+                      onChange={(event) =>
+                        setStandaloneGlobal((prev) => ({
+                          ...(prev || {}),
+                          general: {
+                            ...(prev?.general || {}),
+                            alert_phone_number: event.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="+1 555 000 0000"
+                      className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                      Tag automático
+                    </label>
+                    <input
+                      type="text"
+                      value={String(standaloneGlobal?.general?.crm_contact_tag || '')}
+                      onChange={(event) =>
+                        setStandaloneGlobal((prev) => ({
+                          ...(prev || {}),
+                          general: {
+                            ...(prev?.general || {}),
+                            crm_contact_tag: event.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="lead_whatsapp"
+                      className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={saveStandaloneGlobalGeneral}
+                    disabled={savingGlobalGeneral}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition disabled:opacity-60"
+                  >
+                    {savingGlobalGeneral ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    Guardar configuración general
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">Keywords globales</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Estas reglas se aplican a todos los números de la cuenta.
+                  </p>
+                </div>
+
+                <form onSubmit={handleAddGlobalKeyword} className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <input
+                    name="keyword"
+                    placeholder="Keyword"
+                    required
+                    className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <input
+                    name="tag"
+                    placeholder="Tag"
+                    required
+                    className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition"
+                  >
+                    <Plus size={14} /> Guardar regla
+                  </button>
+                </form>
+
+                <div className="space-y-2">
+                  {globalKeywords.map((keyword) => (
+                    <div
+                      key={keyword.id}
+                      className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-gray-200 dark:border-gray-800"
+                    >
+                      <div className="text-sm">
+                        <span className="font-semibold text-gray-900 dark:text-white">{keyword.keyword}</span>
+                        <span className="text-gray-500 dark:text-gray-400"> {'->'} {keyword.tag}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteGlobalKeyword(keyword.id)}
+                        className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1.5 rounded-lg transition"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))}
+                  {globalKeywords.length === 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Sin reglas globales cargadas todavía.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentSettingsSectionId === 'integrations' && (
+            <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">
+              <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                      <MessageSquareText size={22} className="text-indigo-500" />
+                      {t('standalone.settings.whatsapp_title') || 'Waflow WhatsApp'}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {t('standalone.settings.whatsapp_desc') ||
+                        'Define el Usuario Maestro para aprovisionar cuentas Waflow WhatsApp automáticamente.'}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border ${
+                      inboxConfigured
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                        : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800'
+                    }`}
+                  >
+                    {inboxConfigured
+                      ? (t('standalone.settings.master_user_ready') || 'Usuario maestro configurado')
+                      : (t('standalone.settings.master_user_pending') || 'Pendiente de configuración')}
+                  </span>
+                </div>
+
+                <form onSubmit={handleSaveInboxUser} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                      {t('dash.chatwoot_master.name') || 'Nombre del Usuario Maestro'}
+                    </label>
+                    <input
+                      type="text"
+                      value={inboxName}
+                      onChange={(event) => setInboxName(event.target.value)}
+                      placeholder="Ej: Soporte Principal"
+                      autoComplete="off"
+                      className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                      {t('dash.chatwoot_master.email') || 'Email del Usuario Maestro'}
+                    </label>
+                    <input
+                      type="email"
+                      value={inboxEmail}
+                      onChange={(event) => setInboxEmail(event.target.value)}
+                      placeholder="soporte@empresa.com"
+                      autoComplete="off"
+                      className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {inboxConfigured && inboxEmailMasked && (
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
+                        {(t('dash.chatwoot_master.configured_as') || 'Configurado como') + ` ${inboxEmailMasked}`}
+                      </p>
+                    )}
+                  </div>
+
+                  {inboxConfigured && (
+                    <div className="xl:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                        {t('dash.chatwoot_master.verify_password') || 'Contraseña actual para verificar cambios'}
+                      </label>
+                      <input
+                        type="password"
+                        value={inboxVerificationPassword}
+                        onChange={(event) => setInboxVerificationPassword(event.target.value)}
+                        placeholder="********"
+                        autoComplete="current-password"
+                        className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  )}
+
+                  <div className="xl:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                      {inboxConfigured
+                        ? (t('dash.chatwoot_master.new_password') || 'Nueva contraseña del Usuario Maestro')
+                        : (t('dash.chatwoot_master.password') || 'Contraseña del Usuario Maestro')}
+                    </label>
+                    <input
+                      type="password"
+                      value={inboxPassword}
+                      onChange={(event) => setInboxPassword(event.target.value)}
+                      placeholder="********"
+                      autoComplete="new-password"
+                      className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div className="xl:col-span-2 flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={handleTestInboxUser}
+                      disabled={isTestingInbox || isLoadingInbox}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-700 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-60 transition-colors"
+                    >
+                      {isTestingInbox ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                      {t('dash.chatwoot_master.test_button') || 'Probar conexión'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleReloadInboxUser}
+                      disabled={isLoadingInbox || isTestingInbox}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60 transition-colors"
+                    >
+                      <RefreshCw size={13} />
+                      {isLoadingInbox ? (t('common.loading') || 'Cargando...') : (t('common.reload') || 'Recargar')}
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={isSavingInbox}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition disabled:opacity-60"
+                    >
+                      {isSavingInbox ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                      {t('dash.chatwoot_master.save') || 'Guardar Usuario Maestro'}
+                    </button>
+                  </div>
+
+                  {inboxTestStatus?.message && (
+                    <p
+                      className={`xl:col-span-2 text-[11px] ${
+                        inboxTestStatus.ok
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-rose-600 dark:text-rose-400'
+                      }`}
+                    >
+                      {inboxTestStatus.message}
+                    </p>
+                  )}
+                </form>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-5">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">OpenAI</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    API key global de la cuenta para automatizaciones y agentes.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Key size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="password"
+                      value={openAiKeyDraft}
+                      onChange={(event) => setOpenAiKeyDraft(event.target.value)}
+                      placeholder={t('agency.integrations.openai_key_placeholder') || 'sk-...'}
+                      autoComplete="new-password"
+                      className="w-full pl-10 pr-4 py-3 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-shadow"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2 pt-1 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={handleSaveOpenAi}
+                      disabled={isSavingOpenAi}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition disabled:opacity-60"
+                    >
+                      {isSavingOpenAi ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                      {t('common.save') || 'Guardar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRemoveOpenAi}
+                      disabled={isSavingOpenAi || !openAiKeyConfigured}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-60"
+                    >
+                      <Trash2 size={15} />
+                      {t('agency.integrations.openai_key_remove') || 'Eliminar key'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-5">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">ElevenLabs</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Configuración global para toda la cuenta.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2">
+                  <input
+                    type="password"
+                    value={String(standaloneGlobal?.integrations?.elevenlabs_api_key || '')}
+                    onChange={(event) =>
+                      setStandaloneGlobal((prev) => ({
+                        ...(prev || {}),
+                        integrations: {
+                          ...(prev?.integrations || {}),
+                          elevenlabs_api_key: event.target.value,
+                        },
+                      }))
+                    }
+                    placeholder="sk_..."
+                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveStandaloneGlobalIntegrations}
+                    disabled={savingGlobalIntegrations}
+                    className="px-3 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition disabled:opacity-60"
+                  >
+                    Guardar key
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setStandaloneGlobal((prev) => ({
+                        ...(prev || {}),
+                        integrations: {
+                          ...(prev?.integrations || {}),
+                          elevenlabs_api_key: '',
+                          elevenlabs_voice_id: '',
+                        },
+                      }))
+                    }
+                    className="px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                  >
+                    Limpiar
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
+                  <select
+                    value={String(standaloneGlobal?.integrations?.elevenlabs_voice_id || '')}
+                    disabled={!standaloneGlobal?.integrations?.elevenlabs_api_key}
+                    onChange={(event) =>
+                      setStandaloneGlobal((prev) => ({
+                        ...(prev || {}),
+                        integrations: {
+                          ...(prev?.integrations || {}),
+                          elevenlabs_voice_id: event.target.value,
+                        },
+                      }))
+                    }
+                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                  >
+                    <option value="">
+                      {standaloneGlobal?.integrations?.elevenlabs_api_key
+                        ? 'Sin voz por defecto'
+                        : 'Configura primero la API key'}
+                    </option>
+                    {globalVoices.map((voice) => (
+                      <option key={voice.id} value={voice.id}>
+                        {voice.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={loadingGlobalVoices || !standaloneGlobal?.integrations?.elevenlabs_api_key}
+                    onClick={() => loadGlobalElevenVoices(true)}
+                    className="px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-60 inline-flex items-center gap-2 justify-center"
+                  >
+                    <RefreshCw size={14} className={loadingGlobalVoices ? 'animate-spin' : ''} />
+                    Actualizar voces
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">Proxy personalizado</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Configuración global de proxy para toda la cuenta.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={globalProxyDraft.host || ''}
+                    onChange={(event) => setGlobalProxyDraft((prev) => ({ ...prev, host: event.target.value }))}
+                    placeholder="Host"
+                    className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <input
+                    type="number"
+                    value={globalProxyDraft.port || ''}
+                    onChange={(event) => setGlobalProxyDraft((prev) => ({ ...prev, port: event.target.value }))}
+                    placeholder="Port"
+                    className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <input
+                    type="text"
+                    value={globalProxyDraft.username || ''}
+                    onChange={(event) => setGlobalProxyDraft((prev) => ({ ...prev, username: event.target.value }))}
+                    placeholder="Username"
+                    className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <input
+                    type="password"
+                    value={globalProxyDraft.password || ''}
+                    onChange={(event) => setGlobalProxyDraft((prev) => ({ ...prev, password: event.target.value }))}
+                    placeholder="Password"
+                    className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <select
+                  value={globalProxyDraft.protocol || 'http'}
+                  onChange={(event) => setGlobalProxyDraft((prev) => ({ ...prev, protocol: event.target.value }))}
+                  className="w-full max-w-[180px] px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="http">http</option>
+                  <option value="socks5">socks5</option>
+                </select>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={saveStandaloneGlobalIntegrations}
+                    disabled={savingGlobalIntegrations}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition disabled:opacity-60"
+                  >
+                    {savingGlobalIntegrations ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    Guardar integraciones globales
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

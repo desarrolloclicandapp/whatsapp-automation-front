@@ -67,8 +67,8 @@ Listo:
 - `StandaloneSlotManager.jsx` ya usa endpoints reales y ahora monta el flujo QR original dentro del standalone
 - `StandaloneSlotManager.jsx` ya expone tambien la configuracion de `SMS / Twilio`
 - `StandaloneSettings.jsx` ya renderiza:
-  - `General` con comportamiento/alerta/tag/keywords por WhatsApp
-  - `Integraciones` con Usuario Maestro + OpenAI + ElevenLabs + Proxy personalizado
+  - `General` global de cuenta: alerta, tag y keywords globales
+  - `Integraciones` globales: Usuario Maestro + OpenAI + ElevenLabs + Proxy
 - `StandaloneSettings.jsx` no expone una pestaña intermedia de Waflow WhatsApp
 - `StandaloneAgents.jsx` ya trabaja con `locationId` real
 - `StandaloneLogin.jsx` ya entrega `interface` standalone al cerrar el flujo
@@ -76,6 +76,7 @@ Listo:
 - layout/dashboard/slots/login ya no muestran copy de prueba ni claves `standalone.*` en pantalla
 - `StandaloneLayout.jsx` sincroniza tabs con query params para convivir mejor con Stripe
 - `StandaloneLayout.jsx` abre Waflow WhatsApp directamente desde el shortcut lateral
+- `StandaloneLayout.jsx` intenta apertura con contexto de número (seed-welcome por slot cuando aplica)
 - `StandaloneDashboard.jsx` ya reacciona en caliente al conectar un numero y deja visible solo la card de abrir WhatsApp cuando ya esta conectado
 
 Se mantiene cercano al original:
