@@ -2192,6 +2192,7 @@ function StandaloneSlotConnectionManager({
         <div className="w-full flex flex-col items-center">
           {!qr && !loading && !accountSuspensionState && (
             <div className="flex flex-col items-center gap-3">
+              {!tutorialConfirmed && (
               <div className="w-full max-w-xl rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-800 p-4">
                 <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Tutorial rápido</p>
                 <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">
@@ -2205,22 +2206,22 @@ function StandaloneSlotConnectionManager({
                   Sí, continuar
                 </button>
               </div>
+              )}
               {qrExpired && (
                 <p className="text-sm text-amber-700 dark:text-amber-300 text-center">
                   El QR expiro. Pulsa de nuevo para generar uno nuevo.
                 </p>
               )}
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <div className={`flex flex-col sm:flex-row gap-3 justify-center ${tutorialConfirmed ? '' : 'hidden'}`}>
                 <button
                   onClick={handleConnect}
-                  disabled={!tutorialConfirmed}
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-60"
+                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2"
                 >
                   <QrCode size={20} /> Generar Codigo QR
                 </button>
                 <button
                   onClick={handleGenerateShareUrl}
-                  disabled={isGeneratingShareUrl || !tutorialConfirmed}
+                  disabled={isGeneratingShareUrl}
                   className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 disabled:opacity-60"
                 >
                   {isGeneratingShareUrl ? (

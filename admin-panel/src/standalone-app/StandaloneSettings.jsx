@@ -1244,7 +1244,7 @@ export default function StandaloneSettings({
             </div>
           )}
 
-          {currentSettingsSectionId === '__legacy_integrations__' && (
+          {false && currentSettingsSectionId === '__legacy_integrations__' && (
             <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">
               <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -1785,6 +1785,7 @@ export default function StandaloneSettings({
 
           {currentSettingsSectionId === 'integrations' && (
             <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">
+              {false && (
               <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                   <div>
@@ -1919,6 +1920,7 @@ export default function StandaloneSettings({
                   )}
                 </form>
               </div>
+              )}
 
               <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-5">
                 <div>

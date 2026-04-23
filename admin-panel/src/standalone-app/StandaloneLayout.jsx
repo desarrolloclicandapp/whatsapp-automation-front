@@ -143,13 +143,59 @@ export default function StandaloneLayout({
       }
     }
 
-    const directUrl =
-      effectiveCrmType === 'ghl'
-        ? ghlAccessInfo?.ghl?.dashboardUrl || ghlAccessInfo?.ghl?.loginUrl || 'https://app.gohighlevel.com'
-        : chatwootAccessInfo?.chatwoot?.directLoginUrl ||
+    let directUrl = null;
+    if (effectiveCrmType === 'ghl') {
+      try {
+        const res = await authFetch(`/agency/ghl/access-info?locationId=${encodeURIComponent(primaryLocationId || '')}`);
+        const live = res.ok ? await res.json().catch(() => null) : null;
+        directUrl =
+          live?.ghl?.dashboardUrl ||
+          live?.ghl?.loginUrl ||
+          ghlAccessInfo?.ghl?.dashboardUrl ||
+          ghlAccessInfo?.ghl?.loginUrl ||
+          'https://app.gohighlevel.com';
+      } catch {
+        directUrl = ghlAccessInfo?.ghl?.dashboardUrl || ghlAccessInfo?.ghl?.loginUrl || 'https://app.gohighlevel.com';
+      }
+    } else {
+      try {
+        const res = await authFetch(
+          `/agency/chatwoot/access-info?locationId=${encodeURIComponent(primaryLocationId || '')}`,
+        );
+        const live = res.ok ? await res.json().catch(() => null) : null;
+        directUrl =
+          live?.chatwoot?.directLoginUrl ||
+          live?.chatwoot?.loginUrl ||
+          live?.chatwoot?.dashboardUrl ||
+          chatwootAccessInfo?.chatwoot?.directLoginUrl ||
           chatwootAccessInfo?.chatwoot?.loginUrl ||
           chatwootAccessInfo?.chatwoot?.dashboardUrl ||
           null;
+      } catch {
+        directUrl =
+          chatwootAccessInfo?.chatwoot?.directLoginUrl ||
+          chatwootAccessInfo?.chatwoot?.loginUrl ||
+          chatwootAccessInfo?.chatwoot?.dashboardUrl ||
+          null;
+      }
+    }
+
+    if (!directUrl && effectiveCrmType !== 'ghl' && primaryLocationId) {
+      try {
+        const fallbackRes = await authFetch(
+          `/agency/locations/${encodeURIComponent(primaryLocationId)}/chatwoot-access-link`,
+        );
+        const fallbackBody = fallbackRes.ok ? await fallbackRes.json().catch(() => null) : null;
+        directUrl =
+          fallbackBody?.directLoginUrl ||
+          fallbackBody?.loginUrl ||
+          fallbackBody?.chatwoot?.directLoginUrl ||
+          fallbackBody?.chatwoot?.loginUrl ||
+          null;
+      } catch {
+        // Se mantiene el flujo normal si no existe fallback disponible.
+      }
+    }
 
     if (!directUrl) {
       toast.error(
@@ -236,6 +282,11 @@ export default function StandaloneLayout({
     setShowUpgradeModal(false);
   };
 
+  const currentPlan = String(accountInfo?.plan || '').trim().toLowerCase();
+  const trialEndsAt = accountInfo?.trial_ends ? new Date(accountInfo.trial_ends) : null;
+  const isTrialExpired = currentPlan === 'trial' && trialEndsAt && trialEndsAt < new Date();
+  const isPlanBlocked = ['suspended', 'cancelled', 'past_due', 'blocked'].includes(currentPlan) || isTrialExpired;
+
   const headerTitle =
     activeTab === 'overview'
       ? translateOr(t, 'standalone.layout.header_overview', 'Panel principal')
@@ -312,6 +363,46 @@ export default function StandaloneLayout({
     return null;
   };
 
+  if (isPlanBlocked) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-white p-4 md:p-8">
+        <div className="mx-auto max-w-6xl space-y-8">
+          <div className="flex items-center justify-end gap-3">
+            <LanguageSelector />
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold hover:bg-white/10 transition"
+            >
+              <LogOut size={16} />
+              {translateOr(t, 'standalone.layout.logout', 'Cerrar sesión')}
+            </button>
+          </div>
+
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl md:text-4xl font-black">
+              {translateOr(t, 'sub.blocker.title', 'Tu acceso ha expirado')}
+            </h1>
+            <p className="text-sm md:text-base text-gray-300">
+              {translateOr(
+                t,
+                'sub.blocker.desc',
+                'Selecciona un plan para reactivar tu cuenta. Tus números y ajustes seguirán intactos.',
+              )}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-3 md:p-5">
+            <StandaloneSubscription
+              token={token}
+              accountInfo={accountInfo}
+              onDataChange={handleWorkspaceRefresh}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex overflow-hidden">
       <aside
@@ -359,16 +450,14 @@ export default function StandaloneLayout({
 
           {sidebarOpen && (
             <div className="mb-3 mt-1 space-y-2 px-2">
-              {showsMessagingProduct && (
-                <button
-                  type="button"
-                  onClick={handleMessagingShortcut}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300 dark:border-green-900/40 dark:hover:bg-green-900/30"
-                >
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${effectiveIsWhatsAppConnected ? 'bg-green-500' : 'bg-amber-400'}`} />
-                  <span>{translateOr(t, 'standalone.layout.product_messaging', 'Waflow WhatsApp')}</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleMessagingShortcut}
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300 dark:border-green-900/40 dark:hover:bg-green-900/30"
+              >
+                <div className={`w-2 h-2 rounded-full shrink-0 ${effectiveIsWhatsAppConnected ? 'bg-green-500' : 'bg-amber-400'}`} />
+                <span>{translateOr(t, 'standalone.layout.product_messaging', 'Waflow WhatsApp')}</span>
+              </button>
 
               <button
                 type="button"

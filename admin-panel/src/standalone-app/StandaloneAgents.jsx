@@ -42,8 +42,7 @@ const DEFAULT_AGENT_PERMISSIONS = {
     assign_owner: true,
     set_fields: true,
     create_appointment: true,
-    reschedule_appointment: true,
-    cancel_appointment: true
+    reschedule_appointment: true
 };
 
 function mergeAgentConfig(agent = {}) {
@@ -351,6 +350,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId }) 
 
         setSaving(true);
         try {
+            const { cancel_appointment: _cancelAppointment, ...safePermissions } = form.permissions || {};
             const payload = {
                 locationId: selectedLocationId,
                 name: form.name,
@@ -367,7 +367,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId }) 
                 use_contact_context: form.use_contact_context,
                 config: {
                     behavior: form.behavior,
-                    permissions: form.permissions,
+                    permissions: safePermissions,
                     calendar_scope: {
                         mode: form.calendar_scope_mode === "selected" ? "selected" : "all",
                         calendar_ids: form.calendar_scope_mode === "selected"
@@ -994,15 +994,14 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId }) 
                                 {showCrmActions ? (
                                     <EditorSection title={t("workflow_agents.section_permissions_title")} description={t("workflow_agents.section_permissions_desc")}>
                                         <div className="grid gap-3 lg:grid-cols-2">
-                                            {[
+                                            {[ 
                                                 ["view_appointments", "workflow_agents.permission_view_appointments", "workflow_agents.permission_view_appointments_desc"],
                                                 ["add_tags", "workflow_agents.permission_add_tags", "workflow_agents.permission_add_tags_desc"],
                                                 ["remove_tags", "workflow_agents.permission_remove_tags", "workflow_agents.permission_remove_tags_desc"],
                                                 ["assign_owner", "workflow_agents.permission_assign_owner", "workflow_agents.permission_assign_owner_desc"],
                                                 ["set_fields", "workflow_agents.permission_set_fields", "workflow_agents.permission_set_fields_desc"],
                                                 ["create_appointment", "workflow_agents.permission_create_appointment", "workflow_agents.permission_create_appointment_desc"],
-                                                ["reschedule_appointment", "workflow_agents.permission_reschedule_appointment", "workflow_agents.permission_reschedule_appointment_desc"],
-                                                ["cancel_appointment", "workflow_agents.permission_cancel_appointment", "workflow_agents.permission_cancel_appointment_desc"]
+                                                ["reschedule_appointment", "workflow_agents.permission_reschedule_appointment", "workflow_agents.permission_reschedule_appointment_desc"]
                                             ].map(([permissionKey, labelKey, descKey]) => {
                                                 const enabled = form.permissions[permissionKey] === true;
                                                 return (
