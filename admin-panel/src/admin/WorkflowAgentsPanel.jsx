@@ -6,29 +6,6 @@ import { useLanguage } from "../context/LanguageContext";
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const inputClassName = "w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
 const textAreaCardClassName = "w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white";
-const BASE_AGENT_MODEL_OPTIONS = [
-    { value: "gpt-5.2", labelKey: "workflow_agents.model_option_gpt52" },
-    { value: "gpt-5.2-pro", labelKey: "workflow_agents.model_option_gpt52_pro" },
-    { value: "gpt-5.1", labelKey: "workflow_agents.model_option_gpt51" },
-    { value: "gpt-5-pro", labelKey: "workflow_agents.model_option_gpt5_pro" },
-    { value: "gpt-5", labelKey: "workflow_agents.model_option_gpt5" },
-    { value: "gpt-5-mini", labelKey: "workflow_agents.model_option_gpt5_mini" },
-    { value: "gpt-5-nano", labelKey: "workflow_agents.model_option_gpt5_nano" },
-    { value: "gpt-4.1", labelKey: "workflow_agents.model_option_gpt41" },
-    { value: "gpt-4.1-mini", labelKey: "workflow_agents.model_option_gpt41_mini" },
-    { value: "gpt-4.1-nano", labelKey: "workflow_agents.model_option_gpt41_nano" },
-    { value: "o3", labelKey: "workflow_agents.model_option_o3" },
-    { value: "o3-pro", labelKey: "workflow_agents.model_option_o3_pro" },
-    { value: "o4-mini", labelKey: "workflow_agents.model_option_o4_mini" },
-    { value: "o3-mini", labelKey: "workflow_agents.model_option_o3_mini" },
-    { value: "o1", labelKey: "workflow_agents.model_option_o1" },
-    { value: "o1-pro", labelKey: "workflow_agents.model_option_o1_pro" },
-    { value: "gpt-4o", labelKey: "workflow_agents.model_option_gpt4o" },
-    { value: "gpt-4o-mini", labelKey: "workflow_agents.model_option_gpt4o_mini" },
-    { value: "gpt-4-turbo", labelKey: "workflow_agents.model_option_gpt4_turbo" },
-    { value: "gpt-4", labelKey: "workflow_agents.model_option_gpt4" },
-    { value: "gpt-3.5-turbo", labelKey: "workflow_agents.model_option_gpt35_turbo" }
-];
 const DEFAULT_AGENT_BEHAVIOR = {
     role: "",
     tone: "",
@@ -108,7 +85,7 @@ function buildEmptyForm(catalog = []) {
         manual_api_key: "",
         manual_api_key_configured: false,
         clear_manual_api_key: false,
-        model: "gpt-4o-mini",
+        model: "",
         temperature: "0.4",
         max_output_chars: "600",
         system_prompt: "",
@@ -244,6 +221,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const [testing, setTesting] = useState(false);
     const [resettingMemory, setResettingMemory] = useState(false);
     const [uploadingDocuments, setUploadingDocuments] = useState(false);
+    const [availableModels, setAvailableModels] = useState([]);
+    const [loadingModels, setLoadingModels] = useState(false);
 
     useEffect(() => {
         if (!selectedLocationId && locations.length > 0) {
@@ -292,6 +271,51 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         return res;
     };
 
+    const loadAvailableModels = async (locationId, workspaceSnapshot = null) => {
+        const safeLocationId = String(locationId || "").trim();
+        const snapshot = workspaceSnapshot || workspace;
+        const snapshotCredentials = snapshot?.credentials || {};
+        const snapshotSlots = Array.isArray(snapshot?.slots) ? snapshot.slots : [];
+        const snapshotHasLocationKey = snapshotCredentials?.has_location_openai_key === true;
+        const snapshotHasAgencyKey = snapshotCredentials?.has_agency_openai_key === true;
+        const snapshotHasSlotKey = snapshotCredentials?.has_any_slot_openai_key === true ||
+            (!snapshotHasLocationKey && snapshotSlots.some((slot) => slot?.has_openai_api_key === true));
+        const hasAnyOpenAiKey = snapshotHasLocationKey || snapshotHasAgencyKey || snapshotHasSlotKey;
+
+        if (!safeLocationId || !hasAnyOpenAiKey) {
+            setAvailableModels([]);
+            return [];
+        }
+
+        setLoadingModels(true);
+        try {
+            const res = await authFetch(`/agency/workflow-agents/models?locationId=${encodeURIComponent(safeLocationId)}`);
+            const data = await parseResponse(res);
+            if (!res.ok || !data?.success) throw new Error(data?.error || t("workflow_agents.models_load_error"));
+
+            const nextModels = Array.isArray(data?.models)
+                ? data.models.map((value) => String(value || "").trim()).filter(Boolean)
+                : [];
+            const nextDefaultModel = String(data?.defaultModel || "").trim();
+
+            setAvailableModels(nextModels);
+            setForm((prev) => {
+                if (prev.model) return prev;
+                const preferredModel = nextModels.includes(nextDefaultModel)
+                    ? nextDefaultModel
+                    : (nextModels[0] || "");
+                return preferredModel ? { ...prev, model: preferredModel } : prev;
+            });
+            return nextModels;
+        } catch (error) {
+            setAvailableModels([]);
+            toast.error(t("workflow_agents.models_load_error"), { description: error.message });
+            return [];
+        } finally {
+            setLoadingModels(false);
+        }
+    };
+
     const applyAgentToForm = (agent, workspaceSnapshot = workspace, options = {}) => {
         const catalog = Array.isArray(workspaceSnapshot?.integration_catalog) ? workspaceSnapshot.integration_catalog : [];
         if (!agent) {
@@ -324,6 +348,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             const data = await parseResponse(res);
             if (!res.ok || !data?.success) throw new Error(data?.error || t("workflow_agents.load_error"));
             setWorkspace(data);
+            await loadAvailableModels(safeLocationId, data);
             return data;
         } catch (error) {
             toast.error(t("workflow_agents.load_error"), { description: error.message });
@@ -338,6 +363,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             setViewMode("list");
             setEditingAgentId(null);
             setForm(buildEmptyForm());
+            setAvailableModels([]);
             setTestMessage("");
             setTestResult(null);
             setTestConversation([]);
@@ -551,12 +577,13 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const locationHasOpenAiKey = workspace?.credentials?.has_location_openai_key === true;
     const agencyHasOpenAiKey = workspace?.credentials?.has_agency_openai_key === true;
     const usingLegacySlotKeys = !locationHasOpenAiKey && slots.some((slot) => slot?.has_openai_api_key === true);
+    const hasAnyOpenAiKey = locationHasOpenAiKey || agencyHasOpenAiKey || usingLegacySlotKeys;
     const baseModelOptions = useMemo(
-        () => BASE_AGENT_MODEL_OPTIONS.map((option) => ({
-            ...option,
-            label: t(option.labelKey)
+        () => availableModels.map((modelId) => ({
+            value: modelId,
+            label: modelId
         })),
-        [t]
+        [availableModels]
     );
     const modelOptions = useMemo(() => {
         if (!form.model || baseModelOptions.some((option) => option.value === form.model)) {
@@ -946,14 +973,31 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                     <div className="grid gap-4 lg:grid-cols-3">
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_model")}</label>
-                                            <select value={form.model} onChange={(event) => setForm((prev) => ({ ...prev, model: event.target.value }))} className={inputClassName}>
-                                                {modelOptions.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
+                                            <select
+                                                value={form.model || ""}
+                                                onChange={(event) => setForm((prev) => ({ ...prev, model: event.target.value }))}
+                                                className={inputClassName}
+                                                disabled={loadingModels || modelOptions.length === 0}
+                                            >
+                                                {loadingModels ? (
+                                                    <option value={form.model || ""}>{t("workflow_agents.models_loading")}</option>
+                                                ) : modelOptions.length > 0 ? (
+                                                    modelOptions.map((option) => (
+                                                        <option key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </option>
+                                                    ))
+                                                ) : (
+                                                    <option value="">{hasAnyOpenAiKey ? t("workflow_agents.models_empty") : t("workflow_agents.models_require_key")}</option>
+                                                )}
                                             </select>
-                                            <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.field_model_help")}</div>
+                                            <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                                {loadingModels
+                                                    ? t("workflow_agents.models_loading_help")
+                                                    : hasAnyOpenAiKey
+                                                        ? t("workflow_agents.field_model_help")
+                                                        : t("workflow_agents.models_require_key_help")}
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_temperature")}</label>
@@ -1137,19 +1181,6 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         ) : null}
                                     </EditorSection>
                                 ) : null}
-
-                                <EditorSection title={t("workflow_agents.section_prompt_title")} description={t("workflow_agents.section_prompt_desc")}>
-                                    <div className="grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
-                                        <div>
-                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_prompt")}</label>
-                                            <textarea rows={11} value={form.system_prompt} onChange={(event) => setForm((prev) => ({ ...prev, system_prompt: event.target.value }))} placeholder={t("workflow_agents.field_prompt_placeholder")} className={inputClassName} />
-                                        </div>
-                                        <div>
-                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_fallback")}</label>
-                                            <textarea rows={11} value={form.fallback_reply} onChange={(event) => setForm((prev) => ({ ...prev, fallback_reply: event.target.value }))} placeholder={t("workflow_agents.field_fallback_placeholder")} className={inputClassName} />
-                                        </div>
-                                    </div>
-                                </EditorSection>
 
                                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-[26px] border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
                                     <div className="text-sm text-gray-500 dark:text-gray-400">
