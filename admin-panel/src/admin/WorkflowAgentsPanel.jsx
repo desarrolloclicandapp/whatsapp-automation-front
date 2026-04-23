@@ -999,25 +999,18 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                         : t("workflow_agents.models_require_key_help")}
                                             </div>
                                             {!loadingModels && !hasAnyOpenAiKey && typeof onOpenIntegrations === "function" ? (
-                                                <div className="mt-3 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900/60 dark:bg-indigo-950/20">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <div className="text-xs font-bold text-indigo-900 dark:text-indigo-100">
-                                                                {t("workflow_agents.models_require_key_cta_title")}
-                                                            </div>
-                                                            <div className="mt-1 text-[11px] leading-5 text-indigo-700 dark:text-indigo-300">
-                                                                {t("workflow_agents.models_require_key_cta_desc")}
-                                                            </div>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={onOpenIntegrations}
-                                                            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:text-indigo-800 dark:border-indigo-800 dark:bg-gray-900 dark:text-indigo-300 dark:hover:border-indigo-700"
-                                                        >
-                                                            {t("workflow_agents.models_require_key_cta_button")}
-                                                            <ArrowUpRight size={13} />
-                                                        </button>
+                                                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-indigo-200 bg-indigo-50/70 px-3 py-2.5 dark:border-indigo-900/60 dark:bg-indigo-950/20">
+                                                    <div className="text-xs font-semibold text-indigo-900 dark:text-indigo-100">
+                                                        {t("workflow_agents.models_require_key_cta_title")}
                                                     </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={onOpenIntegrations}
+                                                        className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:text-indigo-800 dark:border-indigo-800 dark:bg-gray-900 dark:text-indigo-300 dark:hover:border-indigo-700"
+                                                    >
+                                                        {t("workflow_agents.models_require_key_cta_button")}
+                                                        <ArrowUpRight size={13} />
+                                                    </button>
                                                 </div>
                                             ) : null}
                                         </div>
