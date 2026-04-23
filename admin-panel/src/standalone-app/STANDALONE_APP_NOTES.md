@@ -18,6 +18,61 @@ La meta del trabajo fue:
 
 ## Historial resumido
 
+### Cierre final aplicado: configuracion global + acceso directo con contexto
+
+Se completo el pendiente principal de producto monocuenta:
+
+- `StandaloneSettings.jsx` ahora muestra `General` global de cuenta:
+  - numero de alerta (global)
+  - tag automatico (global)
+  - keywords globales (CRUD con `slotId: null`)
+- `StandaloneSettings.jsx` ahora muestra `Integraciones` globales:
+  - Usuario Maestro Waflow WhatsApp (cuenta)
+  - OpenAI (cuenta)
+  - ElevenLabs (global)
+  - Proxy personalizado (global)
+- los bloques legacy por numero dentro de Settings quedaron desactivados para evitar referencias por inbox en `General/Integraciones`
+- `StandaloneLayout.jsx` ahora intenta abrir mensajeria con contexto de numero:
+  - resuelve `slotId` preferido
+  - llama `POST /agency/chatwoot/seed-welcome` antes de abrir (si aplica)
+  - mantiene apertura directa sin pagina intermedia
+- `StandaloneSlotManager.jsx` envia el `slotId` expandido al boton `Abrir cuenta`, para mejorar la experiencia por numero
+
+### Ajuste final: catalogo Go/Flow/Elite + CRM directo/solicitud
+
+Se hizo un cierre de produccion en standalone para eliminar deuda visible y dejar el circuito de planes/CRM alineado:
+
+- `StandaloneSubscription.jsx` se reescribio para usar solo catalogo standalone (Go / Flow / Elite)
+- se eliminaron extras/addons del flujo standalone
+- se agrego `standalone-app/constants/standalonePlans.js` con los `price_id` mensuales/anuales
+- `StandaloneLayout.jsx` ahora:
+  - abre `WaFloW CRM` directo cuando existe acceso real
+  - abre modal de solicitud real y envia `/agency/ghl/subaccount-request` cuando aun no existe acceso
+- se limpio `StandaloneLayout.jsx` en UTF-8 para quitar textos rotos (mojibake)
+- se extendieron locales con nuevas claves:
+  - `standalone.subscription.*`
+  - `standalone.layout.crm_request.*`
+- backend actualizado para reconocer planes standalone:
+  - `whatsapp-automation/src/services/billingService.js` (`STRIPE_CONFIG`)
+  - `whatsapp-automation/src/services/featuresService.js` (mapeo de `price_id` a plan)
+
+### Ajuste reciente: conexion real y facturacion standalone
+
+Se hizo una pasada adicional para acercar aun mas el standalone al comportamiento del panel original:
+
+- `StandaloneSlotManager.jsx` ahora incrusta la logica real del bloque QR/reconexion/pausa/desconexion/URL compartida del componente original
+- `StandaloneSlotManager.jsx` ahora vuelve a exponer configuracion real de `SMS / Twilio` dentro del panel principal
+- `StandaloneSlotManager.jsx` emite cambios en caliente para que el overview y el shortcut lateral reaccionen apenas un numero queda conectado
+- `StandaloneSettings.jsx` deja de exponer la pestaña intermedia de `Waflow WhatsApp`; el acceso operativo queda directo desde el boton lateral
+- `StandaloneLayout.jsx` sincroniza `tab` con la URL para que billing vuelva al lugar correcto
+- `StandaloneLayout.jsx` ahora abre `Waflow WhatsApp` directamente desde el boton lateral, sin paso intermedio
+- `StandaloneLayout.jsx` deja de forzar el catalogo/labels tipo `Chatwoot` dentro del flujo de billing
+- `whatsapp-automation/src/services/stripeService.js` ya distingue agency vs standalone para:
+  - checkout success/cancel
+  - retorno del portal de Stripe
+- `StandaloneDashboard.jsx` ahora deja visible solo la card de `Abrir Waflow WhatsApp` cuando ya hay un numero conectado
+- se corrigio copy del standalone con mas textos en UTF-8 y tildes visibles
+
 ### Etapa 1: estructura visual inicial
 
 Se crearon las bases del standalone:
@@ -134,11 +189,19 @@ Cambios principales de frontend:
   - delete slot
   - official API config/validate
   - QR share link
+- el bloque QR replica el flujo real del original:
+  - polling de QR
+  - estados de suspension de cuenta/slot
+  - reconexion
+  - pausa
+  - desconexion
+  - URL QR compartida
 
 ### Billing
 
 - se mantiene como clon cercano del gestor original
 - sigue usando dependencias reales del panel actual
+- Stripe ya vuelve a `/crm?tab=billing` cuando la cuenta pertenece a interfaz 2
 
 ### Agents
 
@@ -147,10 +210,19 @@ Cambios principales de frontend:
 
 ### Settings
 
-- Waflow WhatsApp conectado a usuario maestro real
+- se agrego seccion `General` con:
+  - `alert_phone_number` por WhatsApp
+  - `crm_contact_tag` por WhatsApp
+  - `keywords` por WhatsApp (crear/eliminar)
+- se completo `Integraciones` con:
+  - Usuario Maestro de Waflow WhatsApp
+  - OpenAI de cuenta
+  - ElevenLabs por WhatsApp
+  - Proxy personalizado por WhatsApp
 - OpenAI conectado a `/agency/settings`
 - API keys y webhooks conectados a endpoints reales
 - apariencia sigue la base visual del original
+- ya no se muestra una pestaña intermedia de Waflow WhatsApp dentro de la configuracion standalone
 
 ### Builder
 
@@ -165,12 +237,15 @@ Cambios principales de frontend:
   - el comportamiento del primer slot en trial
 - si se detectan usuarios antiguos con `interface` incorrecta, el backend ahora intenta autocorregirlos cuando el perfil y la topology coinciden con monocuenta
 - `StandaloneSubscription` y `StandaloneAgents` deberian revisarse otra vez cuando cambie fuerte su version original en `src/admin/`
-- el check de sintaxis de backend con `node --check` no se pudo usar aqui por una limitacion EPERM del entorno de Windows, aunque el frontend si compilo correctamente
+- en este entorno, `npm run build` y `node --check` estan bloqueados por EPERM (`lstat C:\\Users\\info`), por lo que la validacion final debe correrse en VPS/local del equipo
 
 ## Verificacion reciente
 
-- `npm run build` en `whatsapp-automation-front/admin-panel`
-- resultado: build OK
+- verificacion estatica:
+  - `StandaloneSlotManager.jsx` ya no tiene `GeneralPanel` duplicado
+  - QR realtime reforzado para evitar falso estado de expirado despues de conectar
+  - `StandaloneSettings.jsx` ya renderiza `General` e `Integraciones` completas con handlers reales
+  - apertura de cuenta en standalone usa `access-info` directo (sin pagina intermedia)
 
 Warnings no bloqueantes conocidos:
 

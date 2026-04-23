@@ -17,6 +17,23 @@ El flujo agency/default sigue separado:
 
 ## Estado actual por capa
 
+### Update final aplicado (Go/Flow/Elite + CRM)
+
+Listo:
+
+- `StandaloneSubscription.jsx` ya no usa catalogo agency/addons
+- standalone usa solo:
+  - Go (`price_1TOii0HSoN0LpQiBieTZRrUU` / `price_1TOii0HSoN0LpQiBz9r0nqBz`)
+  - Flow (`price_1TOimyHSoN0LpQiB6u9YT6lk` / `price_1TOimyHSoN0LpQiB0pupYGHU`)
+  - Elite (`price_1TOithHSoN0LpQiBwp9tadRl` / `price_1TOithHSoN0LpQiBENAvlxHF`)
+- `StandaloneLayout.jsx` ahora:
+  - abre `WaFloW CRM` directo si existe acceso real
+  - si no hay acceso, dispara solicitud real con `/agency/ghl/subaccount-request`
+- backend ya reconoce esos `price_id` en:
+  - `billingService.js` (`STRIPE_CONFIG`)
+  - `featuresService.js` (price map)
+- locales actualizados para standalone de suscripcion y solicitud CRM
+
 ### Backend y base de datos
 
 Listo:
@@ -47,12 +64,20 @@ Listo:
 
 - `StandaloneLayout.jsx` ya usa `useStandaloneWorkspace.js`
 - `StandaloneDashboard.jsx` ya usa datos reales
-- `StandaloneSlotManager.jsx` ya usa endpoints reales
-- `StandaloneSettings.jsx` ya usa endpoints reales para settings principales
+- `StandaloneSlotManager.jsx` ya usa endpoints reales y ahora monta el flujo QR original dentro del standalone
+- `StandaloneSlotManager.jsx` ya expone tambien la configuracion de `SMS / Twilio`
+- `StandaloneSettings.jsx` ya renderiza:
+  - `General` global de cuenta: alerta, tag y keywords globales
+  - `Integraciones` globales: Usuario Maestro + OpenAI + ElevenLabs + Proxy
+- `StandaloneSettings.jsx` no expone una pestaña intermedia de Waflow WhatsApp
 - `StandaloneAgents.jsx` ya trabaja con `locationId` real
 - `StandaloneLogin.jsx` ya entrega `interface` standalone al cerrar el flujo
 - `App.jsx` ya revalida la interfaz operativa con `/agency/info`
 - layout/dashboard/slots/login ya no muestran copy de prueba ni claves `standalone.*` en pantalla
+- `StandaloneLayout.jsx` sincroniza tabs con query params para convivir mejor con Stripe
+- `StandaloneLayout.jsx` abre Waflow WhatsApp directamente desde el shortcut lateral
+- `StandaloneLayout.jsx` intenta apertura con contexto de número (seed-welcome por slot cuando aplica)
+- `StandaloneDashboard.jsx` ya reacciona en caliente al conectar un numero y deja visible solo la card de abrir WhatsApp cuando ya esta conectado
 
 Se mantiene cercano al original:
 
@@ -88,13 +113,24 @@ Se mantiene cercano al original:
 - official API config
 - official API validate
 - QR share link
+- el bloque QR/reconexion ahora replica el comportamiento operativo del componente original
+- `SMS / Twilio` ya esta disponible tambien en el standalone
 
 ### Settings
 
-- usuario maestro
+- Usuario Maestro de Waflow WhatsApp
 - OpenAI
+- ElevenLabs por WhatsApp
+- Proxy personalizado por WhatsApp
+- alertas/tags/keywords por WhatsApp
 - API keys
 - webhooks
+
+### Billing
+
+- checkout y portal de Stripe ya distinguen `users.interface`
+- standalone vuelve a `/crm?tab=billing`
+- agency mantiene su retorno historico
 
 ## Riesgos y recomendaciones
 
@@ -123,6 +159,7 @@ Ambos ya estan mucho mas cerca del original, pero conviene probarlos de punta a 
 
 - refresco de limites despues de billing
 - carga correcta del workspace de agents con `locationId` real
+- retorno correcto desde checkout y portal a `billing` del standalone
 
 ### 4. No mezclar sessiones manualmente
 
@@ -137,17 +174,16 @@ con sesiones distintas para confirmar que no haya rebotes raros ni pantallas cru
 
 ## Verificacion reciente
 
-Ejecutado:
+En este entorno, la validacion por build/check quedo limitada por:
 
-- `npm run build` en `whatsapp-automation-front/admin-panel`
+- `EPERM: lstat C:\\Users\\info` al ejecutar `npm run build`
+- misma limitacion para `node --check`
 
-Resultado:
+Verificado por inspeccion estatica:
 
-- build OK
-
-Limitacion de verificacion:
-
-- `node --check` sobre archivos backend no se pudo usar en este entorno por un error EPERM de Windows al resolver rutas
+- no hay `GeneralPanel` duplicado en `StandaloneSlotManager.jsx`
+- QR realtime mantiene prioridad de evento `connection:open` frente a polling
+- `StandaloneSettings.jsx` ya usa handlers reales en UI (General + Integraciones)
 
 Warnings no bloqueantes conocidos:
 

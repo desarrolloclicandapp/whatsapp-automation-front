@@ -497,7 +497,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
                   <div className="text-center">
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{t('auth.hello')}</h2>
                     <p className="text-gray-500 mt-2">
-                      {translateOr(t, 'standalone.login.account_name_question', 'Cual es el nombre de tu cuenta?')}
+                      {translateOr(t, 'standalone.login.account_name_question', '¿Cuál es el nombre de tu cuenta?')}
                     </p>
                   </div>
                   <form onSubmit={finishRegistration} className="space-y-6">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Bot,
   CreditCard,
@@ -34,9 +34,22 @@ export default function StandaloneLayout({
 }) {
   const { t } = useLanguage();
   const { branding } = useBranding();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedTab = String(params.get('tab') || '').trim().toLowerCase();
+    return ['overview', 'billing', 'agents', 'settings', 'builder'].includes(requestedTab)
+      ? requestedTab
+      : 'overview';
+  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showCrmRequestModal, setShowCrmRequestModal] = useState(false);
+  const [liveIsWhatsAppConnected, setLiveIsWhatsAppConnected] = useState(false);
+  const [crmRequestName, setCrmRequestName] = useState('');
+  const [crmRequestEmail, setCrmRequestEmail] = useState('');
+  const [crmRequestPhone, setCrmRequestPhone] = useState('');
+  const [crmRequestNotes, setCrmRequestNotes] = useState('');
+  const [crmRequestLoading, setCrmRequestLoading] = useState(false);
 
   const {
     accountInfo,
@@ -44,6 +57,7 @@ export default function StandaloneLayout({
     primaryLocationId,
     locationDetails,
     chatwootAccessInfo,
+    ghlAccessInfo,
     isWhatsAppConnected,
     loading,
     planType,
@@ -55,6 +69,36 @@ export default function StandaloneLayout({
   });
 
   const showsMessagingProduct = planType === 'trial' || planType === 'starter';
+  const effectiveIsWhatsAppConnected = liveIsWhatsAppConnected || isWhatsAppConnected;
+
+  const effectiveCrmType = useMemo(
+    () =>
+      String(
+        locationDetails?.crmType || primaryLocation?.settings?.crm_type || accountInfo?.crm_type || 'chatwoot',
+      )
+        .trim()
+        .toLowerCase(),
+    [locationDetails, primaryLocation, accountInfo],
+  );
+
+  useEffect(() => {
+    setLiveIsWhatsAppConnected(isWhatsAppConnected);
+  }, [isWhatsAppConnected]);
+
+  useEffect(() => {
+    setCrmRequestName(String(accountInfo?.name || '').trim());
+    setCrmRequestEmail(String(accountInfo?.email || '').trim());
+  }, [accountInfo]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (activeTab === 'overview') params.delete('tab');
+    else params.set('tab', activeTab);
+
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
+    window.history.replaceState({}, document.title, nextUrl);
+  }, [activeTab]);
 
   const handleLogout = () => {
     onLogout?.();
@@ -65,38 +109,54 @@ export default function StandaloneLayout({
     onDataChange?.();
   };
 
-  const openInbox = async () => {
-    try {
-      if (primaryLocationId) {
-        const accessLinkResponse = await authFetch(
-          `/agency/locations/${encodeURIComponent(primaryLocationId)}/chatwoot-access-link`,
-          { method: 'POST' },
-        );
+  const resolvePreferredSlotId = (requestedSlotId = null) => {
+    const safeRequested = Number.parseInt(String(requestedSlotId || ''), 10);
+    if (Number.isFinite(safeRequested) && safeRequested > 0) return safeRequested;
 
-        if (accessLinkResponse?.ok) {
-          const accessLinkBody = await accessLinkResponse.json();
-          if (accessLinkBody?.shareUrl) {
-            window.open(accessLinkBody.shareUrl, '_blank', 'noopener,noreferrer');
-            return;
-          }
-        }
+    const slots = Array.isArray(locationDetails?.slots) ? locationDetails.slots : [];
+    if (!slots.length) return null;
+
+    const sortedSlots = [...slots].sort((a, b) => {
+      const aPriority = Number.parseInt(String(a?.priority || 9999), 10);
+      const bPriority = Number.parseInt(String(b?.priority || 9999), 10);
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return Number.parseInt(String(a?.slot_id || 0), 10) - Number.parseInt(String(b?.slot_id || 0), 10);
+    });
+
+    const connected = sortedSlots.find((slot) => slot?.is_connected === true);
+    return Number.parseInt(String((connected || sortedSlots[0])?.slot_id || ''), 10) || null;
+  };
+
+  const openInbox = async (requestedSlotId = null) => {
+    const preferredSlotId = resolvePreferredSlotId(requestedSlotId);
+    if (effectiveCrmType !== 'ghl' && primaryLocationId && preferredSlotId) {
+      try {
+        await authFetch('/agency/chatwoot/seed-welcome', {
+          method: 'POST',
+          body: JSON.stringify({
+            locationId: primaryLocationId,
+            slotId: preferredSlotId,
+          }),
+        });
+      } catch (_) {
+        // Se continúa con apertura directa aunque falle el contexto previo.
       }
-    } catch (error) {
-      console.warn('[StandaloneLayout] Falling back to direct access info:', error?.message || error);
     }
 
     const directUrl =
-      chatwootAccessInfo?.chatwoot?.directLoginUrl ||
-      chatwootAccessInfo?.chatwoot?.loginUrl ||
-      chatwootAccessInfo?.chatwoot?.dashboardUrl ||
-      null;
+      effectiveCrmType === 'ghl'
+        ? ghlAccessInfo?.ghl?.dashboardUrl || ghlAccessInfo?.ghl?.loginUrl || 'https://app.gohighlevel.com'
+        : chatwootAccessInfo?.chatwoot?.directLoginUrl ||
+          chatwootAccessInfo?.chatwoot?.loginUrl ||
+          chatwootAccessInfo?.chatwoot?.dashboardUrl ||
+          null;
 
     if (!directUrl) {
       toast.error(
         translateOr(
           t,
           'standalone.layout.messaging_unavailable',
-          'Todavia no hay acceso disponible para Waflow WhatsApp en esta cuenta.',
+          'Todavía no hay acceso disponible para Waflow WhatsApp en esta cuenta.',
         ),
       );
       return;
@@ -105,24 +165,62 @@ export default function StandaloneLayout({
     window.open(directUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleMessagingShortcut = () => {
-    if (!isWhatsAppConnected) {
-      setActiveTab('overview');
-      document.getElementById('standalone-whatsapp-manager')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
-      toast.info(
+  const openCrmAccount = () => {
+    const directCrmUrl = ghlAccessInfo?.ghl?.dashboardUrl || ghlAccessInfo?.ghl?.loginUrl || null;
+    if (!directCrmUrl) {
+      setShowCrmRequestModal(true);
+      return;
+    }
+    window.open(directCrmUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleSubmitCrmRequest = async (event) => {
+    event.preventDefault();
+    if (!crmRequestName.trim() || !crmRequestEmail.trim() || !crmRequestPhone.trim()) {
+      toast.error(
         translateOr(
           t,
-          'standalone.layout.messaging_connect_hint',
-          'Primero conecta tu WhatsApp desde el panel principal.',
+          'standalone.layout.crm_request.required',
+          'Completa nombre, email y teléfono para continuar.',
         ),
       );
       return;
     }
 
-    openInbox();
+    setCrmRequestLoading(true);
+    try {
+      const response = await authFetch('/agency/ghl/subaccount-request', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: crmRequestName.trim(),
+          email: crmRequestEmail.trim(),
+          phone: crmRequestPhone.trim(),
+          notes: crmRequestNotes.trim(),
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || 'No se pudo enviar la solicitud');
+      }
+      toast.success(
+        payload?.message ||
+          translateOr(
+            t,
+            'standalone.layout.crm_request.success',
+            'Solicitud enviada. Te contactaremos para activar tu WaFloW CRM.',
+          ),
+      );
+      setShowCrmRequestModal(false);
+      setCrmRequestNotes('');
+    } catch (error) {
+      toast.error(error?.message || translateOr(t, 'common.error', 'Error inesperado'));
+    } finally {
+      setCrmRequestLoading(false);
+    }
+  };
+
+  const handleMessagingShortcut = () => {
+    openInbox(null);
   };
 
   const handleCrmShortcut = () => {
@@ -130,8 +228,7 @@ export default function StandaloneLayout({
       setShowUpgradeModal(true);
       return;
     }
-
-    setActiveTab('billing');
+    openCrmAccount();
   };
 
   const handleUpgradeRedirect = () => {
@@ -143,22 +240,22 @@ export default function StandaloneLayout({
     activeTab === 'overview'
       ? translateOr(t, 'standalone.layout.header_overview', 'Panel principal')
       : activeTab === 'billing'
-        ? translateOr(t, 'standalone.layout.header_billing', 'Suscripcion')
+        ? translateOr(t, 'standalone.layout.header_billing', 'Suscripción')
         : activeTab === 'agents'
           ? translateOr(t, 'standalone.layout.header_agents', 'Agentes')
           : activeTab === 'builder'
             ? translateOr(t, 'standalone.layout.header_builder', 'Constructor de botones')
-            : translateOr(t, 'standalone.layout.header_settings', 'Configuracion');
+            : translateOr(t, 'standalone.layout.header_settings', 'Configuración');
 
   const renderContent = () => {
     if (loading && !accountInfo) {
       return (
         <div className="min-h-[60vh] flex items-center justify-center text-gray-500 dark:text-gray-400">
-            <div className="flex items-center gap-3">
-              <Loader2 size={20} className="animate-spin" />
-              <span>{translateOr(t, 'common.loading', 'Cargando...')}</span>
-            </div>
+          <div className="flex items-center gap-3">
+            <Loader2 size={20} className="animate-spin" />
+            <span>{translateOr(t, 'common.loading', 'Cargando...')}</span>
           </div>
+        </div>
       );
     }
 
@@ -172,6 +269,7 @@ export default function StandaloneLayout({
           onRefresh={handleWorkspaceRefresh}
           onOpenMessagingInbox={openInbox}
           onGoToBilling={() => setActiveTab('billing')}
+          onRealtimeConnectionChange={setLiveIsWhatsAppConnected}
           token={token}
           onUnauthorized={onUnauthorized || onLogout}
         />
@@ -184,7 +282,6 @@ export default function StandaloneLayout({
           token={token}
           accountInfo={accountInfo}
           onDataChange={handleWorkspaceRefresh}
-          isChatwootAgency={String(accountInfo?.crm_type || '').toLowerCase() === 'chatwoot'}
         />
       );
     }
@@ -211,10 +308,7 @@ export default function StandaloneLayout({
       );
     }
 
-    if (activeTab === 'builder') {
-      return <StandaloneMessageBuilder />;
-    }
-
+    if (activeTab === 'builder') return <StandaloneMessageBuilder />;
     return null;
   };
 
@@ -250,7 +344,7 @@ export default function StandaloneLayout({
 
         <div className="flex-1 p-4 overflow-y-auto">
           <p className={`text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>
-            {translateOr(t, 'standalone.layout.management', 'Gestion')}
+            {translateOr(t, 'standalone.layout.management', 'Gestión')}
           </p>
 
           <SidebarItem
@@ -271,7 +365,7 @@ export default function StandaloneLayout({
                   onClick={handleMessagingShortcut}
                   className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300 dark:border-green-900/40 dark:hover:bg-green-900/30"
                 >
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${isWhatsAppConnected ? 'bg-green-500' : 'bg-amber-400'}`}></div>
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${effectiveIsWhatsAppConnected ? 'bg-green-500' : 'bg-amber-400'}`} />
                   <span>{translateOr(t, 'standalone.layout.product_messaging', 'Waflow WhatsApp')}</span>
                 </button>
               )}
@@ -281,7 +375,7 @@ export default function StandaloneLayout({
                 onClick={handleCrmShortcut}
                 className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/40 dark:hover:bg-blue-900/30"
               >
-                <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></div>
+                <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
                 <span>{translateOr(t, 'standalone.layout.product_crm', 'Waflow CRM')}</span>
               </button>
             </div>
@@ -292,7 +386,7 @@ export default function StandaloneLayout({
             setActiveTab={setActiveTab}
             id="billing"
             icon={CreditCard}
-            label={translateOr(t, 'standalone.layout.nav_billing', 'Suscripcion')}
+            label={translateOr(t, 'standalone.layout.nav_billing', 'Suscripción')}
             branding={branding}
             sidebarOpen={sidebarOpen}
           />
@@ -310,7 +404,7 @@ export default function StandaloneLayout({
             setActiveTab={setActiveTab}
             id="settings"
             icon={Settings}
-            label={translateOr(t, 'standalone.layout.nav_settings', 'Configuracion')}
+            label={translateOr(t, 'standalone.layout.nav_settings', 'Configuración')}
             branding={branding}
             sidebarOpen={sidebarOpen}
           />
@@ -324,7 +418,7 @@ export default function StandaloneLayout({
             sidebarOpen={sidebarOpen}
           />
 
-          <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
+          <div className="my-6 border-t border-gray-100 dark:border-gray-800" />
 
           <a
             href={`https://wa.me/${SUPPORT_PHONE}`}
@@ -343,7 +437,7 @@ export default function StandaloneLayout({
             className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all font-medium text-sm"
           >
             <LogOut size={20} />
-            {sidebarOpen && <span>{translateOr(t, 'standalone.layout.logout', 'Cerrar sesion')}</span>}
+            {sidebarOpen && <span>{translateOr(t, 'standalone.layout.logout', 'Cerrar sesión')}</span>}
           </button>
         </div>
       </aside>
@@ -410,7 +504,7 @@ export default function StandaloneLayout({
                 {translateOr(
                   t,
                   'standalone.layout.upgrade_modal.description',
-                  'Accede a funciones avanzadas de CRM, automatizaciones de ventas y gestion de leads profesional con Waflow CRM.',
+                  'Accede a funciones avanzadas de CRM, automatizaciones de ventas y gestión profesional de leads con Waflow CRM.',
                 )}
               </p>
             </div>
@@ -434,6 +528,89 @@ export default function StandaloneLayout({
           </div>
         </div>
       )}
+
+      {showCrmRequestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <form
+            onSubmit={handleSubmitCrmRequest}
+            className="relative w-full max-w-xl rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
+          >
+            <button
+              type="button"
+              onClick={() => setShowCrmRequestModal(false)}
+              className="absolute right-4 top-4 rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              aria-label={translateOr(t, 'standalone.layout.crm_request.close', 'Cerrar')}
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {translateOr(t, 'standalone.layout.crm_request.title', 'Solicitar WaFloW CRM')}
+            </h3>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              {translateOr(
+                t,
+                'standalone.layout.crm_request.description',
+                'Completa estos datos y nuestro equipo activará tu cuenta de WaFloW CRM.',
+              )}
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">
+              <label className="flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-300 md:col-span-2">
+                <span>{translateOr(t, 'standalone.layout.crm_request.name', 'Nombre del negocio')}</span>
+                <input
+                  value={crmRequestName}
+                  onChange={(event) => setCrmRequestName(event.target.value)}
+                  className="rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 bg-white dark:bg-gray-950"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-300">
+                <span>{translateOr(t, 'standalone.layout.crm_request.email', 'Email')}</span>
+                <input
+                  value={crmRequestEmail}
+                  onChange={(event) => setCrmRequestEmail(event.target.value)}
+                  className="rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 bg-white dark:bg-gray-950"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-300">
+                <span>{translateOr(t, 'standalone.layout.crm_request.phone', 'Teléfono')}</span>
+                <input
+                  value={crmRequestPhone}
+                  onChange={(event) => setCrmRequestPhone(event.target.value)}
+                  className="rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 bg-white dark:bg-gray-950"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-300 md:col-span-2">
+                <span>{translateOr(t, 'standalone.layout.crm_request.notes', 'Notas')}</span>
+                <textarea
+                  rows={3}
+                  value={crmRequestNotes}
+                  onChange={(event) => setCrmRequestNotes(event.target.value)}
+                  className="rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 bg-white dark:bg-gray-950"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCrmRequestModal(false)}
+                className="rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                {translateOr(t, 'common.cancel', 'Cancelar')}
+              </button>
+              <button
+                type="submit"
+                disabled={crmRequestLoading}
+                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-blue-700 disabled:opacity-60"
+              >
+                {crmRequestLoading
+                  ? translateOr(t, 'common.saving', 'Guardando...')
+                  : translateOr(t, 'standalone.layout.crm_request.submit', 'Enviar solicitud')}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
@@ -441,9 +618,11 @@ export default function StandaloneLayout({
 const SidebarItem = ({ id, icon: Icon, label, activeTab, setActiveTab, branding, sidebarOpen }) => (
   <button
     onClick={() => setActiveTab(id)}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm mb-1
-            ${activeTab === id ? 'font-bold' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}
-        `}
+    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm mb-1 ${
+      activeTab === id
+        ? 'font-bold'
+        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+    }`}
     style={
       activeTab === id
         ? {
