@@ -18,6 +18,24 @@ La meta del trabajo fue:
 
 ## Historial resumido
 
+### Ajuste final: catalogo Go/Flow/Elite + CRM directo/solicitud
+
+Se hizo un cierre de produccion en standalone para eliminar deuda visible y dejar el circuito de planes/CRM alineado:
+
+- `StandaloneSubscription.jsx` se reescribio para usar solo catalogo standalone (Go / Flow / Elite)
+- se eliminaron extras/addons del flujo standalone
+- se agrego `standalone-app/constants/standalonePlans.js` con los `price_id` mensuales/anuales
+- `StandaloneLayout.jsx` ahora:
+  - abre `WaFloW CRM` directo cuando existe acceso real
+  - abre modal de solicitud real y envia `/agency/ghl/subaccount-request` cuando aun no existe acceso
+- se limpio `StandaloneLayout.jsx` en UTF-8 para quitar textos rotos (mojibake)
+- se extendieron locales con nuevas claves:
+  - `standalone.subscription.*`
+  - `standalone.layout.crm_request.*`
+- backend actualizado para reconocer planes standalone:
+  - `whatsapp-automation/src/services/billingService.js` (`STRIPE_CONFIG`)
+  - `whatsapp-automation/src/services/featuresService.js` (mapeo de `price_id` a plan)
+
 ### Ajuste reciente: conexion real y facturacion standalone
 
 Se hizo una pasada adicional para acercar aun mas el standalone al comportamiento del panel original:

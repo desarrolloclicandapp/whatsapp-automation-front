@@ -17,6 +17,23 @@ El flujo agency/default sigue separado:
 
 ## Estado actual por capa
 
+### Update final aplicado (Go/Flow/Elite + CRM)
+
+Listo:
+
+- `StandaloneSubscription.jsx` ya no usa catalogo agency/addons
+- standalone usa solo:
+  - Go (`price_1TOii0HSoN0LpQiBieTZRrUU` / `price_1TOii0HSoN0LpQiBz9r0nqBz`)
+  - Flow (`price_1TOimyHSoN0LpQiB6u9YT6lk` / `price_1TOimyHSoN0LpQiB0pupYGHU`)
+  - Elite (`price_1TOithHSoN0LpQiBwp9tadRl` / `price_1TOithHSoN0LpQiBENAvlxHF`)
+- `StandaloneLayout.jsx` ahora:
+  - abre `WaFloW CRM` directo si existe acceso real
+  - si no hay acceso, dispara solicitud real con `/agency/ghl/subaccount-request`
+- backend ya reconoce esos `price_id` en:
+  - `billingService.js` (`STRIPE_CONFIG`)
+  - `featuresService.js` (price map)
+- locales actualizados para standalone de suscripcion y solicitud CRM
+
 ### Backend y base de datos
 
 Listo:
