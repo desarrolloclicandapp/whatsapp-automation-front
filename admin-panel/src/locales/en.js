@@ -643,8 +643,8 @@ export const en = {
     "dash.settings.n8n_reference": "n8n Reference",
     "dash.settings.n8n_base_url": "Base URL",
     "dash.settings.n8n_base_url_help": "The official WaFloW node in n8n already uses this production URL automatically. You only need it for a manual integration.",
-    "dash.settings.n8n_agency_id": "Agency ID",
-    "dash.settings.n8n_agency_id_help": "Use this value as the Agency ID reference in n8n. The official node then lets you choose the account and slot from dynamic lists.",
+    "dash.settings.n8n_agency_id": "Account ID",
+    "dash.settings.n8n_agency_id_help": "Use this value as the Account ID reference in n8n. The official node then lets you choose the account and slot from dynamic lists.",
 
     "dash.locked.title": "Premium Feature Locked",
     "dash.locked.desc": "This feature is exclusively available for Growth plans and higher.",
@@ -1130,6 +1130,7 @@ export const en = {
     "agency.integrations.openai_key_panel_title": "Paste the OpenAI API key",
     "agency.integrations.openai_key_panel_desc": "The key is stored per account and applies only to the accounts selected on the left.",
     "agency.integrations.openai_key_save_multi": "Save to selected",
+    "agency.integrations.openai_key_remove": "Remove",
     "agency.integrations.openai_key_remove_multi": "Remove from selected",
     "agency.integrations.openai_accounts_search": "Search account...",
     "agency.integrations.openai_accounts_select_filtered": "Select visible",
@@ -1185,12 +1186,12 @@ export const en = {
 
     // Agency Dashboard - Account Settings
     "agency.account.title": "Account Information",
-    "agency.account.agency_id": "Agency ID",
+    "agency.account.agency_id": "Account ID",
     "agency.account.email": "Registered Email",
     "agency.account.phone": "Registered phone",
     "agency.account.plan": "Active plan",
     "agency.account.status": "Account status",
-    "agency.account.crm": "Primary CRM",
+    "agency.account.crm": "CRM",
     "agency.account.integrations": "Active integrations",
     "agency.account.created_at": "Registration date",
     "agency.account.subaccounts_limit": "Subaccounts used / limit",

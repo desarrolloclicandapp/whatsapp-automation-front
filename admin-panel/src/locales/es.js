@@ -641,8 +641,8 @@ export const es = {
     "dash.settings.n8n_reference": "Referencia n8n",
     "dash.settings.n8n_base_url": "Base URL",
     "dash.settings.n8n_base_url_help": "El nodo oficial de WaFloW en n8n ya usa esta URL de producción automáticamente. Solo la necesitas si haces una integración manual.",
-    "dash.settings.n8n_agency_id": "Agency ID",
-    "dash.settings.n8n_agency_id_help": "Usa este valor como Agency ID de referencia en n8n. Luego el nodo oficial te deja elegir la cuenta y el slot desde listas dinámicas.",
+    "dash.settings.n8n_agency_id": "Account ID",
+    "dash.settings.n8n_agency_id_help": "Usa este valor como Account ID de referencia en n8n. Luego el nodo oficial te deja elegir la cuenta y el slot desde listas dinámicas.",
 
     "dash.locked.title": "Función Premium Bloqueada",
     "dash.locked.desc": "Esta característica está disponible exclusivamente para planes Growth y superiores.",
@@ -1163,6 +1163,7 @@ export const es = {
     "agency.integrations.openai_key_panel_title": "Carga la OpenAI API key",
     "agency.integrations.openai_key_panel_desc": "La key se guarda por cuenta y se aplica solo a las seleccionadas a la izquierda.",
     "agency.integrations.openai_key_save_multi": "Guardar en seleccionadas",
+    "agency.integrations.openai_key_remove": "Eliminar",
     "agency.integrations.openai_key_remove_multi": "Quitar de seleccionadas",
     "agency.integrations.openai_accounts_search": "Buscar cuenta...",
     "agency.integrations.openai_accounts_select_filtered": "Seleccionar visibles",

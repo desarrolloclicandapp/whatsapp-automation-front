@@ -2073,7 +2073,7 @@ function StandaloneSlotConnectionManager({
           ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
           : status.connected
             ? `Numero: +${status.myNumber}`
-            : 'Ve a WhatsApp, Configuración, Dispositivos vinculados y luego genera el QR.';
+            : 'Escanea el código QR para conectar.';
 
   return (
     <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
