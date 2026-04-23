@@ -67,6 +67,29 @@ export default function StandaloneSettings({
   const [webhooks, setWebhooks] = useState([]);
   const [showNewWebhookModal, setShowNewWebhookModal] = useState(false);
   const [locationDetails, setLocationDetails] = useState(null);
+  const [standaloneGlobal, setStandaloneGlobal] = useState({
+    general: {
+      alert_phone_number: '',
+      crm_contact_tag: '',
+    },
+    integrations: {
+      elevenlabs_api_key: '',
+      elevenlabs_voice_id: '',
+      proxy: null,
+    },
+  });
+  const [globalKeywords, setGlobalKeywords] = useState([]);
+  const [savingGlobalGeneral, setSavingGlobalGeneral] = useState(false);
+  const [savingGlobalIntegrations, setSavingGlobalIntegrations] = useState(false);
+  const [loadingGlobalVoices, setLoadingGlobalVoices] = useState(false);
+  const [globalVoices, setGlobalVoices] = useState([]);
+  const [globalProxyDraft, setGlobalProxyDraft] = useState({
+    host: '',
+    port: '',
+    username: '',
+    password: '',
+    protocol: 'http',
+  });
   const [proxyConfigBySlot, setProxyConfigBySlot] = useState({});
   const [loadingProxyBySlot, setLoadingProxyBySlot] = useState({});
   const [savingProxyBySlot, setSavingProxyBySlot] = useState({});
@@ -150,13 +173,17 @@ export default function StandaloneSettings({
         ];
         if (locationId) {
           requests.push(authFetch(`/agency/location-details/${encodeURIComponent(locationId)}`));
+          requests.push(authFetch(`/agency/standalone/global-settings?locationId=${encodeURIComponent(locationId)}`));
         }
 
-        const [keysResponse, webhooksResponse, locationDetailsResponse] = await Promise.all(requests);
+        const [keysResponse, webhooksResponse, locationDetailsResponse, globalSettingsResponse] = await Promise.all(requests);
         const keysData = keysResponse.ok ? await keysResponse.json().catch(() => ({})) : {};
         const webhooksData = webhooksResponse.ok ? await webhooksResponse.json().catch(() => ({})) : {};
         const locationData = locationDetailsResponse?.ok
           ? await locationDetailsResponse.json().catch(() => ({}))
+          : null;
+        const globalSettingsData = globalSettingsResponse?.ok
+          ? await globalSettingsResponse.json().catch(() => ({}))
           : null;
 
         if (isCancelled) return;
@@ -165,6 +192,28 @@ export default function StandaloneSettings({
         setApiKeys(Array.isArray(keysData?.keys) ? keysData.keys : []);
         setWebhooks(Array.isArray(webhooksData?.hooks) ? webhooksData.hooks : []);
         setLocationDetails(locationData);
+        setStandaloneGlobal((globalSettingsData?.global && typeof globalSettingsData.global === 'object')
+          ? globalSettingsData.global
+          : {
+              general: {
+                alert_phone_number: '',
+                crm_contact_tag: '',
+              },
+              integrations: {
+                elevenlabs_api_key: '',
+                elevenlabs_voice_id: '',
+                proxy: null,
+              },
+            });
+        setGlobalKeywords(Array.isArray(globalSettingsData?.keywords) ? globalSettingsData.keywords : []);
+        const safeProxy = globalSettingsData?.global?.integrations?.proxy || null;
+        setGlobalProxyDraft({
+          host: safeProxy?.host || '',
+          port: safeProxy?.port ? String(safeProxy.port) : '',
+          username: safeProxy?.username || '',
+          password: '',
+          protocol: safeProxy?.protocol || 'http',
+        });
       } catch (error) {
         if (!isCancelled) {
           toast.error(error?.message || 'No se pudieron cargar los ajustes de la cuenta');
@@ -395,6 +444,176 @@ export default function StandaloneSettings({
       toast.error(error?.message || (t('agency.integrations.openai_key_error') || 'No se pudo guardar la OpenAI key.'));
     } finally {
       setIsSavingOpenAi(false);
+    }
+  };
+
+  const refreshStandaloneGlobalSettings = async () => {
+    if (!locationId) return null;
+    const response = await authFetch(`/agency/standalone/global-settings?locationId=${encodeURIComponent(locationId)}`);
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.error || 'No se pudo recargar la configuración global');
+    }
+
+    setStandaloneGlobal((body?.global && typeof body.global === 'object')
+      ? body.global
+      : {
+          general: { alert_phone_number: '', crm_contact_tag: '' },
+          integrations: { elevenlabs_api_key: '', elevenlabs_voice_id: '', proxy: null },
+        });
+    setGlobalKeywords(Array.isArray(body?.keywords) ? body.keywords : []);
+    const safeProxy = body?.global?.integrations?.proxy || null;
+    setGlobalProxyDraft({
+      host: safeProxy?.host || '',
+      port: safeProxy?.port ? String(safeProxy.port) : '',
+      username: safeProxy?.username || '',
+      password: '',
+      protocol: safeProxy?.protocol || 'http',
+    });
+    return body;
+  };
+
+  const saveStandaloneGlobalGeneral = async () => {
+    if (!locationId) return;
+    setSavingGlobalGeneral(true);
+    try {
+      const payload = {
+        locationId,
+        global: {
+          general: {
+            alert_phone_number: standaloneGlobal?.general?.alert_phone_number || '',
+            crm_contact_tag: standaloneGlobal?.general?.crm_contact_tag || '',
+          },
+        },
+      };
+      const response = await authFetch('/agency/standalone/global-settings', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar la configuración general');
+      }
+      toast.success('Configuración general guardada para toda la cuenta');
+      await Promise.all([
+        refreshStandaloneGlobalSettings().catch(() => null),
+        refreshLocationDetails().catch(() => null),
+      ]);
+      onDataChange?.();
+    } catch (error) {
+      toast.error(error?.message || 'No se pudo guardar la configuración general');
+    } finally {
+      setSavingGlobalGeneral(false);
+    }
+  };
+
+  const saveStandaloneGlobalIntegrations = async () => {
+    if (!locationId) return;
+    setSavingGlobalIntegrations(true);
+    try {
+      const proxyHost = String(globalProxyDraft?.host || '').trim();
+      const proxyPort = Number.parseInt(String(globalProxyDraft?.port || '').trim(), 10);
+      const proxyPayload = proxyHost && Number.isFinite(proxyPort) && proxyPort > 0
+        ? {
+            host: proxyHost,
+            port: proxyPort,
+            username: String(globalProxyDraft?.username || '').trim(),
+            password: String(globalProxyDraft?.password || '').trim(),
+            protocol: String(globalProxyDraft?.protocol || 'http').trim() || 'http',
+          }
+        : null;
+
+      const payload = {
+        locationId,
+        global: {
+          integrations: {
+            elevenlabs_api_key: standaloneGlobal?.integrations?.elevenlabs_api_key || '',
+            elevenlabs_voice_id: standaloneGlobal?.integrations?.elevenlabs_voice_id || '',
+            proxy: proxyPayload,
+          },
+        },
+      };
+      const response = await authFetch('/agency/standalone/global-settings', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar la configuración de integraciones');
+      }
+      toast.success('Integraciones globales guardadas para toda la cuenta');
+      await Promise.all([
+        refreshStandaloneGlobalSettings().catch(() => null),
+        refreshLocationDetails().catch(() => null),
+      ]);
+      onDataChange?.();
+    } catch (error) {
+      toast.error(error?.message || 'No se pudo guardar la configuración de integraciones');
+    } finally {
+      setSavingGlobalIntegrations(false);
+    }
+  };
+
+  const loadGlobalElevenVoices = async (forceRefresh = false) => {
+    const key = String(standaloneGlobal?.integrations?.elevenlabs_api_key || '').trim();
+    if (!key) {
+      setGlobalVoices([]);
+      return;
+    }
+    setLoadingGlobalVoices(true);
+    try {
+      const response = await authFetch('/agency/elevenlabs/validate', {
+        method: 'POST',
+        body: JSON.stringify({ apiKey: key, refresh: forceRefresh }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudieron cargar las voces de ElevenLabs');
+      }
+      setGlobalVoices(Array.isArray(body?.voices) ? body.voices : []);
+      toast.success('Voces de ElevenLabs actualizadas');
+    } catch (error) {
+      toast.error(error?.message || 'No se pudieron cargar las voces de ElevenLabs');
+    } finally {
+      setLoadingGlobalVoices(false);
+    }
+  };
+
+  const handleAddGlobalKeyword = async (event) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const keyword = String(formData.get('keyword') || '').trim();
+    const tag = String(formData.get('tag') || '').trim();
+    if (!keyword || !tag || !locationId) return;
+
+    try {
+      const response = await authFetch('/agency/keywords', {
+        method: 'POST',
+        body: JSON.stringify({ locationId, slotId: null, keyword, tag }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar la keyword global');
+      }
+      event.currentTarget.reset();
+      await refreshStandaloneGlobalSettings();
+      toast.success('Keyword global guardada');
+    } catch (error) {
+      toast.error(error?.message || 'No se pudo guardar la keyword global');
+    }
+  };
+
+  const handleDeleteGlobalKeyword = async (keywordId) => {
+    try {
+      const response = await authFetch(`/agency/keywords/${keywordId}`, { method: 'DELETE' });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo eliminar la keyword global');
+      }
+      await refreshStandaloneGlobalSettings();
+      toast.success('Keyword global eliminada');
+    } catch (error) {
+      toast.error(error?.message || 'No se pudo eliminar la keyword global');
     }
   };
 
