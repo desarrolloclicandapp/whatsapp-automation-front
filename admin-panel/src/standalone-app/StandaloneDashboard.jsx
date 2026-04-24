@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import StandaloneSlotManager from './StandaloneSlotManager';
+import StandaloneAgentGuideModal from './StandaloneAgentGuideModal';
 import { translateOr } from './i18n';
 
 export default function StandaloneDashboard({
@@ -22,6 +23,7 @@ export default function StandaloneDashboard({
   onRefresh,
   onOpenMessagingInbox,
   onGoToBilling,
+  onGoToAgents,
   onRealtimeConnectionChange,
   token,
   onUnauthorized,
@@ -30,6 +32,7 @@ export default function StandaloneDashboard({
 
   const slots = Array.isArray(locationDetails?.slots) ? locationDetails.slots : [];
   const [liveSlots, setLiveSlots] = useState(slots);
+  const [showAgentGuide, setShowAgentGuide] = useState(false);
 
   useEffect(() => {
     setLiveSlots(slots);
@@ -81,7 +84,7 @@ export default function StandaloneDashboard({
           done: false,
           disabled: false,
           icon: <Bot size={14} />,
-          onClick: () => {},
+          onClick: () => setShowAgentGuide(true),
         },
       ];
     }
@@ -324,6 +327,12 @@ export default function StandaloneDashboard({
         onConnectionStateChange={onRealtimeConnectionChange}
         onUpgradeRequest={onGoToBilling}
         onUnauthorized={onUnauthorized}
+      />
+
+      <StandaloneAgentGuideModal
+        open={showAgentGuide}
+        onClose={() => setShowAgentGuide(false)}
+        onGoToAgents={onGoToAgents}
       />
     </div>
   );

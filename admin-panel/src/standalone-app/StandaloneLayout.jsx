@@ -320,6 +320,7 @@ export default function StandaloneLayout({
           onRefresh={handleWorkspaceRefresh}
           onOpenMessagingInbox={openInbox}
           onGoToBilling={() => setActiveTab('billing')}
+          onGoToAgents={() => setActiveTab('agents')}
           onRealtimeConnectionChange={setLiveIsWhatsAppConnected}
           token={token}
           onUnauthorized={onUnauthorized || onLogout}
