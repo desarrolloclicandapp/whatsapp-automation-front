@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
+import { ArrowUpRight, Building2, ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -619,8 +619,6 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         return agents.filter((agent) => {
             const haystack = [
                 agent?.name,
-                agent?.agent_key,
-                agent?.description,
                 agent?.model,
                 ...(Array.isArray(agent?.enabled_integrations) ? agent.enabled_integrations : [])
             ]
@@ -687,24 +685,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                                 <div className="truncate font-bold text-gray-900 dark:text-white">{agent.name}</div>
-                                <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{agent.agent_key}</div>
-                                {agent.description ? (
-                                    <p
-                                        className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400"
-                                        style={{
-                                            display: "-webkit-box",
-                                            WebkitLineClamp: 2,
-                                            WebkitBoxOrient: "vertical",
-                                            overflow: "hidden"
-                                        }}
-                                    >
-                                        {agent.description}
-                                    </p>
-                                ) : (
-                                    <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                                        {t("workflow_agents.no_description")}
-                                    </p>
-                                )}
+                                <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{agent.model || "OpenAI"}</div>
                             </div>
                             <StatusPill
                                 label={t(`workflow_agents.status_${agent.status}`)}
@@ -830,7 +811,15 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     if (!locations.length) {
         return (
             <div className="max-w-5xl mx-auto rounded-3xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                {t("workflow_agents.empty_locations")}
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/25 dark:text-indigo-300">
+                    <Building2 size={24} />
+                </div>
+                <h3 className="mt-5 text-xl font-extrabold text-gray-900 dark:text-white">
+                    {t("workflow_agents.empty_locations_title")}
+                </h3>
+                <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-500 dark:text-gray-400">
+                    {t("workflow_agents.empty_locations_desc")}
+                </p>
             </div>
         );
     }
@@ -928,7 +917,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                         {activeTab === "general" && (
                             <form onSubmit={handleSave} className="space-y-5">
                                 <EditorSection title={t("workflow_agents.section_identity_title")} description={t("workflow_agents.section_identity_desc")}>
-                                    <div className="grid gap-4 lg:grid-cols-[1.15fr,1fr,220px]">
+                                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),220px]">
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_name")}</label>
                                             <input
@@ -941,20 +930,6 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                             />
                                         </div>
                                         <div>
-                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_key")}</label>
-                                            <input
-                                                name="workflow-agent-internal-key"
-                                                autoComplete="off"
-                                                data-form-type="other"
-                                                data-lpignore="true"
-                                                value={form.agent_key}
-                                                onChange={(event) => setForm((prev) => ({ ...prev, agent_key: event.target.value }))}
-                                                placeholder={t("workflow_agents.field_key_placeholder")}
-                                                className={inputClassName}
-                                            />
-                                            <div className="mt-2 max-w-xl text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.field_key_help")}</div>
-                                        </div>
-                                        <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_status")}</label>
                                             <select value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))} className={inputClassName}>
                                                 <option value="active">{t("workflow_agents.status_active")}</option>
@@ -962,10 +937,6 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                 <option value="paused">{t("workflow_agents.status_paused")}</option>
                                             </select>
                                         </div>
-                                    </div>
-                                    <div className="mt-4">
-                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_description")}</label>
-                                        <textarea rows={4} value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} className={inputClassName} />
                                     </div>
                                 </EditorSection>
 
