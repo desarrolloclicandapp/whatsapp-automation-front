@@ -30,6 +30,7 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replac
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
 const DEFAULT_GHL_INSTALL_PATH = "/integration/6968d10f1f0b9e6b537024cd";
 const RELIABILITY_PAGE_SIZE = 10;
+const MANAGED_GHL_REQUEST_INTENT_KEY = "waflow:managed-ghl-request-intent";
 const DEFAULT_INSTALL_APP_URL =
     import.meta.env.DEFAULT_INSTALL_APP_URL || `https://app.gohighlevel.com${DEFAULT_GHL_INSTALL_PATH}`;
 const CHATWOOT_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
@@ -320,6 +321,15 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [isAccountSuspended, setIsAccountSuspended] = useState(false);
     const [suspensionStatus, setSuspensionStatus] = useState(null);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+    const [showManagedGhlPaidGate, setShowManagedGhlPaidGate] = useState(false);
+    const [showManagedGhlBillingModal, setShowManagedGhlBillingModal] = useState(false);
+    const [pendingManagedGhlRequest, setPendingManagedGhlRequest] = useState(() => {
+        try {
+            return window.sessionStorage.getItem(MANAGED_GHL_REQUEST_INTENT_KEY) === "1";
+        } catch (_) {
+            return false;
+        }
+    });
 
     // Modal state for adding locations
     const [showAddModal, setShowAddModal] = useState(false);
@@ -623,12 +633,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                 } else {
                     setIsAccountSuspended(false);
                 }
+                return data;
             } else if (!AGENCY_ID) {
                 setLoading(false);
-                return;
+                return null;
             }
         } catch (error) {
             console.error("Error refrescando datos", error);
+            return null;
         } finally {
             setLoading(false);
         }
@@ -1063,10 +1075,13 @@ export default function AgencyDashboard({ token, onLogout }) {
             // 🏁 FIN TRACKING
 
             toast.success(t('agency.payment.success'), { duration: 6000 });
+            refreshData();
             // Limpiar URL
             window.history.replaceState({}, document.title, window.location.pathname);
         } else if (paymentStatus === "cancelled") {
             toast.error(t('agency.payment.cancelled'), { duration: 8000 });
+            clearManagedGhlPaymentIntent();
+            setShowManagedGhlBillingModal(false);
             // Limpiar URL
             window.history.replaceState({}, document.title, window.location.pathname);
         }
@@ -1669,17 +1684,62 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
+    const openManagedGhlRequestForm = () => {
+        resetOnboardingSubaccountForm();
+        setOnboardingStep(1);
+        setOnboardingCrmType('ghl');
+        setOnboardingConnectionType('ghl_create_subaccount');
+        setShowManagedGhlPaidGate(false);
+        setShowManagedGhlBillingModal(false);
+        setShowOnboarding(true);
+    };
+
+    const setManagedGhlPaymentIntent = () => {
+        setPendingManagedGhlRequest(true);
+        try {
+            window.sessionStorage.setItem(MANAGED_GHL_REQUEST_INTENT_KEY, "1");
+        } catch (_) { }
+    };
+
+    const clearManagedGhlPaymentIntent = () => {
+        setPendingManagedGhlRequest(false);
+        try {
+            window.sessionStorage.removeItem(MANAGED_GHL_REQUEST_INTENT_KEY);
+        } catch (_) { }
+    };
+
+    const openManagedGhlBillingFlow = () => {
+        setManagedGhlPaymentIntent();
+        setShowManagedGhlPaidGate(false);
+        setShowOnboarding(false);
+        setShowManagedGhlBillingModal(true);
+    };
+
+    const closeManagedGhlBillingFlow = () => {
+        setShowManagedGhlBillingModal(false);
+        clearManagedGhlPaymentIntent();
+    };
+
+    const handleManagedGhlBillingDataChange = async () => {
+        await refreshData();
+    };
+
     const handleRequestManagedGhlSubaccount = () => {
         if (!canRequestManagedGhlSubaccount) {
-            toast.info(
-                t('agency.onboarding.ghl_paid_required') ||
-                'Esta opcion requiere un plan pago activo. Si ya tienes GoHighLevel, puedes usar la opcion "Ya tengo una cuenta" durante el trial.'
-            );
-            setShowUpgradeModal(true);
+            setShowManagedGhlPaidGate(true);
             return;
         }
-        setOnboardingConnectionType('ghl_create_subaccount');
+        openManagedGhlRequestForm();
     };
+
+    useEffect(() => {
+        if (!pendingManagedGhlRequest || !canRequestManagedGhlSubaccount) return;
+        try {
+            window.sessionStorage.removeItem(MANAGED_GHL_REQUEST_INTENT_KEY);
+        } catch (_) { }
+        setPendingManagedGhlRequest(false);
+        openManagedGhlRequestForm();
+    }, [pendingManagedGhlRequest, canRequestManagedGhlSubaccount]);
 
     // ✅ GUARDAR LINK DE INSTALACIÓN CRM POR USUARIO
     const handleSaveCrmDomain = async (options = {}) => {
@@ -2948,6 +3008,104 @@ export default function AgencyDashboard({ token, onLogout }) {
         <div className="agency-dashboard-ui flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
             <ExpiryPopup token={token} /> {/* ✅ Popup Global */}
             {isAccountSuspended && <SubscriptionBlocker token={token} onLogout={onLogout} accountInfo={accountInfo} />}
+            {showManagedGhlPaidGate && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/10 bg-[#101827] shadow-2xl shadow-black/40">
+                        <div className="border-b border-white/10 px-6 py-5 flex items-start justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="h-11 w-11 rounded-2xl bg-amber-500/10 border border-amber-400/20 flex items-center justify-center">
+                                    <CreditCard size={20} className="text-amber-300" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-extrabold text-white">
+                                        {t('agency.onboarding.ghl_paid_gate_title') || 'Solo para planes de pago'}
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        {t('agency.onboarding.ghl_paid_gate_kicker') || 'Subcuenta GoHighLevel gestionada'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowManagedGhlPaidGate(false);
+                                    clearManagedGhlPaymentIntent();
+                                }}
+                                className="rounded-xl p-2 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                                aria-label="Cerrar"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="px-6 py-6 space-y-5">
+                            <p className="text-sm leading-6 text-slate-300">
+                                {t('agency.onboarding.ghl_paid_gate_desc') || 'Para solicitar una subcuenta GoHighLevel creada por nuestra agencia necesitas activar un plan de pago. Si ya tienes tu propia cuenta de GoHighLevel, puedes conectarla durante el trial.'}
+                            </p>
+                            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 flex gap-3">
+                                <ShieldCheck size={18} className="mt-0.5 text-emerald-300 shrink-0" />
+                                <p className="text-xs leading-5 text-emerald-100">
+                                    {t('agency.onboarding.ghl_paid_gate_after_payment') || 'Despues de activar un plan, abriremos automaticamente el formulario de solicitud.'}
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowManagedGhlPaidGate(false);
+                                        clearManagedGhlPaymentIntent();
+                                    }}
+                                    className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-bold text-slate-300 hover:bg-white/10 hover:text-white transition"
+                                >
+                                    {t('agency.onboarding.ghl_paid_gate_later') || 'Volver'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={openManagedGhlBillingFlow}
+                                    className="rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3 text-sm font-extrabold text-slate-950 shadow-lg shadow-orange-900/25 hover:brightness-110 transition flex items-center justify-center gap-2"
+                                >
+                                    {t('agency.onboarding.ghl_paid_gate_view_plans') || 'Ver planes'}
+                                    <ArrowRight size={16} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {showManagedGhlBillingModal && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="w-full max-w-6xl h-[92vh] overflow-hidden rounded-3xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0B0D12] shadow-2xl flex flex-col">
+                        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between gap-4 bg-white dark:bg-gray-900">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-500">
+                                    {t('agency.onboarding.ghl_paid_gate_kicker') || 'Subcuenta GoHighLevel gestionada'}
+                                </p>
+                                <h3 className="text-xl font-extrabold text-gray-900 dark:text-white mt-1">
+                                    {t('agency.onboarding.ghl_paid_gate_choose_plan') || 'Elige un plan para continuar'}
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    {t('agency.onboarding.ghl_paid_gate_choose_plan_desc') || 'Cuando el pago quede activo, abriremos el formulario de solicitud automaticamente.'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={closeManagedGhlBillingFlow}
+                                className="rounded-xl p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition"
+                                aria-label="Cerrar"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-[#0B0D12]">
+                            <SubscriptionManager
+                                token={token}
+                                accountInfo={accountInfo}
+                                onDataChange={handleManagedGhlBillingDataChange}
+                                isChatwootAgency={isChatwootAgency}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
             {showUpgradeModal && (isGhlAgency || onboardingCrmType === 'ghl') && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
 
             {/* 🔥 OVERLAY DE BLOQUEO DURANTE INSTALACIÓN */}
@@ -4500,16 +4658,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
                                                     <Plus size={20} className="text-blue-600 dark:text-blue-400" />
                                                 </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                                                            {t('agency.onboarding.create_subaccount') || 'Solicitar Cuenta con nuestra agencia'}
-                                                        </h4>
-                                                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-300">
-                                                            <Lock size={10} />
-                                                            {t('agency.onboarding.paid_plan_badge') || 'Plan pago'}
-                                                        </span>
-                                                    </div>
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                        {t('agency.onboarding.create_subaccount') || 'Solicitar Cuenta con nuestra agencia'}
+                                                    </h4>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                                         {t('agency.onboarding.ghl_create_subaccount_form') || 'Creamos una nueva subcuenta GoHighLevel para ti'}
                                                     </p>
@@ -4589,7 +4741,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 const data = await parseApiResponse(resp);
                                                 if (!resp.ok) {
                                                     if (data?.requiresUpgrade) {
-                                                        setShowUpgradeModal(true);
+                                                        setShowManagedGhlPaidGate(true);
+                                                        return;
                                                     }
                                                     throw new Error(
                                                         data?.error ||
