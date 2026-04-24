@@ -10,10 +10,13 @@ import {
   Sparkles,
   Zap,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useLanguage } from '../context/LanguageContext';
 import StandaloneSlotManager from './StandaloneSlotManager';
 import StandaloneAgentGuideModal from './StandaloneAgentGuideModal';
 import { translateOr } from './i18n';
+
+const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
 
 export default function StandaloneDashboard({
   accountInfo,
@@ -133,6 +136,71 @@ export default function StandaloneDashboard({
 
   const quickStartDoneCount = quickStartSteps.filter((step) => step.done).length;
   const needsQuickStartGuide = quickStartSteps.length > 0;
+
+  const handleCreateGuidedAgent = async (guideForm) => {
+    if (!primaryLocationId || !token) {
+      toast.error(translateOr(t, 'workflow_agents.save_error', 'No se pudo crear el agente'));
+      return false;
+    }
+
+    const payload = {
+      locationId: primaryLocationId,
+      name: String(guideForm?.name || '').trim(),
+      status: String(guideForm?.status || 'active'),
+      credential_mode: 'location',
+      slot_ids: [],
+      model: String(guideForm?.model || 'gpt-4o-mini'),
+      temperature: Number.parseFloat(String(guideForm?.temperature || '0.4')),
+      max_output_chars: Number.parseInt(String(guideForm?.max_output_chars || '600'), 10),
+      use_contact_context: guideForm?.use_contact_context !== false,
+      config: {
+        behavior: {
+          role: String(guideForm?.role || '').trim(),
+          tone: String(guideForm?.tone || '').trim(),
+          objective: String(guideForm?.objective || '').trim(),
+          guardrails: String(guideForm?.guardrails || '').trim(),
+        },
+        permissions: {
+          view_appointments: true,
+          add_tags: true,
+          remove_tags: true,
+          assign_owner: true,
+          set_fields: true,
+          create_appointment: true,
+          reschedule_appointment: true,
+        },
+        calendar_scope: { mode: 'all', calendar_ids: [] },
+      },
+      integrations: {
+        ghl: { enabled: true, config: {} },
+        chatwoot: { enabled: false, config: {} },
+      },
+    };
+
+    try {
+      const res = await fetch(`${API_URL}/agency/workflow-agents`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.status === 401) {
+        onUnauthorized?.();
+        throw new Error(translateOr(t, 'agency.session_expired', 'Sesion expirada'));
+      }
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || translateOr(t, 'workflow_agents.save_error', 'No se pudo crear el agente'));
+      }
+      toast.success(translateOr(t, 'workflow_agents.saved_success', 'Agente guardado'));
+      return true;
+    } catch (error) {
+      toast.error(error?.message || translateOr(t, 'workflow_agents.save_error', 'No se pudo crear el agente'));
+      return false;
+    }
+  };
 
   if (!accountInfo) {
     return (
@@ -333,6 +401,7 @@ export default function StandaloneDashboard({
         open={showAgentGuide}
         onClose={() => setShowAgentGuide(false)}
         onGoToAgents={onGoToAgents}
+        onCreateAgent={handleCreateGuidedAgent}
       />
     </div>
   );
