@@ -3,14 +3,6 @@ import { Bot, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, X } fr
 import { useLanguage } from '../context/LanguageContext';
 import { translateOr } from './i18n';
 
-const MODEL_OPTIONS = [
-  'gpt-4o-mini',
-  'gpt-4o',
-  'gpt-5-mini',
-  'gpt-5',
-  'gpt-5.2',
-];
-
 const DEFAULT_FORM = {
   name: '',
   status: 'active',
@@ -24,10 +16,22 @@ const DEFAULT_FORM = {
   guardrails: '',
 };
 
-export default function StandaloneAgentGuideModal({ open, onClose, onGoToAgents, onCreateAgent }) {
+const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
+
+export default function StandaloneAgentGuideModal({
+  open,
+  onClose,
+  onGoToAgents,
+  onCreateAgent,
+  token,
+  locationId,
+  onUnauthorized,
+}) {
   const { t } = useLanguage();
   const [stepIndex, setStepIndex] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [availableModels, setAvailableModels] = useState([]);
   const [form, setForm] = useState(DEFAULT_FORM);
 
   const steps = useMemo(
@@ -67,6 +71,22 @@ export default function StandaloneAgentGuideModal({ open, onClose, onGoToAgents,
     ],
     [t],
   );
+  const baseModelOptions = useMemo(
+    () => availableModels.map((modelId) => ({ value: modelId, label: modelId })),
+    [availableModels],
+  );
+  const modelOptions = useMemo(() => {
+    if (!form.model || baseModelOptions.some((option) => option.value === form.model)) {
+      return baseModelOptions;
+    }
+    return [
+      {
+        value: form.model,
+        label: `${form.model} · ${t('workflow_agents.model_option_current')}`,
+      },
+      ...baseModelOptions,
+    ];
+  }, [baseModelOptions, form.model, t]);
 
   if (!open) return null;
 
@@ -74,7 +94,7 @@ export default function StandaloneAgentGuideModal({ open, onClose, onGoToAgents,
   const isLast = stepIndex === steps.length - 1;
   const canContinueStep1 = String(form.name || '').trim().length >= 2;
   const canContinueStep2 =
-    MODEL_OPTIONS.includes(form.model) &&
+    modelOptions.some((option) => option.value === form.model) &&
     Number.parseFloat(form.temperature) >= 0 &&
     Number.parseFloat(form.temperature) <= 1 &&
     Number.parseInt(form.max_output_chars, 10) >= 120;
@@ -90,6 +110,60 @@ export default function StandaloneAgentGuideModal({ open, onClose, onGoToAgents,
     setForm(DEFAULT_FORM);
     setSaving(false);
   };
+
+  const loadAvailableModels = async () => {
+    const safeLocationId = String(locationId || '').trim();
+    if (!safeLocationId || !token) {
+      setAvailableModels([]);
+      return;
+    }
+
+    setLoadingModels(true);
+    try {
+      const res = await fetch(
+        `${API_URL}/agency/workflow-agents/models?locationId=${encodeURIComponent(safeLocationId)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      if (res.status === 401) {
+        onUnauthorized?.();
+        throw new Error(t('agency.session_expired'));
+      }
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) throw new Error(data?.error || t('workflow_agents.models_load_error'));
+
+      const nextModels = Array.isArray(data?.models)
+        ? data.models.map((value) => String(value || '').trim()).filter(Boolean)
+        : [];
+      const nextDefaultModel = String(data?.defaultModel || '').trim();
+
+      setAvailableModels(nextModels);
+      setForm((prev) => {
+        if (prev.model && nextModels.includes(prev.model)) return prev;
+        const preferredModel = nextModels.includes(nextDefaultModel)
+          ? nextDefaultModel
+          : nextModels[0] || prev.model || '';
+        return preferredModel ? { ...prev, model: preferredModel } : prev;
+      });
+    } catch (_) {
+      setAvailableModels([]);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (open) {
+      loadAvailableModels();
+    } else {
+      setAvailableModels([]);
+      setLoadingModels(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, locationId, token]);
 
   const handleClose = () => {
     resetAll();
@@ -122,7 +196,7 @@ export default function StandaloneAgentGuideModal({ open, onClose, onGoToAgents,
 
   return (
     <div className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-[1px] flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl">
+      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl">
         <div className="flex items-start justify-between gap-3 p-6 border-b border-gray-200 dark:border-gray-800">
           <div>
             <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-300">
@@ -208,15 +282,22 @@ export default function StandaloneAgentGuideModal({ open, onClose, onGoToAgents,
                   {translateOr(t, 'standalone.agents_guide.field_model', 'Modelo de IA')}
                 </label>
                 <select
-                  value={form.model}
+                  value={form.model || ''}
                   onChange={(e) => setForm((prev) => ({ ...prev, model: e.target.value }))}
+                  disabled={loadingModels || modelOptions.length === 0}
                   className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
                 >
-                  {MODEL_OPTIONS.map((model) => (
-                    <option key={model} value={model}>
-                      {model}
-                    </option>
-                  ))}
+                  {loadingModels ? (
+                    <option value={form.model || ''}>{t('workflow_agents.models_loading')}</option>
+                  ) : modelOptions.length > 0 ? (
+                    modelOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">{t('workflow_agents.models_empty')}</option>
+                  )}
                 </select>
               </div>
               <div>

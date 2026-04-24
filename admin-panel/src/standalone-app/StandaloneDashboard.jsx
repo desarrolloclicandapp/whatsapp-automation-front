@@ -402,6 +402,9 @@ export default function StandaloneDashboard({
         onClose={() => setShowAgentGuide(false)}
         onGoToAgents={onGoToAgents}
         onCreateAgent={handleCreateGuidedAgent}
+        token={token}
+        locationId={primaryLocationId}
+        onUnauthorized={onUnauthorized}
       />
     </div>
   );

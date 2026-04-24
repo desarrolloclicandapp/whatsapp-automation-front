@@ -339,7 +339,7 @@ export const es = {
     "workflow_agents.edit_agent": "Editar agente",
     "workflow_agents.form_desc": "Configura el agente y pruebalo a la derecha.",
     "workflow_agents.section_identity_title": "Identidad del agente",
-    "workflow_agents.section_identity_desc": "Nombre, ID y nota corta.",
+    "workflow_agents.section_identity_desc": "Nombre del agente",
     "workflow_agents.section_response_title": "Respuesta",
     "workflow_agents.section_response_desc": "Modelo y limites.",
     "workflow_agents.section_behavior_title": "Comportamiento",
