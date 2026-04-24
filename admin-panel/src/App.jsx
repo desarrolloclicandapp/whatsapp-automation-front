@@ -147,7 +147,6 @@ function App() {
 
         if (typeof window.fbq === 'function') {
             window.fbq('track', 'PageView');
-            window.fbq('trackCustom', 'StandaloneView', { screen });
         }
     }, [isStandaloneMode, token]);
 
