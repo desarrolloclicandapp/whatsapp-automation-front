@@ -490,7 +490,7 @@ export const es = {
     "workflow_agents.no_calendars_available": "No hay calendarios disponibles en esta subcuenta.",
     "workflow_agents.save_create": "Crear agente",
     "workflow_agents.save_update": "Guardar cambios",
-    "workflow_agents.cancel_edit": "Limpiar formulario",
+    "workflow_agents.cancel_edit": "Limpiar datos",
     "workflow_agents.back_to_list": "Volver al listado",
     "workflow_agents.delete_button": "Eliminar",
     "workflow_agents.tab_general": "General",
