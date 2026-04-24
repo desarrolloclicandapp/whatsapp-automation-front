@@ -1090,7 +1090,7 @@ export default function StandaloneSettings({
           {currentSettingsSectionId === '__legacy_general__' && (
             <div className="space-y-5">
               <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">General por WhatsApp</h3>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{t('standalone.settings.general_whatsapp_title') || 'General por WhatsApp'}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   Configura comportamiento, alertas, tags y keywords de cada WhatsApp conectado.
                 </p>
@@ -1196,17 +1196,17 @@ export default function StandaloneSettings({
                     </div>
 
                     <div className="space-y-3">
-                      <h5 className="text-sm font-bold text-gray-900 dark:text-white">Keywords</h5>
+                      <h5 className="text-sm font-bold text-gray-900 dark:text-white">{t('standalone.settings.keywords_title') || 'Keywords'}</h5>
                       <form onSubmit={(event) => handleAddKeyword(event, slotId)} className="grid grid-cols-1 md:grid-cols-3 gap-2">
                         <input
                           name="keyword"
-                          placeholder="Keyword"
+                          placeholder={t('agency.keyword_name') || 'Keyword'}
                           required
                           className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                         <input
                           name="tag"
-                          placeholder="Tag"
+                          placeholder={t('agency.keyword_tag') || 'Tag'}
                           required
                           className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                         />
@@ -1502,7 +1502,7 @@ export default function StandaloneSettings({
                     <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <h5 className="text-sm font-bold text-gray-900 dark:text-white">ElevenLabs</h5>
+                          <h5 className="text-sm font-bold text-gray-900 dark:text-white">{t('standalone.settings.elevenlabs_title') || 'ElevenLabs'}</h5>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             Configura API key y voz por defecto para este WhatsApp.
                           </p>
@@ -1664,7 +1664,7 @@ export default function StandaloneSettings({
           {currentSettingsSectionId === 'general' && (
             <div className="space-y-5">
               <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Configuración general de la cuenta</h3>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{t('standalone.settings.general_account_title') || 'Configuración general de la cuenta'}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   Estos ajustes se aplican a toda la cuenta y a todos los números conectados.
                 </p>
@@ -1744,7 +1744,7 @@ export default function StandaloneSettings({
 
               <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
                 <div>
-                  <h4 className="text-base font-bold text-gray-900 dark:text-white">Etiquetas globales</h4>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">{t('standalone.settings.global_tags_title') || 'Etiquetas globales'}</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     Estas reglas se aplican a todos los números de la cuenta.
                   </p>
@@ -1753,13 +1753,13 @@ export default function StandaloneSettings({
                 <form onSubmit={handleAddGlobalKeyword} className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   <input
                     name="keyword"
-                    placeholder="Keyword"
+                    placeholder={t('agency.keyword_name') || 'Keyword'}
                     required
                     className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <input
                     name="tag"
-                    placeholder="Tag"
+                    placeholder={t('agency.keyword_tag') || 'Tag'}
                     required
                     className="px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                   />
@@ -1939,7 +1939,7 @@ export default function StandaloneSettings({
 
               <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-5">
                 <div>
-                  <h4 className="text-base font-bold text-gray-900 dark:text-white">OpenAI</h4>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">{t('standalone.settings.openai_title') || 'OpenAI'}</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     API key global de la cuenta para automatizaciones y agentes.
                   </p>
@@ -1981,7 +1981,7 @@ export default function StandaloneSettings({
 
               <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-5">
                 <div>
-                  <h4 className="text-base font-bold text-gray-900 dark:text-white">ElevenLabs</h4>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">{t('standalone.settings.elevenlabs_title') || 'ElevenLabs'}</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     Configuración global para toda la cuenta.
                   </p>
@@ -2069,7 +2069,7 @@ export default function StandaloneSettings({
 
               <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
                 <div>
-                  <h4 className="text-base font-bold text-gray-900 dark:text-white">Proxy personalizado</h4>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">{t('standalone.settings.proxy_title') || 'Proxy personalizado'}</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     Configuración global de proxy para toda la cuenta.
                   </p>
@@ -2272,7 +2272,7 @@ export default function StandaloneSettings({
                       <thead>
                         <tr className="text-xs font-bold text-gray-400 uppercase border-b dark:border-gray-700">
                           <th className="pb-3">{t('common.name') || 'Nombre'}</th>
-                          <th className="pb-3">URL</th>
+                          <th className="pb-3">{t('standalone.settings.url') || 'URL'}</th>
                           <th className="pb-3 text-right">{t('common.action') || 'Acción'}</th>
                         </tr>
                       </thead>
@@ -2375,7 +2375,7 @@ export default function StandaloneSettings({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">URL</label>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('standalone.settings.url') || 'URL'}</label>
                     <input
                       name="hookUrl"
                       type="url"
@@ -2399,7 +2399,7 @@ export default function StandaloneSettings({
                           className="w-5 h-5 rounded text-blue-600"
                         />
                         <div className="flex-1">
-                          <div className="text-sm font-bold dark:text-white">Inbound Message</div>
+                          <div className="text-sm font-bold dark:text-white">{t('standalone.settings.webhook_inbound') || 'Inbound Message'}</div>
                         </div>
                       </label>
                       <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer">
@@ -2411,7 +2411,7 @@ export default function StandaloneSettings({
                           className="w-5 h-5 rounded text-blue-600"
                         />
                         <div className="flex-1">
-                          <div className="text-sm font-bold dark:text-white">Outbound Message</div>
+                          <div className="text-sm font-bold dark:text-white">{t('standalone.settings.webhook_outbound') || 'Outbound Message'}</div>
                         </div>
                       </label>
                     </div>

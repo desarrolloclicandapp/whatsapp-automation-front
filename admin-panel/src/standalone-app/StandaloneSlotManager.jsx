@@ -149,7 +149,7 @@ export default function StandaloneSlotManager({
         throw new Error(body?.error || 'No se pudo guardar la configuración');
       }
     } catch (error) {
-      toast.error(error.message || 'No se pudo guardar la configuración');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_save_settings', 'No se pudo guardar la configuración'));
       await refreshAndKeepExpanded();
     }
   };
@@ -186,10 +186,10 @@ export default function StandaloneSlotManager({
       }
 
       patchLocalSlot(slotId, { priority: Number.parseInt(String(newPriority), 10) });
-      toast.success('Orden de envío actualizado');
+      toast.success(translateOr(t, 'standalone.slots.toast_priority_updated', 'Orden de envío actualizado'));
       await refreshAndKeepExpanded();
     } catch (error) {
-      toast.error(error.message || 'No se pudo actualizar el orden de envío');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_update_priority', 'No se pudo actualizar el orden de envío'));
     }
   };
 
@@ -207,7 +207,7 @@ export default function StandaloneSlotManager({
 
       setGroupsBySlot((prev) => ({ ...prev, [slotId]: Array.isArray(body) ? body : [] }));
     } catch (error) {
-      toast.error(error.message || 'No se pudieron cargar los grupos');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_load_groups', 'No se pudieron cargar los grupos'));
     } finally {
       setGroupsLoadingBySlot((prev) => ({ ...prev, [slotId]: false }));
     }
@@ -228,7 +228,11 @@ export default function StandaloneSlotManager({
     };
 
     updateSettingsBackend(slotId, nextSettings);
-    toast.success(isActive ? `Grupo "${groupName}" activado` : `Grupo "${groupName}" desactivado`);
+    toast.success(
+      isActive
+        ? translateOr(t, 'standalone.slots.toast_group_enabled', 'Grupo "{name}" activado').replace('{name}', groupName)
+        : translateOr(t, 'standalone.slots.toast_group_disabled', 'Grupo "{name}" desactivado').replace('{name}', groupName),
+    );
   };
 
   const handleSyncMembers = async (slotId, groupJid) => {
@@ -245,9 +249,9 @@ export default function StandaloneSlotManager({
         throw new Error(body?.error || 'No se pudieron sincronizar los miembros');
       }
 
-      toast.success('Miembros sincronizados');
+      toast.success(translateOr(t, 'standalone.slots.toast_members_synced', 'Miembros sincronizados'));
     } catch (error) {
-      toast.error(error.message || 'No se pudieron sincronizar los miembros');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_sync_members', 'No se pudieron sincronizar los miembros'));
     }
   };
 
@@ -328,7 +332,7 @@ export default function StandaloneSlotManager({
         },
       }));
     } catch (error) {
-      toast.error(error.message || 'No se pudo cargar la configuración oficial');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_load_official', 'No se pudo cargar la configuración oficial'));
     } finally {
       setOfficialLoadingBySlot((prev) => ({ ...prev, [slotId]: false }));
     }
@@ -361,7 +365,7 @@ export default function StandaloneSlotManager({
         },
       }));
     } catch (error) {
-      toast.error(error.message || 'No se pudo consultar el estado del WhatsApp');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_fetch_status', 'No se pudo consultar el estado del WhatsApp'));
     } finally {
       setQrLoadingBySlot((prev) => ({ ...prev, [slotId]: false }));
     }
@@ -485,7 +489,7 @@ export default function StandaloneSlotManager({
 
       return createdSlotId;
     } catch (error) {
-      toast.error(error.message || 'No se pudo crear el WhatsApp');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_create', 'No se pudo crear el WhatsApp'));
       return null;
     }
   };
@@ -508,7 +512,7 @@ export default function StandaloneSlotManager({
         setExpandedSlotId(null);
       }
     } catch (error) {
-      toast.error(error.message || 'No se pudo eliminar el WhatsApp');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_delete', 'No se pudo eliminar el WhatsApp'));
     } finally {
       updateActionLoading(slotId, false);
     }
@@ -535,7 +539,7 @@ export default function StandaloneSlotManager({
       patchLocalSlot(slotId, { slot_name: String(nextName).trim() });
       await refreshAndKeepExpanded();
     } catch (error) {
-      toast.error(error.message || 'No se pudo actualizar el nombre');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_rename', 'No se pudo actualizar el nombre'));
     } finally {
       updateActionLoading(slotId, false);
     }
@@ -544,7 +548,7 @@ export default function StandaloneSlotManager({
   const confirmCreateSlot = async () => {
     const safeName = String(createSlotName || '').trim();
     if (!safeName) {
-      toast.error('Escribe un nombre para tu WhatsApp.');
+      toast.error(translateOr(t, 'standalone.slots.error_name_required', 'Escribe un nombre para tu WhatsApp.'));
       return;
     }
     setCreateSlotLoading(true);
@@ -562,7 +566,7 @@ export default function StandaloneSlotManager({
   const confirmRenameSlot = async () => {
     const safeName = String(renameSlotName || '').trim();
     if (!renameSlotId || !safeName) {
-      toast.error('Escribe un nombre válido.');
+      toast.error(translateOr(t, 'standalone.slots.error_name_invalid', 'Escribe un nombre válido.'));
       return;
     }
     setRenameSlotLoading(true);
@@ -602,7 +606,7 @@ export default function StandaloneSlotManager({
       }));
       await refreshAndKeepExpanded();
     } catch (error) {
-      toast.error(error.message || 'No se pudo actualizar el tipo de conexion');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_update_connection_type', 'No se pudo actualizar el tipo de conexión'));
     } finally {
       updateActionLoading(slot.slot_id, false);
     }
@@ -624,7 +628,7 @@ export default function StandaloneSlotManager({
       runSlotRealtimePolling(slotId);
       toast.success(translateOr(t, 'standalone.slots.qr_started', 'Proceso QR iniciado'));
     } catch (error) {
-      toast.error(error.message || 'No se pudo iniciar la vinculacion QR');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_start_qr', 'No se pudo iniciar la vinculación QR'));
     } finally {
       updateActionLoading(slotId, false);
     }
@@ -644,7 +648,7 @@ export default function StandaloneSlotManager({
       toast.success(translateOr(t, 'standalone.slots.toast_paused', 'WhatsApp pausado'));
       await refreshAndKeepExpanded();
     } catch (error) {
-      toast.error(error.message || 'No se pudo pausar el WhatsApp');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_pause', 'No se pudo pausar el WhatsApp'));
     } finally {
       updateActionLoading(slotId, false);
     }
@@ -666,7 +670,7 @@ export default function StandaloneSlotManager({
       runSlotRealtimePolling(slotId);
       toast.success(translateOr(t, 'standalone.slots.toast_reconnected', 'WhatsApp reconectado'));
     } catch (error) {
-      toast.error(error.message || 'No se pudo reconectar el WhatsApp');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_reconnect', 'No se pudo reconectar el WhatsApp'));
     } finally {
       updateActionLoading(slotId, false);
     }
@@ -686,7 +690,7 @@ export default function StandaloneSlotManager({
       toast.success(translateOr(t, 'standalone.slots.toast_disconnected', 'WhatsApp desconectado'));
       await refreshAndKeepExpanded();
     } catch (error) {
-      toast.error(error.message || 'No se pudo desconectar el WhatsApp');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_disconnect', 'No se pudo desconectar el WhatsApp'));
     } finally {
       updateActionLoading(slotId, false);
     }
@@ -751,7 +755,7 @@ export default function StandaloneSlotManager({
       await refreshAndKeepExpanded();
       await loadOfficialConfig(slotId);
     } catch (error) {
-      toast.error(error.message || 'No se pudo guardar la configuración oficial');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_save_official', 'No se pudo guardar la configuración oficial'));
     } finally {
       updateActionLoading(slotId, false);
     }
@@ -778,7 +782,7 @@ export default function StandaloneSlotManager({
       await refreshAndKeepExpanded();
       await loadOfficialConfig(slotId);
     } catch (error) {
-      toast.error(error.message || 'No se pudo limpiar la configuración oficial');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_clear_official', 'No se pudo limpiar la configuración oficial'));
     } finally {
       updateActionLoading(slotId, false);
     }
@@ -828,7 +832,7 @@ export default function StandaloneSlotManager({
         },
       }));
     } catch (error) {
-      toast.error('Error cargando Twilio', { description: error.message });
+      toast.error(translateOr(t, 'standalone.slots.twilio.error_load', 'Error cargando Twilio'), { description: error.message });
     } finally {
       setLoadingTwilioBySlot((prev) => ({ ...prev, [slotId]: false }));
     }
@@ -873,10 +877,10 @@ export default function StandaloneSlotManager({
         const errorBody = await response.json().catch(() => ({}));
         throw new Error(errorBody.error || 'Credenciales inválidas');
       }
-      toast.success('Twilio validado correctamente');
+      toast.success(translateOr(t, 'standalone.slots.twilio.toast_validated', 'Twilio validado correctamente'));
       return true;
     } catch (error) {
-      toast.error('Validación de Twilio falló', { description: error.message });
+      toast.error(translateOr(t, 'standalone.slots.twilio.error_validate', 'Validación de Twilio falló'), { description: error.message });
       return false;
     } finally {
       toast.dismiss(loadingId);
@@ -893,7 +897,7 @@ export default function StandaloneSlotManager({
     const tokenReady = tokenInput || current.authTokenMasked || current.hasAuthToken;
 
     if (!sidReady || !tokenReady || !fromNumber) {
-      toast.error('Completa SID, Auth Token y número Twilio');
+      toast.error(translateOr(t, 'standalone.slots.twilio.error_required', 'Completa SID, Auth Token y número Twilio'));
       return;
     }
 
@@ -915,10 +919,10 @@ export default function StandaloneSlotManager({
         const errorBody = await response.json().catch(() => ({}));
         throw new Error(errorBody.error || 'No se pudo guardar');
       }
-      toast.success('Configuración de Twilio guardada');
+      toast.success(translateOr(t, 'standalone.slots.twilio.toast_saved', 'Configuración de Twilio guardada'));
       await loadTwilioConfig(slotId, true);
     } catch (error) {
-      toast.error('Error guardando Twilio', { description: error.message });
+      toast.error(translateOr(t, 'standalone.slots.twilio.error_save', 'Error guardando Twilio'), { description: error.message });
     } finally {
       setSavingTwilioBySlot((prev) => ({ ...prev, [slotId]: false }));
     }
@@ -951,9 +955,9 @@ export default function StandaloneSlotManager({
           configured: false,
         },
       }));
-      toast.success('Twilio limpiado');
+      toast.success(translateOr(t, 'standalone.slots.twilio.toast_cleared', 'Twilio limpiado'));
     } catch (error) {
-      toast.error('Error limpiando Twilio', { description: error.message });
+      toast.error(translateOr(t, 'standalone.slots.twilio.error_clear', 'Error limpiando Twilio'), { description: error.message });
     } finally {
       toast.dismiss(loadingId);
     }
@@ -1119,7 +1123,7 @@ export default function StandaloneSlotManager({
                             active={activeTab === 'groups'}
                             onClick={() => {
                               if (!slot.is_connected) {
-                                toast.warning('Conecta WhatsApp primero.');
+                                toast.warning(translateOr(t, 'standalone.slots.connect_first', 'Conecta WhatsApp primero.'));
                                 return;
                               }
                               setActiveTabBySlot((prev) => ({ ...prev, [slotId]: 'groups' }));
@@ -1222,16 +1226,16 @@ export default function StandaloneSlotManager({
             className="w-full max-w-md rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl p-6"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Nuevo WhatsApp</h3>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{translateOr(t, 'standalone.slots.modal_create_title', 'Nuevo WhatsApp')}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Escribe un nombre para identificar esta conexión.
+              {translateOr(t, 'standalone.slots.modal_create_desc', 'Escribe un nombre para identificar esta conexión.')}
             </p>
             <div className="mt-4">
               <input
                 type="text"
                 value={createSlotName}
                 onChange={(event) => setCreateSlotName(event.target.value)}
-                placeholder="Ej: Ventas principal"
+                placeholder={translateOr(t, 'standalone.slots.modal_create_placeholder', 'Ej: Ventas principal')}
                 className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -1244,7 +1248,7 @@ export default function StandaloneSlotManager({
                 }}
                 className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
               >
-                Cancelar
+                {translateOr(t, 'common.cancel', 'Cancelar')}
               </button>
               <button
                 type="button"
@@ -1253,7 +1257,7 @@ export default function StandaloneSlotManager({
                 className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition disabled:opacity-60 inline-flex items-center gap-2"
               >
                 {createSlotLoading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                Crear
+                {translateOr(t, 'common.create', 'Crear')}
               </button>
             </div>
           </div>
@@ -1269,16 +1273,16 @@ export default function StandaloneSlotManager({
             className="w-full max-w-md rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl p-6"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Editar nombre</h3>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{translateOr(t, 'standalone.slots.modal_rename_title', 'Editar nombre')}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Actualiza el nombre de este WhatsApp.
+              {translateOr(t, 'standalone.slots.modal_rename_desc', 'Actualiza el nombre de este WhatsApp.')}
             </p>
             <div className="mt-4">
               <input
                 type="text"
                 value={renameSlotName}
                 onChange={(event) => setRenameSlotName(event.target.value)}
-                placeholder="Ej: Soporte 1"
+                placeholder={translateOr(t, 'standalone.slots.modal_rename_placeholder', 'Ej: Soporte 1')}
                 className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -1288,7 +1292,7 @@ export default function StandaloneSlotManager({
                 onClick={() => setShowRenameSlotModal(false)}
                 className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
               >
-                Cancelar
+                {translateOr(t, 'common.cancel', 'Cancelar')}
               </button>
               <button
                 type="button"
@@ -1297,7 +1301,7 @@ export default function StandaloneSlotManager({
                 className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition disabled:opacity-60 inline-flex items-center gap-2"
               >
                 {renameSlotLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                Guardar
+                {translateOr(t, 'common.save', 'Guardar')}
               </button>
             </div>
           </div>
@@ -1313,9 +1317,9 @@ export default function StandaloneSlotManager({
             className="w-full max-w-md rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl p-6"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Sube de plan para conectar más WhatsApp</h3>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{translateOr(t, 'standalone.slots.upgrade_title', 'Sube de plan para conectar más WhatsApp')}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-              Llegaste al límite de conexiones de tu plan actual. Mejora tu plan para agregar más números.
+              {translateOr(t, 'standalone.slots.upgrade_desc', 'Llegaste al límite de conexiones de tu plan actual. Mejora tu plan para agregar más números.')}
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -1323,7 +1327,7 @@ export default function StandaloneSlotManager({
                 onClick={() => setShowUpgradeModal(false)}
                 className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
               >
-                Cerrar
+                {translateOr(t, 'common.close', 'Cerrar')}
               </button>
               <button
                 type="button"
@@ -1333,7 +1337,7 @@ export default function StandaloneSlotManager({
                 }}
                 className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition"
               >
-                Ver planes
+                {translateOr(t, 'standalone.slots.upgrade_cta', 'Ver planes')}
               </button>
             </div>
           </div>
@@ -1370,6 +1374,8 @@ function TabButton({ active, onClick, icon, label }) {
 }
 
 function ConnectionModeSelector({ onSelect }) {
+  const { t } = useLanguage();
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <button
@@ -1378,14 +1384,14 @@ function ConnectionModeSelector({ onSelect }) {
         className="relative rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
       >
         <span className="absolute right-3 top-3 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-2 py-1 text-[10px] font-bold">
-          Inmediata, fácil y gratis
+          {translateOr(t, 'standalone.slots.connection_mode.qr_badge', 'Inmediata, fácil y gratis')}
         </span>
         <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
           <QrCode size={20} />
         </div>
-        <h4 className="text-base font-bold text-gray-900 dark:text-white">Conexión QR</h4>
+        <h4 className="text-base font-bold text-gray-900 dark:text-white">{translateOr(t, 'standalone.slots.qr_title', 'Conexión QR')}</h4>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Escanea un QR para conectar tu número de WhatsApp en pocos pasos.
+          {translateOr(t, 'standalone.slots.connection_mode.qr_desc', 'Escanea un QR para conectar tu número de WhatsApp en pocos pasos.')}
         </p>
       </button>
 
@@ -1395,14 +1401,14 @@ function ConnectionModeSelector({ onSelect }) {
         className="relative rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
       >
         <span className="absolute right-3 top-3 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-1 text-[10px] font-bold">
-          Tiempo de aprobación, avanzado y costes de meta
+          {translateOr(t, 'standalone.slots.connection_mode.official_badge', 'Tiempo de aprobación, avanzado y costes de Meta')}
         </span>
         <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
           <Link2 size={20} />
         </div>
-        <h4 className="text-base font-bold text-gray-900 dark:text-white">API Oficial</h4>
+        <h4 className="text-base font-bold text-gray-900 dark:text-white">{translateOr(t, 'standalone.slots.connection_mode.official_title', 'API Oficial')}</h4>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Vincula este WhatsApp con Meta para operar mediante la API oficial.
+          {translateOr(t, 'standalone.slots.connection_mode.official_desc', 'Vincula este WhatsApp con Meta para operar mediante la API oficial.')}
         </p>
       </button>
     </div>
@@ -1435,6 +1441,7 @@ function GeneralPanel({
   onChangePriority,
   onToggleSetting,
 }) {
+  const { t } = useLanguage();
   const settings = slot.settings || {};
   const isGhlMode = crmType === 'ghl';
   const currentPrio = Number.parseInt(String(slot.priority || 1), 10) || 1;
@@ -1442,15 +1449,15 @@ function GeneralPanel({
   return (
     <div className="max-w-2xl space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <MetricCard label="Nombre" value={slot.slot_name || `WhatsApp ${slot.slot_id}`} />
-        <MetricCard label="Tipo de conexión" value={connectionMode === 'official_api' ? 'API Oficial' : 'QR'} />
+        <MetricCard label={translateOr(t, 'standalone.slots.general.name', 'Nombre')} value={slot.slot_name || `WhatsApp ${slot.slot_id}`} />
+        <MetricCard label={translateOr(t, 'standalone.slots.general.connection_type', 'Tipo de conexión')} value={connectionMode === 'official_api' ? translateOr(t, 'standalone.slots.connection_mode.official_title', 'API Oficial') : 'QR'} />
       </div>
 
       {isGhlMode && (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Orden de envío</h4>
+          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{translateOr(t, 'standalone.slots.general.send_order', 'Orden de envío')}</h4>
           <div className="flex items-center gap-4">
-            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Prioridad:</label>
+            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{translateOr(t, 'standalone.slots.general.priority', 'Prioridad')}:</label>
             <select
               className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none"
               value={currentPrio}
@@ -1468,29 +1475,29 @@ function GeneralPanel({
       )}
 
       <div className="bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-        <h4 className="px-3 pt-3 text-xs font-bold text-gray-400 uppercase tracking-widest">Comportamiento</h4>
+        <h4 className="px-3 pt-3 text-xs font-bold text-gray-400 uppercase tracking-widest">{translateOr(t, 'standalone.slots.general.behavior', 'Comportamiento')}</h4>
         <div className="space-y-1">
           <SettingRow
-            label="Etiqueta de origen"
-            desc="Muestra desde qué canal llegó la conversación."
+            label={translateOr(t, 'standalone.slots.general.show_source_label', 'Etiqueta de origen')}
+            desc={translateOr(t, 'standalone.slots.general.show_source_label_desc', 'Muestra desde qué canal llegó la conversación.')}
             checked={settings.show_source_label ?? true}
             onChange={() => onToggleSetting('show_source_label')}
           />
           <SettingRow
-            label="Transcribir audios"
-            desc="Convierte audios a texto para procesos automáticos."
+            label={translateOr(t, 'standalone.slots.general.transcribe_audio', 'Transcribir audios')}
+            desc={translateOr(t, 'standalone.slots.general.transcribe_audio_desc', 'Convierte audios a texto para procesos automáticos.')}
             checked={settings.transcribe_audio ?? true}
             onChange={() => onToggleSetting('transcribe_audio')}
           />
           <SettingRow
-            label="Crear contactos nuevos"
-            desc="Crea contactos automáticamente cuando el número no existe todavía."
+            label={translateOr(t, 'standalone.slots.general.create_unknown_contacts', 'Crear contactos nuevos')}
+            desc={translateOr(t, 'standalone.slots.general.create_unknown_contacts_desc', 'Crea contactos automáticamente cuando el número no existe todavía.')}
             checked={settings.create_unknown_contacts ?? true}
             onChange={() => onToggleSetting('create_unknown_contacts')}
           />
           <SettingRow
-            label="Avisar si se desconecta"
-            desc="Envía una alerta cuando este WhatsApp se desconecta."
+            label={translateOr(t, 'standalone.slots.general.send_disconnect_message', 'Avisar si se desconecta')}
+            desc={translateOr(t, 'standalone.slots.general.send_disconnect_message_desc', 'Envía una alerta cuando este WhatsApp se desconecta.')}
             checked={settings.send_disconnect_message ?? true}
             onChange={() => onToggleSetting('send_disconnect_message')}
           />
@@ -1503,7 +1510,7 @@ function GeneralPanel({
           onClick={() => onSwitchMode(connectionMode === 'official_api' ? 'qr' : 'official_api')}
           className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-300"
         >
-          Cambiar a {connectionMode === 'official_api' ? 'Conexión QR' : 'API Oficial'}
+          {translateOr(t, 'standalone.slots.general.switch_to', 'Cambiar a')} {connectionMode === 'official_api' ? translateOr(t, 'standalone.slots.qr_title', 'Conexión QR') : translateOr(t, 'standalone.slots.connection_mode.official_title', 'API Oficial')}
         </button>
       </div>
     </div>
@@ -1807,7 +1814,7 @@ function StandaloneSlotConnectionManager({
 
   const handleConnect = async () => {
     if (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system') {
-      toast.error('Este WhatsApp esta bloqueado temporalmente');
+      toast.error(translateOr(t, 'standalone.slots.error_slot_blocked', 'Este WhatsApp está bloqueado temporalmente'));
       return;
     }
 
@@ -1880,7 +1887,7 @@ function StandaloneSlotConnectionManager({
 
       pollStep();
     } catch {
-      toast.error('Error iniciando conexion');
+      toast.error(translateOr(t, 'standalone.slots.error_start_connection', 'Error iniciando conexión'));
       setLoading(false);
     }
   };
@@ -1921,21 +1928,21 @@ function StandaloneSlotConnectionManager({
       setQrUpdatedAt(null);
       stopPolling();
       await Promise.resolve(onUpdate?.());
-      toast.success('WhatsApp pausado');
+      toast.success(translateOr(t, 'standalone.slots.toast_paused', 'WhatsApp pausado'));
     } catch (error) {
-      toast.error(error.message || 'Error pausando el WhatsApp');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_pause', 'No se pudo pausar el WhatsApp'));
     }
     setLoading(false);
   };
 
   const handleReconnect = async () => {
     if (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system') {
-      toast.error('Este WhatsApp esta bloqueado temporalmente');
+      toast.error(translateOr(t, 'standalone.slots.error_slot_blocked', 'Este WhatsApp está bloqueado temporalmente'));
       return;
     }
 
     if (accountSuspensionState) {
-      toast.error('No puedes reconectar mientras tu cuenta este en gracia o suspendida');
+      toast.error(translateOr(t, 'standalone.slots.error_reconnect_account_locked', 'No puedes reconectar mientras tu cuenta esté en gracia o suspendida'));
       return;
     }
 
@@ -1959,7 +1966,7 @@ function StandaloneSlotConnectionManager({
       setQrExpired(false);
       setQr(null);
       setQrUpdatedAt(null);
-      toast.success('Reconectando...');
+      toast.success(translateOr(t, 'standalone.slots.toast_reconnecting', 'Reconectando...'));
 
       stopPolling();
 
@@ -1973,7 +1980,7 @@ function StandaloneSlotConnectionManager({
       pollInterval.current = window.setTimeout(reconnectPollStep, 4000);
       setLoading(false);
     } catch (error) {
-      toast.error(error.message || 'Error reconectando el WhatsApp');
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_reconnect', 'No se pudo reconectar el WhatsApp'));
       setLoading(false);
     }
   };
@@ -2004,9 +2011,9 @@ function StandaloneSlotConnectionManager({
       setQrUpdatedAt(null);
       stopPolling();
       await Promise.resolve(onUpdate?.());
-      toast.success('WhatsApp desconectado');
+      toast.success(translateOr(t, 'standalone.slots.toast_disconnected', 'WhatsApp desconectado'));
     } catch {
-      toast.error('Error desconectando el WhatsApp');
+      toast.error(translateOr(t, 'standalone.slots.error_disconnect', 'No se pudo desconectar el WhatsApp'));
     }
     setLoading(false);
   };
@@ -2122,7 +2129,7 @@ function StandaloneSlotConnectionManager({
 
       {slotSuspendedBy === 'agency' && (
         <div className="w-full mb-5 rounded-xl border border-blue-300 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700 p-4">
-          <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Pausado por ti</p>
+              <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">{translateOr(t, 'standalone.slots.qr_paused_title', 'WhatsApp pausado')}</p>
           <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
             {slotLockMessage || 'Puedes reconectar sin QR.'}
           </p>
@@ -2153,14 +2160,14 @@ function StandaloneSlotConnectionManager({
             disabled={loading}
             className="bg-amber-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-700 transition flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            <Power size={18} /> Pausar
+            <Power size={18} /> {translateOr(t, 'standalone.slots.pause', 'Pausar')}
           </button>
           <button
             onClick={handleDisconnect}
             disabled={loading}
             className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            <Power size={18} /> Desconectar
+            <Power size={18} /> {translateOr(t, 'standalone.slots.disconnect', 'Desconectar')}
           </button>
         </div>
       ) : slotSuspendedBy === 'agency' ? (
@@ -2170,14 +2177,14 @@ function StandaloneSlotConnectionManager({
             disabled={loading}
             className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            <Play size={18} /> Reconectar
+            <Play size={18} /> {translateOr(t, 'standalone.slots.reconnect', 'Reconectar')}
           </button>
           <button
             onClick={handleDisconnect}
             disabled={loading}
             className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            <Power size={18} /> Desconectar
+            <Power size={18} /> {translateOr(t, 'standalone.slots.disconnect', 'Desconectar')}
           </button>
         </div>
       ) : slotSuspendedBy === 'admin' || slotSuspendedBy === 'system' ? (
@@ -2194,22 +2201,22 @@ function StandaloneSlotConnectionManager({
             <div className="flex flex-col items-center gap-3">
               {!tutorialConfirmed && (
               <div className="w-full max-w-xl rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-800 p-4">
-                <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Tutorial rápido</p>
+                <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">{translateOr(t, 'standalone.slots.tutorial_title', 'Tutorial rápido')}</p>
                 <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">
-                  Ve a WhatsApp, Configuración, Dispositivos vinculados. ¿Lo lograste?
+                  {translateOr(t, 'standalone.slots.tutorial_desc', 'Ve a WhatsApp, Configuración, Dispositivos vinculados. ¿Lo lograste?')}
                 </p>
                 <button
                   type="button"
                   onClick={() => setTutorialConfirmed(true)}
                   className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition"
                 >
-                  Sí, continuar
+                  {translateOr(t, 'standalone.slots.tutorial_continue', 'Sí, continuar')}
                 </button>
               </div>
               )}
               {qrExpired && (
                 <p className="text-sm text-amber-700 dark:text-amber-300 text-center">
-                  El QR expiro. Pulsa de nuevo para generar uno nuevo.
+                  {translateOr(t, 'standalone.slots.qr_expired', 'El QR expiró. Pulsa de nuevo para generar uno nuevo.')}
                 </p>
               )}
               <div className={`flex flex-col sm:flex-row gap-3 justify-center ${tutorialConfirmed ? '' : 'hidden'}`}>
@@ -2217,7 +2224,7 @@ function StandaloneSlotConnectionManager({
                   onClick={handleConnect}
                   className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2"
                 >
-                  <QrCode size={20} /> Generar Codigo QR
+                  <QrCode size={20} /> {translateOr(t, 'standalone.slots.generate_qr', 'Generar código QR')}
                 </button>
                 <button
                   onClick={handleGenerateShareUrl}
@@ -2246,7 +2253,7 @@ function StandaloneSlotConnectionManager({
               </div>
               <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">
                 {qr
-                  ? 'Escanea con WhatsApp (Expira pronto)'
+                  ? translateOr(t, 'standalone.slots.scan_whatsapp', 'Escanea con WhatsApp')
                   : slotSuspendedBy
                     ? 'Reconectando automáticamente...'
                     : 'Consiguiendo QR seguro...'}
@@ -2260,7 +2267,7 @@ function StandaloneSlotConnectionManager({
                 }}
                 className="text-gray-400 hover:text-red-500 underline text-sm transition"
               >
-                Cancelar
+                {translateOr(t, 'common.cancel', 'Cancelar')}
               </button>
             </div>
           )}
@@ -2308,19 +2315,22 @@ function QrPanel({
   onDisconnect,
   onCopyShareUrl,
 }) {
+  const { t } = useLanguage();
   const isConnected = slot.is_connected === true || qrData.connected === true;
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-6">
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5">
-        <h4 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Estado del QR</h4>
+        <h4 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">{translateOr(t, 'standalone.slots.qr_status_title', 'Estado del QR')}</h4>
         {qrData.qr ? (
           <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white inline-flex">
             <QRCode value={qrData.qr} size={240} />
           </div>
         ) : (
           <div className="h-[272px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-            {loading ? 'Generando QR...' : 'Todavía no hay un QR activo'}
+            {loading
+              ? translateOr(t, 'standalone.slots.generating_qr', 'Generando QR...')
+              : translateOr(t, 'standalone.slots.no_active_qr', 'Todavía no hay un QR activo')}
           </div>
         )}
       </div>
@@ -2329,13 +2339,13 @@ function QrPanel({
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h4 className="text-base font-bold text-gray-900 dark:text-white">Conexión QR</h4>
+              <h4 className="text-base font-bold text-gray-900 dark:text-white">{translateOr(t, 'standalone.slots.qr_title', 'Conexión QR')}</h4>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {isConnected
-                  ? `Conectado${qrData.myNumber ? ` como +${qrData.myNumber}` : ''}`
+                  ? `${translateOr(t, 'standalone.slots.connected_as', 'Conectado')}${qrData.myNumber ? ` +${qrData.myNumber}` : ''}`
                   : qrData.waitingForQr
-                    ? 'Esperando que el QR este listo...'
-                    : 'Inicia el proceso para generar un nuevo QR'}
+                    ? translateOr(t, 'standalone.slots.waiting_qr', 'Esperando que el QR esté listo...')
+                    : translateOr(t, 'standalone.slots.start_qr_hint', 'Inicia el proceso para generar un nuevo QR')}
               </p>
             </div>
             {loading && <Loader2 size={18} className="animate-spin text-indigo-500" />}
@@ -2343,11 +2353,11 @@ function QrPanel({
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <ActionButton onClick={onStartQr} icon={<QrCode size={16} />} label="Generar QR" disabled={loading} />
-          <ActionButton onClick={onReconnect} icon={<RefreshCw size={16} />} label="Reconectar" disabled={loading} />
-          <ActionButton onClick={onSoftDisconnect} icon={<Power size={16} />} label="Pausar" disabled={loading} />
-          <ActionButton onClick={onDisconnect} icon={<Smartphone size={16} />} label="Desconectar" disabled={loading} />
-          <ActionButton onClick={onCopyShareUrl} icon={<Copy size={16} />} label="Copiar enlace" disabled={loading} />
+          <ActionButton onClick={onStartQr} icon={<QrCode size={16} />} label={translateOr(t, 'standalone.slots.generate_qr', 'Generar código QR')} disabled={loading} />
+          <ActionButton onClick={onReconnect} icon={<RefreshCw size={16} />} label={translateOr(t, 'standalone.slots.reconnect', 'Reconectar')} disabled={loading} />
+          <ActionButton onClick={onSoftDisconnect} icon={<Power size={16} />} label={translateOr(t, 'standalone.slots.pause', 'Pausar')} disabled={loading} />
+          <ActionButton onClick={onDisconnect} icon={<Smartphone size={16} />} label={translateOr(t, 'standalone.slots.disconnect', 'Desconectar')} disabled={loading} />
+          <ActionButton onClick={onCopyShareUrl} icon={<Copy size={16} />} label={translateOr(t, 'standalone.slots.copy_qr_url', 'Copiar URL QR')} disabled={loading} />
         </div>
       </div>
     </div>
@@ -2355,29 +2365,31 @@ function QrPanel({
 }
 
 function OfficialPanel({ official, loading, onFieldChange, onSave, onClear }) {
+  const { t } = useLanguage();
+
   return (
     <div className="max-w-3xl space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <InputField
-          label="Business Account ID"
+          label={translateOr(t, 'standalone.slots.official.business_account_id', 'Business Account ID')}
           value={official.businessAccountId || ''}
           onChange={(value) => onFieldChange('businessAccountId', value)}
         />
         <InputField
-          label="Phone Number ID"
+          label={translateOr(t, 'standalone.slots.official.phone_number_id', 'Phone Number ID')}
           value={official.phoneNumberId || ''}
           onChange={(value) => onFieldChange('phoneNumberId', value)}
         />
       </div>
       <InputField
-        label="Access Token"
+        label={translateOr(t, 'standalone.slots.official.access_token', 'Access Token')}
         value={official.accessToken || ''}
         onChange={(value) => onFieldChange('accessToken', value)}
         type="password"
       />
       <div className="flex flex-wrap gap-3">
-        <ActionButton onClick={onSave} icon={<Save size={16} />} label="Guardar y validar" disabled={loading} />
-        <ActionButton onClick={onClear} icon={<Trash2 size={16} />} label="Limpiar" disabled={loading} tone="secondary" />
+        <ActionButton onClick={onSave} icon={<Save size={16} />} label={translateOr(t, 'standalone.slots.official.save_validate', 'Guardar y validar')} disabled={loading} />
+        <ActionButton onClick={onClear} icon={<Trash2 size={16} />} label={translateOr(t, 'common.clear', 'Limpiar')} disabled={loading} tone="secondary" />
       </div>
     </div>
   );
