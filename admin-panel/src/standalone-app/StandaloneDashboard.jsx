@@ -82,7 +82,7 @@ export default function StandaloneDashboard({
           desc: translateOr(
             t,
             'standalone.dashboard.step4_desc',
-            'Crea tu primer agente para automatizar respuestas y mejorar tu atencion.',
+            'Crea tu primer agente para automatizar respuestas y mejorar tu atención.',
           ),
           actionLabel: canManageAgents
             ? translateOr(t, 'standalone.dashboard.step4_cta', 'Crear agente IA')
@@ -232,7 +232,7 @@ export default function StandaloneDashboard({
               <Smartphone size={20} className="text-emerald-600 dark:text-emerald-400" />
             </div>
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-              CONEXIONES WHATSAPP
+              {translateOr(t, 'standalone.dashboard.stats_connections_whatsapp', 'CONEXIONES WHATSAPP')}
             </span>
           </div>
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -282,7 +282,7 @@ export default function StandaloneDashboard({
                 accountInfo?.plan === 'active' ? 'text-blue-200' : 'text-amber-600 dark:text-amber-400'
               }`}
             >
-              Fin: {new Date(accountInfo.trial_ends).toLocaleDateString()}
+              {translateOr(t, 'standalone.dashboard.ends_on', 'Fin')}: {new Date(accountInfo.trial_ends).toLocaleDateString()}
             </div>
           )}
         </div>
