@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bot, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { useLanguage } from '../context/LanguageContext';
+import { BASE_AGENT_MODEL_OPTIONS } from './agentModelOptions';
 import { translateOr } from './i18n';
 
 const DEFAULT_FORM = {
@@ -32,6 +34,7 @@ export default function StandaloneAgentGuideModal({
   const [saving, setSaving] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [availableModels, setAvailableModels] = useState([]);
+  const [documents, setDocuments] = useState([]);
   const [form, setForm] = useState(DEFAULT_FORM);
 
   const steps = useMemo(
@@ -61,19 +64,44 @@ export default function StandaloneAgentGuideModal({
         ),
       },
       {
-        title: translateOr(t, 'standalone.agents_guide.step4_title', 'Resumen y creacion'),
+        title: translateOr(t, 'standalone.agents_guide.step4_title', 'Resumen'),
         description: translateOr(
           t,
           'standalone.agents_guide.step4_desc',
-          'Revisa los datos y crea el agente ahora.',
+          'Revisa los datos del agente antes de finalizar.',
+        ),
+      },
+      {
+        title: translateOr(t, 'standalone.agents_guide.step5_title', 'Documentos (opcional)'),
+        description: translateOr(
+          t,
+          'standalone.agents_guide.step5_desc',
+          'Si quieres, sube documentos para entrenar mejor al agente desde el inicio.',
         ),
       },
     ],
     [t],
   );
+  const fallbackBaseModelOptions = useMemo(
+    () =>
+      BASE_AGENT_MODEL_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(option.labelKey),
+      })),
+    [t],
+  );
   const baseModelOptions = useMemo(
-    () => availableModels.map((modelId) => ({ value: modelId, label: modelId })),
-    [availableModels],
+    () => {
+      const map = new Map();
+      for (const option of availableModels.map((modelId) => ({ value: modelId, label: modelId }))) {
+        map.set(option.value, option);
+      }
+      for (const option of fallbackBaseModelOptions) {
+        if (!map.has(option.value)) map.set(option.value, option);
+      }
+      return Array.from(map.values());
+    },
+    [availableModels, fallbackBaseModelOptions],
   );
   const modelOptions = useMemo(() => {
     if (!form.model || baseModelOptions.some((option) => option.value === form.model)) {
@@ -106,6 +134,7 @@ export default function StandaloneAgentGuideModal({
   const resetAll = () => {
     setStepIndex(0);
     setForm(DEFAULT_FORM);
+    setDocuments([]);
     setSaving(false);
   };
 
@@ -186,9 +215,45 @@ export default function StandaloneAgentGuideModal({
     try {
       const created = await onCreateAgent?.(form);
       if (!created) return;
+      const createdAgentId = Number.parseInt(
+        String(created?.id || created?.agent?.id || created?.agentId || ''),
+        10,
+      );
+      if (createdAgentId && documents.length > 0) {
+        const formData = new FormData();
+        documents.forEach((file) => formData.append('documents', file));
+        const uploadRes = await fetch(
+          `${API_URL}/agency/workflow-agents/${createdAgentId}/documents?locationId=${encodeURIComponent(
+            String(locationId || ''),
+          )}`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+          },
+        );
+        if (uploadRes.status === 401) {
+          onUnauthorized?.();
+          throw new Error(t('agency.session_expired'));
+        }
+        const uploadData = await uploadRes.json().catch(() => null);
+        if (!uploadRes.ok || !uploadData?.success) {
+          throw new Error(uploadData?.error || t('workflow_agents.documents_upload_error'));
+        }
+        toast.success(
+          t('workflow_agents.documents_upload_success').replace(
+            '{count}',
+            String(Array.isArray(uploadData?.uploaded) ? uploadData.uploaded.length : documents.length),
+          ),
+        );
+      }
       resetAll();
       onClose?.();
       onGoToAgents?.();
+    } catch (error) {
+      toast.error(error?.message || t('workflow_agents.save_error'));
     } finally {
       setSaving(false);
     }
@@ -392,7 +457,7 @@ export default function StandaloneAgentGuideModal({
               </div>
               <div>
                 <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                  {translateOr(t, 'standalone.agents_guide.field_guardrails', 'Limites (guardrails)')}
+                  {translateOr(t, 'standalone.agents_guide.field_guardrails', 'Información adicional')}
                 </label>
                 <textarea
                   rows={3}
@@ -430,9 +495,51 @@ export default function StandaloneAgentGuideModal({
                 value={form.objective}
               />
               <SummaryItem
-                title={translateOr(t, 'standalone.agents_guide.summary_guardrails', 'Guardrails')}
+                title={translateOr(t, 'standalone.agents_guide.summary_guardrails', 'Información adicional')}
                 value={form.guardrails}
               />
+            </div>
+          )}
+
+          {stepIndex === 4 && (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-4 py-3">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {translateOr(
+                    t,
+                    'standalone.agents_guide.documents_hint',
+                    'Este paso es opcional. Puedes crear el agente sin subir archivos.',
+                  )}
+                </p>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
+                  {translateOr(t, 'standalone.agents_guide.documents_label', 'Subir documentos')}
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  onChange={(event) => setDocuments(Array.from(event?.target?.files || []))}
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5 text-sm dark:text-white"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {translateOr(
+                    t,
+                    'standalone.agents_guide.documents_help',
+                    'Formatos recomendados: PDF, TXT, DOCX. Puedes subir varios archivos.',
+                  )}
+                </p>
+              </div>
+              {documents.length > 0 && (
+                <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-900/20 px-4 py-3">
+                  <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                    {translateOr(t, 'standalone.agents_guide.documents_selected', '{count} archivo(s) seleccionados').replace(
+                      '{count}',
+                      String(documents.length),
+                    )}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -195,10 +195,10 @@ export default function StandaloneDashboard({
         throw new Error(data?.error || translateOr(t, 'workflow_agents.save_error', 'No se pudo crear el agente'));
       }
       toast.success(translateOr(t, 'workflow_agents.saved_success', 'Agente guardado'));
-      return true;
+      return data?.agent || data || null;
     } catch (error) {
       toast.error(error?.message || translateOr(t, 'workflow_agents.save_error', 'No se pudo crear el agente'));
-      return false;
+      return null;
     }
   };
 

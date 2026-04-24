@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
+import { BASE_AGENT_MODEL_OPTIONS } from "./agentModelOptions";
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const inputClassName = "w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
@@ -574,12 +575,25 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId }) 
     const agencyHasOpenAiKey = workspace?.credentials?.has_agency_openai_key === true;
     const usingLegacySlotKeys = !locationHasOpenAiKey && slots.some((slot) => slot?.has_openai_api_key === true);
     const hasAnyOpenAiKey = locationHasOpenAiKey || agencyHasOpenAiKey || usingLegacySlotKeys;
-    const baseModelOptions = useMemo(
-        () => availableModels.map((modelId) => ({
-            value: modelId,
-            label: modelId
+    const fallbackBaseModelOptions = useMemo(
+        () => BASE_AGENT_MODEL_OPTIONS.map((option) => ({
+            value: option.value,
+            label: t(option.labelKey)
         })),
-        [availableModels]
+        [t]
+    );
+    const baseModelOptions = useMemo(
+        () => {
+            const map = new Map();
+            for (const option of availableModels.map((modelId) => ({ value: modelId, label: modelId }))) {
+                map.set(option.value, option);
+            }
+            for (const option of fallbackBaseModelOptions) {
+                if (!map.has(option.value)) map.set(option.value, option);
+            }
+            return Array.from(map.values());
+        },
+        [availableModels, fallbackBaseModelOptions]
     );
     const modelOptions = useMemo(() => {
         if (!form.model || baseModelOptions.some((option) => option.value === form.model)) {
