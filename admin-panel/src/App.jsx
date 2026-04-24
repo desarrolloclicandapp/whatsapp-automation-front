@@ -1,115 +1,332 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Toaster } from 'sonner';
 import ReactGA from 'react-ga4';
 import AdminDashboard from './admin/Dashboard';
 import AgencyDashboard from './admin/AgencyDashboard';
 import WelcomeAuth from './admin/WelcomeAuth';
+import StandaloneLogin from './standalone-app/StandaloneLogin';
+import StandaloneLayout from './standalone-app/StandaloneLayout';
 import './index.css';
 
+const STANDALONE_HOME = '/crm';
+const AGENCY_HOME = '/agency';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
+
+const safeJsonParse = (value, fallback = null) => {
+    if (!value) return fallback;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return fallback;
+    }
+};
+
+const getModeFromPath = (pathname = '/') => {
+    const normalized = String(pathname || '/').toLowerCase();
+
+    if (
+        normalized === '/crm' ||
+        normalized.startsWith('/crm/') ||
+        normalized === '/standalone' ||
+        normalized.startsWith('/standalone/')
+    ) {
+        return 'standalone';
+    }
+
+    return 'agency';
+};
+
+const normalizeInterface = (value, fallback = 'agency') => {
+    const normalized = String(value || '').trim().toLowerCase();
+
+    if (
+        normalized === 'standalone' ||
+        normalized === 'standalone_crm' ||
+        normalized === 'crm' ||
+        normalized === 'autonomo' ||
+        normalized === 'autonomous' ||
+        normalized === 'account'
+    ) {
+        return 'standalone';
+    }
+
+    if (normalized === 'agency' || normalized === 'agencia') {
+        return 'agency';
+    }
+
+    return fallback;
+};
+
+const buildAccountInfoFromStorage = () => {
+    const subscriptionStatus = safeJsonParse(localStorage.getItem('subscriptionStatus'), null);
+    const features = safeJsonParse(localStorage.getItem('agencyFeatures'), null);
+    const maxSlots = Number(localStorage.getItem('accountMaxSlots') || 3);
+    const usedSlots = Number(localStorage.getItem('accountUsedSlots') || 0);
+    const maxSubagencies = Number(localStorage.getItem('accountMaxSubagencies') || 0);
+
+    return {
+        name: localStorage.getItem('userName') || '',
+        email: localStorage.getItem('userEmail') || '',
+        crm_type: localStorage.getItem('accountCrmType') || 'chatwoot',
+        plan: localStorage.getItem('accountPlan') || (subscriptionStatus?.currentPeriodEnd ? 'active' : 'trial'),
+        trial_ends: localStorage.getItem('accountTrialEnds') || null,
+        features,
+        subscriptionStatus,
+        limits: {
+            used_slots: usedSlots,
+            max_slots: maxSlots,
+            max_subagencies: maxSubagencies,
+        },
+    };
+};
+
 function App() {
-    const [token, setToken] = useState(localStorage.getItem("authToken"));
-    const [role, setRole] = useState(localStorage.getItem("userRole"));
-    const [restoreToken, setRestoreToken] = useState(localStorage.getItem("admin_restore_token"));
+    const [currentPath, setCurrentPath] = useState(window.location.pathname);
+    const [token, setToken] = useState(localStorage.getItem('authToken'));
+    const [role, setRole] = useState(localStorage.getItem('userRole'));
+    const [restoreToken, setRestoreToken] = useState(localStorage.getItem('admin_restore_token'));
+    const [userInterface, setUserInterface] = useState(localStorage.getItem('userInterface'));
+    const [accountRefreshKey, setAccountRefreshKey] = useState(0);
+    const lastStandaloneScreenRef = useRef(null);
+
+    const currentMode = getModeFromPath(currentPath);
+    const isStandaloneMode = currentMode === 'standalone';
+    const resolvedInterface = normalizeInterface(
+        userInterface,
+        role === 'admin' ? 'agency' : currentMode,
+    );
+    const expectedMode = role === 'admin' ? 'agency' : resolvedInterface;
+    const needsRouteCorrection = Boolean(token) && expectedMode !== currentMode;
+    const accountInfo = useMemo(
+        () => buildAccountInfoFromStorage(),
+        [token, role, userInterface, accountRefreshKey],
+    );
 
     useEffect(() => {
-        ReactGA.send({ 
-            hitType: "pageview", 
-            page: window.location.pathname, 
-            title: `App Carga - Rol: ${role || 'Deslogueado'}` 
+        const handlePopState = () => setCurrentPath(window.location.pathname);
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
+    useEffect(() => {
+        ReactGA.send({
+            hitType: 'pageview',
+            page: currentPath,
+            title: `App Carga - Rol: ${role || 'Deslogueado'}`,
         });
+
         const params = new URLSearchParams(window.location.search);
-        const locId = params.get("location_id");
+        const locId = params.get('location_id');
         if (locId) {
-            sessionStorage.setItem("crm_location_id", locId);
+            sessionStorage.setItem('crm_location_id', locId);
         }
 
-        // 🔥 FIX: Ensure admins don't have sticky branding
-        if (role === 'admin' && localStorage.getItem("agencyBranding")) {
-             console.log("🧹 [App] Cleaning sticky branding for Admin...");
-             localStorage.removeItem("agencyBranding");
-             window.location.reload();
+        if (role === 'admin' && localStorage.getItem('agencyBranding')) {
+            console.log('[App] Cleaning sticky branding for Admin...');
+            localStorage.removeItem('agencyBranding');
+            window.location.reload();
         }
-    }, [role]);
+    }, [role, currentPath]);
+
+    useEffect(() => {
+        if (!isStandaloneMode) {
+            lastStandaloneScreenRef.current = null;
+            return;
+        }
+
+        const screen = token ? 'standalone_main' : 'standalone_login';
+        if (lastStandaloneScreenRef.current === screen) return;
+        lastStandaloneScreenRef.current = screen;
+
+        const virtualPage = screen === 'standalone_main' ? '/crm/main' : '/crm/login';
+        ReactGA.send({
+            hitType: 'pageview',
+            page: virtualPage,
+            title: `Standalone - ${screen}`,
+        });
+
+        if (typeof window.fbq === 'function') {
+            window.fbq('track', 'PageView');
+        }
+    }, [isStandaloneMode, token]);
+
+    useEffect(() => {
+        if (!needsRouteCorrection) return;
+
+        const targetPath = expectedMode === 'standalone' ? STANDALONE_HOME : AGENCY_HOME;
+        window.history.replaceState({}, document.title, `${targetPath}${window.location.search}`);
+        setCurrentPath(targetPath);
+    }, [expectedMode, needsRouteCorrection]);
+
+    useEffect(() => {
+        if (!token || role === 'admin') return undefined;
+
+        let isCancelled = false;
+
+        const syncOperationalInterface = async () => {
+            try {
+                const response = await fetch(`${API_URL}/agency/info`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (!response.ok) return;
+
+                const data = await response.json();
+                if (isCancelled) return;
+
+                const nextInterface = normalizeInterface(
+                    data?.interface,
+                    currentMode,
+                );
+
+                if (nextInterface !== userInterface) {
+                    localStorage.setItem('userInterface', nextInterface);
+                    setUserInterface(nextInterface);
+                }
+
+                if (data?.email) localStorage.setItem('userEmail', data.email);
+                if (data?.name) localStorage.setItem('userName', data.name);
+            } catch (error) {
+                console.warn('[App] No se pudo sincronizar la interfaz operativa:', error?.message || error);
+            }
+        };
+
+        syncOperationalInterface();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [token, role, currentMode, userInterface]);
+
+    const navigateTo = (nextPath, method = 'replace') => {
+        if (!nextPath || nextPath === currentPath) return;
+
+        const historyMethod = method === 'push' ? 'pushState' : 'replaceState';
+        window.history[historyMethod]({}, document.title, `${nextPath}${window.location.search}`);
+        setCurrentPath(nextPath);
+    };
 
     const handleLoginSuccess = (data) => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("userRole");
-        localStorage.removeItem("agencyId");
-        localStorage.removeItem("subscriptionStatus");
-        localStorage.removeItem("agencyFeatures");
-        localStorage.removeItem("admin_restore_token");
-        localStorage.removeItem("admin_restore_role");
-        localStorage.removeItem("admin_restore_agencyId");
+        const nextRole = data.role || data.user?.role || 'agency';
+        const nextAgencyId = data.agencyId || data.user?.agencyId || null;
+        const nextSubscriptionStatus = data.subscriptionStatus || data.user?.subscriptionStatus || null;
+        const nextFeatures = data.features || data.user?.features || null;
+        const nextEmail = data.email || data.user?.email || '';
+        const nextName = data.name || data.user?.name || '';
+        const nextInterface = normalizeInterface(
+            data.interface || data.user?.interface,
+            nextRole === 'admin' ? 'agency' : (isStandaloneMode ? 'standalone' : 'agency'),
+        );
 
-        localStorage.setItem("authToken", data.token);
-        localStorage.setItem("userRole", data.role);
-        if (data.agencyId) localStorage.setItem("agencyId", data.agencyId);
-        else localStorage.removeItem("agencyId");
+        localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('agencyId');
+        localStorage.removeItem('subscriptionStatus');
+        localStorage.removeItem('agencyFeatures');
+        localStorage.removeItem('admin_restore_token');
+        localStorage.removeItem('admin_restore_role');
+        localStorage.removeItem('admin_restore_agencyId');
+        localStorage.removeItem('userInterface');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userName');
 
-        // ✅ Persistir nuevos datos de suscripción y features
-        if (data.subscriptionStatus) localStorage.setItem("subscriptionStatus", JSON.stringify(data.subscriptionStatus));
-        if (data.features) localStorage.setItem("agencyFeatures", JSON.stringify(data.features));
-        
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('userRole', nextRole);
+        localStorage.setItem('userInterface', nextInterface);
+
+        if (nextAgencyId) localStorage.setItem('agencyId', nextAgencyId);
+        else localStorage.removeItem('agencyId');
+
+        if (nextEmail) localStorage.setItem('userEmail', nextEmail);
+        if (nextName) localStorage.setItem('userName', nextName);
+
+        if (nextSubscriptionStatus) {
+            localStorage.setItem('subscriptionStatus', JSON.stringify(nextSubscriptionStatus));
+        }
+        if (nextFeatures) {
+            localStorage.setItem('agencyFeatures', JSON.stringify(nextFeatures));
+        }
+
         setToken(data.token);
-        setRole(data.role);
+        setRole(nextRole);
+        setUserInterface(nextInterface);
+        setAccountRefreshKey((value) => value + 1);
+
+        if (nextRole === 'admin') {
+            navigateTo(AGENCY_HOME);
+        } else if (nextInterface === 'standalone') {
+            navigateTo(STANDALONE_HOME);
+        }
+
         ReactGA.event({
-            category: "Autenticacion",
-            action: "Login_Exitoso",
-            label: data.role // Sabrás si fue un admin o una agencia
+            category: 'Autenticacion',
+            action: 'Login_Exitoso',
+            label: nextRole,
         });
     };
 
     const logout = () => {
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("userRole");
-        localStorage.removeItem("agencyId");
-        localStorage.removeItem("subscriptionStatus");
-        localStorage.removeItem("agencyFeatures");
-        localStorage.removeItem("admin_restore_token");
-        localStorage.removeItem("admin_restore_role");
-        localStorage.removeItem("admin_restore_agencyId");
-        // 🔥 FIX: Limpiar branding pegajoso
-        localStorage.removeItem("agencyBranding");
-        
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('agencyId');
+        localStorage.removeItem('subscriptionStatus');
+        localStorage.removeItem('agencyFeatures');
+        localStorage.removeItem('admin_restore_token');
+        localStorage.removeItem('admin_restore_role');
+        localStorage.removeItem('admin_restore_agencyId');
+        localStorage.removeItem('userInterface');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userName');
+        localStorage.removeItem('agencyBranding');
+
         setToken(null);
         setRole(null);
         setRestoreToken(null);
-        window.history.pushState({}, document.title, "/");
+        setUserInterface(null);
+        navigateTo(isStandaloneMode ? STANDALONE_HOME : '/');
+
         ReactGA.event({
-            category: "Autenticacion",
-            action: "Logout_Manual"
+            category: 'Autenticacion',
+            action: 'Logout_Manual',
         });
-        window.location.reload(); // Force reload to reset favicon/title state
+
+        window.location.reload();
     };
 
     const restoreAdminSession = () => {
-        const adminToken = localStorage.getItem("admin_restore_token");
-        const adminRole = localStorage.getItem("admin_restore_role") || "admin";
-        const adminAgencyId = localStorage.getItem("admin_restore_agencyId");
+        const adminToken = localStorage.getItem('admin_restore_token');
+        const adminRole = localStorage.getItem('admin_restore_role') || 'admin';
+        const adminAgencyId = localStorage.getItem('admin_restore_agencyId');
 
         if (!adminToken) return;
 
-        localStorage.setItem("authToken", adminToken);
-        localStorage.setItem("userRole", adminRole);
-        if (adminAgencyId) localStorage.setItem("agencyId", adminAgencyId);
-        else localStorage.removeItem("agencyId");
+        localStorage.setItem('authToken', adminToken);
+        localStorage.setItem('userRole', adminRole);
+        localStorage.setItem('userInterface', 'agency');
 
-        localStorage.removeItem("admin_restore_token");
-        localStorage.removeItem("admin_restore_role");
-        localStorage.removeItem("admin_restore_agencyId");
-        // 🔥 FIX: Limpiar branding del cliente impersonado
-        localStorage.removeItem("agencyBranding");
+        if (adminAgencyId) localStorage.setItem('agencyId', adminAgencyId);
+        else localStorage.removeItem('agencyId');
+
+        localStorage.removeItem('admin_restore_token');
+        localStorage.removeItem('admin_restore_role');
+        localStorage.removeItem('admin_restore_agencyId');
+        localStorage.removeItem('agencyBranding');
 
         setToken(adminToken);
         setRole(adminRole);
         setRestoreToken(null);
-        window.history.pushState({}, document.title, "/");
+        setUserInterface('agency');
+        navigateTo(AGENCY_HOME);
+
         ReactGA.event({
-            category: "Seguridad_Admin",
-            action: "Restaurar_Sesion_Admin"
+            category: 'Seguridad_Admin',
+            action: 'Restaurar_Sesion_Admin',
         });
-        window.location.reload(); // Force reload to reset favicon/title state
+
+        window.location.reload();
     };
 
     return (
@@ -131,14 +348,14 @@ function App() {
                         success: 'group-[.toaster]:!bg-emerald-50 group-[.toaster]:!text-emerald-800 group-[.toaster]:!border-emerald-100 group-[.toaster]:dark:!bg-emerald-900/20 group-[.toaster]:dark:!text-emerald-200 group-[.toaster]:dark:!border-emerald-900/30',
                         warning: 'group-[.toaster]:!bg-amber-50 group-[.toaster]:!text-amber-800 group-[.toaster]:!border-amber-100 group-[.toaster]:dark:!bg-amber-900/20 group-[.toaster]:dark:!text-amber-200 group-[.toaster]:dark:!border-amber-900/30',
                         info: 'group-[.toaster]:!bg-blue-50 group-[.toaster]:!text-blue-800 group-[.toaster]:!border-blue-100 group-[.toaster]:dark:!bg-blue-900/20 group-[.toaster]:dark:!text-blue-200 group-[.toaster]:dark:!border-blue-900/30',
-                    }
+                    },
                 }}
             />
 
             {restoreToken && (
                 <div className="sticky top-0 z-50 bg-amber-50 border-b border-amber-200 text-amber-900">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-4">
-                        <div className="text-sm font-semibold">👻 Estás navegando como Admin (impersonación activa).</div>
+                        <div className="text-sm font-semibold">Estas navegando como Admin (impersonacion activa).</div>
                         <button
                             onClick={restoreAdminSession}
                             className="px-3 py-1.5 text-xs font-bold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition"
@@ -150,7 +367,25 @@ function App() {
             )}
 
             {!token ? (
-                <WelcomeAuth onLoginSuccess={handleLoginSuccess} />
+                isStandaloneMode ? (
+                    <StandaloneLogin onLoginSuccess={handleLoginSuccess} />
+                ) : (
+                    <WelcomeAuth onLoginSuccess={handleLoginSuccess} />
+                )
+            ) : needsRouteCorrection ? (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 text-gray-500 dark:text-gray-400">
+                    Redirigiendo...
+                </div>
+            ) : isStandaloneMode ? (
+                <StandaloneLayout
+                    token={token}
+                    accountInfo={accountInfo}
+                    onLogout={logout}
+                    onUnauthorized={logout}
+                    onDataChange={() => setAccountRefreshKey((value) => value + 1)}
+                    initialPlanType={localStorage.getItem('accountPlanType') || (accountInfo?.plan === 'trial' ? 'trial' : 'starter')}
+                    initialIsWhatsAppConnected={Boolean(accountInfo?.limits?.used_slots)}
+                />
             ) : role === 'admin' ? (
                 <AdminDashboard token={token} onLogout={logout} />
             ) : role === 'agency' ? (
