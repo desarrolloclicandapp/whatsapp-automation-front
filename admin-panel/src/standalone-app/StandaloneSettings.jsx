@@ -37,11 +37,14 @@ export default function StandaloneSettings({
   token,
   accountInfo,
   locationId,
+  capabilities,
+  onGoToBilling,
   onUnauthorized,
   onDataChange,
 }) {
   const { t, language } = useLanguage();
   const { theme, toggleTheme } = useTheme();
+  const canUseDevTools = capabilities?.can_use_dev_tools === true;
 
   const [settingsSection, setSettingsSection] = useState('general');
 
@@ -167,10 +170,12 @@ export default function StandaloneSettings({
     const loadSettingsData = async () => {
       try {
         setIsLoadingInbox(true);
-        const requests = [
-          authFetch('/agency/api-keys'),
-          authFetch('/agency/webhooks'),
-        ];
+        const requests = canUseDevTools
+          ? [
+            authFetch('/agency/api-keys'),
+            authFetch('/agency/webhooks'),
+          ]
+          : [Promise.resolve({ ok: true, json: async () => ({ keys: [] }) }), Promise.resolve({ ok: true, json: async () => ({ hooks: [] }) })];
         if (locationId) {
           requests.push(authFetch(`/agency/location-details/${encodeURIComponent(locationId)}`));
           requests.push(authFetch(`/agency/standalone/global-settings?locationId=${encodeURIComponent(locationId)}`));
@@ -232,7 +237,8 @@ export default function StandaloneSettings({
     return () => {
       isCancelled = true;
     };
-  }, [accountInfo?.email, accountInfo?.openai_key_configured, token, locationId]);
+  }, [accountInfo?.email, accountInfo?.openai_key_configured, token, locationId, canUseDevTools]);
+
 
   useEffect(() => {
     if (settingsSection !== 'integrations') return;
@@ -2126,6 +2132,24 @@ export default function StandaloneSettings({
 
           {currentSettingsSectionId === 'developer' && (
             <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-right-4">
+              {!canUseDevTools ? (
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/80 dark:border-blue-900/50 dark:bg-blue-900/20 p-5">
+                  <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                    {t('standalone.layout.upgrade_modal.title') || 'Sube de nivel'}
+                  </h4>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                    {t('standalone.settings.dev_locked') || 'Las herramientas de desarrollador están disponibles desde el plan Flow.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onGoToBilling}
+                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition"
+                  >
+                    {t('standalone.layout.upgrade_modal.cta') || 'Mejorar mi plan ahora'}
+                  </button>
+                </div>
+              ) : (
+                <>
               <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -2277,6 +2301,8 @@ export default function StandaloneSettings({
                   </div>
                 </div>
               </div>
+                </>
+              )}
             </div>
           )}
 

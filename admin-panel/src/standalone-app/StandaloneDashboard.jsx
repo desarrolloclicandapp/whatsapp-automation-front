@@ -27,6 +27,7 @@ export default function StandaloneDashboard({
   onOpenMessagingInbox,
   onGoToBilling,
   onGoToAgents,
+  capabilities,
   onRealtimeConnectionChange,
   token,
   onUnauthorized,
@@ -46,6 +47,7 @@ export default function StandaloneDashboard({
   const usedSlots = liveSlots.length || Number(accountInfo?.limits?.used_slots || 0);
   const maxSlots = Number(accountInfo?.limits?.max_slots || 1);
   const isWhatsAppConnected = connectedSlots > 0;
+  const canManageAgents = capabilities?.can_manage_agents === true;
 
   useEffect(() => {
     onRealtimeConnectionChange?.(isWhatsAppConnected);
@@ -82,12 +84,20 @@ export default function StandaloneDashboard({
             'standalone.dashboard.step4_desc',
             'Crea tu primer agente para automatizar respuestas y mejorar tu atencion.',
           ),
-          actionLabel: translateOr(t, 'standalone.dashboard.step4_cta', 'Crear agente IA'),
+          actionLabel: canManageAgents
+            ? translateOr(t, 'standalone.dashboard.step4_cta', 'Crear agente IA')
+            : translateOr(t, 'standalone.dashboard.step4_upgrade', 'Desbloquear agentes IA'),
           doneLabel: translateOr(t, 'standalone.dashboard.step4_done', 'Agente listo'),
           done: false,
           disabled: false,
           icon: <Bot size={14} />,
-          onClick: () => setShowAgentGuide(true),
+          onClick: () => {
+            if (canManageAgents) {
+              setShowAgentGuide(true);
+              return;
+            }
+            onGoToBilling?.();
+          },
         },
       ];
     }
@@ -132,7 +142,7 @@ export default function StandaloneDashboard({
         },
       },
     ];
-  }, [chatStep, connectedSlots, isWhatsAppConnected, liveSlots.length, t]);
+  }, [canManageAgents, chatStep, connectedSlots, isWhatsAppConnected, liveSlots.length, onGoToBilling, t]);
 
   const quickStartDoneCount = quickStartSteps.filter((step) => step.done).length;
   const needsQuickStartGuide = quickStartSteps.length > 0;

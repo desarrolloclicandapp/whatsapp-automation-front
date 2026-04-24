@@ -12,9 +12,12 @@ import {
   XCircle,
 } from 'lucide-react';
 import PaymentMethodForm from '../admin/PaymentMethodForm';
+import {
+  STANDALONE_PLANS_STANDARD,
+  STANDALONE_PRICE_TO_PLAN,
+} from '../admin/constants/plans';
 import { useLanguage } from '../context/LanguageContext';
 import { translateOr } from './i18n';
-import { STANDALONE_PLANS, STANDALONE_PRICE_TO_PLAN } from './constants/standalonePlans';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
 
@@ -30,7 +33,7 @@ function isActiveSubscription(subscription) {
 
 function resolvePlanByPriceId(priceId) {
   const planId = STANDALONE_PRICE_TO_PLAN[String(priceId || '').trim()];
-  return STANDALONE_PLANS.find((plan) => plan.id === planId) || null;
+  return STANDALONE_PLANS_STANDARD.find((plan) => plan.id === planId) || null;
 }
 
 export default function StandaloneSubscription({ token, accountInfo, onDataChange }) {
@@ -97,6 +100,12 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
     fetchPaymentMethods();
   }, []);
 
+  const trackInitiateCheckout = (planName = 'Plan') => {
+    if (typeof window.fbq === 'function') {
+      window.fbq('track', 'InitiateCheckout', { content_name: planName, currency: 'USD' });
+    }
+  };
+
   const handlePurchase = async ({ priceId, planName, planPrice }) => {
     if (!priceId) return;
 
@@ -118,6 +127,7 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
       });
       const payload = await response.json();
       if (payload?.url) {
+        trackInitiateCheckout(planName);
         window.location.href = payload.url;
         return;
       }
@@ -167,6 +177,7 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
         });
         const checkoutPayload = await checkoutResponse.json();
         if (checkoutPayload?.url) {
+          trackInitiateCheckout(selectedPlan?.name || 'Plan');
           window.location.href = checkoutPayload.url;
           return;
         }
@@ -399,10 +410,10 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
             </div>
           ) : (
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-              {STANDALONE_PLANS.map((plan) => {
-                const selectedPriceId = billingCycle === 'annual' ? plan.annualPriceId : plan.monthlyPriceId;
+              {STANDALONE_PLANS_STANDARD.map((plan) => {
+                const selectedPriceId = billingCycle === 'annual' ? plan.annualId : plan.id;
                 const currentPlanMatch = currentPlan?.id === plan.id;
-                const priceLabel = billingCycle === 'annual' ? `$${plan.annualPrice}` : `$${plan.monthlyPrice}`;
+                const priceLabel = billingCycle === 'annual' ? plan.annualPrice : plan.price;
 
                 const actionLabel = currentPlanMatch
                   ? translateOr(t, 'standalone.subscription.current_plan', 'Plan actual')
@@ -417,7 +428,7 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
                   } else {
                     handlePurchase({
                       priceId: selectedPriceId,
-                      planName: `Plan ${plan.name}`,
+                      planName: t(plan.nameKey),
                       planPrice: priceLabel,
                     });
                   }
@@ -435,7 +446,7 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
                         {translateOr(t, 'standalone.subscription.recommended', 'Recomendado')}
                       </span>
                     )}
-                    <h4 className="text-2xl font-bold text-gray-900 dark:text-white">{plan.name}</h4>
+                    <h4 className="text-2xl font-bold text-gray-900 dark:text-white">{t(plan.nameKey)}</h4>
                     <p className="text-3xl font-black text-gray-900 dark:text-white mt-3">
                       {priceLabel}
                       <span className="text-sm font-medium text-gray-500 dark:text-gray-400 ml-1">
@@ -443,14 +454,14 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
                       </span>
                     </p>
                     <p className="text-xs text-gray-500 mt-2">
-                      {translateOr(t, 'standalone.subscription.limit_whatsapp', 'WhatsApp incluidos')}: {plan.limits.maxSlots}
+                      {translateOr(t, 'standalone.subscription.limit_whatsapp', 'WhatsApp incluidos')}: {plan.limits.slots}
                     </p>
 
                     <ul className="space-y-2 mt-5">
-                      {plan.features.map((feature) => (
-                        <li key={feature} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
+                      {plan.featureKeys.map((featureKey) => (
+                        <li key={featureKey} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
                           <Check size={15} className="mt-0.5 text-emerald-500 shrink-0" />
-                          <span>{feature}</span>
+                          <span>{t(featureKey)}</span>
                         </li>
                       ))}
                     </ul>

@@ -14,6 +14,9 @@ async function parseJsonResponse(response) {
 }
 
 function derivePlanType(accountInfo) {
+  const tier = String(accountInfo?.plan_tier || '').trim().toLowerCase();
+  if (tier) return tier;
+
   const explicit = String(accountInfo?.plan_type || '').trim().toLowerCase();
   if (explicit) return explicit;
 
@@ -24,6 +27,49 @@ function derivePlanType(accountInfo) {
   if (maxSlots <= 1) return 'starter';
   if (maxSlots <= 5) return 'professional';
   return 'business';
+}
+
+function deriveCapabilities(accountInfo) {
+  const current = accountInfo?.capabilities;
+  if (current && typeof current === 'object') {
+    return {
+      can_use_whatsapp: current.can_use_whatsapp !== false,
+      can_use_crm: current.can_use_crm === true,
+      can_manage_agents: current.can_manage_agents === true,
+      can_use_dev_tools: current.can_use_dev_tools === true,
+      max_slots: Number(current.max_slots || accountInfo?.limits?.max_slots || 0) || 0,
+    };
+  }
+
+  const planType = derivePlanType(accountInfo);
+  const maxSlots = Number(accountInfo?.limits?.max_slots || 0);
+  if (planType === 'flow' || planType === 'elite' || maxSlots >= 3) {
+    return {
+      can_use_whatsapp: true,
+      can_use_crm: true,
+      can_manage_agents: true,
+      can_use_dev_tools: true,
+      max_slots: Math.max(maxSlots || 0, planType === 'elite' ? 10 : 3),
+    };
+  }
+
+  if (planType === 'go' || planType === 'trial' || maxSlots >= 1) {
+    return {
+      can_use_whatsapp: true,
+      can_use_crm: false,
+      can_manage_agents: false,
+      can_use_dev_tools: false,
+      max_slots: Math.max(maxSlots || 0, 1),
+    };
+  }
+
+  return {
+    can_use_whatsapp: false,
+    can_use_crm: false,
+    can_manage_agents: false,
+    can_use_dev_tools: false,
+    max_slots: 0,
+  };
 }
 
 export default function useStandaloneWorkspace({ token, onUnauthorized }) {
@@ -141,6 +187,7 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
   );
 
   const planType = useMemo(() => derivePlanType(accountInfo), [accountInfo]);
+  const capabilities = useMemo(() => deriveCapabilities(accountInfo), [accountInfo]);
 
   const primaryLocation = useMemo(
     () =>
@@ -159,6 +206,8 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
     isWhatsAppConnected,
     loading,
     planType,
+    planTier: planType,
+    capabilities,
     refreshWorkspace,
     authFetch,
   };

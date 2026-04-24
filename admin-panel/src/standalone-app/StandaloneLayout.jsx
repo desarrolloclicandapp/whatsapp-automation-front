@@ -60,7 +60,8 @@ export default function StandaloneLayout({
     ghlAccessInfo,
     isWhatsAppConnected,
     loading,
-    planType,
+    planTier,
+    capabilities,
     refreshWorkspace,
     authFetch,
   } = useStandaloneWorkspace({
@@ -68,7 +69,9 @@ export default function StandaloneLayout({
     onUnauthorized: onUnauthorized || onLogout,
   });
 
-  const showsMessagingProduct = planType === 'trial' || planType === 'starter';
+  const canUseWhatsApp = capabilities?.can_use_whatsapp !== false;
+  const canUseCrm = capabilities?.can_use_crm === true;
+  const canManageAgents = capabilities?.can_manage_agents === true;
   const effectiveIsWhatsAppConnected = liveIsWhatsAppConnected || isWhatsAppConnected;
 
   const effectiveCrmType = useMemo(
@@ -266,11 +269,15 @@ export default function StandaloneLayout({
   };
 
   const handleMessagingShortcut = () => {
+    if (!canUseWhatsApp) {
+      setShowUpgradeModal(true);
+      return;
+    }
     openInbox(null);
   };
 
   const handleCrmShortcut = () => {
-    if (showsMessagingProduct) {
+    if (!canUseCrm) {
       setShowUpgradeModal(true);
       return;
     }
@@ -321,6 +328,8 @@ export default function StandaloneLayout({
           onOpenMessagingInbox={openInbox}
           onGoToBilling={() => setActiveTab('billing')}
           onGoToAgents={() => setActiveTab('agents')}
+          capabilities={capabilities}
+          planTier={planTier}
           onRealtimeConnectionChange={setLiveIsWhatsAppConnected}
           token={token}
           onUnauthorized={onUnauthorized || onLogout}
@@ -339,6 +348,29 @@ export default function StandaloneLayout({
     }
 
     if (activeTab === 'agents') {
+      if (!canManageAgents) {
+        return (
+          <div className="rounded-3xl border border-blue-200 bg-white dark:bg-gray-900 dark:border-blue-900/50 p-8 shadow-sm">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              {translateOr(t, 'standalone.layout.upgrade_modal.title', 'Sube de nivel')}
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
+              {translateOr(
+                t,
+                'standalone.layout.restricted_agents',
+                'Los agentes IA están disponibles desde el plan Flow. Mejora tu plan para activarlos.',
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab('billing')}
+              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 transition"
+            >
+              {translateOr(t, 'standalone.layout.upgrade_modal.cta', 'Mejorar mi plan ahora')}
+            </button>
+          </div>
+        );
+      }
       return (
         <StandaloneAgents
           token={token}
@@ -354,6 +386,8 @@ export default function StandaloneLayout({
           token={token}
           accountInfo={accountInfo}
           locationId={primaryLocationId}
+          capabilities={capabilities}
+          onGoToBilling={() => setActiveTab('billing')}
           onUnauthorized={onUnauthorized || onLogout}
           onDataChange={handleWorkspaceRefresh}
         />

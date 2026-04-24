@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Toaster } from 'sonner';
 import ReactGA from 'react-ga4';
 import AdminDashboard from './admin/Dashboard';
@@ -87,6 +87,7 @@ function App() {
     const [restoreToken, setRestoreToken] = useState(localStorage.getItem('admin_restore_token'));
     const [userInterface, setUserInterface] = useState(localStorage.getItem('userInterface'));
     const [accountRefreshKey, setAccountRefreshKey] = useState(0);
+    const lastStandaloneScreenRef = useRef(null);
 
     const currentMode = getModeFromPath(currentPath);
     const isStandaloneMode = currentMode === 'standalone';
@@ -126,6 +127,29 @@ function App() {
             window.location.reload();
         }
     }, [role, currentPath]);
+
+    useEffect(() => {
+        if (!isStandaloneMode) {
+            lastStandaloneScreenRef.current = null;
+            return;
+        }
+
+        const screen = token ? 'standalone_main' : 'standalone_login';
+        if (lastStandaloneScreenRef.current === screen) return;
+        lastStandaloneScreenRef.current = screen;
+
+        const virtualPage = screen === 'standalone_main' ? '/crm/main' : '/crm/login';
+        ReactGA.send({
+            hitType: 'pageview',
+            page: virtualPage,
+            title: `Standalone - ${screen}`,
+        });
+
+        if (typeof window.fbq === 'function') {
+            window.fbq('track', 'PageView');
+            window.fbq('trackCustom', 'StandaloneView', { screen });
+        }
+    }, [isStandaloneMode, token]);
 
     useEffect(() => {
         if (!needsRouteCorrection) return;
