@@ -19,9 +19,9 @@ const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '34611770270';
 const SIGNUP_SOURCE = 'standalone_crm';
 
 export default function StandaloneLogin({ onLoginSuccess }) {
-  const { systemBranding } = useBranding();
+  const { standaloneBranding } = useBranding();
   const { t } = useLanguage();
-  const branding = systemBranding;
+  const branding = standaloneBranding;
   const supportPrefill = encodeURIComponent(t('auth.support_prefill'));
 
   const [authMode, setAuthMode] = useState('USER');
@@ -314,9 +314,11 @@ export default function StandaloneLogin({ onLoginSuccess }) {
               : branding.slogan || t('auth.default_slogan')}
           </h1>
 
-          <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white/90 backdrop-blur-sm">
-            {translateOr(t, 'standalone.login.clean_left_note', 'Acceso seguro para tu cuenta y tus WhatsApp.')}
-          </div>
+          <p className="text-lg text-white/90 max-w-lg leading-relaxed font-light">
+            {authMode === 'ADMIN'
+              ? t('auth.admin_description')
+              : (branding.description || t('auth.default_description'))}
+          </p>
         </div>
       </div>
 

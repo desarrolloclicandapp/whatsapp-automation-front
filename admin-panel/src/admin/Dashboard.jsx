@@ -16,7 +16,14 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replac
 
 export default function AdminDashboard({ token, onLogout }) {
     const { t } = useLanguage(); // Initialize hook
-    const { systemBranding, updateSystemBranding, DEFAULT_BRANDING } = useBranding();
+    const {
+        systemBranding,
+        standaloneBranding,
+        updateSystemBranding,
+        updateStandaloneBranding,
+        DEFAULT_BRANDING,
+        DEFAULT_STANDALONE_BRANDING
+    } = useBranding();
     const [view, setView] = useState('agencies'); 
     const [selectedAgency, setSelectedAgency] = useState(null);
     const [selectedLocation, setSelectedLocation] = useState(null);
@@ -586,13 +593,20 @@ const handleDeleteUser = (user, type = 'soft') => {
         return `Expira en ${hours}h ${minutes}m`;
     };
 
-    // --- SUBCOMPONENTE: MARCA GLOBAL (Código Completo) ---
-    const GlobalBrandingSettings = () => {
-        const [form, setForm] = useState(systemBranding || DEFAULT_BRANDING);
+    // --- SUBCOMPONENTE: MARCA (GLOBAL / STANDALONE) ---
+    const BrandingSettings = ({ mode = 'global' }) => {
+        const isStandaloneMode = mode === 'standalone';
+        const defaultBranding = isStandaloneMode ? DEFAULT_STANDALONE_BRANDING : DEFAULT_BRANDING;
+        const sourceBranding = isStandaloneMode ? standaloneBranding : systemBranding;
+        const [form, setForm] = useState(sourceBranding || defaultBranding);
         const [uploading, setUploading] = useState(false);
         const [galleryImages, setGalleryImages] = useState([]);
         const [loadingGallery, setLoadingGallery] = useState(false);
         const [showGallery, setShowGallery] = useState(false);
+
+        useEffect(() => {
+            setForm(sourceBranding || defaultBranding);
+        }, [sourceBranding, defaultBranding]);
 
         const fetchGallery = async () => {
             setLoadingGallery(true);
@@ -637,6 +651,11 @@ const handleDeleteUser = (user, type = 'soft') => {
         };
 
         const handleSave = () => {
+            if (isStandaloneMode) {
+                updateStandaloneBranding(form, token);
+                toast.success("Marca Standalone actualizada.");
+                return;
+            }
             updateSystemBranding(form, token);
             toast.success("Marca Global actualizada.");
         };
@@ -646,7 +665,16 @@ const handleDeleteUser = (user, type = 'soft') => {
                 <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                     <div className="flex items-center gap-3 mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
                         <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600"><Palette size={24} /></div>
-                        <div><h3 className="text-xl font-bold text-gray-900 dark:text-white">Identidad Global del Sistema</h3><p className="text-sm text-gray-500">Configura Login y Registro (Solo visible para Super Admin).</p></div>
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                                {isStandaloneMode ? 'Identidad Standalone del Sistema' : 'Identidad Global del Sistema'}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                                {isStandaloneMode
+                                    ? 'Configura Login y Registro para Standalone (Solo visible para Super Admin).'
+                                    : 'Configura Login y Registro (Solo visible para Super Admin).'}
+                            </p>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -679,7 +707,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                 <div><label className="block text-xs font-bold mb-1 text-gray-500">Primario</label><div className="flex gap-2"><input type="color" value={form.primaryColor} onChange={e => setForm({...form, primaryColor: e.target.value})} className="h-8 w-8 rounded cursor-pointer border" /><input type="text" value={form.primaryColor} readOnly className="flex-1 p-1 text-xs border rounded" /></div></div>
                                 <div><label className="block text-xs font-bold mb-1 text-gray-500">Acento</label><div className="flex gap-2"><input type="color" value={form.accentColor} onChange={e => setForm({...form, accentColor: e.target.value})} className="h-8 w-8 rounded cursor-pointer border" /><input type="text" value={form.accentColor} readOnly className="flex-1 p-1 text-xs border rounded" /></div></div>
                             </div>
-                            <div className="pt-4 flex justify-end gap-4"><button onClick={()=>setForm(DEFAULT_BRANDING)} className="text-gray-500 hover:text-gray-700 flex items-center gap-2 text-sm font-medium px-4"><RotateCcw size={16}/> Restaurar Defaults</button><button onClick={handleSave} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition"><CheckCircle2 size={18}/> Guardar Cambios</button></div>
+                            <div className="pt-4 flex justify-end gap-4"><button onClick={()=>setForm(defaultBranding)} className="text-gray-500 hover:text-gray-700 flex items-center gap-2 text-sm font-medium px-4"><RotateCcw size={16}/> Restaurar Defaults</button><button onClick={handleSave} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition"><CheckCircle2 size={18}/> Guardar Cambios</button></div>
                         </div>
                         <div className={`border-l border-gray-100 dark:border-gray-800 pl-0 lg:pl-10 transition-all duration-300 ${!showGallery ? 'hidden lg:block lg:opacity-40 lg:pointer-events-none grayscale' : ''}`}>
                             <div className="flex justify-between items-center mb-4"><h4 className="font-bold dark:text-white flex items-center gap-2"><ImageIcon size={20} className="text-indigo-500"/> Galería del Servidor</h4><button onClick={() => fetchGallery()} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500" title="Recargar Galería"><RefreshCw size={16} className={loadingGallery ? 'animate-spin' : ''}/></button></div>
@@ -707,7 +735,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                             </button>
                         )}
                         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-indigo-500/20">CA</div>
-                        <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'users' ? 'Gestión de Usuarios' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} cuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}</div>
+                        <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'standaloneBranding' ? 'Configuración Standalone' : view === 'users' ? 'Gestión de Usuarios' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} cuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}</div>
                         {masterOtp && (
                             <div className="hidden lg:flex items-center gap-2 bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1.5 rounded-lg text-xs font-bold">
                                 <span>Master OTP:</span>
@@ -721,6 +749,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                             <button onClick={() => { setView('agencies'); setSubaccounts([]); setSelectedAgency(null); }} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'agencies' || view === 'subaccounts' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Building2 size={16} /> Agencias</button>
                             <button onClick={() => setView('users')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'users' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Users size={16} /> Usuarios</button>
                             <button onClick={() => setView('branding')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'branding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Settings size={16} /> Marca Global</button>
+                            <button onClick={() => setView('standaloneBranding')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'standaloneBranding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Smartphone size={16} /> Marca Standalone</button>
                         </div>
                     </div>
                     <div className="flex items-center gap-3"><ThemeToggle /><button onClick={() => view === 'agencies' ? fetchAgencies() : (selectedAgency ? fetchSubaccounts(selectedAgency.agency_id) : null)} className="p-2.5 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-800 rounded-lg transition hover:scale-105" title="Recargar datos"><RefreshCw size={20} className={loading ? "animate-spin" : ""} /></button><div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div><button onClick={onLogout} className="p-2.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30 transition font-medium text-sm flex items-center gap-2"><LogOut size={18} /><span className="hidden sm:inline">Salir</span></button></div>
@@ -730,7 +759,8 @@ const handleDeleteUser = (user, type = 'soft') => {
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 
                 {/* VISTA: BRANDING */}
-                {view === 'branding' && <GlobalBrandingSettings />}
+                {view === 'branding' && <BrandingSettings mode="global" />}
+                {view === 'standaloneBranding' && <BrandingSettings mode="standalone" />}
 
                 {/* VISTA: USUARIOS */}
                 {view === 'users' && (

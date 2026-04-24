@@ -53,12 +53,22 @@ function deriveCapabilities(accountInfo) {
     };
   }
 
-  if (planType === 'go' || planType === 'trial' || maxSlots >= 1) {
+  if (planType === 'trial') {
     return {
       can_use_whatsapp: true,
       can_use_crm: false,
-      can_manage_agents: false,
-      can_use_dev_tools: false,
+      can_manage_agents: true,
+      can_use_dev_tools: true,
+      max_slots: Math.max(maxSlots || 0, 1),
+    };
+  }
+
+  if (planType === 'go' || maxSlots >= 1) {
+    return {
+      can_use_whatsapp: true,
+      can_use_crm: false,
+      can_manage_agents: true,
+      can_use_dev_tools: true,
       max_slots: Math.max(maxSlots || 0, 1),
     };
   }

@@ -345,7 +345,7 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
             }`}
           >
             <CreditCard size={16} className="inline mr-2" />
-            {translateOr(t, 'sub.tab.methods', 'Métodos de pago')}
+            {translateOr(t, 'standalone.subscription.tab_methods', 'Métodos de pago')}
           </button>
           <button
             type="button"
@@ -387,7 +387,7 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
                     : 'text-gray-500 dark:text-gray-300'
                 }`}
               >
-                {translateOr(t, 'sub.cycle.monthly', 'Mensual')}
+                {translateOr(t, 'standalone.subscription.cycle_monthly', 'Mensual')}
               </button>
               <button
                 type="button"
@@ -398,7 +398,7 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
                     : 'text-gray-500 dark:text-gray-300'
                 }`}
               >
-                {translateOr(t, 'sub.cycle.annual', 'Anual')}
+                {translateOr(t, 'standalone.subscription.cycle_annual', 'Anual')}
               </button>
             </div>
           </div>
@@ -450,7 +450,9 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
                     <p className="text-3xl font-black text-gray-900 dark:text-white mt-3">
                       {priceLabel}
                       <span className="text-sm font-medium text-gray-500 dark:text-gray-400 ml-1">
-                        / {billingCycle === 'annual' ? translateOr(t, 'sub.cycle.year', 'año') : translateOr(t, 'sub.cycle.month', 'mes')}
+                        / {billingCycle === 'annual'
+                          ? translateOr(t, 'standalone.subscription.per_year', 'año')
+                          : translateOr(t, 'standalone.subscription.per_month', 'mes')}
                       </span>
                     </p>
                     <p className="text-xs text-gray-500 mt-2">

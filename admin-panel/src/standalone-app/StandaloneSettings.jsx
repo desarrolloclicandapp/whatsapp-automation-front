@@ -500,14 +500,14 @@ export default function StandaloneSettings({
       if (!response.ok) {
         throw new Error(body?.error || 'No se pudo guardar la configuración general');
       }
-      toast.success('Configuración general guardada para toda la cuenta');
+      toast.success(t('standalone.settings.general_saved') || 'Configuración general guardada para toda la cuenta');
       await Promise.all([
         refreshStandaloneGlobalSettings().catch(() => null),
         refreshLocationDetails().catch(() => null),
       ]);
       onDataChange?.();
     } catch (error) {
-      toast.error(error?.message || 'No se pudo guardar la configuración general');
+      toast.error(error?.message || (t('standalone.settings.general_save_error') || 'No se pudo guardar la configuración general'));
     } finally {
       setSavingGlobalGeneral(false);
     }
@@ -547,14 +547,14 @@ export default function StandaloneSettings({
       if (!response.ok) {
         throw new Error(body?.error || 'No se pudo guardar la configuración de integraciones');
       }
-      toast.success('Integraciones globales guardadas para toda la cuenta');
+      toast.success(t('standalone.settings.integrations_saved') || 'Integraciones globales guardadas para toda la cuenta');
       await Promise.all([
         refreshStandaloneGlobalSettings().catch(() => null),
         refreshLocationDetails().catch(() => null),
       ]);
       onDataChange?.();
     } catch (error) {
-      toast.error(error?.message || 'No se pudo guardar la configuración de integraciones');
+      toast.error(error?.message || (t('standalone.settings.integrations_save_error') || 'No se pudo guardar la configuración de integraciones'));
     } finally {
       setSavingGlobalIntegrations(false);
     }
@@ -1092,13 +1092,13 @@ export default function StandaloneSettings({
               <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">{t('standalone.settings.general_whatsapp_title') || 'General por WhatsApp'}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Configura comportamiento, alertas, tags y keywords de cada WhatsApp conectado.
+                  {t('standalone.settings.general_whatsapp_desc') || 'Configura comportamiento, alertas, tags y keywords de cada WhatsApp conectado.'}
                 </p>
               </div>
 
               {locationSlots.length === 0 && (
                 <div className="bg-white dark:bg-gray-900/90 p-8 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 text-center text-sm text-gray-500 dark:text-gray-400">
-                  No hay WhatsApp disponibles para configurar en esta cuenta.
+                  {t('standalone.settings.no_whatsapp_available') || 'No hay WhatsApp disponibles para configurar en esta cuenta.'}
                 </div>
               )}
 
@@ -1666,7 +1666,7 @@ export default function StandaloneSettings({
               <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">{t('standalone.settings.general_account_title') || 'Configuración general de la cuenta'}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Estos ajustes se aplican a toda la cuenta y a todos los números conectados.
+                  {t('standalone.settings.general_account_desc') || 'Estos ajustes se aplican a toda la cuenta y a todos los números conectados.'}
                 </p>
               </div>
 
@@ -1675,11 +1675,11 @@ export default function StandaloneSettings({
                   <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/40 p-4">
                     <div className="mb-4">
                       <label className="block text-sm font-bold text-gray-900 dark:text-white">
-                        Número de alerta
+                        {t('standalone.settings.alert_phone_label') || 'Número de alerta'}
                       </label>
 
                       <p className="mt-1 max-w-sm text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                        Define el número al que se enviarán las notificaciones del sistema.
+                        {t('standalone.settings.alert_phone_desc') || 'Define el número al que se enviarán las notificaciones del sistema.'}
                       </p>
                     </div>
 
@@ -1703,11 +1703,11 @@ export default function StandaloneSettings({
                   <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/40 p-4">
                     <div className="mb-4">
                       <label className="block text-sm font-bold text-gray-900 dark:text-white">
-                        Tag automático
+                        {t('standalone.settings.auto_tag_label') || 'Tag automático'}
                       </label>
 
                       <p className="mt-1 max-w-sm text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                        Se asignará automáticamente a los nuevos contactos que ingresen por WhatsApp.
+                        {t('standalone.settings.auto_tag_desc') || 'Se asignará automáticamente a los nuevos contactos que ingresen por WhatsApp.'}
                       </p>
                     </div>
 
@@ -1737,7 +1737,7 @@ export default function StandaloneSettings({
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition disabled:opacity-60"
                   >
                     {savingGlobalGeneral ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                    Guardar configuración general
+                    {t('standalone.settings.general_save_button') || 'Guardar configuración general'}
                   </button>
                 </div>
               </div>
@@ -1746,7 +1746,7 @@ export default function StandaloneSettings({
                 <div>
                   <h4 className="text-base font-bold text-gray-900 dark:text-white">{t('standalone.settings.global_tags_title') || 'Etiquetas globales'}</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Estas reglas se aplican a todos los números de la cuenta.
+                    {t('standalone.settings.global_tags_desc') || 'Estas reglas se aplican a todos los números de la cuenta.'}
                   </p>
                 </div>
 
@@ -2123,7 +2123,7 @@ export default function StandaloneSettings({
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition disabled:opacity-60"
                   >
                     {savingGlobalIntegrations ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                    Guardar integraciones globales
+                    {t('standalone.settings.integrations_save_button') || 'Guardar integraciones globales'}
                   </button>
                 </div>
               </div>

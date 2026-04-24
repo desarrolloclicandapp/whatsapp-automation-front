@@ -2068,8 +2068,8 @@ function StandaloneSlotConnectionManager({
         : slotSuspendedBy === 'agency'
           ? 'WhatsApp pausado'
           : status.connected
-            ? 'WhatsApp conectado'
-            : 'Vincular WhatsApp';
+            ? translateOr(t, 'standalone.slots.qr_connected_title', 'WhatsApp conectado')
+            : translateOr(t, 'standalone.slots.qr_link_title', 'Vincular WhatsApp');
 
   const headerDescription =
     slotSuspendedBy === 'admin'
@@ -2077,10 +2077,10 @@ function StandaloneSlotConnectionManager({
       : slotSuspendedBy === 'system'
         ? 'Este WhatsApp esta bloqueado temporalmente por el sistema.'
         : slotSuspendedBy === 'agency'
-          ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
+          ? `${translateOr(t, 'standalone.slots.number_label', 'Número')}: +${status.myNumber || slot.phone_number || 'N/A'}`
           : status.connected
-            ? `Numero: +${status.myNumber}`
-            : 'Escanea el código QR para conectar.';
+            ? `${translateOr(t, 'standalone.slots.number_label', 'Número')}: +${status.myNumber}`
+            : translateOr(t, 'standalone.slots.qr_link_desc', 'Escanea el código QR para conectar.');
 
   return (
     <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col items-center">
