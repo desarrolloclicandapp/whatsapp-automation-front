@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Building2, ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
+import { ArrowUpRight, Building2, ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Sparkles, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -22,6 +22,87 @@ const DEFAULT_AGENT_PERMISSIONS = {
     reschedule_appointment: true,
     cancel_appointment: true
 };
+
+const WORKFLOW_AGENT_PRESET_KEYS = [
+    "sales_inbox",
+    "sales_ghl",
+    "support_inbox",
+    "appointments_ghl",
+    "reception_both"
+];
+
+const WORKFLOW_AGENT_PRESET_SETTINGS = {
+    sales_inbox: { integrationMode: "inbox", temperature: "0.5", maxOutputChars: "700" },
+    sales_ghl: { integrationMode: "ghl", temperature: "0.4", maxOutputChars: "650" },
+    support_inbox: { integrationMode: "inbox", temperature: "0.3", maxOutputChars: "750" },
+    appointments_ghl: { integrationMode: "ghl", temperature: "0.3", maxOutputChars: "650" },
+    reception_both: { integrationMode: "both", temperature: "0.4", maxOutputChars: "700" }
+};
+
+const PRESET_PERMISSION_PROFILES = {
+    inbox_basic: {
+        view_appointments: true,
+        add_tags: false,
+        remove_tags: false,
+        assign_owner: false,
+        set_fields: false,
+        create_appointment: false,
+        reschedule_appointment: false,
+        cancel_appointment: false
+    },
+    ghl_sales: {
+        view_appointments: true,
+        add_tags: true,
+        remove_tags: false,
+        assign_owner: true,
+        set_fields: true,
+        create_appointment: true,
+        reschedule_appointment: false,
+        cancel_appointment: false
+    },
+    ghl_appointments: {
+        view_appointments: true,
+        add_tags: true,
+        remove_tags: false,
+        assign_owner: false,
+        set_fields: true,
+        create_appointment: true,
+        reschedule_appointment: true,
+        cancel_appointment: true
+    },
+    both_reception: {
+        ...DEFAULT_AGENT_PERMISSIONS
+    }
+};
+
+function buildWorkflowAgentPresets(t) {
+    return WORKFLOW_AGENT_PRESET_KEYS.map((key) => ({
+        key,
+        title: t(`workflow_agents.preset_${key}_title`),
+        description: t(`workflow_agents.preset_${key}_desc`),
+        badge: t(`workflow_agents.preset_${key}_badge`),
+        integrationMode: WORKFLOW_AGENT_PRESET_SETTINGS[key]?.integrationMode || "both",
+        name: t(`workflow_agents.preset_${key}_name`),
+        temperature: WORKFLOW_AGENT_PRESET_SETTINGS[key]?.temperature || "0.4",
+        maxOutputChars: WORKFLOW_AGENT_PRESET_SETTINGS[key]?.maxOutputChars || "700",
+        businessContext: t(`workflow_agents.preset_${key}_business_context`),
+        fallbackReply: t(`workflow_agents.preset_${key}_fallback`),
+        behavior: {
+            role: t(`workflow_agents.preset_${key}_role`),
+            tone: t(`workflow_agents.preset_${key}_tone`),
+            objective: t(`workflow_agents.preset_${key}_objective`),
+            guardrails: t(`workflow_agents.preset_${key}_guardrails`)
+        },
+        permissions:
+            key === "sales_ghl"
+                ? PRESET_PERMISSION_PROFILES.ghl_sales
+                : key === "appointments_ghl"
+                    ? PRESET_PERMISSION_PROFILES.ghl_appointments
+                    : key === "reception_both"
+                        ? PRESET_PERMISSION_PROFILES.both_reception
+                        : PRESET_PERMISSION_PROFILES.inbox_basic
+    }));
+}
 
 function mergeAgentConfig(agent = {}) {
     return {
@@ -73,6 +154,24 @@ function buildDefaultIntegrations(catalog = []) {
     if (!defaults.ghl) defaults.ghl = { enabled: true, config: {} };
     if (!defaults.chatwoot) defaults.chatwoot = { enabled: false, config: {} };
     return defaults;
+}
+
+function applyPresetIntegrationMode(integrations = {}, mode = "both") {
+    const next = Object.entries(integrations || {}).reduce((acc, [key, value]) => {
+        acc[key] = {
+            ...(value || {}),
+            config: value?.config || {}
+        };
+        return acc;
+    }, {});
+
+    if (!next.ghl) next.ghl = { enabled: false, config: {} };
+    if (!next.chatwoot) next.chatwoot = { enabled: false, config: {} };
+
+    next.ghl.enabled = mode === "ghl" || mode === "both";
+    next.chatwoot.enabled = mode === "inbox" || mode === "both";
+
+    return next;
 }
 
 function buildEmptyForm(catalog = []) {
@@ -223,6 +322,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const [uploadingDocuments, setUploadingDocuments] = useState(false);
     const [availableModels, setAvailableModels] = useState([]);
     const [loadingModels, setLoadingModels] = useState(false);
+    const agentPresets = useMemo(() => buildWorkflowAgentPresets(t), [t]);
 
     useEffect(() => {
         if (!selectedLocationId && locations.length > 0) {
@@ -336,6 +436,33 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         setTestConversation([]);
         setActiveTab("general");
         setViewMode("editor");
+    };
+
+    const applyAgentPreset = (preset) => {
+        if (!preset) return;
+
+        setForm((prev) => ({
+            ...prev,
+            name: preset.name,
+            status: "active",
+            temperature: preset.temperature,
+            max_output_chars: preset.maxOutputChars,
+            system_prompt: preset.businessContext,
+            fallback_reply: preset.fallbackReply,
+            description: preset.description,
+            use_contact_context: true,
+            behavior: {
+                ...prev.behavior,
+                ...preset.behavior
+            },
+            permissions: {
+                ...prev.permissions,
+                ...preset.permissions
+            },
+            integrations: applyPresetIntegrationMode(prev.integrations, preset.integrationMode)
+        }));
+        setActiveTab("general");
+        toast.success(t("workflow_agents.preset_applied"), { description: preset.title });
     };
 
     const loadWorkspace = async (locationId) => {
@@ -916,6 +1043,37 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                     <div className="p-6">
                         {activeTab === "general" && (
                             <form onSubmit={handleSave} className="space-y-5">
+                                <EditorSection title={t("workflow_agents.presets_title")} description={t("workflow_agents.presets_desc")}>
+                                    <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                                        {agentPresets.map((preset) => (
+                                            <button
+                                                key={preset.key}
+                                                type="button"
+                                                onClick={() => applyAgentPreset(preset)}
+                                                className="group flex h-full flex-col rounded-3xl border border-gray-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-500/10 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-indigo-700"
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 transition group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-950/40 dark:text-indigo-300">
+                                                        <Sparkles size={18} />
+                                                    </div>
+                                                    <span className="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-300">
+                                                        {preset.badge}
+                                                    </span>
+                                                </div>
+                                                <div className="mt-4 font-bold text-gray-900 dark:text-white">
+                                                    {preset.title}
+                                                </div>
+                                                <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                                    {preset.description}
+                                                </p>
+                                                <div className="mt-4 text-xs font-bold text-indigo-600 dark:text-indigo-300">
+                                                    {t("workflow_agents.preset_apply")}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </EditorSection>
+
                                 <EditorSection title={t("workflow_agents.section_identity_title")} description={t("workflow_agents.section_identity_desc")}>
                                     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),220px]">
                                         <div>
@@ -998,6 +1156,19 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         <input type="checkbox" checked={form.use_contact_context} onChange={(event) => setForm((prev) => ({ ...prev, use_contact_context: event.target.checked }))} className="h-4 w-4 rounded text-indigo-600" />
                                         {t("workflow_agents.field_use_contact_context")}
                                     </label>
+                                </EditorSection>
+
+                                <EditorSection title={t("workflow_agents.section_business_title")} description={t("workflow_agents.section_business_desc")}>
+                                    <textarea
+                                        rows={9}
+                                        value={form.system_prompt}
+                                        onChange={(event) => setForm((prev) => ({ ...prev, system_prompt: event.target.value }))}
+                                        placeholder={t("workflow_agents.field_business_context_placeholder")}
+                                        className={textAreaCardClassName}
+                                    />
+                                    <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                        {t("workflow_agents.field_business_context_help")}
+                                    </div>
                                 </EditorSection>
 
                                 <EditorSection title={t("workflow_agents.section_behavior_title")} description={t("workflow_agents.section_behavior_desc")}>
