@@ -8,7 +8,9 @@ import StandaloneLogin from './standalone-app/StandaloneLogin';
 import StandaloneLayout from './standalone-app/StandaloneLayout';
 import './index.css';
 
-const STANDALONE_HOME = '/crm';
+const STANDALONE_HOME = '/';
+const STANDALONE_INTERNAL_PATHS = ['/crm', '/standalone'];
+const STANDALONE_MASK_KEY = 'standalone_url_mask';
 const AGENCY_HOME = '/agency';
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
 
@@ -21,17 +23,16 @@ const safeJsonParse = (value, fallback = null) => {
     }
 };
 
-const getModeFromPath = (pathname = '/') => {
+const isStandalonePath = (pathname = '/') => {
     const normalized = String(pathname || '/').toLowerCase();
+    return STANDALONE_INTERNAL_PATHS.some((path) => normalized === path || normalized.startsWith(`${path}/`));
+};
 
-    if (
-        normalized === '/crm' ||
-        normalized.startsWith('/crm/') ||
-        normalized === '/standalone' ||
-        normalized.startsWith('/standalone/')
-    ) {
-        return 'standalone';
-    }
+const getModeFromPath = (pathname = '/', standaloneMaskEnabled = false) => {
+    if (isStandalonePath(pathname)) return 'standalone';
+
+    const normalized = String(pathname || '/').toLowerCase();
+    if (normalized === '/' && standaloneMaskEnabled) return 'standalone';
 
     return 'agency';
 };
@@ -87,9 +88,14 @@ function App() {
     const [restoreToken, setRestoreToken] = useState(localStorage.getItem('admin_restore_token'));
     const [userInterface, setUserInterface] = useState(localStorage.getItem('userInterface'));
     const [accountRefreshKey, setAccountRefreshKey] = useState(0);
+    const [standaloneMaskEnabled, setStandaloneMaskEnabled] = useState(() => {
+        if (isStandalonePath(window.location.pathname)) return true;
+        if (sessionStorage.getItem(STANDALONE_MASK_KEY) === '1') return true;
+        return normalizeInterface(localStorage.getItem('userInterface'), 'agency') === 'standalone';
+    });
     const lastStandaloneScreenRef = useRef(null);
 
-    const currentMode = getModeFromPath(currentPath);
+    const currentMode = getModeFromPath(currentPath, standaloneMaskEnabled);
     const isStandaloneMode = currentMode === 'standalone';
     const resolvedInterface = normalizeInterface(
         userInterface,
@@ -107,6 +113,15 @@ function App() {
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
     }, []);
+
+    useEffect(() => {
+        if (!isStandalonePath(currentPath)) return;
+
+        setStandaloneMaskEnabled(true);
+        sessionStorage.setItem(STANDALONE_MASK_KEY, '1');
+        window.history.replaceState({}, document.title, `${STANDALONE_HOME}${window.location.search}`);
+        setCurrentPath(STANDALONE_HOME);
+    }, [currentPath]);
 
     useEffect(() => {
         ReactGA.send({
@@ -154,6 +169,13 @@ function App() {
         if (!needsRouteCorrection) return;
 
         const targetPath = expectedMode === 'standalone' ? STANDALONE_HOME : AGENCY_HOME;
+        if (expectedMode === 'standalone') {
+            setStandaloneMaskEnabled(true);
+            sessionStorage.setItem(STANDALONE_MASK_KEY, '1');
+        } else {
+            setStandaloneMaskEnabled(false);
+            sessionStorage.removeItem(STANDALONE_MASK_KEY);
+        }
         window.history.replaceState({}, document.title, `${targetPath}${window.location.search}`);
         setCurrentPath(targetPath);
     }, [expectedMode, needsRouteCorrection]);
@@ -256,9 +278,16 @@ function App() {
         setAccountRefreshKey((value) => value + 1);
 
         if (nextRole === 'admin') {
+            setStandaloneMaskEnabled(false);
+            sessionStorage.removeItem(STANDALONE_MASK_KEY);
             navigateTo(AGENCY_HOME);
         } else if (nextInterface === 'standalone') {
+            setStandaloneMaskEnabled(true);
+            sessionStorage.setItem(STANDALONE_MASK_KEY, '1');
             navigateTo(STANDALONE_HOME);
+        } else {
+            setStandaloneMaskEnabled(false);
+            sessionStorage.removeItem(STANDALONE_MASK_KEY);
         }
 
         ReactGA.event({
@@ -286,6 +315,13 @@ function App() {
         setRole(null);
         setRestoreToken(null);
         setUserInterface(null);
+        if (!isStandaloneMode) {
+            setStandaloneMaskEnabled(false);
+            sessionStorage.removeItem(STANDALONE_MASK_KEY);
+        } else {
+            setStandaloneMaskEnabled(true);
+            sessionStorage.setItem(STANDALONE_MASK_KEY, '1');
+        }
         navigateTo(isStandaloneMode ? STANDALONE_HOME : '/');
 
         ReactGA.event({
@@ -319,6 +355,8 @@ function App() {
         setRole(adminRole);
         setRestoreToken(null);
         setUserInterface('agency');
+        setStandaloneMaskEnabled(false);
+        sessionStorage.removeItem(STANDALONE_MASK_KEY);
         navigateTo(AGENCY_HOME);
 
         ReactGA.event({
