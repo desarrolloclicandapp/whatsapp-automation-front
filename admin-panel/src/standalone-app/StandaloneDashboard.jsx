@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
+  Bot,
   CheckCircle2,
   Loader2,
   MessageSquare,
@@ -65,7 +66,24 @@ export default function StandaloneDashboard({
 
   const quickStartSteps = useMemo(() => {
     if (isWhatsAppConnected) {
-      return [chatStep];
+      return [
+        chatStep,
+        {
+          id: 'agent',
+          title: translateOr(t, 'standalone.dashboard.step4_title', 'Crear un agente IA'),
+          desc: translateOr(
+            t,
+            'standalone.dashboard.step4_desc',
+            'Crea tu primer agente para automatizar respuestas y mejorar tu atencion.',
+          ),
+          actionLabel: translateOr(t, 'standalone.dashboard.step4_cta', 'Crear agente IA'),
+          doneLabel: translateOr(t, 'standalone.dashboard.step4_done', 'Agente listo'),
+          done: false,
+          disabled: false,
+          icon: <Bot size={14} />,
+          onClick: () => {},
+        },
+      ];
     }
 
     return [
@@ -237,7 +255,15 @@ export default function StandaloneDashboard({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div
+              className={`grid grid-cols-1 gap-6 ${
+                quickStartSteps.length >= 3
+                  ? 'md:grid-cols-3'
+                  : quickStartSteps.length === 2
+                    ? 'md:grid-cols-2'
+                    : 'md:grid-cols-1'
+              }`}
+            >
               {quickStartSteps.map((step, index) => (
                 <div
                   key={step.id}

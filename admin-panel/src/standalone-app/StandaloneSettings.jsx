@@ -1208,7 +1208,7 @@ export default function StandaloneSettings({
                         <button
                           type="submit"
                           className="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition"
-                        >
+                        > 
                           <Plus size={14} /> Guardar regla
                         </button>
                       </form>
@@ -1674,6 +1674,9 @@ export default function StandaloneSettings({
                     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
                       Número de alerta
                     </label>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      Aquí puedes definir a qué número de teléfono se enviarán las notificaciones del sistema.
+                    </p>
                     <input
                       type="text"
                       value={String(standaloneGlobal?.general?.alert_phone_number || '')}
@@ -1694,6 +1697,9 @@ export default function StandaloneSettings({
                     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
                       Tag automático
                     </label>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      Este tag se asignará automáticamente a todos los nuevos contactos que ingresen a través de WhatsApp.
+                    </p>
                     <input
                       type="text"
                       value={String(standaloneGlobal?.general?.crm_contact_tag || '')}
@@ -1727,7 +1733,7 @@ export default function StandaloneSettings({
 
               <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
                 <div>
-                  <h4 className="text-base font-bold text-gray-900 dark:text-white">Keywords globales</h4>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">Etiquetas globales</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     Estas reglas se aplican a todos los números de la cuenta.
                   </p>
