@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Bot, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { translateOr } from './i18n';
@@ -88,8 +88,6 @@ export default function StandaloneAgentGuideModal({
     ];
   }, [baseModelOptions, form.model, t]);
 
-  if (!open) return null;
-
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === steps.length - 1;
   const canContinueStep1 = String(form.name || '').trim().length >= 2;
@@ -155,7 +153,7 @@ export default function StandaloneAgentGuideModal({
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (open) {
       loadAvailableModels();
     } else {
@@ -164,6 +162,8 @@ export default function StandaloneAgentGuideModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, locationId, token]);
+
+  if (!open) return null;
 
   const handleClose = () => {
     resetAll();
