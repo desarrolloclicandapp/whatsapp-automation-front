@@ -19,9 +19,9 @@ const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '34611770270';
 const SIGNUP_SOURCE = 'standalone_crm';
 
 export default function StandaloneLogin({ onLoginSuccess }) {
-  const { systemBranding } = useBranding();
+  const { standaloneBranding } = useBranding();
   const { t } = useLanguage();
-  const branding = systemBranding;
+  const branding = standaloneBranding;
   const supportPrefill = encodeURIComponent(t('auth.support_prefill'));
 
   const [authMode, setAuthMode] = useState('USER');
