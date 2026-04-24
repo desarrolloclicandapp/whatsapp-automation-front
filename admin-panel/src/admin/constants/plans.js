@@ -141,3 +141,93 @@ export const PLAN_DETAILS = {
     'price_1SfJqb7Mhd9qo6A8zP0xydlX': { label: 'Legacy Pro' },
     'price_1SfJrZ7Mhd9qo6A8WOn6BGbJ': { label: 'Legacy Enterprise' }
 };
+
+// 4) Standalone plans (Go / Flow / Elite)
+export const STANDALONE_PLANS_STANDARD = [
+    {
+        id: 'price_1TOii0HSoN0LpQiBieTZRrUU',
+        nameKey: 'standalone.subscription.plan_go',
+        priceValue: 29,
+        price: '29$',
+        annualId: 'price_1TOii0HSoN0LpQiBz9r0nqBz',
+        annualPrice: '290$',
+        limits: { slots: 1 },
+        featureKeys: [
+            'standalone.subscription.feat.go_1',
+            'standalone.subscription.feat.go_2',
+            'standalone.subscription.feat.go_3',
+            'standalone.subscription.feat.go_4',
+            'standalone.subscription.feat.go_5',
+            'standalone.subscription.feat.go_6',
+            'standalone.subscription.feat.go_7',
+            'standalone.subscription.feat.go_8'
+        ],
+        color: 'bg-blue-600'
+    },
+    {
+        id: 'price_1TOimyHSoN0LpQiB6u9YT6lk',
+        nameKey: 'standalone.subscription.plan_flow',
+        priceValue: 97,
+        price: '97$',
+        annualId: 'price_1TOimyHSoN0LpQiB0pupYGHU',
+        annualPrice: '970$',
+        limits: { slots: 3 },
+        featureKeys: [
+            'standalone.subscription.feat.flow_1',
+            'standalone.subscription.feat.flow_2',
+            'standalone.subscription.feat.flow_3',
+            'standalone.subscription.feat.flow_4',
+            'standalone.subscription.feat.flow_5',
+            'standalone.subscription.feat.flow_6',
+            'standalone.subscription.feat.flow_7',
+            'standalone.subscription.feat.flow_8',
+            'standalone.subscription.feat.flow_9',
+            'standalone.subscription.feat.flow_10',
+            'standalone.subscription.feat.flow_11',
+            'standalone.subscription.feat.flow_12'
+        ],
+        color: 'bg-indigo-600',
+        recommended: true
+    },
+    {
+        id: 'price_1TOithHSoN0LpQiBwp9tadRl',
+        nameKey: 'standalone.subscription.plan_elite',
+        priceValue: 247,
+        price: '247$',
+        annualId: 'price_1TOithHSoN0LpQiBENAvlxHF',
+        annualPrice: '2470$',
+        limits: { slots: 10 },
+        featureKeys: [
+            'standalone.subscription.feat.elite_1',
+            'standalone.subscription.feat.elite_2',
+            'standalone.subscription.feat.elite_3',
+            'standalone.subscription.feat.elite_4',
+            'standalone.subscription.feat.elite_5',
+            'standalone.subscription.feat.elite_6',
+            'standalone.subscription.feat.elite_7',
+            'standalone.subscription.feat.elite_8',
+            'standalone.subscription.feat.elite_9',
+            'standalone.subscription.feat.elite_10',
+            'standalone.subscription.feat.elite_11'
+        ],
+        color: 'bg-purple-600'
+    }
+];
+
+export const STANDALONE_PRICE_TO_PLAN = {
+    price_1TOii0HSoN0LpQiBieTZRrUU: 'price_1TOii0HSoN0LpQiBieTZRrUU',
+    price_1TOii0HSoN0LpQiBz9r0nqBz: 'price_1TOii0HSoN0LpQiBieTZRrUU',
+    price_1TOimyHSoN0LpQiB6u9YT6lk: 'price_1TOimyHSoN0LpQiB6u9YT6lk',
+    price_1TOimyHSoN0LpQiB0pupYGHU: 'price_1TOimyHSoN0LpQiB6u9YT6lk',
+    price_1TOithHSoN0LpQiBwp9tadRl: 'price_1TOithHSoN0LpQiBwp9tadRl',
+    price_1TOithHSoN0LpQiBENAvlxHF: 'price_1TOithHSoN0LpQiBwp9tadRl'
+};
+
+export const STANDALONE_PLAN_DETAILS = {
+    price_1TOii0HSoN0LpQiBieTZRrUU: { label: 'Go' },
+    price_1TOii0HSoN0LpQiBz9r0nqBz: { label: 'Go (Anual)' },
+    price_1TOimyHSoN0LpQiB6u9YT6lk: { label: 'Flow' },
+    price_1TOimyHSoN0LpQiB0pupYGHU: { label: 'Flow (Anual)' },
+    price_1TOithHSoN0LpQiBwp9tadRl: { label: 'Elite' },
+    price_1TOithHSoN0LpQiBENAvlxHF: { label: 'Elite (Anual)' }
+};

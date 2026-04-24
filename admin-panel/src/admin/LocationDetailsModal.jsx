@@ -2815,6 +2815,40 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         </div>
     );
 
+    const renderConnectionModeSwitch = (slot, connectionMode) => (
+        <div className="flex items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800 px-6 py-4 bg-slate-50/90 dark:bg-gray-950/50">
+            <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-400 dark:text-gray-500">
+                {t('slots.connection_mode.eyebrow') || 'Conexión'}
+            </div>
+            <div className="inline-flex rounded-2xl border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <button
+                    type="button"
+                    onClick={() => selectSlotConnectionMode(slot, 'qr')}
+                    className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                        connectionMode === 'qr'
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'
+                    }`}
+                >
+                    <QrCode size={14} />
+                    {t('slots.connection_mode.qr_title') || 'QR'}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => selectSlotConnectionMode(slot, 'official_api')}
+                    className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                        connectionMode === 'official_api'
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'
+                    }`}
+                >
+                    <Link2 size={14} />
+                    {t('slots.connection_mode.official_title') || 'Meta oficial'}
+                </button>
+            </div>
+        </div>
+    );
+
     const renderOfficialWhatsappPanel = (slot) => {
         const official = officialConfigBySlot[slot.slot_id] || createEmptyOfficialWhatsappState();
         const isLoadingOfficial = !!loadingOfficialBySlot[slot.slot_id];
@@ -3840,11 +3874,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         {renderConnectionModeSelector(slot)}
                                                     </div>
                                                 ) : connectionMode === 'official_api' ? (
-                                                    <div className="p-8">
+                                                    <>
+                                                        {renderConnectionModeSwitch(slot, connectionMode)}
+                                                        <div className="p-8">
                                                         {renderOfficialWhatsappPanel(slot)}
-                                                    </div>
+                                                        </div>
+                                                    </>
                                                 ) : (
                                                     <>
+                                                {renderConnectionModeSwitch(slot, connectionMode)}
                                                 {/* TABS */}
                                                 <div className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-800 px-6 pt-3 bg-slate-50/90 dark:bg-gray-950/50">
                                                     <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} />

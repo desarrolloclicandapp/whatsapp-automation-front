@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
+import { ArrowUpRight, Building2, ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Sparkles, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -22,6 +22,87 @@ const DEFAULT_AGENT_PERMISSIONS = {
     reschedule_appointment: true,
     cancel_appointment: true
 };
+
+const WORKFLOW_AGENT_PRESET_KEYS = [
+    "sales_inbox",
+    "sales_ghl",
+    "support_inbox",
+    "appointments_ghl",
+    "reception_both"
+];
+
+const WORKFLOW_AGENT_PRESET_SETTINGS = {
+    sales_inbox: { integrationMode: "inbox", temperature: "0.5", maxOutputChars: "700" },
+    sales_ghl: { integrationMode: "ghl", temperature: "0.4", maxOutputChars: "650" },
+    support_inbox: { integrationMode: "inbox", temperature: "0.3", maxOutputChars: "750" },
+    appointments_ghl: { integrationMode: "ghl", temperature: "0.3", maxOutputChars: "650" },
+    reception_both: { integrationMode: "both", temperature: "0.4", maxOutputChars: "700" }
+};
+
+const PRESET_PERMISSION_PROFILES = {
+    inbox_basic: {
+        view_appointments: true,
+        add_tags: false,
+        remove_tags: false,
+        assign_owner: false,
+        set_fields: false,
+        create_appointment: false,
+        reschedule_appointment: false,
+        cancel_appointment: false
+    },
+    ghl_sales: {
+        view_appointments: true,
+        add_tags: true,
+        remove_tags: false,
+        assign_owner: true,
+        set_fields: true,
+        create_appointment: true,
+        reschedule_appointment: false,
+        cancel_appointment: false
+    },
+    ghl_appointments: {
+        view_appointments: true,
+        add_tags: true,
+        remove_tags: false,
+        assign_owner: false,
+        set_fields: true,
+        create_appointment: true,
+        reschedule_appointment: true,
+        cancel_appointment: true
+    },
+    both_reception: {
+        ...DEFAULT_AGENT_PERMISSIONS
+    }
+};
+
+function buildWorkflowAgentPresets(t) {
+    return WORKFLOW_AGENT_PRESET_KEYS.map((key) => ({
+        key,
+        title: t(`workflow_agents.preset_${key}_title`),
+        description: t(`workflow_agents.preset_${key}_desc`),
+        badge: t(`workflow_agents.preset_${key}_badge`),
+        integrationMode: WORKFLOW_AGENT_PRESET_SETTINGS[key]?.integrationMode || "both",
+        name: t(`workflow_agents.preset_${key}_name`),
+        temperature: WORKFLOW_AGENT_PRESET_SETTINGS[key]?.temperature || "0.4",
+        maxOutputChars: WORKFLOW_AGENT_PRESET_SETTINGS[key]?.maxOutputChars || "700",
+        businessContext: t(`workflow_agents.preset_${key}_business_context`),
+        fallbackReply: t(`workflow_agents.preset_${key}_fallback`),
+        behavior: {
+            role: t(`workflow_agents.preset_${key}_role`),
+            tone: t(`workflow_agents.preset_${key}_tone`),
+            objective: t(`workflow_agents.preset_${key}_objective`),
+            guardrails: t(`workflow_agents.preset_${key}_guardrails`)
+        },
+        permissions:
+            key === "sales_ghl"
+                ? PRESET_PERMISSION_PROFILES.ghl_sales
+                : key === "appointments_ghl"
+                    ? PRESET_PERMISSION_PROFILES.ghl_appointments
+                    : key === "reception_both"
+                        ? PRESET_PERMISSION_PROFILES.both_reception
+                        : PRESET_PERMISSION_PROFILES.inbox_basic
+    }));
+}
 
 function mergeAgentConfig(agent = {}) {
     return {
@@ -73,6 +154,73 @@ function buildDefaultIntegrations(catalog = []) {
     if (!defaults.ghl) defaults.ghl = { enabled: true, config: {} };
     if (!defaults.chatwoot) defaults.chatwoot = { enabled: false, config: {} };
     return defaults;
+}
+
+function applyPresetIntegrationMode(integrations = {}, mode = "both") {
+    const next = Object.entries(integrations || {}).reduce((acc, [key, value]) => {
+        acc[key] = {
+            ...(value || {}),
+            config: value?.config || {}
+        };
+        return acc;
+    }, {});
+
+    if (!next.ghl) next.ghl = { enabled: false, config: {} };
+    if (!next.chatwoot) next.chatwoot = { enabled: false, config: {} };
+
+    next.ghl.enabled = mode === "ghl" || mode === "both";
+    next.chatwoot.enabled = mode === "inbox" || mode === "both";
+
+    return next;
+}
+
+function buildPresetForm(baseForm, preset) {
+    return {
+        ...baseForm,
+        name: preset.name,
+        status: "active",
+        temperature: preset.temperature,
+        max_output_chars: preset.maxOutputChars,
+        system_prompt: preset.businessContext,
+        fallback_reply: preset.fallbackReply,
+        description: preset.description,
+        use_contact_context: true,
+        behavior: {
+            ...baseForm.behavior,
+            ...preset.behavior
+        },
+        permissions: {
+            ...baseForm.permissions,
+            ...preset.permissions
+        },
+        integrations: applyPresetIntegrationMode(baseForm.integrations, preset.integrationMode)
+    };
+}
+
+function getWorkspacePresetMode(workspace = {}, catalog = []) {
+    const location = workspace?.location || {};
+    const crmType = String(location?.crm_type || location?.settings?.crm_type || "").toLowerCase();
+    const ghlIntegration = catalog.find((item) => item?.key === "ghl") || {};
+    const inboxIntegration = catalog.find((item) => item?.key === "chatwoot") || {};
+    const hasGhl = crmType === "ghl" || ghlIntegration.connected === true || ghlIntegration.status === "ready";
+    const hasInbox = crmType === "chatwoot" || inboxIntegration.connected === true || inboxIntegration.status === "connected";
+
+    if (hasGhl && !hasInbox) return "ghl";
+    if (hasInbox && !hasGhl) return "inbox";
+    return "both";
+}
+
+function presetMatchesWorkspace(preset, workspaceMode) {
+    if (!preset) return false;
+    if (workspaceMode === "ghl") return preset.integrationMode === "ghl" || preset.integrationMode === "both";
+    if (workspaceMode === "inbox") return preset.integrationMode === "inbox" || preset.integrationMode === "both";
+    return true;
+}
+
+function resolvePresetIntegrationMode(preset, workspaceMode) {
+    if (preset?.integrationMode !== "both") return preset?.integrationMode || "both";
+    if (workspaceMode === "ghl" || workspaceMode === "inbox") return workspaceMode;
+    return "both";
 }
 
 function buildEmptyForm(catalog = []) {
@@ -202,13 +350,15 @@ function EditorSection({ title, description, children, className = "" }) {
     );
 }
 
-export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, token }) {
+export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, token, onOpenIntegrations }) {
     const languageContext = useLanguage();
     const t = typeof languageContext?.t === "function" ? languageContext.t : ((key) => key);
     const documentInputRef = useRef(null);
     const [selectedLocationId, setSelectedLocationId] = useState("");
     const [workspace, setWorkspace] = useState(null);
     const [viewMode, setViewMode] = useState("list");
+    const [createDialogMode, setCreateDialogMode] = useState(null);
+    const [agentDraftMode, setAgentDraftMode] = useState(null);
     const [editingAgentId, setEditingAgentId] = useState(null);
     const [activeTab, setActiveTab] = useState("general");
     const [form, setForm] = useState(buildEmptyForm());
@@ -223,6 +373,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const [uploadingDocuments, setUploadingDocuments] = useState(false);
     const [availableModels, setAvailableModels] = useState([]);
     const [loadingModels, setLoadingModels] = useState(false);
+    const agentPresets = useMemo(() => buildWorkflowAgentPresets(t), [t]);
 
     useEffect(() => {
         if (!selectedLocationId && locations.length > 0) {
@@ -320,6 +471,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         const catalog = Array.isArray(workspaceSnapshot?.integration_catalog) ? workspaceSnapshot.integration_catalog : [];
         if (!agent) {
             setEditingAgentId(null);
+            setAgentDraftMode(options.openEditor === true ? "blank" : null);
             setForm(buildEmptyForm(catalog));
             setTestMessage("");
             setTestResult(null);
@@ -330,12 +482,45 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         }
 
         setEditingAgentId(agent.id);
+        setAgentDraftMode(null);
         setForm(buildFormFromAgent(agent, catalog));
         setTestMessage("");
         setTestResult(null);
         setTestConversation([]);
         setActiveTab("general");
         setViewMode("editor");
+    };
+
+    const openAgentCreationDialog = () => {
+        setCreateDialogMode("choice");
+    };
+
+    const closeAgentCreationDialog = () => {
+        setCreateDialogMode(null);
+    };
+
+    const startBlankAgent = () => {
+        closeAgentCreationDialog();
+        applyAgentToForm(null, workspace, { openEditor: true });
+    };
+
+    const startPresetAgent = (preset) => {
+        if (!preset) return;
+        const currentCatalog = Array.isArray(workspace?.integration_catalog) ? workspace.integration_catalog : [];
+        const currentWorkspaceMode = getWorkspacePresetMode(workspace, currentCatalog);
+        const resolvedPreset = {
+            ...preset,
+            integrationMode: resolvePresetIntegrationMode(preset, currentWorkspaceMode)
+        };
+        setEditingAgentId(null);
+        setAgentDraftMode("preset");
+        setForm(buildPresetForm(buildEmptyForm(currentCatalog), resolvedPreset));
+        setTestMessage("");
+        setTestResult(null);
+        setTestConversation([]);
+        setActiveTab("general");
+        setViewMode("editor");
+        closeAgentCreationDialog();
     };
 
     const loadWorkspace = async (locationId) => {
@@ -368,6 +553,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             setTestResult(null);
             setTestConversation([]);
             setActiveTab("general");
+            setCreateDialogMode(null);
+            setAgentDraftMode(null);
             loadWorkspace(selectedLocationId);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -599,6 +786,12 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     }, [baseModelOptions, form.model, t]);
     const selectedAgent = agents.find((agent) => agent.id === editingAgentId) || null;
     const selectedDocuments = Array.isArray(selectedAgent?.documents) ? selectedAgent.documents : [];
+    const workspacePresetMode = getWorkspacePresetMode(workspace, catalog);
+    const filteredAgentPresets = useMemo(
+        () => agentPresets.filter((preset) => presetMatchesWorkspace(preset, workspacePresetMode)),
+        [agentPresets, workspacePresetMode]
+    );
+    const isPresetDraft = !editingAgentId && agentDraftMode === "preset";
 
     const buildMissingCredentialMessage = () => {
         if (locationHasOpenAiKey) {
@@ -619,8 +812,6 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         return agents.filter((agent) => {
             const haystack = [
                 agent?.name,
-                agent?.agent_key,
-                agent?.description,
                 agent?.model,
                 ...(Array.isArray(agent?.enabled_integrations) ? agent.enabled_integrations : [])
             ]
@@ -640,7 +831,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                 </div>
                 <button
                     type="button"
-                    onClick={() => applyAgentToForm(null, workspace, { openEditor: true })}
+                    onClick={openAgentCreationDialog}
                     className="rounded-2xl bg-indigo-600 px-3.5 py-2 text-sm font-bold text-white transition hover:bg-indigo-500"
                 >
                     {t("workflow_agents.new_agent")}
@@ -664,7 +855,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                         {agents.length === 0 ? (
                             <button
                                 type="button"
-                                onClick={() => applyAgentToForm(null, workspace, { openEditor: true })}
+                                onClick={openAgentCreationDialog}
                                 className="mt-4 inline-flex items-center rounded-2xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-500"
                             >
                                 {t("workflow_agents.new_agent")}
@@ -687,24 +878,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                                 <div className="truncate font-bold text-gray-900 dark:text-white">{agent.name}</div>
-                                <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{agent.agent_key}</div>
-                                {agent.description ? (
-                                    <p
-                                        className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400"
-                                        style={{
-                                            display: "-webkit-box",
-                                            WebkitLineClamp: 2,
-                                            WebkitBoxOrient: "vertical",
-                                            overflow: "hidden"
-                                        }}
-                                    >
-                                        {agent.description}
-                                    </p>
-                                ) : (
-                                    <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                                        {t("workflow_agents.no_description")}
-                                    </p>
-                                )}
+                                <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{agent.model || "OpenAI"}</div>
                             </div>
                             <StatusPill
                                 label={t(`workflow_agents.status_${agent.status}`)}
@@ -744,7 +918,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                 <div className="flex flex-wrap items-center justify-end gap-2">
                     <button
                         type="button"
-                        disabled={!editingAgentId || testing}
+                        disabled={!editingAgentId || !hasAnyOpenAiKey || testing}
                         onClick={handleRunTest}
                         className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
                     >
@@ -827,16 +1001,161 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         </section>
     );
 
+    const renderOpenAiKeyFooterCta = () => {
+        if (hasAnyOpenAiKey || typeof onOpenIntegrations !== "function") return null;
+
+        return (
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-sm dark:border-indigo-900/60 dark:bg-indigo-950/20">
+                <div className="min-w-0 flex-1">
+                    <div className="font-bold text-indigo-950 dark:text-indigo-100">
+                        {t("workflow_agents.models_require_key_cta_title")}
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-indigo-800/80 dark:text-indigo-200/80">
+                        {t("workflow_agents.models_require_key_cta_desc")}
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onClick={onOpenIntegrations}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-indigo-500"
+                >
+                    {t("workflow_agents.models_require_key_cta_button")}
+                    <ArrowUpRight size={13} />
+                </button>
+            </div>
+        );
+    };
+
+    const renderAgentCreationDialog = () => {
+        if (!createDialogMode) return null;
+
+        const isPresetMode = createDialogMode === "presets";
+
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/70 px-4 py-6 backdrop-blur-sm">
+                <div className="w-full max-w-4xl overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-950">
+                    <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+                        <div className="min-w-0">
+                            <div className="text-xs font-bold uppercase tracking-[0.24em] text-indigo-500">
+                                {t("workflow_agents.create_modal_kicker")}
+                            </div>
+                            <h4 className="mt-2 text-xl font-extrabold text-gray-900 dark:text-white">
+                                {isPresetMode ? t("workflow_agents.preset_modal_title") : t("workflow_agents.create_modal_title")}
+                            </h4>
+                            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                {isPresetMode ? t("workflow_agents.preset_modal_desc") : t("workflow_agents.create_modal_desc")}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={closeAgentCreationDialog}
+                            className="rounded-2xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
+                        >
+                            {t("workflow_agents.create_modal_close")}
+                        </button>
+                    </div>
+
+                    {isPresetMode ? (
+                        <div className="p-5">
+                            <button
+                                type="button"
+                                onClick={() => setCreateDialogMode("choice")}
+                                className="mb-4 inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-3.5 py-2 text-sm font-bold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+                            >
+                                <ChevronLeft size={16} />
+                                {t("workflow_agents.preset_modal_back")}
+                            </button>
+
+                            {filteredAgentPresets.length > 0 ? (
+                                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                    {filteredAgentPresets.map((preset) => (
+                                        <button
+                                            key={preset.key}
+                                            type="button"
+                                            onClick={() => startPresetAgent(preset)}
+                                            className="group flex min-h-[210px] flex-col rounded-[26px] border border-gray-200 bg-gray-50/80 p-5 text-left transition hover:-translate-y-0.5 hover:border-indigo-400 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/10 dark:border-gray-800 dark:bg-gray-900/70 dark:hover:border-indigo-700 dark:hover:bg-gray-900"
+                                        >
+                                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 transition group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-950/50 dark:text-indigo-300">
+                                                <Sparkles size={20} />
+                                            </div>
+                                            <div className="mt-5 text-lg font-extrabold text-gray-900 dark:text-white">
+                                                {preset.title}
+                                            </div>
+                                            <p className="mt-2 flex-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                                {preset.description}
+                                            </p>
+                                            <div className="mt-5 text-sm font-bold text-indigo-600 dark:text-indigo-300">
+                                                {t("workflow_agents.preset_select")}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="rounded-3xl border border-dashed border-gray-300 px-5 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                                    {t("workflow_agents.preset_modal_empty")}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="grid gap-4 p-5 md:grid-cols-2">
+                            <button
+                                type="button"
+                                onClick={startBlankAgent}
+                                className="group rounded-[28px] border border-gray-200 bg-gray-50/80 p-6 text-left transition hover:-translate-y-0.5 hover:border-indigo-400 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/10 dark:border-gray-800 dark:bg-gray-900/70 dark:hover:border-indigo-700 dark:hover:bg-gray-900"
+                            >
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-gray-600 transition group-hover:bg-indigo-600 group-hover:text-white dark:bg-gray-800 dark:text-gray-300">
+                                    <FileText size={20} />
+                                </div>
+                                <h5 className="mt-5 text-lg font-extrabold text-gray-900 dark:text-white">
+                                    {t("workflow_agents.create_blank_title")}
+                                </h5>
+                                <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                    {t("workflow_agents.create_blank_desc")}
+                                </p>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setCreateDialogMode("presets")}
+                                className="group rounded-[28px] border border-indigo-200 bg-indigo-50/70 p-6 text-left transition hover:-translate-y-0.5 hover:border-indigo-400 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/15 dark:border-indigo-900/60 dark:bg-indigo-950/20 dark:hover:border-indigo-700 dark:hover:bg-gray-900"
+                            >
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white">
+                                    <Sparkles size={20} />
+                                </div>
+                                <h5 className="mt-5 text-lg font-extrabold text-gray-900 dark:text-white">
+                                    {t("workflow_agents.create_preset_title")}
+                                </h5>
+                                <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                    {t("workflow_agents.create_preset_desc")}
+                                </p>
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     if (!locations.length) {
         return (
             <div className="max-w-5xl mx-auto rounded-3xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                {t("workflow_agents.empty_locations")}
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/25 dark:text-indigo-300">
+                    <Building2 size={24} />
+                </div>
+                <h3 className="mt-5 text-xl font-extrabold text-gray-900 dark:text-white">
+                    {t("workflow_agents.empty_locations_title")}
+                </h3>
+                <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-500 dark:text-gray-400">
+                    {t("workflow_agents.empty_locations_desc")}
+                </p>
             </div>
         );
     }
 
     return (
         <div className="max-w-7xl mx-auto space-y-6">
+            {renderAgentCreationDialog()}
+
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-3xl">
                     <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">{t("workflow_agents.title")}</h3>
@@ -917,18 +1236,22 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                         </div>
                     </div>
 
+                    {!isPresetDraft ? (
                     <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
                         <div className="inline-flex rounded-2xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800/60">
                             <TabButton active={activeTab === "general"} label={t("workflow_agents.tab_general")} onClick={() => setActiveTab("general")} />
                             <TabButton active={activeTab === "documents"} label={t("workflow_agents.tab_documents")} onClick={() => setActiveTab("documents")} />
                         </div>
                     </div>
+                    ) : null}
 
                     <div className="p-6">
                         {activeTab === "general" && (
                             <form onSubmit={handleSave} className="space-y-5">
+                                {!isPresetDraft ? (
+                                    <>
                                 <EditorSection title={t("workflow_agents.section_identity_title")} description={t("workflow_agents.section_identity_desc")}>
-                                    <div className="grid gap-4 lg:grid-cols-[1.15fr,1fr,220px]">
+                                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),220px]">
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_name")}</label>
                                             <input
@@ -941,20 +1264,6 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                             />
                                         </div>
                                         <div>
-                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_key")}</label>
-                                            <input
-                                                name="workflow-agent-internal-key"
-                                                autoComplete="off"
-                                                data-form-type="other"
-                                                data-lpignore="true"
-                                                value={form.agent_key}
-                                                onChange={(event) => setForm((prev) => ({ ...prev, agent_key: event.target.value }))}
-                                                placeholder={t("workflow_agents.field_key_placeholder")}
-                                                className={inputClassName}
-                                            />
-                                            <div className="mt-2 max-w-xl text-xs leading-5 text-gray-500 dark:text-gray-400">{t("workflow_agents.field_key_help")}</div>
-                                        </div>
-                                        <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_status")}</label>
                                             <select value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))} className={inputClassName}>
                                                 <option value="active">{t("workflow_agents.status_active")}</option>
@@ -962,10 +1271,6 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                 <option value="paused">{t("workflow_agents.status_paused")}</option>
                                             </select>
                                         </div>
-                                    </div>
-                                    <div className="mt-4">
-                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_description")}</label>
-                                        <textarea rows={4} value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} className={inputClassName} />
                                     </div>
                                 </EditorSection>
 
@@ -1013,7 +1318,26 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         {t("workflow_agents.field_use_contact_context")}
                                     </label>
                                 </EditorSection>
+                                    </>
+                                ) : null}
 
+                                {isPresetDraft ? (
+                                <EditorSection title={t("workflow_agents.section_business_title")} description={t("workflow_agents.section_business_desc")}>
+                                    <textarea
+                                        rows={9}
+                                        value={form.system_prompt}
+                                        onChange={(event) => setForm((prev) => ({ ...prev, system_prompt: event.target.value }))}
+                                        placeholder={t("workflow_agents.field_business_context_placeholder")}
+                                        className={textAreaCardClassName}
+                                    />
+                                    <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                        {t("workflow_agents.field_business_context_help")}
+                                    </div>
+                                </EditorSection>
+                                ) : null}
+
+                                {!isPresetDraft ? (
+                                    <>
                                 <EditorSection title={t("workflow_agents.section_behavior_title")} description={t("workflow_agents.section_behavior_desc")}>
                                     <div className="grid gap-4 lg:grid-cols-2">
                                         <div>
@@ -1181,19 +1505,24 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         ) : null}
                                     </EditorSection>
                                 ) : null}
+                                    </>
+                                ) : null}
 
-                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[26px] border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
-                                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                                        {editingAgentId ? t("workflow_agents.edit_agent") : t("workflow_agents.new_agent")}
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        <button type="button" onClick={() => applyAgentToForm(null)} className="rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
-                                            {t("workflow_agents.cancel_edit")}
-                                        </button>
-                                        <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-70">
-                                            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                            {editingAgentId ? t("workflow_agents.save_update") : t("workflow_agents.save_create")}
-                                        </button>
+                                <div className="space-y-3 rounded-[26px] border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
+                                    {renderOpenAiKeyFooterCta()}
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                            {editingAgentId ? t("workflow_agents.edit_agent") : t("workflow_agents.new_agent")}
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <button type="button" onClick={() => applyAgentToForm(null)} className="rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+                                                {t("workflow_agents.cancel_edit")}
+                                            </button>
+                                            <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-70">
+                                                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                                {editingAgentId ? t("workflow_agents.save_update") : t("workflow_agents.save_create")}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </form>

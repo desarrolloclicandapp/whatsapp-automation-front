@@ -30,6 +30,7 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replac
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
 const DEFAULT_GHL_INSTALL_PATH = "/integration/6968d10f1f0b9e6b537024cd";
 const RELIABILITY_PAGE_SIZE = 10;
+const MANAGED_GHL_REQUEST_INTENT_KEY = "waflow:managed-ghl-request-intent";
 const DEFAULT_INSTALL_APP_URL =
     import.meta.env.DEFAULT_INSTALL_APP_URL || `https://app.gohighlevel.com${DEFAULT_GHL_INSTALL_PATH}`;
 const CHATWOOT_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
@@ -292,6 +293,16 @@ export default function AgencyDashboard({ token, onLogout }) {
     const isGhlAgency = agencyCrmType === "ghl";
     const isChatwootAgency = agencyCrmType === "chatwoot";
     const isCrmLocked = Boolean(accountInfo?.crm_type);
+    const planStatus = String(accountInfo?.plan || "").trim().toLowerCase();
+    const accountRole = String(accountInfo?.role || "").trim().toLowerCase();
+    const hasPaidPlanAccess =
+        accountInfo?.has_paid_subscription === true ||
+        (accountInfo?.has_paid_subscription === undefined && planStatus === "active");
+    const canRequestManagedGhlSubaccount =
+        hasPaidPlanAccess ||
+        accountRole === "admin" ||
+        accountRole === "superadmin" ||
+        accountRole === "super_admin";
     const crmLabelMap = { ghl: "GoHighLevel", waflow: "WaFloW", chatwoot: "Waflow Inbox", odoo: "Odoo" };
     const activeCrmLabel = crmLabelMap[agencyCrmType] || agencyCrmType.toUpperCase();
     const isSpanish = language === 'es';
@@ -310,6 +321,15 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [isAccountSuspended, setIsAccountSuspended] = useState(false);
     const [suspensionStatus, setSuspensionStatus] = useState(null);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+    const [showManagedGhlPaidGate, setShowManagedGhlPaidGate] = useState(false);
+    const [showManagedGhlBillingModal, setShowManagedGhlBillingModal] = useState(false);
+    const [pendingManagedGhlRequest, setPendingManagedGhlRequest] = useState(() => {
+        try {
+            return window.sessionStorage.getItem(MANAGED_GHL_REQUEST_INTENT_KEY) === "1";
+        } catch (_) {
+            return false;
+        }
+    });
 
     // Modal state for adding locations
     const [showAddModal, setShowAddModal] = useState(false);
@@ -389,7 +409,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [accountsFilter, setAccountsFilter] = useState("all"); // "all" | "ghl" | "waflow" | "chatwoot"
     const [settingsSection, setSettingsSection] = useState("guide");
     const [integrationOpenAiAccounts, setIntegrationOpenAiAccounts] = useState([]);
-    const [integrationOpenAiExcludedMetaCount, setIntegrationOpenAiExcludedMetaCount] = useState(0);
     const [integrationOpenAiSelectedIds, setIntegrationOpenAiSelectedIds] = useState([]);
     const [integrationOpenAiKeyDraft, setIntegrationOpenAiKeyDraft] = useState("");
     const [integrationOpenAiSearch, setIntegrationOpenAiSearch] = useState("");
@@ -614,12 +633,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                 } else {
                     setIsAccountSuspended(false);
                 }
+                return data;
             } else if (!AGENCY_ID) {
                 setLoading(false);
-                return;
+                return null;
             }
         } catch (error) {
             console.error("Error refrescando datos", error);
+            return null;
         } finally {
             setLoading(false);
         }
@@ -660,7 +681,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             const effectiveAgencyId = await resolveEffectiveAgencyIdForAgencyRequests();
             if (!effectiveAgencyId) {
                 setIntegrationOpenAiAccounts([]);
-                setIntegrationOpenAiExcludedMetaCount(0);
                 setIntegrationOpenAiSelectedIds([]);
                 return;
             }
@@ -679,7 +699,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             const body = await res.json().catch(() => ({}));
             const accounts = Array.isArray(body?.accounts) ? body.accounts : [];
             setIntegrationOpenAiAccounts(accounts);
-            setIntegrationOpenAiExcludedMetaCount(Number.parseInt(body?.excluded_meta_count, 10) || 0);
             setIntegrationOpenAiSelectedIds((prev) => prev.filter((locationId) => accounts.some((account) => account.location_id === locationId)));
         } catch (error) {
             console.error("Error cargando cuentas elegibles para OpenAI", error);
@@ -1056,10 +1075,13 @@ export default function AgencyDashboard({ token, onLogout }) {
             // 🏁 FIN TRACKING
 
             toast.success(t('agency.payment.success'), { duration: 6000 });
+            refreshData();
             // Limpiar URL
             window.history.replaceState({}, document.title, window.location.pathname);
         } else if (paymentStatus === "cancelled") {
             toast.error(t('agency.payment.cancelled'), { duration: 8000 });
+            clearManagedGhlPaymentIntent();
+            setShowManagedGhlBillingModal(false);
             // Limpiar URL
             window.history.replaceState({}, document.title, window.location.pathname);
         }
@@ -1662,6 +1684,63 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
+    const openManagedGhlRequestForm = () => {
+        resetOnboardingSubaccountForm();
+        setOnboardingStep(1);
+        setOnboardingCrmType('ghl');
+        setOnboardingConnectionType('ghl_create_subaccount');
+        setShowManagedGhlPaidGate(false);
+        setShowManagedGhlBillingModal(false);
+        setShowOnboarding(true);
+    };
+
+    const setManagedGhlPaymentIntent = () => {
+        setPendingManagedGhlRequest(true);
+        try {
+            window.sessionStorage.setItem(MANAGED_GHL_REQUEST_INTENT_KEY, "1");
+        } catch (_) { }
+    };
+
+    const clearManagedGhlPaymentIntent = () => {
+        setPendingManagedGhlRequest(false);
+        try {
+            window.sessionStorage.removeItem(MANAGED_GHL_REQUEST_INTENT_KEY);
+        } catch (_) { }
+    };
+
+    const openManagedGhlBillingFlow = () => {
+        setManagedGhlPaymentIntent();
+        setShowManagedGhlPaidGate(false);
+        setShowOnboarding(false);
+        setShowManagedGhlBillingModal(true);
+    };
+
+    const closeManagedGhlBillingFlow = () => {
+        setShowManagedGhlBillingModal(false);
+        clearManagedGhlPaymentIntent();
+    };
+
+    const handleManagedGhlBillingDataChange = async () => {
+        await refreshData();
+    };
+
+    const handleRequestManagedGhlSubaccount = () => {
+        if (!canRequestManagedGhlSubaccount) {
+            setShowManagedGhlPaidGate(true);
+            return;
+        }
+        openManagedGhlRequestForm();
+    };
+
+    useEffect(() => {
+        if (!pendingManagedGhlRequest || !canRequestManagedGhlSubaccount) return;
+        try {
+            window.sessionStorage.removeItem(MANAGED_GHL_REQUEST_INTENT_KEY);
+        } catch (_) { }
+        setPendingManagedGhlRequest(false);
+        openManagedGhlRequestForm();
+    }, [pendingManagedGhlRequest, canRequestManagedGhlSubaccount]);
+
     // ✅ GUARDAR LINK DE INSTALACIÓN CRM POR USUARIO
     const handleSaveCrmDomain = async (options = {}) => {
         const opts = typeof options === "boolean" ? { silentSuccess: options } : options;
@@ -1917,15 +1996,6 @@ export default function AgencyDashboard({ token, onLogout }) {
             window.open("https://app.gohighlevel.com", "_blank", "noopener");
         }
     };
-    const openChatwootPortal = () => {
-        // Try to open the user's own Chatwoot instance from tenant settings
-        const cwTenant = locations.find(l => {
-            const s = l.settings || {};
-            return s.crm_type === 'chatwoot' && s.chatwoot_url;
-        });
-        const cwUrl = cwTenant?.settings?.chatwoot_url || "https://www.chatwoot.com";
-        window.open(cwUrl, "_blank", "noopener");
-    };
     const handleSelectCrm = (crmType) => {
         if (isCrmLocked) {
             toast.info(t('agency.integrations.locked'));
@@ -2089,150 +2159,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                 );
             }
 
-            if (agencyCrmType === "chatwoot") {
-                return (
-                    <div className="mt-4 rounded-2xl border-2 border-indigo-200 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 p-5">
-                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
-                            <div>
-                                <h4 className="text-sm font-bold text-gray-900 dark:text-white">
-                                    {((t('agency.integrations.config_for') || "Configuración de {crm}")).replace("{crm}", "Waflow Inbox")}
-                                </h4>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                    Define el Usuario Maestro para aprovisionar cuentas Waflow Inbox automáticamente.
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border ${
-                                    chatwootMasterConfigured
-                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
-                                        : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
-                                }`}>
-                                    {chatwootMasterConfigured
-                                        ? (t('agency.integrations.chatwoot_master_state_ready') || "Usuario maestro configurado")
-                                        : (t('agency.integrations.chatwoot_master_state_pending') || "Pendiente de configuración")}
-                                </span>
-                            </div>
-                        </div>
-
-                        <form onSubmit={handleSaveChatwootMasterUser} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                                    {t('dash.chatwoot_master.name') || "Nombre del Usuario Maestro"}
-                                </label>
-                                <input
-                                    type="text"
-                                    value={chatwootMasterName}
-                                    onChange={(e) => {
-                                        markChatwootMasterDraftDirty();
-                                        setChatwootMasterName(e.target.value);
-                                    }}
-                                    placeholder="Ej: Soporte Agencia"
-                                    autoComplete="off"
-                                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                                    {t('dash.chatwoot_master.email') || "Email del Usuario Maestro"}
-                                </label>
-                                <input
-                                    type="email"
-                                    value={chatwootMasterEmail}
-                                    onChange={(e) => {
-                                        markChatwootMasterDraftDirty();
-                                        setChatwootMasterEmail(e.target.value);
-                                    }}
-                                    placeholder="soporte@agencia.com"
-                                    autoComplete="off"
-                                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
-                                {chatwootMasterConfigured && chatwootMasterEmailMasked && (
-                                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
-                                        {(t('dash.chatwoot_master.configured_as') || "Configurado como") + ` ${chatwootMasterEmailMasked}`}
-                                    </p>
-                                )}
-                            </div>
-                            {chatwootMasterConfigured && (
-                                <div className="xl:col-span-2">
-                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                                        {t('dash.chatwoot_master.verify_password') || "Contraseña actual para verificar cambios"}
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={chatwootMasterVerificationPassword}
-                                        onChange={(e) => {
-                                            markChatwootMasterDraftDirty();
-                                            setChatwootMasterVerificationPassword(e.target.value);
-                                        }}
-                                        placeholder="••••••••"
-                                        autoComplete="current-password"
-                                        className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                    />
-                                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                                        {t('dash.chatwoot_master.verify_password_desc') || "Antes de guardar cambios, verifica con la contraseña actual del Usuario Maestro."}
-                                    </p>
-                                </div>
-                            )}
-                            <div className="xl:col-span-2">
-                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                                    {chatwootMasterConfigured
-                                        ? (t('dash.chatwoot_master.new_password') || "Nueva contraseña del Usuario Maestro")
-                                        : (t('dash.chatwoot_master.password') || "Contraseña del Usuario Maestro")}
-                                </label>
-                                <input
-                                    type="password"
-                                    value={chatwootMasterPassword}
-                                    onChange={(e) => {
-                                        markChatwootMasterDraftDirty();
-                                        setChatwootMasterPassword(e.target.value);
-                                    }}
-                                    placeholder="••••••••"
-                                    autoComplete="new-password"
-                                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
-                            </div>
-                            <div className="xl:col-span-2 flex flex-wrap justify-end gap-2">
-                                <button
-                                    type="button"
-                                    onClick={handleTestChatwootMasterUser}
-                                    disabled={isTestingChatwootMaster || isLoadingChatwootMaster}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-700 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-60 transition-colors"
-                                >
-                                    {isTestingChatwootMaster ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                                    {t('dash.chatwoot_master.test_button') || "Probar conexión"}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => fetchChatwootMasterUser({ silent: false })}
-                                    disabled={isLoadingChatwootMaster || isTestingChatwootMaster}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60 transition-colors"
-                                >
-                                    <RotateCcw size={13} />
-                                    {isLoadingChatwootMaster ? (t('common.loading') || "Cargando...") : (t('common.reload') || "Recargar")}
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSavingChatwootMaster}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition disabled:opacity-60"
-                                >
-                                    {isSavingChatwootMaster ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                                    {t('dash.chatwoot_master.save') || "Guardar Usuario Maestro"}
-                                </button>
-                            </div>
-                            {chatwootMasterTestStatus?.message && (
-                                <p className={`xl:col-span-2 text-[11px] ${
-                                    chatwootMasterTestStatus.ok
-                                        ? "text-emerald-600 dark:text-emerald-400"
-                                        : "text-rose-600 dark:text-rose-400"
-                                }`}>
-                                    {chatwootMasterTestStatus.message}
-                                </p>
-                            )}
-                        </form>
-                    </div>
-                );
-            }
-
             return null;
         };
 
@@ -2278,38 +2204,16 @@ export default function AgencyDashboard({ token, onLogout }) {
 
             return (
                 <div className="mt-4 rounded-2xl border-2 border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 p-5 space-y-4">
-                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                        <div>
-                            <h4 className="text-sm font-bold text-gray-900 dark:text-white">
-                                {t('agency.integrations.openai_accounts_title') || 'OpenAI para cuentas'}
-                            </h4>
-                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                {t('agency.integrations.openai_accounts_desc') || 'Selecciona las cuentas, pega la key y guárdala en un solo paso. Las que usan WhatsApp Meta oficial no aparecen aquí.'}
-                            </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border bg-white/80 dark:bg-gray-900/60 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700">
-                                {(t('agency.integrations.openai_accounts_selected') || '{count} seleccionadas').replace('{count}', String(selectedCount))}
-                            </span>
-                            {integrationOpenAiExcludedMetaCount > 0 && (
-                                <span className="px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800">
-                                    {(t('agency.integrations.openai_accounts_meta_excluded_badge') || '{count} con Meta oficial').replace('{count}', String(integrationOpenAiExcludedMetaCount))}
-                                </span>
-                            )}
-                        </div>
+                    <div>
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                            {t('agency.integrations.openai_accounts_title') || 'OpenAI por cuenta'}
+                        </h4>
                     </div>
 
                     <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.9fr)] gap-4 items-start">
                         <div className="rounded-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 space-y-4 shadow-sm">
-                            <div className="flex items-center justify-between gap-3">
-                                <div className="text-sm font-bold text-gray-900 dark:text-white">
-                                    1. {t('agency.integrations.openai_accounts_targets_title') || 'Selecciona las cuentas'}
-                                </div>
-                                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                                    {selectedCount > 0
-                                        ? (t('agency.integrations.openai_accounts_selected') || '{count} seleccionadas').replace('{count}', String(selectedCount))
-                                        : (t('agency.integrations.openai_accounts_pick_first') || 'Marca una o varias cuentas')}
-                                </div>
+                            <div className="text-sm font-bold text-gray-900 dark:text-white">
+                                {t('agency.integrations.openai_accounts_targets_title') || 'Cuentas'}
                             </div>
 
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -2393,26 +2297,17 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                             </span>
                                                         </div>
                                                     </div>
-                                                    <p className="text-[11px] text-gray-500 dark:text-gray-400 font-mono text-right break-all max-w-[42%]">
-                                                        {account.location_id}
-                                                    </p>
                                                 </div>
                                             </button>
                                         );
                                     })}
                                 </div>
                             )}
-
-                            {integrationOpenAiExcludedMetaCount > 0 && (
-                                <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                                    {(t('agency.integrations.openai_accounts_meta_excluded_help') || 'Las cuentas con al menos un número en Meta oficial quedan fuera para evitar una configuración incoherente.').replace('{count}', String(integrationOpenAiExcludedMetaCount))}
-                                </p>
-                            )}
                         </div>
 
                         <div className="rounded-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 space-y-4 shadow-sm">
                             <div className="text-sm font-bold text-gray-900 dark:text-white">
-                                2. {t('agency.integrations.openai_key_panel_title') || 'Carga la OpenAI API key'}
+                                {t('agency.integrations.openai_key_panel_title') || 'API key'}
                             </div>
 
                             <div className="space-y-2">
@@ -2432,13 +2327,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
-                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 p-3 space-y-2">
-                                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
-                                    {selectedCount > 0
-                                        ? (t('agency.integrations.openai_accounts_selected') || '{count} seleccionadas').replace('{count}', String(selectedCount))
-                                        : (t('agency.integrations.openai_accounts_pick_first') || 'Primero selecciona una cuenta')}
-                                </div>
-                                {selectedAccounts.length > 0 ? (
+                            {selectedAccounts.length > 0 ? (
+                                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 p-3">
                                     <div className="flex flex-wrap gap-2">
                                         {selectedAccounts.map((account) => (
                                             <span
@@ -2449,12 +2339,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </span>
                                         ))}
                                     </div>
-                                ) : (
-                                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                                        {t('agency.integrations.openai_accounts_pick_first') || 'Primero selecciona una cuenta'}
-                                    </div>
-                                )}
-                            </div>
+                                </div>
+                            ) : null}
 
                             <div className="flex flex-col gap-2 pt-1">
                                 <button
@@ -2477,9 +2363,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </button>
                             </div>
 
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-5">
-                                {t('agency.integrations.openai_key_help') || 'Se guarda por cuenta. Úsalo para las cuentas que operan con agentes y no dependen de WhatsApp Meta oficial.'}
-                            </p>
                         </div>
                     </div>
                 </div>
@@ -2500,7 +2383,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </div>
                 <div className={gridClass}>
                     {renderCard("ghl", "GoHighLevel", t('agency.integrations.ghl_desc'), Globe, { showOpen: true, onOpen: openGhlPortal })}
-                    {renderCard("chatwoot", "Waflow Inbox", t('agency.integrations.chatwoot_desc'), MessageSquareText, { showOpen: true, onOpen: openChatwootPortal })}
                 </div>
                 {renderSelectedConfigPanel()}
                 {renderOpenAiAccountsPanel()}
@@ -3126,7 +3008,105 @@ export default function AgencyDashboard({ token, onLogout }) {
         <div className="agency-dashboard-ui flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
             <ExpiryPopup token={token} /> {/* ✅ Popup Global */}
             {isAccountSuspended && <SubscriptionBlocker token={token} onLogout={onLogout} accountInfo={accountInfo} />}
-            {showUpgradeModal && isGhlAgency && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
+            {showManagedGhlPaidGate && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/10 bg-[#101827] shadow-2xl shadow-black/40">
+                        <div className="border-b border-white/10 px-6 py-5 flex items-start justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="h-11 w-11 rounded-2xl bg-amber-500/10 border border-amber-400/20 flex items-center justify-center">
+                                    <CreditCard size={20} className="text-amber-300" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-extrabold text-white">
+                                        {t('agency.onboarding.ghl_paid_gate_title') || 'Solo para planes de pago'}
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        {t('agency.onboarding.ghl_paid_gate_kicker') || 'Subcuenta GoHighLevel gestionada'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowManagedGhlPaidGate(false);
+                                    clearManagedGhlPaymentIntent();
+                                }}
+                                className="rounded-xl p-2 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                                aria-label="Cerrar"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="px-6 py-6 space-y-5">
+                            <p className="text-sm leading-6 text-slate-300">
+                                {t('agency.onboarding.ghl_paid_gate_desc') || 'Para solicitar una subcuenta GoHighLevel creada por nuestra agencia necesitas activar un plan de pago. Si ya tienes tu propia cuenta de GoHighLevel, puedes conectarla durante el trial.'}
+                            </p>
+                            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 flex gap-3">
+                                <ShieldCheck size={18} className="mt-0.5 text-emerald-300 shrink-0" />
+                                <p className="text-xs leading-5 text-emerald-100">
+                                    {t('agency.onboarding.ghl_paid_gate_after_payment') || 'Despues de activar un plan, abriremos automaticamente el formulario de solicitud.'}
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowManagedGhlPaidGate(false);
+                                        clearManagedGhlPaymentIntent();
+                                    }}
+                                    className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-bold text-slate-300 hover:bg-white/10 hover:text-white transition"
+                                >
+                                    {t('agency.onboarding.ghl_paid_gate_later') || 'Volver'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={openManagedGhlBillingFlow}
+                                    className="rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3 text-sm font-extrabold text-slate-950 shadow-lg shadow-orange-900/25 hover:brightness-110 transition flex items-center justify-center gap-2"
+                                >
+                                    {t('agency.onboarding.ghl_paid_gate_view_plans') || 'Ver planes'}
+                                    <ArrowRight size={16} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {showManagedGhlBillingModal && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="w-full max-w-6xl h-[92vh] overflow-hidden rounded-3xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0B0D12] shadow-2xl flex flex-col">
+                        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between gap-4 bg-white dark:bg-gray-900">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-500">
+                                    {t('agency.onboarding.ghl_paid_gate_kicker') || 'Subcuenta GoHighLevel gestionada'}
+                                </p>
+                                <h3 className="text-xl font-extrabold text-gray-900 dark:text-white mt-1">
+                                    {t('agency.onboarding.ghl_paid_gate_choose_plan') || 'Elige un plan para continuar'}
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    {t('agency.onboarding.ghl_paid_gate_choose_plan_desc') || 'Cuando el pago quede activo, abriremos el formulario de solicitud automaticamente.'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={closeManagedGhlBillingFlow}
+                                className="rounded-xl p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition"
+                                aria-label="Cerrar"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-[#0B0D12]">
+                            <SubscriptionManager
+                                token={token}
+                                accountInfo={accountInfo}
+                                onDataChange={handleManagedGhlBillingDataChange}
+                                isChatwootAgency={isChatwootAgency}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+            {showUpgradeModal && (isGhlAgency || onboardingCrmType === 'ghl') && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
 
             {/* 🔥 OVERLAY DE BLOQUEO DURANTE INSTALACIÓN */}
             {isAutoSyncing && (
@@ -4188,6 +4168,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                             locations={locations}
                             onUnauthorized={onLogout}
                             token={token}
+                            onOpenIntegrations={() => {
+                                setActiveTab('settings');
+                                setSettingsSection('integrations');
+                            }}
                         />
                     )}
 
@@ -4668,7 +4652,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-500 ml-auto shrink-0 transition" />
                                             </button>
                                             <button
-                                                onClick={() => setOnboardingConnectionType('ghl_create_subaccount')}
+                                                onClick={handleRequestManagedGhlSubaccount}
                                                 className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all group text-left flex items-center gap-4"
                                             >
                                                 <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
@@ -4756,6 +4740,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 });
                                                 const data = await parseApiResponse(resp);
                                                 if (!resp.ok) {
+                                                    if (data?.requiresUpgrade) {
+                                                        setShowManagedGhlPaidGate(true);
+                                                        return;
+                                                    }
                                                     throw new Error(
                                                         data?.error ||
                                                         data?.rawText ||
