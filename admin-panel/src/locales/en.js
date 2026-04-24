@@ -993,6 +993,8 @@ export const en = {
     "agency.onboarding.ghl_save_and_install": "Save and install app",
     "agency.onboarding.create_subaccount": "Request an Account with our agency",
     "agency.onboarding.ghl_create_subaccount_form": "Request a new GoHighLevel sub-account with our team",
+    "agency.onboarding.paid_plan_badge": "Paid plan",
+    "agency.onboarding.ghl_paid_required": "This option requires an active paid plan. If you already have GoHighLevel, you can use \"I already have an account\" during the trial.",
     "agency.onboarding.chatwoot_existing_form": "Connect Waflow to an externally hosted Chatwoot.",
     "agency.onboarding.selfhosted_account": "Account hosted by WaFlow.ai",
     "agency.onboarding.chatwoot_selfhosted_form": "We create and manage your Chatwoot account",

@@ -292,6 +292,16 @@ export default function AgencyDashboard({ token, onLogout }) {
     const isGhlAgency = agencyCrmType === "ghl";
     const isChatwootAgency = agencyCrmType === "chatwoot";
     const isCrmLocked = Boolean(accountInfo?.crm_type);
+    const planStatus = String(accountInfo?.plan || "").trim().toLowerCase();
+    const accountRole = String(accountInfo?.role || "").trim().toLowerCase();
+    const hasPaidPlanAccess =
+        accountInfo?.has_paid_subscription === true ||
+        (accountInfo?.has_paid_subscription === undefined && planStatus === "active");
+    const canRequestManagedGhlSubaccount =
+        hasPaidPlanAccess ||
+        accountRole === "admin" ||
+        accountRole === "superadmin" ||
+        accountRole === "super_admin";
     const crmLabelMap = { ghl: "GoHighLevel", waflow: "WaFloW", chatwoot: "Waflow Inbox", odoo: "Odoo" };
     const activeCrmLabel = crmLabelMap[agencyCrmType] || agencyCrmType.toUpperCase();
     const isSpanish = language === 'es';
@@ -1659,6 +1669,18 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     };
 
+    const handleRequestManagedGhlSubaccount = () => {
+        if (!canRequestManagedGhlSubaccount) {
+            toast.info(
+                t('agency.onboarding.ghl_paid_required') ||
+                'Esta opcion requiere un plan pago activo. Si ya tienes GoHighLevel, puedes usar la opcion "Ya tengo una cuenta" durante el trial.'
+            );
+            setShowUpgradeModal(true);
+            return;
+        }
+        setOnboardingConnectionType('ghl_create_subaccount');
+    };
+
     // ✅ GUARDAR LINK DE INSTALACIÓN CRM POR USUARIO
     const handleSaveCrmDomain = async (options = {}) => {
         const opts = typeof options === "boolean" ? { silentSuccess: options } : options;
@@ -2926,7 +2948,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         <div className="agency-dashboard-ui flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
             <ExpiryPopup token={token} /> {/* ✅ Popup Global */}
             {isAccountSuspended && <SubscriptionBlocker token={token} onLogout={onLogout} accountInfo={accountInfo} />}
-            {showUpgradeModal && isGhlAgency && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
+            {showUpgradeModal && (isGhlAgency || onboardingCrmType === 'ghl') && <SubscriptionModal token={token} accountInfo={accountInfo} onClose={() => setShowUpgradeModal(false)} onDataChange={refreshData} />}
 
             {/* 🔥 OVERLAY DE BLOQUEO DURANTE INSTALACIÓN */}
             {isAutoSyncing && (
@@ -4472,16 +4494,22 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-500 ml-auto shrink-0 transition" />
                                             </button>
                                             <button
-                                                onClick={() => setOnboardingConnectionType('ghl_create_subaccount')}
+                                                onClick={handleRequestManagedGhlSubaccount}
                                                 className="w-full p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all group text-left flex items-center gap-4"
                                             >
                                                 <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
                                                     <Plus size={20} className="text-blue-600 dark:text-blue-400" />
                                                 </div>
-                                                <div>
-                                                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                                                        {t('agency.onboarding.create_subaccount') || 'Solicitar Cuenta con nuestra agencia'}
-                                                    </h4>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                                            {t('agency.onboarding.create_subaccount') || 'Solicitar Cuenta con nuestra agencia'}
+                                                        </h4>
+                                                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-300">
+                                                            <Lock size={10} />
+                                                            {t('agency.onboarding.paid_plan_badge') || 'Plan pago'}
+                                                        </span>
+                                                    </div>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                                         {t('agency.onboarding.ghl_create_subaccount_form') || 'Creamos una nueva subcuenta GoHighLevel para ti'}
                                                     </p>
@@ -4560,6 +4588,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 });
                                                 const data = await parseApiResponse(resp);
                                                 if (!resp.ok) {
+                                                    if (data?.requiresUpgrade) {
+                                                        setShowUpgradeModal(true);
+                                                    }
                                                     throw new Error(
                                                         data?.error ||
                                                         data?.rawText ||
