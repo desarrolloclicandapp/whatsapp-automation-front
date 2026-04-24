@@ -544,25 +544,25 @@ export default function StandaloneAgentGuideModal({
           )}
         </div>
 
-        <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex flex-wrap justify-between gap-3">
+        <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
-            onClick={handlePrev}
-            disabled={isFirst || saving}
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+            onClick={handleClose}
+            disabled={saving}
+            className="inline-flex items-center rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-60"
           >
-            <ChevronLeft size={16} />
-            {translateOr(t, 'standalone.agents_guide.prev', 'Anterior')}
+            {translateOr(t, 'standalone.agents_guide.close', 'Cerrar')}
           </button>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleClose}
-              disabled={saving}
-              className="inline-flex items-center rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-60"
+              onClick={handlePrev}
+              disabled={isFirst || saving}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition"
             >
-              {translateOr(t, 'standalone.agents_guide.close', 'Cerrar')}
+              <ChevronLeft size={16} />
+              {translateOr(t, 'standalone.agents_guide.prev', 'Anterior')}
             </button>
 
             {isLast ? (
