@@ -201,7 +201,10 @@ export default function StandaloneLogin({ onLoginSuccess }) {
         body: JSON.stringify({ email, agencyName: name, source: SIGNUP_SOURCE, interface: 'standalone' }),
       });
 
-      if (!updateRes.ok) throw new Error(t('auth.save_profile_error'));
+      if (!updateRes.ok) {
+        const errorData = await updateRes.json().catch(() => null);
+        throw new Error(errorData?.error || t('auth.save_profile_error'));
+      }
 
       const savedFbclid = localStorage.getItem('waflow_fbclid') || '';
       const savedGclid = localStorage.getItem('waflow_gclid') || '';
