@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   Copy,
   Key,
   Link,
   Loader2,
+  Mail,
   MessageSquareText,
   Moon,
   Plus,
@@ -13,6 +15,7 @@ import {
   Sun,
   Terminal,
   Trash2,
+  User,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -41,12 +44,25 @@ export default function StandaloneSettings({
   onGoToBilling,
   onUnauthorized,
   onDataChange,
+  initialSection,
+  onSectionApplied,
 }) {
   const { t, language } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const canUseDevTools = capabilities?.can_use_dev_tools === true;
 
   const [settingsSection, setSettingsSection] = useState('general');
+  const [accountNameDraft, setAccountNameDraft] = useState(String(accountInfo?.name || ''));
+  const [accountEmail, setAccountEmail] = useState(String(accountInfo?.email || ''));
+  const [emailChangeDraft, setEmailChangeDraft] = useState('');
+  const [emailChangeCode, setEmailChangeCode] = useState('');
+  const [emailChangeRequested, setEmailChangeRequested] = useState(false);
+  const [pendingEmailReview, setPendingEmailReview] = useState(null);
+  const [showEmailReviewPrompt, setShowEmailReviewPrompt] = useState(false);
+  const [savingAccountName, setSavingAccountName] = useState(false);
+  const [requestingEmailChange, setRequestingEmailChange] = useState(false);
+  const [confirmingEmailChange, setConfirmingEmailChange] = useState(false);
+  const [deactivatingAccount, setDeactivatingAccount] = useState(false);
 
   const [inboxConfigured, setInboxConfigured] = useState(false);
   const [inboxName, setInboxName] = useState('');
@@ -81,6 +97,8 @@ export default function StandaloneSettings({
       proxy: null,
     },
   });
+
+  const emailReviewCurrentEmail = accountEmail || pendingEmailReview?.maskedCurrentEmail || 'otro email';
   const [globalKeywords, setGlobalKeywords] = useState([]);
   const [savingGlobalGeneral, setSavingGlobalGeneral] = useState(false);
   const [savingGlobalIntegrations, setSavingGlobalIntegrations] = useState(false);
@@ -239,6 +257,30 @@ export default function StandaloneSettings({
     };
   }, [accountInfo?.email, accountInfo?.openai_key_configured, token, locationId, canUseDevTools]);
 
+  useEffect(() => {
+    setAccountNameDraft(String(accountInfo?.name || ''));
+    setAccountEmail(String(accountInfo?.email || ''));
+  }, [accountInfo?.name, accountInfo?.email]);
+
+  useEffect(() => {
+    const rawPending = sessionStorage.getItem('pendingEmailReview');
+    if (!rawPending) return;
+    try {
+      const parsed = JSON.parse(rawPending);
+      const requestedEmail = String(parsed?.requestedEmail || '').trim().toLowerCase();
+      if (requestedEmail) {
+        setPendingEmailReview({
+          requestedEmail,
+          maskedCurrentEmail: String(parsed?.maskedCurrentEmail || ''),
+        });
+        setEmailChangeDraft(requestedEmail);
+        setShowEmailReviewPrompt(true);
+      }
+    } catch {
+      sessionStorage.removeItem('pendingEmailReview');
+    }
+  }, []);
+
 
   useEffect(() => {
     if (settingsSection !== 'integrations') return;
@@ -252,6 +294,15 @@ export default function StandaloneSettings({
   }, [settingsSection, locationDetails?.slots]);
 
   const allSettingsSectionIds = settingsMenuGroups.flatMap((group) => group.items.map((item) => item.id));
+
+  useEffect(() => {
+    const safeSection = String(initialSection || '').trim();
+    if (!safeSection) return;
+    if (!allSettingsSectionIds.includes(safeSection)) return;
+    setSettingsSection(safeSection);
+    onSectionApplied?.();
+  }, [allSettingsSectionIds, initialSection, onSectionApplied]);
+
   const currentSettingsSectionId = allSettingsSectionIds.includes(settingsSection)
     ? settingsSection
     : (allSettingsSectionIds[0] || 'general');
@@ -1052,8 +1103,174 @@ export default function StandaloneSettings({
     }
   };
 
+  const saveAccountName = async () => {
+    const safeName = String(accountNameDraft || '').trim();
+    if (!safeName) {
+      toast.error('Escribe un nombre valido.');
+      return;
+    }
+
+    setSavingAccountName(true);
+    try {
+      const response = await authFetch('/account/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({ name: safeName }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo actualizar el nombre.');
+      }
+
+      localStorage.setItem('userName', body?.user?.name || safeName);
+      onDataChange?.();
+      toast.success('Nombre actualizado.');
+    } catch (error) {
+      toast.error(error?.message || 'No se pudo actualizar el nombre.');
+    } finally {
+      setSavingAccountName(false);
+    }
+  };
+
+  const requestEmailChange = async () => {
+    const safeEmail = String(emailChangeDraft || '').trim().toLowerCase();
+    if (!safeEmail) {
+      toast.error('Escribe el nuevo email.');
+      return;
+    }
+
+    setRequestingEmailChange(true);
+    try {
+      const response = await authFetch('/account/email-change/request', {
+        method: 'POST',
+        body: JSON.stringify({ email: safeEmail }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo enviar el codigo.');
+      }
+
+      setEmailChangeRequested(true);
+      toast.success('Codigo enviado al nuevo email.');
+    } catch (error) {
+      toast.error(error?.message || 'No se pudo enviar el codigo.');
+    } finally {
+      setRequestingEmailChange(false);
+    }
+  };
+
+  const confirmEmailChange = async () => {
+    const safeEmail = String(emailChangeDraft || '').trim().toLowerCase();
+    const safeCode = String(emailChangeCode || '').trim();
+    if (!safeEmail || !safeCode) {
+      toast.error('Escribe el email y el codigo.');
+      return;
+    }
+
+    setConfirmingEmailChange(true);
+    try {
+      const response = await authFetch('/account/email-change/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ email: safeEmail, code: safeCode }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo confirmar el cambio.');
+      }
+
+      if (body?.token) localStorage.setItem('authToken', body.token);
+      localStorage.setItem('userEmail', body?.email || safeEmail);
+      setAccountEmail(body?.email || safeEmail);
+      setEmailChangeDraft('');
+      setEmailChangeCode('');
+      setEmailChangeRequested(false);
+      setPendingEmailReview(null);
+      sessionStorage.removeItem('pendingEmailReview');
+      onDataChange?.();
+      toast.success('Email actualizado.');
+    } catch (error) {
+      toast.error(error?.message || 'No se pudo confirmar el cambio.');
+    } finally {
+      setConfirmingEmailChange(false);
+    }
+  };
+
+  const deactivateOwnAccount = async () => {
+    const confirmed = window.confirm(
+      'Quieres desactivar tu cuenta? Se cerraran las sesiones y tendras que volver a vincular tus numeros si ingresas otra vez.',
+    );
+    if (!confirmed) return;
+
+    setDeactivatingAccount(true);
+    try {
+      const response = await authFetch('/account/deactivate', {
+        method: 'POST',
+        body: JSON.stringify({ confirm: true }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo desactivar la cuenta.');
+      }
+
+      toast.success('Cuenta desactivada. Se cerrara la sesion.');
+      onUnauthorized?.();
+    } catch (error) {
+      toast.error(error?.message || 'No se pudo desactivar la cuenta.');
+    } finally {
+      setDeactivatingAccount(false);
+    }
+  };
+
+  const continueWithCurrentEmail = () => {
+    sessionStorage.removeItem('pendingEmailReview');
+    setPendingEmailReview(null);
+    setShowEmailReviewPrompt(false);
+    setEmailChangeDraft('');
+    setEmailChangeCode('');
+    setEmailChangeRequested(false);
+  };
+
   return (
     <div className="max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-right-4">
+      {pendingEmailReview && showEmailReviewPrompt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/45 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 rounded-full bg-amber-100 p-2 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                <AlertTriangle size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                  Ya existe una cuenta con este numero
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">
+                  Este numero esta asociado al correo {emailReviewCurrentEmail}.
+                  Que quieres hacer: modificarlo a {pendingEmailReview.requestedEmail} o seguir con el correo actual?
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={continueWithCurrentEmail}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Seguir con ese correo
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSettingsSection('general');
+                  setShowEmailReviewPrompt(false);
+                }}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+              >
+                Modificar email
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)] gap-6 items-start">
         <aside className="xl:sticky xl:top-6 bg-white dark:bg-gray-900/90 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 xl:p-6">
           <div className="space-y-5">
@@ -1115,7 +1332,7 @@ export default function StandaloneSettings({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <h4 className="text-base font-bold text-gray-900 dark:text-white">
-                        {slot.slot_name || `WhatsApp ${slotId}`}
+                        {slot.slot_name || `Dispositivo #${slotId}`}
                       </h4>
                       <span className="px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
                         {slot.is_connected ? 'Conectado' : 'Desconectado'}
@@ -1284,7 +1501,7 @@ export default function StandaloneSettings({
                       type="text"
                       value={inboxName}
                       onChange={(event) => setInboxName(event.target.value)}
-                      placeholder="Ej: Soporte Principal"
+                      placeholder="Ej: Dispositivo principal"
                       autoComplete="off"
                       className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                     />
@@ -1469,13 +1686,21 @@ export default function StandaloneSettings({
                       <Trash2 size={15} />
                       {t('agency.integrations.openai_key_remove') || 'Eliminar key'}
                     </button>
+                    <a
+                      href="https://platform.openai.com/home"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-emerald-200 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30 transition"
+                    >
+                      como configurar mi api key
+                    </a>
                   </div>
                 </div>
               </div>
 
               {locationSlots.map((slot) => {
                 const slotId = slot.slot_id;
-                const slotName = slot.slot_name || `WhatsApp ${slotId}`;
+                const slotName = slot.slot_name || `Dispositivo #${slotId}`;
                 const proxyConfig = proxyConfigBySlot[slotId] || {
                   configured: false,
                   host: '',
@@ -1671,6 +1896,123 @@ export default function StandaloneSettings({
               </div>
 
               <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">Informacion de cuenta</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Administra el nombre visible, el email de acceso y la desactivacion de la cuenta.
+                  </p>
+                </div>
+
+                {pendingEmailReview && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-bold">Este numero ya tenia una cuenta.</p>
+                        <p className="mt-1 leading-6">
+                          La cuenta actual esta asociada a {emailReviewCurrentEmail}.
+                          Para cambiarla a {pendingEmailReview.requestedEmail}, solicita el codigo y confirma el cambio.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/40 p-4">
+                    <label className="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+                      <User size={16} /> Nombre
+                    </label>
+                    <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        value={accountNameDraft}
+                        onChange={(event) => setAccountNameDraft(event.target.value)}
+                        className="h-11 min-w-0 flex-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-sm text-gray-900 dark:text-white outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={saveAccountName}
+                        disabled={savingAccountName}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                      >
+                        {savingAccountName ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                        Guardar
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/40 p-4">
+                    <label className="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+                      <Mail size={16} /> Email
+                    </label>
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      Actual: <span className="font-semibold text-gray-700 dark:text-gray-200">{accountEmail || 'Sin email'}</span>
+                    </p>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
+                      <input
+                        type="email"
+                        value={emailChangeDraft}
+                        onChange={(event) => setEmailChangeDraft(event.target.value)}
+                        placeholder="nuevo@email.com"
+                        className="h-11 min-w-0 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-sm text-gray-900 dark:text-white outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={requestEmailChange}
+                        disabled={requestingEmailChange}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                      >
+                        {requestingEmailChange ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                        Enviar codigo
+                      </button>
+                    </div>
+                    {(emailChangeRequested || pendingEmailReview) && (
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-[160px_auto] gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={emailChangeCode}
+                          onChange={(event) => setEmailChangeCode(event.target.value)}
+                          placeholder="Codigo"
+                          className="h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-sm text-gray-900 dark:text-white outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={confirmEmailChange}
+                          disabled={confirmingEmailChange}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                        >
+                          {confirmingEmailChange ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                          Confirmar cambio
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 bg-white/60 p-3 dark:border-gray-800 dark:bg-gray-900/40">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300">Desactivar cuenta</h5>
+                      <p className="mt-0.5 max-w-2xl text-xs leading-5 text-gray-500 dark:text-gray-500">
+                        Se cerraran las sesiones, se desvincularan los numeros y la cuenta quedara reservada para evitar trials duplicados.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={deactivateOwnAccount}
+                      disabled={deactivatingAccount}
+                      className="inline-flex items-center justify-center gap-1.5 self-start rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:border-red-300 hover:bg-red-50 disabled:opacity-60 dark:border-gray-700 dark:text-red-300 dark:hover:border-red-900/70 dark:hover:bg-red-950/20 sm:self-center"
+                    >
+                      {deactivatingAccount ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                      Desactivar
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-gray-900/90 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/40 p-4">
                     <div className="mb-4">
@@ -1836,7 +2178,7 @@ export default function StandaloneSettings({
                         type="text"
                         value={inboxName}
                         onChange={(event) => setInboxName(event.target.value)}
-                        placeholder="Ej: Soporte Principal"
+                        placeholder="Ej: Dispositivo principal"
                         autoComplete="off"
                         className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                       />
@@ -1975,6 +2317,14 @@ export default function StandaloneSettings({
                       <Trash2 size={15} />
                       {t('agency.integrations.openai_key_remove') || 'Eliminar key'}
                     </button>
+                    <a
+                      href="https://platform.openai.com/home"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-emerald-200 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30 transition"
+                    >
+                      como configurar mi api key
+                    </a>
                   </div>
                 </div>
               </div>

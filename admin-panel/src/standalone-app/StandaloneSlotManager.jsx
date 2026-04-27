@@ -268,7 +268,7 @@ export default function StandaloneSlotManager({
   const openRenameModal = (slotId) => {
     const currentSlot = localSlots.find((slot) => slot.slot_id === slotId);
     setRenameSlotId(slotId);
-    setRenameSlotName(currentSlot?.slot_name || `WhatsApp ${slotId}`);
+    setRenameSlotName(currentSlot?.slot_name || `Dispositivo #${slotId}`);
     setShowRenameSlotModal(true);
   };
 
@@ -465,7 +465,7 @@ export default function StandaloneSlotManager({
           ...prev,
           {
             slot_id: createdSlotId,
-            slot_name: safeName || body.slot_name || `WhatsApp ${createdSlotId}`,
+            slot_name: safeName || body.slot_name || `Dispositivo #${createdSlotId}`,
             is_connected: false,
             phone_number: '',
             suspended_by: null,
@@ -1040,7 +1040,7 @@ export default function StandaloneSlotManager({
                     <div>
                       <div className="flex items-center gap-3">
                         <h3 className="font-bold text-gray-900 dark:text-white text-xl">
-                          {slot.slot_name || `WhatsApp ${slotId}`}
+                          {slot.slot_name || `Dispositivo #${slotId}`}
                         </h3>
                         <button
                           onClick={(event) => {
@@ -1282,7 +1282,7 @@ export default function StandaloneSlotManager({
                 type="text"
                 value={renameSlotName}
                 onChange={(event) => setRenameSlotName(event.target.value)}
-                placeholder={translateOr(t, 'standalone.slots.modal_rename_placeholder', 'Ej: Soporte 1')}
+                placeholder={translateOr(t, 'standalone.slots.modal_rename_placeholder', 'Ej: Dispositivo 1')}
                 className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -1449,7 +1449,7 @@ function GeneralPanel({
   return (
     <div className="max-w-2xl space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <MetricCard label={translateOr(t, 'standalone.slots.general.name', 'Nombre')} value={slot.slot_name || `WhatsApp ${slot.slot_id}`} />
+        <MetricCard label={translateOr(t, 'standalone.slots.general.name', 'Nombre')} value={slot.slot_name || `Dispositivo #${slot.slot_id}`} />
         <MetricCard label={translateOr(t, 'standalone.slots.general.connection_type', 'Tipo de conexión')} value={connectionMode === 'official_api' ? translateOr(t, 'standalone.slots.connection_mode.official_title', 'API Oficial') : 'QR'} />
       </div>
 

@@ -377,6 +377,11 @@ export default function AdminDashboard({ token, onLogout }) {
         }
     };
 const handleDeleteUser = (user, type = 'soft') => {
+        if (user.role === 'admin') {
+            toast.error('No se puede desactivar ni destruir a un usuario admin.');
+            return;
+        }
+
         if (type === 'hard') {
              openConfirm(
                 t('dash.users.hard_delete_title'),
@@ -977,14 +982,18 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                     </div>
                                                                 </button>
 
-                                                                <button onClick={() => handleDeleteUser(user)} className={`p-2 rounded-lg transition ${user.is_active === false ? 'text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'}`} title={user.is_active === false ? t('dash.users.reactivate_tooltip') : t('dash.users.soft_delete_tooltip')}>
-                                                                    {user.is_active === false ? <RefreshCw size={18} /> : <Trash2 size={18} />}
-                                                                </button>
+                                                                {user.role !== 'admin' && (
+                                                                    <button onClick={() => handleDeleteUser(user)} className={`p-2 rounded-lg transition ${user.is_active === false ? 'text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'}`} title={user.is_active === false ? t('dash.users.reactivate_tooltip') : t('dash.users.soft_delete_tooltip')}>
+                                                                        {user.is_active === false ? <RefreshCw size={18} /> : <Trash2 size={18} />}
+                                                                    </button>
+                                                                )}
                                                                 
                                                                 {/* HARD DELETE BUTTON */}
-                                                                <button onClick={() => handleDeleteUser(user, 'hard')} className="p-2 text-gray-300 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition" title={t('dash.users.hard_delete_tooltip')}>
-                                                                     <AlertTriangle size={18} />
-                                                                </button>
+                                                                {user.role !== 'admin' && (
+                                                                    <button onClick={() => handleDeleteUser(user, 'hard')} className="p-2 text-gray-300 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition" title={t('dash.users.hard_delete_tooltip')}>
+                                                                         <AlertTriangle size={18} />
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>

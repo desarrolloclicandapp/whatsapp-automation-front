@@ -111,6 +111,12 @@ export default function WelcomeAuth({ onLoginSuccess }) {
             if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
 
             if (data.token) {
+                if (data.requiresEmailReview && data.requestedEmail) {
+                    toast.warning('Este numero ya tenia una cuenta. Revisa las opciones para el email.');
+                    onLoginSuccess(data);
+                    return;
+                }
+
                 setTempToken(data.token);
                 setTempAgencyId(data.agencyId || data.user?.agencyId);
                 setStep('NAME');
@@ -189,7 +195,22 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                 body: JSON.stringify({ email, agencyName: name })
             });
 
-            if (!updateRes.ok) throw new Error(t('auth.save_profile_error'));
+            if (!updateRes.ok) {
+                const errorData = await updateRes.json().catch(() => null);
+                if (errorData?.requiresEmailReview && errorData?.requestedEmail) {
+                    toast.warning('Este numero ya tenia una cuenta. Revisa las opciones para el email.');
+                    onLoginSuccess({
+                        token: tempToken,
+                        role: 'agency',
+                        agencyId: tempAgencyId,
+                        requiresEmailReview: true,
+                        requestedEmail: errorData.requestedEmail,
+                        maskedCurrentEmail: errorData.maskedCurrentEmail || '',
+                    });
+                    return;
+                }
+                throw new Error(errorData?.error || t('auth.save_profile_error'));
+            }
 
 // ==========================================
             // 🚀 INICIO DE LÓGICA DE TRACKING Y N8N
@@ -451,8 +472,18 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                                     <form onSubmit={finishRegistration} className="space-y-6">
                                         <input type="text" placeholder={t('auth.agency_name_placeholder')} autoFocus className="w-full p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white text-lg outline-none focus:ring-2 transition-all" style={{ '--tw-ring-color': branding.primaryColor }} value={name} onChange={e => setName(e.target.value)} required />
                                         <button disabled={loading} className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg flex justify-center items-center gap-2" style={{ backgroundColor: branding.primaryColor }}>
-                                            {loading ? <Loader2 className="animate-spin" /> : <>{t('auth.finish')} <CheckCircle2 size={20} /></>}
+                                            {loading ? (
+                                                <>
+                                                    <Loader2 className="animate-spin" />
+                                                    <span>{t('auth.validating_account')}</span>
+                                                </>
+                                            ) : <>{t('auth.finish')} <CheckCircle2 size={20} /></>}
                                         </button>
+                                        {loading && (
+                                            <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+                                                {t('auth.validating_account_hint')}
+                                            </p>
+                                        )}
                                     </form>
                                 </div>
                             )}

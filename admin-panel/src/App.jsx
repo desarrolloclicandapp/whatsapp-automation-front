@@ -264,6 +264,14 @@ function App() {
 
         if (nextEmail) localStorage.setItem('userEmail', nextEmail);
         if (nextName) localStorage.setItem('userName', nextName);
+        if (data.requiresEmailReview && data.requestedEmail) {
+            sessionStorage.setItem('pendingEmailReview', JSON.stringify({
+                requestedEmail: data.requestedEmail,
+                maskedCurrentEmail: data.maskedCurrentEmail || nextEmail || '',
+            }));
+        } else {
+            sessionStorage.removeItem('pendingEmailReview');
+        }
 
         if (nextSubscriptionStatus) {
             localStorage.setItem('subscriptionStatus', JSON.stringify(nextSubscriptionStatus));

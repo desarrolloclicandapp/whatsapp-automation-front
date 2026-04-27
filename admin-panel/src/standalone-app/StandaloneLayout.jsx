@@ -44,6 +44,7 @@ export default function StandaloneLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showCrmRequestModal, setShowCrmRequestModal] = useState(false);
+  const [requestedSettingsSection, setRequestedSettingsSection] = useState(null);
   const [liveIsWhatsAppConnected, setLiveIsWhatsAppConnected] = useState(false);
   const [crmRequestName, setCrmRequestName] = useState('');
   const [crmRequestEmail, setCrmRequestEmail] = useState('');
@@ -89,6 +90,12 @@ export default function StandaloneLayout({
   }, [isWhatsAppConnected]);
 
   useEffect(() => {
+    if (sessionStorage.getItem('pendingEmailReview')) {
+      setActiveTab('settings');
+    }
+  }, []);
+
+  useEffect(() => {
     setCrmRequestName(String(accountInfo?.name || '').trim());
     setCrmRequestEmail(String(accountInfo?.email || '').trim());
   }, [accountInfo]);
@@ -102,6 +109,12 @@ export default function StandaloneLayout({
     const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
     window.history.replaceState({}, document.title, nextUrl);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'settings' && requestedSettingsSection) {
+      setRequestedSettingsSection(null);
+    }
+  }, [activeTab, requestedSettingsSection]);
 
   const handleLogout = () => {
     onLogout?.();
@@ -148,9 +161,28 @@ export default function StandaloneLayout({
 
     let directUrl = null;
     if (effectiveCrmType === 'ghl') {
+      const resolveGhlAccessInfo = async () => {
+        try {
+          const directRes = await authFetch('/agency/ghl/access-info');
+          if (directRes.ok) return await directRes.json().catch(() => null);
+        } catch (_) {
+          // Intenta fallback por location cuando la resolucion standalone no esta disponible.
+        }
+
+        const safeLocationId = String(primaryLocationId || '').trim();
+        if (!safeLocationId) return null;
+
+        try {
+          const fallbackRes = await authFetch(`/agency/ghl/access-info?locationId=${encodeURIComponent(safeLocationId)}`);
+          if (!fallbackRes.ok) return null;
+          return await fallbackRes.json().catch(() => null);
+        } catch {
+          return null;
+        }
+      };
+
       try {
-        const res = await authFetch(`/agency/ghl/access-info?locationId=${encodeURIComponent(primaryLocationId || '')}`);
-        const live = res.ok ? await res.json().catch(() => null) : null;
+        const live = await resolveGhlAccessInfo();
         directUrl =
           live?.ghl?.dashboardUrl ||
           live?.ghl?.loginUrl ||
@@ -215,12 +247,44 @@ export default function StandaloneLayout({
   };
 
   const openCrmAccount = () => {
-    const directCrmUrl = ghlAccessInfo?.ghl?.dashboardUrl || ghlAccessInfo?.ghl?.loginUrl || null;
-    if (!directCrmUrl) {
-      setShowCrmRequestModal(true);
-      return;
-    }
-    window.open(directCrmUrl, '_blank', 'noopener,noreferrer');
+    const openLiveOrCachedGhl = async () => {
+      const resolveLive = async () => {
+        try {
+          const directRes = await authFetch('/agency/ghl/access-info');
+          if (directRes.ok) return await directRes.json().catch(() => null);
+        } catch (_) {
+          // Continua a fallback por location y luego cache local.
+        }
+
+        const safeLocationId = String(primaryLocationId || '').trim();
+        if (!safeLocationId) return null;
+
+        try {
+          const fallbackRes = await authFetch(`/agency/ghl/access-info?locationId=${encodeURIComponent(safeLocationId)}`);
+          if (!fallbackRes.ok) return null;
+          return await fallbackRes.json().catch(() => null);
+        } catch {
+          return null;
+        }
+      };
+
+      const liveInfo = await resolveLive();
+      const directCrmUrl =
+        liveInfo?.ghl?.dashboardUrl ||
+        liveInfo?.ghl?.loginUrl ||
+        ghlAccessInfo?.ghl?.dashboardUrl ||
+        ghlAccessInfo?.ghl?.loginUrl ||
+        null;
+
+      if (!directCrmUrl) {
+        setShowCrmRequestModal(true);
+        return;
+      }
+
+      window.open(directCrmUrl, '_blank', 'noopener,noreferrer');
+    };
+
+    void openLiveOrCachedGhl();
   };
 
   const handleSubmitCrmRequest = async (event) => {
@@ -376,6 +440,10 @@ export default function StandaloneLayout({
           token={token}
           locationId={primaryLocationId}
           onUnauthorized={onUnauthorized || onLogout}
+          onOpenIntegrations={() => {
+            setRequestedSettingsSection('integrations');
+            setActiveTab('settings');
+          }}
         />
       );
     }
@@ -390,6 +458,8 @@ export default function StandaloneLayout({
           onGoToBilling={() => setActiveTab('billing')}
           onUnauthorized={onUnauthorized || onLogout}
           onDataChange={handleWorkspaceRefresh}
+          initialSection={requestedSettingsSection}
+          onSectionApplied={() => setRequestedSettingsSection(null)}
         />
       );
     }

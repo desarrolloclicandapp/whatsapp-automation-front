@@ -120,6 +120,12 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
 
       if (data.token) {
+        if (data.requiresEmailReview && data.requestedEmail) {
+          toast.warning('Este numero ya tenia una cuenta. Revisa las opciones para el email.');
+          onLoginSuccess(data);
+          return;
+        }
+
         setTempToken(data.token);
         setTempAgencyId(data.agencyId || data.user?.agencyId);
         setStep('NAME');
@@ -203,6 +209,19 @@ export default function StandaloneLogin({ onLoginSuccess }) {
 
       if (!updateRes.ok) {
         const errorData = await updateRes.json().catch(() => null);
+        if (errorData?.requiresEmailReview && errorData?.requestedEmail) {
+          toast.warning('Este numero ya tenia una cuenta. Revisa las opciones para el email.');
+          onLoginSuccess({
+            token: tempToken,
+            role: 'agency',
+            agencyId: tempAgencyId,
+            interface: 'standalone',
+            requiresEmailReview: true,
+            requestedEmail: errorData.requestedEmail,
+            maskedCurrentEmail: errorData.maskedCurrentEmail || '',
+          });
+          return;
+        }
         throw new Error(errorData?.error || t('auth.save_profile_error'));
       }
 
@@ -524,8 +543,22 @@ export default function StandaloneLogin({ onLoginSuccess }) {
                       className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg flex justify-center items-center gap-2"
                       style={{ backgroundColor: branding.primaryColor }}
                     >
-                      {loading ? <Loader2 className="animate-spin" /> : <>{t('auth.finish')} <CheckCircle2 size={20} /></>}
+                      {loading ? (
+                        <>
+                          <Loader2 className="animate-spin" />
+                          <span>{t('auth.validating_account')}</span>
+                        </>
+                      ) : <>{t('auth.finish')} <CheckCircle2 size={20} /></>}
                     </button>
+                    {loading && (
+                      <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+                        {translateOr(
+                          t,
+                          'auth.validating_account_hint',
+                          'Estamos validando tu cuenta. Esto puede tardar unos segundos.',
+                        )}
+                      </p>
+                    )}
                   </form>
                 </div>
               )}
