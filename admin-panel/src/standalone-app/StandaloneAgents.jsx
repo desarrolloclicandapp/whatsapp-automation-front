@@ -79,7 +79,7 @@ function buildEmptyForm(catalog = []) {
     return {
         name: "",
         agent_key: "",
-        status: "active",
+        status: "paused",
         credential_mode: "location",
         slot_ids: [],
         manual_api_key: "",
@@ -115,7 +115,7 @@ function buildFormFromAgent(agent, catalog = []) {
     return {
         name: agent?.name || "",
         agent_key: agent?.agent_key || "",
-        status: agent?.status || "active",
+        status: agent?.status || "paused",
         credential_mode: "location",
         slot_ids: [],
         manual_api_key: "",
@@ -201,7 +201,7 @@ function EditorSection({ title, description, children, className = "" }) {
     );
 }
 
-export default function StandaloneAgents({ onUnauthorized, token, locationId }) {
+export default function StandaloneAgents({ onUnauthorized, token, locationId, onOpenIntegrations }) {
     const languageContext = useLanguage();
     const t = typeof languageContext?.t === "function" ? languageContext.t : ((key) => key);
     const documentInputRef = useRef(null);
@@ -382,7 +382,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId }) 
                 locationId: selectedLocationId,
                 name: form.name,
                 ...(normalizedAgentKey ? { agent_key: normalizedAgentKey } : {}),
-                status: form.status,
+                status: editingAgentId ? form.status : "paused",
                 credential_mode: "location",
                 slot_ids: [],
                 model: form.model,
@@ -575,6 +575,18 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId }) 
     const agencyHasOpenAiKey = workspace?.credentials?.has_agency_openai_key === true;
     const usingLegacySlotKeys = !locationHasOpenAiKey && slots.some((slot) => slot?.has_openai_api_key === true);
     const hasAnyOpenAiKey = locationHasOpenAiKey || agencyHasOpenAiKey || usingLegacySlotKeys;
+    const isActiveStatus = form.status === "active";
+    const canToggleAgentStatus = Boolean(editingAgentId) && hasAnyOpenAiKey && !saving;
+    const openAiStatusText = hasAnyOpenAiKey
+        ? (t("workflow_agents.location_key_ready") || "OpenAI API key funcional")
+        : (t("workflow_agents.models_require_key") || "Sin OpenAI API key");
+    const toggleHintText = !editingAgentId
+        ? "Guarda el agente para poder activarlo."
+        : !hasAnyOpenAiKey
+            ? (t("workflow_agents.models_require_key_help") || "Conecta una OpenAI API key para habilitar este agente.")
+            : isActiveStatus
+                ? "El agente está activo."
+                : "El agente está inactivo.";
     const fallbackBaseModelOptions = useMemo(
         () => BASE_AGENT_MODEL_OPTIONS.map((option) => ({
             value: option.value,
@@ -1119,8 +1131,46 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId }) 
                                         </EditorSection>
                                     ) : null}
 
-                                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[26px] border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
-
+                                    <div className="space-y-3 rounded-[26px] border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                                {openAiStatusText}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => onOpenIntegrations?.()}
+                                                className="text-xs font-bold text-indigo-600 underline-offset-2 transition hover:underline dark:text-indigo-300"
+                                            >
+                                                Configurar API key
+                                            </button>
+                                        </div>
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <label className={`inline-flex items-center gap-3 rounded-2xl border px-3 py-2 text-sm transition ${
+                                                canToggleAgentStatus
+                                                    ? "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-200"
+                                                    : "border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"
+                                            }`}>
+                                                <span>{isActiveStatus ? "Activo" : "Inactivo"}</span>
+                                                <button
+                                                    type="button"
+                                                    role="switch"
+                                                    aria-checked={isActiveStatus}
+                                                    disabled={!canToggleAgentStatus}
+                                                    onClick={() => setForm((prev) => ({
+                                                        ...prev,
+                                                        status: prev.status === "active" ? "paused" : "active"
+                                                    }))}
+                                                    className={`relative h-6 w-11 rounded-full transition ${
+                                                        isActiveStatus ? "bg-indigo-600" : "bg-gray-300 dark:bg-gray-600"
+                                                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                                                >
+                                                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                                                        isActiveStatus ? "left-[22px]" : "left-0.5"
+                                                    }`} />
+                                                </button>
+                                            </label>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">{toggleHintText}</div>
+                                        </div>
                                         <div className="flex flex-wrap items-center gap-3">
                                             <button type="button" onClick={() => applyAgentToForm(null)} className="rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
                                                 {t("workflow_agents.cancel_edit")}

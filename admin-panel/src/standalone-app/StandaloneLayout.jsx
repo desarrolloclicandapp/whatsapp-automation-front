@@ -44,6 +44,7 @@ export default function StandaloneLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showCrmRequestModal, setShowCrmRequestModal] = useState(false);
+  const [requestedSettingsSection, setRequestedSettingsSection] = useState(null);
   const [liveIsWhatsAppConnected, setLiveIsWhatsAppConnected] = useState(false);
   const [crmRequestName, setCrmRequestName] = useState('');
   const [crmRequestEmail, setCrmRequestEmail] = useState('');
@@ -108,6 +109,12 @@ export default function StandaloneLayout({
     const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
     window.history.replaceState({}, document.title, nextUrl);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'settings' && requestedSettingsSection) {
+      setRequestedSettingsSection(null);
+    }
+  }, [activeTab, requestedSettingsSection]);
 
   const handleLogout = () => {
     onLogout?.();
@@ -433,6 +440,10 @@ export default function StandaloneLayout({
           token={token}
           locationId={primaryLocationId}
           onUnauthorized={onUnauthorized || onLogout}
+          onOpenIntegrations={() => {
+            setRequestedSettingsSection('integrations');
+            setActiveTab('settings');
+          }}
         />
       );
     }
@@ -447,6 +458,8 @@ export default function StandaloneLayout({
           onGoToBilling={() => setActiveTab('billing')}
           onUnauthorized={onUnauthorized || onLogout}
           onDataChange={handleWorkspaceRefresh}
+          initialSection={requestedSettingsSection}
+          onSectionApplied={() => setRequestedSettingsSection(null)}
         />
       );
     }
