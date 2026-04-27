@@ -56,6 +56,7 @@ export default function StandaloneSettings({
   const [emailChangeCode, setEmailChangeCode] = useState('');
   const [emailChangeRequested, setEmailChangeRequested] = useState(false);
   const [pendingEmailReview, setPendingEmailReview] = useState(null);
+  const [showEmailReviewPrompt, setShowEmailReviewPrompt] = useState(false);
   const [savingAccountName, setSavingAccountName] = useState(false);
   const [requestingEmailChange, setRequestingEmailChange] = useState(false);
   const [confirmingEmailChange, setConfirmingEmailChange] = useState(false);
@@ -269,6 +270,7 @@ export default function StandaloneSettings({
           maskedCurrentEmail: String(parsed?.maskedCurrentEmail || ''),
         });
         setEmailChangeDraft(requestedEmail);
+        setShowEmailReviewPrompt(true);
       }
     } catch {
       sessionStorage.removeItem('pendingEmailReview');
@@ -1205,8 +1207,57 @@ export default function StandaloneSettings({
     }
   };
 
+  const continueWithCurrentEmail = () => {
+    sessionStorage.removeItem('pendingEmailReview');
+    setPendingEmailReview(null);
+    setShowEmailReviewPrompt(false);
+    setEmailChangeDraft('');
+    setEmailChangeCode('');
+    setEmailChangeRequested(false);
+  };
+
   return (
     <div className="max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-right-4">
+      {pendingEmailReview && showEmailReviewPrompt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/45 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 rounded-full bg-amber-100 p-2 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                <AlertTriangle size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                  Este numero ya tenia una cuenta
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">
+                  El numero esta asociado a {pendingEmailReview.maskedCurrentEmail || 'otro email'}.
+                  Puedes seguir usando esa cuenta o cambiar el email a {pendingEmailReview.requestedEmail}.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={continueWithCurrentEmail}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Seguir con cuenta actual
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSettingsSection('general');
+                  setShowEmailReviewPrompt(false);
+                }}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+              >
+                Cambiar email
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)] gap-6 items-start">
         <aside className="xl:sticky xl:top-6 bg-white dark:bg-gray-900/90 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 xl:p-6">
           <div className="space-y-5">
