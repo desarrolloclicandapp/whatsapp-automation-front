@@ -1919,11 +1919,11 @@ export default function StandaloneSettings({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-red-200 bg-red-50/80 p-4 dark:border-red-900/50 dark:bg-red-950/20">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="rounded-lg border border-gray-200 bg-white/60 p-3 dark:border-gray-800 dark:bg-gray-900/40">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h5 className="text-sm font-bold text-red-900 dark:text-red-100">Desactivar cuenta</h5>
-                      <p className="mt-1 max-w-2xl text-xs leading-5 text-red-700 dark:text-red-200/80">
+                      <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300">Desactivar cuenta</h5>
+                      <p className="mt-0.5 max-w-2xl text-xs leading-5 text-gray-500 dark:text-gray-500">
                         Se cerraran las sesiones, se desvincularan los numeros y la cuenta quedara reservada para evitar trials duplicados.
                       </p>
                     </div>
@@ -1931,10 +1931,10 @@ export default function StandaloneSettings({
                       type="button"
                       onClick={deactivateOwnAccount}
                       disabled={deactivatingAccount}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+                      className="inline-flex items-center justify-center gap-1.5 self-start rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:border-red-300 hover:bg-red-50 disabled:opacity-60 dark:border-gray-700 dark:text-red-300 dark:hover:border-red-900/70 dark:hover:bg-red-950/20 sm:self-center"
                     >
-                      {deactivatingAccount ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                      Desactivar mi cuenta
+                      {deactivatingAccount ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                      Desactivar
                     </button>
                   </div>
                 </div>
