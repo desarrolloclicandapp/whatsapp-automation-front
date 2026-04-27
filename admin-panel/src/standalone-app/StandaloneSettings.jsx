@@ -1227,11 +1227,11 @@ export default function StandaloneSettings({
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  Este numero ya tenia una cuenta
+                  Ya existe una cuenta con este numero
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">
-                  El numero esta asociado a {pendingEmailReview.maskedCurrentEmail || 'otro email'}.
-                  Puedes seguir usando esa cuenta o cambiar el email a {pendingEmailReview.requestedEmail}.
+                  Este numero esta asociado al correo {pendingEmailReview.maskedCurrentEmail || 'otro email'}.
+                  Que quieres hacer: modificarlo a {pendingEmailReview.requestedEmail} o seguir con el correo actual?
                 </p>
               </div>
             </div>
@@ -1241,7 +1241,7 @@ export default function StandaloneSettings({
                 onClick={continueWithCurrentEmail}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
               >
-                Seguir con cuenta actual
+                Seguir con ese correo
               </button>
               <button
                 type="button"
@@ -1251,7 +1251,7 @@ export default function StandaloneSettings({
                 }}
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
               >
-                Cambiar email
+                Modificar email
               </button>
             </div>
           </div>

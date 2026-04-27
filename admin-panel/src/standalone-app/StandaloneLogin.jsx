@@ -120,6 +120,12 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
 
       if (data.token) {
+        if (data.requiresEmailReview && data.requestedEmail) {
+          toast.warning('Este numero ya tenia una cuenta. Revisa las opciones para el email.');
+          onLoginSuccess(data);
+          return;
+        }
+
         setTempToken(data.token);
         setTempAgencyId(data.agencyId || data.user?.agencyId);
         setStep('NAME');
@@ -203,6 +209,19 @@ export default function StandaloneLogin({ onLoginSuccess }) {
 
       if (!updateRes.ok) {
         const errorData = await updateRes.json().catch(() => null);
+        if (errorData?.requiresEmailReview && errorData?.requestedEmail) {
+          toast.warning('Este numero ya tenia una cuenta. Revisa las opciones para el email.');
+          onLoginSuccess({
+            token: tempToken,
+            role: 'agency',
+            agencyId: tempAgencyId,
+            interface: 'standalone',
+            requiresEmailReview: true,
+            requestedEmail: errorData.requestedEmail,
+            maskedCurrentEmail: errorData.maskedCurrentEmail || '',
+          });
+          return;
+        }
         throw new Error(errorData?.error || t('auth.save_profile_error'));
       }
 
