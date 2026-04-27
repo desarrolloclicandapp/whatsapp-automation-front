@@ -156,7 +156,7 @@ export default function StandaloneDashboard({
     const payload = {
       locationId: primaryLocationId,
       name: String(guideForm?.name || '').trim(),
-      status: String(guideForm?.status || 'active'),
+      status: 'paused',
       credential_mode: 'location',
       slot_ids: [],
       model: String(guideForm?.model || 'gpt-4o-mini'),
@@ -171,19 +171,19 @@ export default function StandaloneDashboard({
           guardrails: String(guideForm?.guardrails || '').trim(),
         },
         permissions: {
-          view_appointments: true,
+          view_appointments: false,
           add_tags: true,
           remove_tags: true,
           assign_owner: true,
-          set_fields: true,
-          create_appointment: true,
-          reschedule_appointment: true,
+          set_fields: false,
+          create_appointment: false,
+          reschedule_appointment: false,
         },
         calendar_scope: { mode: 'all', calendar_ids: [] },
       },
       integrations: {
-        ghl: { enabled: true, config: {} },
-        chatwoot: { enabled: false, config: {} },
+        ghl: { enabled: false, config: {} },
+        chatwoot: { enabled: true, config: {} },
       },
     };
 

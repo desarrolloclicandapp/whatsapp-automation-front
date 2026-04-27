@@ -164,8 +164,8 @@ function buildDefaultIntegrations(catalog = []) {
             config: {}
         };
     }
-    if (!defaults.ghl) defaults.ghl = { enabled: true, config: {} };
-    if (!defaults.chatwoot) defaults.chatwoot = { enabled: false, config: {} };
+    if (!defaults.ghl) defaults.ghl = { enabled: false, config: {} };
+    if (!defaults.chatwoot) defaults.chatwoot = { enabled: true, config: {} };
     return defaults;
 }
 
@@ -374,6 +374,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
     const [workspace, setWorkspace] = useState(null);
     const [viewMode, setViewMode] = useState("list");
     const [createDialogMode, setCreateDialogMode] = useState(null);
+    const [agentDraftMode, setAgentDraftMode] = useState(null);
     const [editingAgentId, setEditingAgentId] = useState(null);
     const [activeTab, setActiveTab] = useState("general");
     const [form, setForm] = useState(buildEmptyForm());
@@ -480,6 +481,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
         const catalog = Array.isArray(workspaceSnapshot?.integration_catalog) ? workspaceSnapshot.integration_catalog : [];
         if (!agent) {
             setEditingAgentId(null);
+            setAgentDraftMode(null);
             setForm(buildEmptyForm(catalog));
             setTestMessage("");
             setTestResult(null);
@@ -490,6 +492,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
         }
 
         setEditingAgentId(agent.id);
+        setAgentDraftMode(null);
         setForm(buildFormFromAgent(agent, catalog));
         setTestMessage("");
         setTestResult(null);
@@ -507,6 +510,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
     };
 
     const startBlankAgent = () => {
+        setAgentDraftMode(null);
         closeAgentCreationDialog();
         applyAgentToForm(null, workspace, { openEditor: true });
     };
@@ -520,6 +524,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
             integrationMode: resolvePresetIntegrationMode(preset, currentWorkspaceMode)
         };
         setEditingAgentId(null);
+        setAgentDraftMode("preset");
         setForm(buildPresetForm(buildEmptyForm(currentCatalog), resolvedPreset));
         setTestMessage("");
         setTestResult(null);
@@ -564,6 +569,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
             setTestConversation([]);
             setActiveTab("general");
             setCreateDialogMode(null);
+            setAgentDraftMode(null);
             loadWorkspace(selectedLocationId);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -576,12 +582,22 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
         setSaving(true);
         try {
             const { cancel_appointment: _cancelAppointment, ...safePermissions } = form.permissions || {};
-            const hasGhlEnabled = form.integrations?.ghl?.enabled === true;
-            const integrationAwarePermissions = applyIntegrationPermissionCaps(
-                safePermissions,
-                hasGhlEnabled ? "both" : "inbox"
-            );
+            const integrationAwarePermissions = applyIntegrationPermissionCaps(safePermissions, "inbox");
             const normalizedAgentKey = String(form.agent_key || "").trim();
+            const safeIntegrations = Object.entries(form.integrations || {}).reduce((acc, [key, value]) => {
+                acc[key] = { ...(value || {}), config: value?.config || {} };
+                return acc;
+            }, {});
+            safeIntegrations.chatwoot = {
+                ...(safeIntegrations.chatwoot || {}),
+                enabled: true,
+                config: safeIntegrations.chatwoot?.config || {}
+            };
+            safeIntegrations.ghl = {
+                ...(safeIntegrations.ghl || {}),
+                enabled: false,
+                config: safeIntegrations.ghl?.config || {}
+            };
             const payload = {
                 locationId: selectedLocationId,
                 name: form.name,
@@ -603,7 +619,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                         calendar_ids: []
                     }
                 },
-                integrations: form.integrations
+                integrations: safeIntegrations
             };
 
             const endpoint = editingAgentId ? `/agency/workflow-agents/${editingAgentId}` : "/agency/workflow-agents";
@@ -770,8 +786,6 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
     const catalog = Array.isArray(workspace?.integration_catalog) ? workspace.integration_catalog : [];
     const agents = Array.isArray(workspace?.agents) ? workspace.agents : [];
     const slots = Array.isArray(workspace?.slots) ? workspace.slots : [];
-    const ghlIntegration = catalog.find((item) => item?.key === "ghl") || null;
-    const showCrmActions = ghlIntegration?.supports_execution === true && (ghlIntegration?.connected === true || ghlIntegration?.status === "ready");
     const locationHasOpenAiKey = workspace?.credentials?.has_location_openai_key === true;
     const agencyHasOpenAiKey = workspace?.credentials?.has_agency_openai_key === true;
     const usingLegacySlotKeys = !locationHasOpenAiKey && slots.some((slot) => slot?.has_openai_api_key === true);
@@ -847,6 +861,12 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
         () => agentPresets.filter((preset) => presetMatchesWorkspace(preset, workspacePresetMode)),
         [agentPresets, workspacePresetMode]
     );
+    const isPresetDraft = !editingAgentId && agentDraftMode === "preset";
+    const actionPermissionItems = [
+        ["add_tags", "Agregar etiquetas", "Añadir etiquetas al contacto cuando detecte una condición válida."],
+        ["remove_tags", "Quitar etiquetas", "Quitar etiquetas que ya no correspondan al contacto."],
+        ["assign_owner", "Asignar responsable", "Mover la conversación o el contacto a un responsable del equipo."]
+    ];
 
     const buildMissingCredentialMessage = () => {
         if (locationHasOpenAiKey) {
@@ -1235,6 +1255,8 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                         <div className="p-6">
                             {activeTab === "general" && (
                                 <form onSubmit={handleSave} className="space-y-5">
+                                    {!isPresetDraft ? (
+                                        <>
                                     <EditorSection title={t("workflow_agents.section_identity_title")} description={t("workflow_agents.section_identity_desc")}>
                                         <div className="grid gap-4 lg:grid-cols-[1fr,220px]">
                                             <div>
@@ -1358,19 +1380,25 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                             />
                                         </div>
                                     </EditorSection>
+                                        </>
+                                    ) : (
+                                        <EditorSection title="Datos del negocio" description="Completa lo que el agente necesita saber antes de responder clientes.">
+                                            <textarea
+                                                rows={9}
+                                                value={form.system_prompt}
+                                                onChange={(event) => setForm((prev) => ({ ...prev, system_prompt: event.target.value }))}
+                                                placeholder="Ej. Qué vende el negocio, ciudad, horarios, precios base, servicios, condiciones, preguntas frecuentes y cuándo debe derivar a una persona."
+                                                className={textAreaCardClassName}
+                                            />
+                                            <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                                Esto se usa como instrucción principal del agente. Si lo dejas incompleto, el agente pedirá los datos faltantes con naturalidad.
+                                            </div>
+                                        </EditorSection>
+                                    )}
 
-                                    {showCrmActions ? (
-                                        <EditorSection title={t("workflow_agents.section_permissions_title")} description={t("workflow_agents.section_permissions_desc")}>
+                                    <EditorSection title="Acciones del agente" description="Activa solo las acciones que este agente podrá ejecutar en la bandeja.">
                                             <div className="grid gap-3 lg:grid-cols-2">
-                                                {[
-                                                    ["view_appointments", "workflow_agents.permission_view_appointments", "workflow_agents.permission_view_appointments_desc"],
-                                                    ["add_tags", "workflow_agents.permission_add_tags", "workflow_agents.permission_add_tags_desc"],
-                                                    ["remove_tags", "workflow_agents.permission_remove_tags", "workflow_agents.permission_remove_tags_desc"],
-                                                    ["assign_owner", "workflow_agents.permission_assign_owner", "workflow_agents.permission_assign_owner_desc"],
-                                                    ["set_fields", "workflow_agents.permission_set_fields", "workflow_agents.permission_set_fields_desc"],
-                                                    ["create_appointment", "workflow_agents.permission_create_appointment", "workflow_agents.permission_create_appointment_desc"],
-                                                    ["reschedule_appointment", "workflow_agents.permission_reschedule_appointment", "workflow_agents.permission_reschedule_appointment_desc"]
-                                                ].map(([permissionKey, labelKey, descKey]) => {
+                                                {actionPermissionItems.map(([permissionKey, labelText, descText]) => {
                                                     const enabled = form.permissions[permissionKey] === true;
                                                     return (
                                                         <label
@@ -1394,8 +1422,8 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                                             />
                                                             <div className="flex items-start justify-between gap-3">
                                                                 <div className="min-w-0">
-                                                                    <div className="font-semibold text-gray-900 dark:text-white">{t(labelKey)}</div>
-                                                                    <div className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{t(descKey)}</div>
+                                                                    <div className="font-semibold text-gray-900 dark:text-white">{labelText}</div>
+                                                                    <div className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{descText}</div>
                                                                 </div>
                                                                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${enabled
                                                                     ? "bg-indigo-600 text-white"
@@ -1408,9 +1436,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                                     );
                                                 })}
                                             </div>
-
                                         </EditorSection>
-                                    ) : null}
 
                                     <div className="space-y-3 rounded-[26px] border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
                                         <div className="flex flex-wrap items-center justify-between gap-3">

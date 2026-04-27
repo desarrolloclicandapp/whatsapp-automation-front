@@ -7,7 +7,7 @@ import { translateOr } from './i18n';
 
 const DEFAULT_FORM = {
   name: '',
-  status: 'active',
+  status: 'paused',
   model: 'gpt-4o-mini',
   temperature: '0.4',
   max_output_chars: '600',
@@ -44,7 +44,7 @@ export default function StandaloneAgentGuideModal({
         description: translateOr(
           t,
           'standalone.agents_guide.step1_desc',
-          'Define nombre y estado. Waflow genera el ID interno automaticamente.',
+          'Define el nombre. El agente se crea pausado por defecto.',
         ),
       },
       {
@@ -322,15 +322,9 @@ export default function StandaloneAgentGuideModal({
                 <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
                   {translateOr(t, 'standalone.agents_guide.field_status', 'Estado')}
                 </label>
-                <select
-                  value={form.status}
-                  onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-                  className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
-                >
-                  <option value="active">{translateOr(t, 'workflow_agents.status_active', 'Activo')}</option>
-                  <option value="draft">{translateOr(t, 'workflow_agents.status_draft', 'Borrador')}</option>
-                  <option value="paused">{translateOr(t, 'workflow_agents.status_paused', 'Pausado')}</option>
-                </select>
+                <div className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {translateOr(t, 'workflow_agents.status_paused', 'Pausado')}
+                </div>
               </div>
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20 px-3 py-3">
                 <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
