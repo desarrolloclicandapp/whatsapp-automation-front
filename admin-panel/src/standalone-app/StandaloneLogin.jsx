@@ -524,8 +524,22 @@ export default function StandaloneLogin({ onLoginSuccess }) {
                       className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg flex justify-center items-center gap-2"
                       style={{ backgroundColor: branding.primaryColor }}
                     >
-                      {loading ? <Loader2 className="animate-spin" /> : <>{t('auth.finish')} <CheckCircle2 size={20} /></>}
+                      {loading ? (
+                        <>
+                          <Loader2 className="animate-spin" />
+                          <span>{t('auth.validating_account')}</span>
+                        </>
+                      ) : <>{t('auth.finish')} <CheckCircle2 size={20} /></>}
                     </button>
+                    {loading && (
+                      <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+                        {translateOr(
+                          t,
+                          'auth.validating_account_hint',
+                          'Estamos validando tu cuenta. Esto puede tardar unos segundos.',
+                        )}
+                      </p>
+                    )}
                   </form>
                 </div>
               )}

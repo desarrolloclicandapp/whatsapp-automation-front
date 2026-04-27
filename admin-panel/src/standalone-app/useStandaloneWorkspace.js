@@ -120,6 +120,30 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
       setLoading(true);
 
       try {
+        const loadGhlAccessInfo = async (fallbackLocationId = null) => {
+          try {
+            const directResponse = await authFetch('/agency/ghl/access-info');
+            if (directResponse.ok) {
+              return await parseJsonResponse(directResponse);
+            }
+          } catch (_) {
+            // Si falla la resolucion standalone, usamos fallback por location.
+          }
+
+          const safeFallbackLocationId = String(fallbackLocationId || '').trim();
+          if (!safeFallbackLocationId) return null;
+
+          try {
+            const fallbackResponse = await authFetch(
+              `/agency/ghl/access-info?locationId=${encodeURIComponent(safeFallbackLocationId)}`,
+            );
+            if (!fallbackResponse.ok) return null;
+            return await parseJsonResponse(fallbackResponse);
+          } catch {
+            return null;
+          }
+        };
+
         const infoResponse = await authFetch('/agency/info');
         if (!infoResponse.ok) {
           const infoBody = await parseJsonResponse(infoResponse);
@@ -144,16 +168,18 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
           null;
         setPrimaryLocationId(resolvedPrimaryLocationId);
 
+        const ghlAccessData = await loadGhlAccessInfo(resolvedPrimaryLocationId);
+
         if (!resolvedPrimaryLocationId) {
           setLocationDetails(null);
           setChatwootAccessInfo(null);
+          setGhlAccessInfo(ghlAccessData);
           return;
         }
 
-        const [detailsResponse, chatwootAccessResponse, ghlAccessResponse] = await Promise.all([
+        const [detailsResponse, chatwootAccessResponse] = await Promise.all([
           authFetch(`/agency/location-details/${encodeURIComponent(resolvedPrimaryLocationId)}`),
           authFetch(`/agency/chatwoot/access-info?locationId=${encodeURIComponent(resolvedPrimaryLocationId)}`),
-          authFetch(`/agency/ghl/access-info?locationId=${encodeURIComponent(resolvedPrimaryLocationId)}`),
         ]);
 
         if (!detailsResponse.ok) {
@@ -164,9 +190,6 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
         const detailsData = await parseJsonResponse(detailsResponse);
         const chatwootAccessData = chatwootAccessResponse.ok
           ? await parseJsonResponse(chatwootAccessResponse)
-          : null;
-        const ghlAccessData = ghlAccessResponse.ok
-          ? await parseJsonResponse(ghlAccessResponse)
           : null;
 
         if (isCancelled) return;

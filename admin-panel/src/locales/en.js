@@ -1472,6 +1472,8 @@ export const en = {
     "auth.agency_name_question": "What is your full name?",
     "auth.agency_name_placeholder": "John Smith...",
     "auth.finish": "Finish",
+    "auth.validating_account": "Validating account...",
+    "auth.validating_account_hint": "We are validating your account. This can take a few seconds.",
     "auth.join_agency": "Join agency",
     "auth.welcome": "Welcome",
     "auth.agency_exists_link": "This name is already registered. Link your account.",

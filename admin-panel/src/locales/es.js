@@ -1505,6 +1505,8 @@ export const es = {
     "auth.agency_name_question": "¿Cuál es tu nombre completo?",
     "auth.agency_name_placeholder": "Juan Pérez...",
     "auth.finish": "Finalizar",
+    "auth.validating_account": "Validando cuenta...",
+    "auth.validating_account_hint": "Estamos validando tu cuenta. Esto puede tardar unos segundos.",
     "auth.join_agency": "Unirse a agencia",
     "auth.welcome": "Bienvenido",
     "auth.agency_exists_link": "Este nombre ya está registrado. Vincula tu cuenta.",
