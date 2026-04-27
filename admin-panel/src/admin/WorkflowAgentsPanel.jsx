@@ -41,7 +41,7 @@ const WORKFLOW_AGENT_PRESET_SETTINGS = {
 
 const PRESET_PERMISSION_PROFILES = {
     inbox_basic: {
-        view_appointments: true,
+        view_appointments: false,
         add_tags: false,
         remove_tags: false,
         assign_owner: false,
@@ -74,6 +74,23 @@ const PRESET_PERMISSION_PROFILES = {
         ...DEFAULT_AGENT_PERMISSIONS
     }
 };
+
+function applyIntegrationPermissionCaps(permissions = {}, integrationMode = "both") {
+    const safePermissions = {
+        ...DEFAULT_AGENT_PERMISSIONS,
+        ...(permissions || {})
+    };
+    if (integrationMode !== "inbox") return safePermissions;
+
+    return {
+        ...safePermissions,
+        view_appointments: false,
+        set_fields: false,
+        create_appointment: false,
+        reschedule_appointment: false,
+        cancel_appointment: false
+    };
+}
 
 function buildWorkflowAgentPresets(t) {
     return WORKFLOW_AGENT_PRESET_KEYS.map((key) => ({
@@ -175,6 +192,7 @@ function applyPresetIntegrationMode(integrations = {}, mode = "both") {
 }
 
 function buildPresetForm(baseForm, preset) {
+    const integrationMode = preset.integrationMode || "both";
     return {
         ...baseForm,
         name: preset.name,
@@ -189,11 +207,14 @@ function buildPresetForm(baseForm, preset) {
             ...baseForm.behavior,
             ...preset.behavior
         },
-        permissions: {
-            ...baseForm.permissions,
-            ...preset.permissions
-        },
-        integrations: applyPresetIntegrationMode(baseForm.integrations, preset.integrationMode)
+        permissions: applyIntegrationPermissionCaps(
+            {
+                ...baseForm.permissions,
+                ...preset.permissions
+            },
+            integrationMode
+        ),
+        integrations: applyPresetIntegrationMode(baseForm.integrations, integrationMode)
     };
 }
 
@@ -566,6 +587,11 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
 
         setSaving(true);
         try {
+            const hasGhlEnabled = form.integrations?.ghl?.enabled === true;
+            const integrationAwarePermissions = applyIntegrationPermissionCaps(
+                form.permissions,
+                hasGhlEnabled ? "both" : "inbox"
+            );
             const payload = {
                 locationId: selectedLocationId,
                 name: form.name,
@@ -582,10 +608,10 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                 use_contact_context: form.use_contact_context,
                 config: {
                     behavior: form.behavior,
-                    permissions: form.permissions,
+                    permissions: integrationAwarePermissions,
                     calendar_scope: {
-                        mode: form.calendar_scope_mode === "selected" ? "selected" : "all",
-                        calendar_ids: form.calendar_scope_mode === "selected"
+                        mode: hasGhlEnabled && form.calendar_scope_mode === "selected" ? "selected" : "all",
+                        calendar_ids: hasGhlEnabled && form.calendar_scope_mode === "selected"
                             ? form.calendar_scope_ids.map((value) => String(value))
                             : []
                     }

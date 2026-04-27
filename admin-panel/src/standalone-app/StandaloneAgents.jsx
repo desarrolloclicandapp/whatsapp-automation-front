@@ -377,6 +377,16 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
         setSaving(true);
         try {
             const { cancel_appointment: _cancelAppointment, ...safePermissions } = form.permissions || {};
+            const integrationAwarePermissions = showCrmActions
+                ? safePermissions
+                : {
+                    ...safePermissions,
+                    view_appointments: false,
+                    set_fields: false,
+                    create_appointment: false,
+                    reschedule_appointment: false,
+                    cancel_appointment: false
+                };
             const normalizedAgentKey = String(form.agent_key || "").trim();
             const payload = {
                 locationId: selectedLocationId,
@@ -393,10 +403,10 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                 use_contact_context: form.use_contact_context,
                 config: {
                     behavior: form.behavior,
-                    permissions: safePermissions,
+                    permissions: integrationAwarePermissions,
                     calendar_scope: {
-                        mode: form.calendar_scope_mode === "selected" ? "selected" : "all",
-                        calendar_ids: form.calendar_scope_mode === "selected"
+                        mode: showCrmActions && form.calendar_scope_mode === "selected" ? "selected" : "all",
+                        calendar_ids: showCrmActions && form.calendar_scope_mode === "selected"
                             ? form.calendar_scope_ids.map((value) => String(value))
                             : []
                     }
