@@ -95,6 +95,8 @@ export default function StandaloneSettings({
       proxy: null,
     },
   });
+
+  const emailReviewCurrentEmail = accountEmail || pendingEmailReview?.maskedCurrentEmail || 'otro email';
   const [globalKeywords, setGlobalKeywords] = useState([]);
   const [savingGlobalGeneral, setSavingGlobalGeneral] = useState(false);
   const [savingGlobalIntegrations, setSavingGlobalIntegrations] = useState(false);
@@ -1230,7 +1232,7 @@ export default function StandaloneSettings({
                   Ya existe una cuenta con este numero
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">
-                  Este numero esta asociado al correo {pendingEmailReview.maskedCurrentEmail || 'otro email'}.
+                  Este numero esta asociado al correo {emailReviewCurrentEmail}.
                   Que quieres hacer: modificarlo a {pendingEmailReview.requestedEmail} o seguir con el correo actual?
                 </p>
               </div>
@@ -1889,7 +1891,7 @@ export default function StandaloneSettings({
                       <div>
                         <p className="font-bold">Este numero ya tenia una cuenta.</p>
                         <p className="mt-1 leading-6">
-                          La cuenta actual esta asociada a {pendingEmailReview.maskedCurrentEmail || 'otro email'}.
+                          La cuenta actual esta asociada a {emailReviewCurrentEmail}.
                           Para cambiarla a {pendingEmailReview.requestedEmail}, solicita el codigo y confirma el cambio.
                         </p>
                       </div>
