@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
+import { ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Sparkles, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 import { BASE_AGENT_MODEL_OPTIONS } from "./agentModelOptions";
@@ -22,6 +22,100 @@ const DEFAULT_AGENT_PERMISSIONS = {
     create_appointment: true,
     reschedule_appointment: true
 };
+
+const WORKFLOW_AGENT_PRESET_KEYS = [
+    "sales_inbox",
+    "sales_ghl",
+    "support_inbox",
+    "appointments_ghl",
+    "reception_both"
+];
+
+const WORKFLOW_AGENT_PRESET_SETTINGS = {
+    sales_inbox: { integrationMode: "inbox", temperature: "0.5", maxOutputChars: "700" },
+    sales_ghl: { integrationMode: "ghl", temperature: "0.4", maxOutputChars: "650" },
+    support_inbox: { integrationMode: "inbox", temperature: "0.3", maxOutputChars: "750" },
+    appointments_ghl: { integrationMode: "ghl", temperature: "0.3", maxOutputChars: "650" },
+    reception_both: { integrationMode: "both", temperature: "0.4", maxOutputChars: "700" }
+};
+
+const PRESET_PERMISSION_PROFILES = {
+    inbox_basic: {
+        view_appointments: false,
+        add_tags: false,
+        remove_tags: false,
+        assign_owner: false,
+        set_fields: false,
+        create_appointment: false,
+        reschedule_appointment: false
+    },
+    ghl_sales: {
+        view_appointments: true,
+        add_tags: true,
+        remove_tags: false,
+        assign_owner: true,
+        set_fields: true,
+        create_appointment: true,
+        reschedule_appointment: false
+    },
+    ghl_appointments: {
+        view_appointments: true,
+        add_tags: true,
+        remove_tags: false,
+        assign_owner: false,
+        set_fields: true,
+        create_appointment: true,
+        reschedule_appointment: true
+    },
+    both_reception: {
+        ...DEFAULT_AGENT_PERMISSIONS
+    }
+};
+
+function applyIntegrationPermissionCaps(permissions = {}, integrationMode = "both") {
+    const safePermissions = {
+        ...DEFAULT_AGENT_PERMISSIONS,
+        ...(permissions || {})
+    };
+    if (integrationMode !== "inbox") return safePermissions;
+
+    return {
+        ...safePermissions,
+        view_appointments: false,
+        set_fields: false,
+        create_appointment: false,
+        reschedule_appointment: false
+    };
+}
+
+function buildWorkflowAgentPresets(t) {
+    return WORKFLOW_AGENT_PRESET_KEYS.map((key) => ({
+        key,
+        title: t(`workflow_agents.preset_${key}_title`),
+        description: t(`workflow_agents.preset_${key}_desc`),
+        badge: t(`workflow_agents.preset_${key}_badge`),
+        integrationMode: WORKFLOW_AGENT_PRESET_SETTINGS[key]?.integrationMode || "both",
+        name: t(`workflow_agents.preset_${key}_name`),
+        temperature: WORKFLOW_AGENT_PRESET_SETTINGS[key]?.temperature || "0.4",
+        maxOutputChars: WORKFLOW_AGENT_PRESET_SETTINGS[key]?.maxOutputChars || "700",
+        businessContext: t(`workflow_agents.preset_${key}_business_context`),
+        fallbackReply: t(`workflow_agents.preset_${key}_fallback`),
+        behavior: {
+            role: t(`workflow_agents.preset_${key}_role`),
+            tone: t(`workflow_agents.preset_${key}_tone`),
+            objective: t(`workflow_agents.preset_${key}_objective`),
+            guardrails: t(`workflow_agents.preset_${key}_guardrails`)
+        },
+        permissions:
+            key === "sales_ghl"
+                ? PRESET_PERMISSION_PROFILES.ghl_sales
+                : key === "appointments_ghl"
+                    ? PRESET_PERMISSION_PROFILES.ghl_appointments
+                    : key === "reception_both"
+                        ? PRESET_PERMISSION_PROFILES.both_reception
+                        : PRESET_PERMISSION_PROFILES.inbox_basic
+    }));
+}
 
 function mergeAgentConfig(agent = {}) {
     return {
@@ -73,6 +167,77 @@ function buildDefaultIntegrations(catalog = []) {
     if (!defaults.ghl) defaults.ghl = { enabled: true, config: {} };
     if (!defaults.chatwoot) defaults.chatwoot = { enabled: false, config: {} };
     return defaults;
+}
+
+function applyPresetIntegrationMode(integrations = {}, mode = "both") {
+    const next = Object.entries(integrations || {}).reduce((acc, [key, value]) => {
+        acc[key] = {
+            ...(value || {}),
+            config: value?.config || {}
+        };
+        return acc;
+    }, {});
+
+    if (!next.ghl) next.ghl = { enabled: false, config: {} };
+    if (!next.chatwoot) next.chatwoot = { enabled: false, config: {} };
+
+    next.ghl.enabled = mode === "ghl" || mode === "both";
+    next.chatwoot.enabled = mode === "inbox" || mode === "both";
+
+    return next;
+}
+
+function buildPresetForm(baseForm, preset) {
+    const integrationMode = preset.integrationMode || "both";
+    return {
+        ...baseForm,
+        name: preset.name,
+        status: "paused",
+        temperature: preset.temperature,
+        max_output_chars: preset.maxOutputChars,
+        system_prompt: preset.businessContext,
+        fallback_reply: preset.fallbackReply,
+        description: preset.description,
+        use_contact_context: true,
+        behavior: {
+            ...baseForm.behavior,
+            ...preset.behavior
+        },
+        permissions: applyIntegrationPermissionCaps(
+            {
+                ...baseForm.permissions,
+                ...preset.permissions
+            },
+            integrationMode
+        ),
+        integrations: applyPresetIntegrationMode(baseForm.integrations, integrationMode)
+    };
+}
+
+function getWorkspacePresetMode(workspace = {}, catalog = []) {
+    const location = workspace?.location || {};
+    const crmType = String(location?.crm_type || location?.settings?.crm_type || "").toLowerCase();
+    const ghlIntegration = catalog.find((item) => item?.key === "ghl") || {};
+    const inboxIntegration = catalog.find((item) => item?.key === "chatwoot") || {};
+    const hasGhl = crmType === "ghl" || ghlIntegration.connected === true || ghlIntegration.status === "ready";
+    const hasInbox = crmType === "chatwoot" || inboxIntegration.connected === true || inboxIntegration.status === "connected";
+
+    if (hasGhl && !hasInbox) return "ghl";
+    if (hasInbox && !hasGhl) return "inbox";
+    return "both";
+}
+
+function presetMatchesWorkspace(preset, workspaceMode) {
+    if (!preset) return false;
+    if (workspaceMode === "ghl") return preset.integrationMode === "ghl" || preset.integrationMode === "both";
+    if (workspaceMode === "inbox") return preset.integrationMode === "inbox" || preset.integrationMode === "both";
+    return true;
+}
+
+function resolvePresetIntegrationMode(preset, workspaceMode) {
+    if (preset?.integrationMode !== "both") return preset?.integrationMode || "both";
+    if (workspaceMode === "ghl" || workspaceMode === "inbox") return workspaceMode;
+    return "both";
 }
 
 function buildEmptyForm(catalog = []) {
@@ -208,6 +373,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
     const [selectedLocationId, setSelectedLocationId] = useState(() => String(locationId || "").trim());
     const [workspace, setWorkspace] = useState(null);
     const [viewMode, setViewMode] = useState("list");
+    const [createDialogMode, setCreateDialogMode] = useState(null);
     const [editingAgentId, setEditingAgentId] = useState(null);
     const [activeTab, setActiveTab] = useState("general");
     const [form, setForm] = useState(buildEmptyForm());
@@ -222,6 +388,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
     const [testing, setTesting] = useState(false);
     const [resettingMemory, setResettingMemory] = useState(false);
     const [uploadingDocuments, setUploadingDocuments] = useState(false);
+    const agentPresets = useMemo(() => buildWorkflowAgentPresets(t), [t]);
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -331,6 +498,37 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
         setViewMode("editor");
     };
 
+    const openAgentCreationDialog = () => {
+        setCreateDialogMode("choice");
+    };
+
+    const closeAgentCreationDialog = () => {
+        setCreateDialogMode(null);
+    };
+
+    const startBlankAgent = () => {
+        closeAgentCreationDialog();
+        applyAgentToForm(null, workspace, { openEditor: true });
+    };
+
+    const startPresetAgent = (preset) => {
+        if (!preset) return;
+        const currentCatalog = Array.isArray(workspace?.integration_catalog) ? workspace.integration_catalog : [];
+        const currentWorkspaceMode = getWorkspacePresetMode(workspace, currentCatalog);
+        const resolvedPreset = {
+            ...preset,
+            integrationMode: resolvePresetIntegrationMode(preset, currentWorkspaceMode)
+        };
+        setEditingAgentId(null);
+        setForm(buildPresetForm(buildEmptyForm(currentCatalog), resolvedPreset));
+        setTestMessage("");
+        setTestResult(null);
+        setTestConversation([]);
+        setActiveTab("general");
+        setViewMode("editor");
+        closeAgentCreationDialog();
+    };
+
     const loadWorkspace = async (locationId) => {
         const safeLocationId = String(locationId || "").trim();
         if (!safeLocationId) return null;
@@ -365,6 +563,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
             setTestResult(null);
             setTestConversation([]);
             setActiveTab("general");
+            setCreateDialogMode(null);
             loadWorkspace(selectedLocationId);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -377,16 +576,11 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
         setSaving(true);
         try {
             const { cancel_appointment: _cancelAppointment, ...safePermissions } = form.permissions || {};
-            const integrationAwarePermissions = showCrmActions
-                ? safePermissions
-                : {
-                    ...safePermissions,
-                    view_appointments: false,
-                    set_fields: false,
-                    create_appointment: false,
-                    reschedule_appointment: false,
-                    cancel_appointment: false
-                };
+            const hasGhlEnabled = form.integrations?.ghl?.enabled === true;
+            const integrationAwarePermissions = applyIntegrationPermissionCaps(
+                safePermissions,
+                hasGhlEnabled ? "both" : "inbox"
+            );
             const normalizedAgentKey = String(form.agent_key || "").trim();
             const payload = {
                 locationId: selectedLocationId,
@@ -405,10 +599,8 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                     behavior: form.behavior,
                     permissions: integrationAwarePermissions,
                     calendar_scope: {
-                        mode: showCrmActions && form.calendar_scope_mode === "selected" ? "selected" : "all",
-                        calendar_ids: showCrmActions && form.calendar_scope_mode === "selected"
-                            ? form.calendar_scope_ids.map((value) => String(value))
-                            : []
+                        mode: "all",
+                        calendar_ids: []
                     }
                 },
                 integrations: form.integrations
@@ -578,7 +770,6 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
     const catalog = Array.isArray(workspace?.integration_catalog) ? workspace.integration_catalog : [];
     const agents = Array.isArray(workspace?.agents) ? workspace.agents : [];
     const slots = Array.isArray(workspace?.slots) ? workspace.slots : [];
-    const calendarsCatalog = Array.isArray(workspace?.crm_catalog?.calendars) ? workspace.crm_catalog.calendars : [];
     const ghlIntegration = catalog.find((item) => item?.key === "ghl") || null;
     const showCrmActions = ghlIntegration?.supports_execution === true && (ghlIntegration?.connected === true || ghlIntegration?.status === "ready");
     const locationHasOpenAiKey = workspace?.credentials?.has_location_openai_key === true;
@@ -597,6 +788,26 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
             : isActiveStatus
                 ? "El agente está activo."
                 : "El agente está inactivo.";
+
+    const handleToggleAgentStatus = () => {
+        if (!editingAgentId) {
+            toast.error("Guarda el agente para poder cambiar su estado.");
+            return;
+        }
+
+        if (!hasAnyOpenAiKey) {
+            toast.error("Se debe configurar api key para activar.");
+            onOpenIntegrations?.();
+            return;
+        }
+
+        if (saving) return;
+
+        setForm((prev) => ({
+            ...prev,
+            status: prev.status === "active" ? "paused" : "active"
+        }));
+    };
     const fallbackBaseModelOptions = useMemo(
         () => BASE_AGENT_MODEL_OPTIONS.map((option) => ({
             value: option.value,
@@ -631,6 +842,11 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
     }, [baseModelOptions, form.model, t]);
     const selectedAgent = agents.find((agent) => agent.id === editingAgentId) || null;
     const selectedDocuments = Array.isArray(selectedAgent?.documents) ? selectedAgent.documents : [];
+    const workspacePresetMode = getWorkspacePresetMode(workspace, catalog);
+    const filteredAgentPresets = useMemo(
+        () => agentPresets.filter((preset) => presetMatchesWorkspace(preset, workspacePresetMode)),
+        [agentPresets, workspacePresetMode]
+    );
 
     const buildMissingCredentialMessage = () => {
         if (locationHasOpenAiKey) {
@@ -672,7 +888,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                 </div>
                 <button
                     type="button"
-                    onClick={() => applyAgentToForm(null, workspace, { openEditor: true })}
+                    onClick={openAgentCreationDialog}
                     className="rounded-2xl bg-indigo-600 px-3.5 py-2 text-sm font-bold text-white transition hover:bg-indigo-500"
                 >
                     {t("workflow_agents.new_agent")}
@@ -696,7 +912,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                         {agents.length === 0 ? (
                             <button
                                 type="button"
-                                onClick={() => applyAgentToForm(null, workspace, { openEditor: true })}
+                                onClick={openAgentCreationDialog}
                                 className="mt-4 inline-flex items-center rounded-2xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-500"
                             >
                                 {t("workflow_agents.new_agent")}
@@ -835,14 +1051,126 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
         </section>
     );
 
-    return (
-        <div className="max-w-7xl mx-auto space-y-6">
-            <div className="flex flex-col gap-4">
-                <div className="max-w-3xl">
-                    <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">{t("workflow_agents.title")}</h3>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("workflow_agents.subtitle")}</p>
+    const renderAgentCreationDialog = () => {
+        if (!createDialogMode) return null;
+
+        const isPresetMode = createDialogMode === "presets";
+
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/70 px-4 py-6 backdrop-blur-sm">
+                <div className="w-full max-w-4xl overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-950">
+                    <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+                        <div className="min-w-0">
+                            <div className="text-xs font-bold uppercase tracking-[0.24em] text-indigo-500">
+                                {t("workflow_agents.create_modal_kicker")}
+                            </div>
+                            <h4 className="mt-2 text-xl font-extrabold text-gray-900 dark:text-white">
+                                {isPresetMode ? t("workflow_agents.preset_modal_title") : t("workflow_agents.create_modal_title")}
+                            </h4>
+                            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                {isPresetMode ? t("workflow_agents.preset_modal_desc") : t("workflow_agents.create_modal_desc")}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={closeAgentCreationDialog}
+                            className="rounded-2xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
+                        >
+                            {t("workflow_agents.create_modal_close")}
+                        </button>
+                    </div>
+
+                    {isPresetMode ? (
+                        <div className="p-5">
+                            <button
+                                type="button"
+                                onClick={() => setCreateDialogMode("choice")}
+                                className="mb-4 inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-3.5 py-2 text-sm font-bold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+                            >
+                                <ChevronLeft size={16} />
+                                {t("workflow_agents.preset_modal_back")}
+                            </button>
+
+                            {filteredAgentPresets.length > 0 ? (
+                                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                    {filteredAgentPresets.map((preset) => (
+                                        <button
+                                            key={preset.key}
+                                            type="button"
+                                            onClick={() => startPresetAgent(preset)}
+                                            className="group flex min-h-[210px] flex-col rounded-[26px] border border-gray-200 bg-gray-50/80 p-5 text-left transition hover:-translate-y-0.5 hover:border-indigo-400 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/10 dark:border-gray-800 dark:bg-gray-900/70 dark:hover:border-indigo-700 dark:hover:bg-gray-900"
+                                        >
+                                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 transition group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-950/50 dark:text-indigo-300">
+                                                <Sparkles size={20} />
+                                            </div>
+                                            <div className="mt-5 text-lg font-extrabold text-gray-900 dark:text-white">
+                                                {preset.title}
+                                            </div>
+                                            <p className="mt-2 flex-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                                {preset.description}
+                                            </p>
+                                            <div className="mt-5 text-sm font-bold text-indigo-600 dark:text-indigo-300">
+                                                {t("workflow_agents.preset_select")}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="rounded-3xl border border-dashed border-gray-300 px-5 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                                    {t("workflow_agents.preset_modal_empty")}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="grid gap-4 p-5 md:grid-cols-2">
+                            <button
+                                type="button"
+                                onClick={startBlankAgent}
+                                className="group rounded-[28px] border border-gray-200 bg-gray-50/80 p-6 text-left transition hover:-translate-y-0.5 hover:border-indigo-400 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/10 dark:border-gray-800 dark:bg-gray-900/70 dark:hover:border-indigo-700 dark:hover:bg-gray-900"
+                            >
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-gray-600 transition group-hover:bg-indigo-600 group-hover:text-white dark:bg-gray-800 dark:text-gray-300">
+                                    <FileText size={20} />
+                                </div>
+                                <h5 className="mt-5 text-lg font-extrabold text-gray-900 dark:text-white">
+                                    {t("workflow_agents.create_blank_title")}
+                                </h5>
+                                <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                    {t("workflow_agents.create_blank_desc")}
+                                </p>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setCreateDialogMode("presets")}
+                                className="group rounded-[28px] border border-indigo-200 bg-indigo-50/70 p-6 text-left transition hover:-translate-y-0.5 hover:border-indigo-400 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/15 dark:border-indigo-900/60 dark:bg-indigo-950/20 dark:hover:border-indigo-700 dark:hover:bg-gray-900"
+                            >
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white">
+                                    <Sparkles size={20} />
+                                </div>
+                                <h5 className="mt-5 text-lg font-extrabold text-gray-900 dark:text-white">
+                                    {t("workflow_agents.create_preset_title")}
+                                </h5>
+                                <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                    {t("workflow_agents.create_preset_desc")}
+                                </p>
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
+        );
+    };
+
+    return (
+        <>
+            {renderAgentCreationDialog()}
+            <div className="max-w-7xl mx-auto space-y-6">
+                <div className="flex flex-col gap-4">
+                    <div className="max-w-3xl">
+                        <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">{t("workflow_agents.title")}</h3>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("workflow_agents.subtitle")}</p>
+                    </div>
+                </div>
 
             {viewMode === "list" ? (
                 renderAgentList(false)
@@ -922,11 +1250,9 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                             </div>
                                             <div>
                                                 <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_status")}</label>
-                                                <select value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))} className={inputClassName}>
-                                                    <option value="active">{t("workflow_agents.status_active")}</option>
-                                                    <option value="draft">{t("workflow_agents.status_draft")}</option>
-                                                    <option value="paused">{t("workflow_agents.status_paused")}</option>
-                                                </select>
+                                                <div className="flex h-[50px] items-center rounded-2xl border border-gray-200 bg-gray-50 px-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                                                    {t(`workflow_agents.status_${form.status}`)}
+                                                </div>
                                             </div>
                                         </div>
                                     </EditorSection>
@@ -1083,61 +1409,6 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                                 })}
                                             </div>
 
-                                            <div className="mt-5">
-                                                <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_calendar_scope")}</label>
-                                                <select
-                                                    value={form.calendar_scope_mode}
-                                                    onChange={(event) => setForm((prev) => ({
-                                                        ...prev,
-                                                        calendar_scope_mode: event.target.value,
-                                                        calendar_scope_ids: event.target.value === "selected" ? prev.calendar_scope_ids : []
-                                                    }))}
-                                                    className={inputClassName}
-                                                >
-                                                    <option value="all">{t("workflow_agents.calendar_scope_all")}</option>
-                                                    <option value="selected">{t("workflow_agents.calendar_scope_selected")}</option>
-                                                </select>
-                                                <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
-                                                    {t("workflow_agents.field_calendar_scope_help")}
-                                                </div>
-                                            </div>
-
-                                            {form.calendar_scope_mode === "selected" ? (
-                                                <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-                                                    {calendarsCatalog.length === 0 ? (
-                                                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                            {t("workflow_agents.no_calendars_available")}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="grid gap-3 lg:grid-cols-2">
-                                                            {calendarsCatalog.map((calendar) => {
-                                                                const calendarValue = String(calendar.id || calendar.name || "");
-                                                                if (!calendarValue) return null;
-                                                                const isChecked = form.calendar_scope_ids.includes(calendarValue);
-                                                                return (
-                                                                    <label key={calendarValue} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={isChecked}
-                                                                            onChange={(event) => setForm((prev) => ({
-                                                                                ...prev,
-                                                                                calendar_scope_ids: event.target.checked
-                                                                                    ? [...prev.calendar_scope_ids, calendarValue]
-                                                                                    : prev.calendar_scope_ids.filter((value) => value !== calendarValue)
-                                                                            }))}
-                                                                            className="h-4 w-4 rounded text-indigo-600"
-                                                                        />
-                                                                        <span className="min-w-0">
-                                                                            <span className="block font-semibold text-gray-900 dark:text-white">{calendar.name || calendar.id}</span>
-                                                                            {calendar.id ? <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{calendar.id}</span> : null}
-                                                                        </span>
-                                                                    </label>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ) : null}
                                         </EditorSection>
                                     ) : null}
 
@@ -1165,14 +1436,11 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                                     type="button"
                                                     role="switch"
                                                     aria-checked={isActiveStatus}
-                                                    disabled={!canToggleAgentStatus}
-                                                    onClick={() => setForm((prev) => ({
-                                                        ...prev,
-                                                        status: prev.status === "active" ? "paused" : "active"
-                                                    }))}
+                                                    aria-disabled={!canToggleAgentStatus}
+                                                    onClick={handleToggleAgentStatus}
                                                     className={`relative h-6 w-11 rounded-full transition ${
                                                         isActiveStatus ? "bg-indigo-600" : "bg-gray-300 dark:bg-gray-600"
-                                                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                                                    } ${canToggleAgentStatus ? "" : "opacity-70"}`}
                                                 >
                                                     <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
                                                         isActiveStatus ? "left-[22px]" : "left-0.5"
@@ -1283,6 +1551,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                     {renderChatPanel()}
                 </div>
             )}
-        </div>
+            </div>
+        </>
     );
 }
