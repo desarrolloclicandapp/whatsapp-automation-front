@@ -89,6 +89,12 @@ export default function StandaloneLayout({
   }, [isWhatsAppConnected]);
 
   useEffect(() => {
+    if (sessionStorage.getItem('pendingEmailReview')) {
+      setActiveTab('settings');
+    }
+  }, []);
+
+  useEffect(() => {
     setCrmRequestName(String(accountInfo?.name || '').trim());
     setCrmRequestEmail(String(accountInfo?.email || '').trim());
   }, [accountInfo]);
