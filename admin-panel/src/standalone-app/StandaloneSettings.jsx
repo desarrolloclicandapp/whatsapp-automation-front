@@ -1321,7 +1321,7 @@ export default function StandaloneSettings({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <h4 className="text-base font-bold text-gray-900 dark:text-white">
-                        {slot.slot_name || `WhatsApp ${slotId}`}
+                        {slot.slot_name || `Dispositivo #${slotId}`}
                       </h4>
                       <span className="px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
                         {slot.is_connected ? 'Conectado' : 'Desconectado'}
@@ -1490,7 +1490,7 @@ export default function StandaloneSettings({
                       type="text"
                       value={inboxName}
                       onChange={(event) => setInboxName(event.target.value)}
-                      placeholder="Ej: Soporte Principal"
+                      placeholder="Ej: Dispositivo principal"
                       autoComplete="off"
                       className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                     />
@@ -1681,7 +1681,7 @@ export default function StandaloneSettings({
 
               {locationSlots.map((slot) => {
                 const slotId = slot.slot_id;
-                const slotName = slot.slot_name || `WhatsApp ${slotId}`;
+                const slotName = slot.slot_name || `Dispositivo #${slotId}`;
                 const proxyConfig = proxyConfigBySlot[slotId] || {
                   configured: false,
                   host: '',
@@ -2159,7 +2159,7 @@ export default function StandaloneSettings({
                         type="text"
                         value={inboxName}
                         onChange={(event) => setInboxName(event.target.value)}
-                        placeholder="Ej: Soporte Principal"
+                        placeholder="Ej: Dispositivo principal"
                         autoComplete="off"
                         className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                       />

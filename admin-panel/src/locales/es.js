@@ -1844,7 +1844,7 @@ export const es = {
     "standalone.slots.modal_create_placeholder": "Ej: Ventas principal",
     "standalone.slots.modal_rename_title": "Editar nombre",
     "standalone.slots.modal_rename_desc": "Actualiza el nombre de este WhatsApp.",
-    "standalone.slots.modal_rename_placeholder": "Ej: Soporte 1",
+    "standalone.slots.modal_rename_placeholder": "Ej: Dispositivo 1",
     "standalone.slots.upgrade_title": "Sube de plan para conectar más WhatsApp",
     "standalone.slots.upgrade_desc": "Llegaste al límite de conexiones de tu plan actual. Mejora tu plan para agregar más números.",
     "standalone.slots.upgrade_cta": "Ver planes",

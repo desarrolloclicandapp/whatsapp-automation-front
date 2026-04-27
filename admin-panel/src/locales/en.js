@@ -1810,7 +1810,7 @@ export const en = {
     "standalone.slots.modal_create_placeholder": "Ex: Main Sales",
     "standalone.slots.modal_rename_title": "Edit name",
     "standalone.slots.modal_rename_desc": "Update the name of this WhatsApp.",
-    "standalone.slots.modal_rename_placeholder": "Ex: Support 1",
+    "standalone.slots.modal_rename_placeholder": "Ex: Device 1",
     "standalone.slots.upgrade_title": "Upgrade your plan to connect more WhatsApp numbers",
     "standalone.slots.upgrade_desc": "You reached the connection limit of your current plan. Upgrade to add more numbers.",
     "standalone.slots.upgrade_cta": "View plans",
