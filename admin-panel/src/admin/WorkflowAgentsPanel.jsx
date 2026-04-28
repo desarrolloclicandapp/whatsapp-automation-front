@@ -16,6 +16,10 @@ const EMPTY_AGENT_ACTION_RULES = {
     add_tags: [],
     remove_tags: []
 };
+const OBJECTIVE_SENTENCES_FROM_BUSINESS_CONTEXT = [
+    "Si falta informaci\u00f3n, pide el dato m\u00ednimo con empat\u00eda antes de responder.",
+    "If information is missing, ask for the minimum detail with empathy before replying."
+];
 const DEFAULT_AGENT_PERMISSIONS = {
     view_appointments: true,
     add_tags: true,
@@ -131,6 +135,32 @@ function countActionRules(actionRules = {}, permissionKey) {
     return normalizeActionRuleDrafts(rules).length;
 }
 
+function moveObjectiveSentenceFromBusinessContext(form = {}) {
+    let systemPrompt = String(form.system_prompt || "");
+    const behavior = {
+        ...DEFAULT_AGENT_BEHAVIOR,
+        ...(form.behavior || {})
+    };
+    let objective = String(behavior.objective || "").trim();
+
+    for (const sentence of OBJECTIVE_SENTENCES_FROM_BUSINESS_CONTEXT) {
+        if (!systemPrompt.includes(sentence)) continue;
+        systemPrompt = systemPrompt.split(sentence).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+        if (!objective.toLowerCase().includes(sentence.toLowerCase())) {
+            objective = objective ? `${objective} ${sentence}` : sentence;
+        }
+    }
+
+    return {
+        ...form,
+        system_prompt: systemPrompt,
+        behavior: {
+            ...behavior,
+            objective
+        }
+    };
+}
+
 function buildWorkflowAgentPresets(t) {
     return WORKFLOW_AGENT_PRESET_KEYS.map((key) => ({
         key,
@@ -237,7 +267,7 @@ function applyPresetIntegrationMode(integrations = {}, mode = "both") {
 
 function buildPresetForm(baseForm, preset) {
     const integrationMode = preset.integrationMode || "both";
-    return {
+    return moveObjectiveSentenceFromBusinessContext({
         ...baseForm,
         name: preset.name,
         status: "paused",
@@ -259,7 +289,7 @@ function buildPresetForm(baseForm, preset) {
             integrationMode
         ),
         integrations: applyPresetIntegrationMode(baseForm.integrations, integrationMode)
-    };
+    });
 }
 
 function getWorkspacePresetMode(workspace = {}, catalog = []) {
@@ -326,7 +356,7 @@ function buildFormFromAgent(agent, catalog = []) {
         };
     }
 
-    return {
+    return moveObjectiveSentenceFromBusinessContext({
         name: agent?.name || "",
         agent_key: agent?.agent_key || "",
         status: agent?.status || "active",
@@ -350,7 +380,7 @@ function buildFormFromAgent(agent, catalog = []) {
             ? config.calendar_scope.calendar_ids.map((value) => String(value))
             : [],
         integrations
-    };
+    });
 }
 
 function getIntegrationTitle(t, integrationKey) {
@@ -640,40 +670,41 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
 
         setSaving(true);
         try {
-            const hasGhlEnabled = form.integrations?.ghl?.enabled === true;
+            const normalizedForm = moveObjectiveSentenceFromBusinessContext(form);
+            const hasGhlEnabled = normalizedForm.integrations?.ghl?.enabled === true;
             const integrationAwarePermissions = applyIntegrationPermissionCaps(
-                form.permissions,
+                normalizedForm.permissions,
                 hasGhlEnabled ? "both" : "inbox"
             );
             const payload = {
                 locationId: selectedLocationId,
-                name: form.name,
-                agent_key: form.agent_key,
-                status: form.status,
+                name: normalizedForm.name,
+                agent_key: normalizedForm.agent_key,
+                status: normalizedForm.status,
                 credential_mode: "location",
                 slot_ids: [],
-                model: form.model,
-                temperature: Number.parseFloat(form.temperature || "0.4"),
-                max_output_chars: Number.parseInt(form.max_output_chars || "600", 10),
-                system_prompt: form.system_prompt,
-                fallback_reply: form.fallback_reply,
-                description: form.description,
-                use_contact_context: form.use_contact_context,
+                model: normalizedForm.model,
+                temperature: Number.parseFloat(normalizedForm.temperature || "0.4"),
+                max_output_chars: Number.parseInt(normalizedForm.max_output_chars || "600", 10),
+                system_prompt: normalizedForm.system_prompt,
+                fallback_reply: normalizedForm.fallback_reply,
+                description: normalizedForm.description,
+                use_contact_context: normalizedForm.use_contact_context,
                 config: {
-                    behavior: form.behavior,
+                    behavior: normalizedForm.behavior,
                     permissions: integrationAwarePermissions,
                     action_rules: {
-                        add_tags: normalizeActionRuleDrafts(form.action_rules?.add_tags || []),
-                        remove_tags: normalizeActionRuleDrafts(form.action_rules?.remove_tags || [])
+                        add_tags: normalizeActionRuleDrafts(normalizedForm.action_rules?.add_tags || []),
+                        remove_tags: normalizeActionRuleDrafts(normalizedForm.action_rules?.remove_tags || [])
                     },
                     calendar_scope: {
-                        mode: hasGhlEnabled && form.calendar_scope_mode === "selected" ? "selected" : "all",
-                        calendar_ids: hasGhlEnabled && form.calendar_scope_mode === "selected"
-                            ? form.calendar_scope_ids.map((value) => String(value))
+                        mode: hasGhlEnabled && normalizedForm.calendar_scope_mode === "selected" ? "selected" : "all",
+                        calendar_ids: hasGhlEnabled && normalizedForm.calendar_scope_mode === "selected"
+                            ? normalizedForm.calendar_scope_ids.map((value) => String(value))
                             : []
                     }
                 },
-                integrations: form.integrations
+                integrations: normalizedForm.integrations
             };
 
             const endpoint = editingAgentId ? `/agency/workflow-agents/${editingAgentId}` : "/agency/workflow-agents";
@@ -686,7 +717,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             await loadWorkspace(selectedLocationId);
             if (data.agent) {
                 applyAgentToForm(
-                    { ...data.agent, integrations: data.agent.integrations || form.integrations },
+                    { ...data.agent, integrations: data.agent.integrations || normalizedForm.integrations },
                     { ...(workspace || {}), integration_catalog: workspace?.integration_catalog || [] },
                     { openEditor: true }
                 );
