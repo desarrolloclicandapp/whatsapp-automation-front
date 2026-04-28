@@ -1349,78 +1349,79 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                                     </label>
                                                 </EditorSection>
 
-                                                <EditorSection title={t("workflow_agents.section_behavior_title")} description={t("workflow_agents.section_behavior_desc")}>
-                                                    <div className="grid gap-4 lg:grid-cols-2">
-                                                        <div>
-                                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_role")}</label>
-                                                            <textarea
-                                                                rows={6}
-                                                                value={form.behavior.role}
-                                                                onChange={(event) => setForm((prev) => ({
-                                                                    ...prev,
-                                                                    behavior: { ...prev.behavior, role: event.target.value }
-                                                                }))}
-                                                                placeholder={t("workflow_agents.field_behavior_role_placeholder")}
-                                                                className={textAreaCardClassName}
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_tone")}</label>
-                                                            <textarea
-                                                                rows={6}
-                                                                value={form.behavior.tone}
-                                                                onChange={(event) => setForm((prev) => ({
-                                                                    ...prev,
-                                                                    behavior: { ...prev.behavior, tone: event.target.value }
-                                                                }))}
-                                                                placeholder={t("workflow_agents.field_behavior_tone_placeholder")}
-                                                                className={textAreaCardClassName}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-4">
-                                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_objective")}</label>
-                                                        <textarea
-                                                            rows={5}
-                                                            value={form.behavior.objective}
-                                                            onChange={(event) => setForm((prev) => ({
-                                                                ...prev,
-                                                                behavior: { ...prev.behavior, objective: event.target.value }
-                                                            }))}
-                                                            placeholder={t("workflow_agents.field_behavior_objective_placeholder")}
-                                                            className={textAreaCardClassName}
-                                                        />
-                                                    </div>
-                                                    <div className="mt-4">
-                                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_guardrails")}</label>
-                                                        <textarea
-                                                            rows={7}
-                                                            value={form.behavior.guardrails}
-                                                            onChange={(event) => setForm((prev) => ({
-                                                                ...prev,
-                                                                behavior: { ...prev.behavior, guardrails: event.target.value }
-                                                            }))}
-                                                            placeholder={t("workflow_agents.field_behavior_guardrails_placeholder")}
-                                                            className={textAreaCardClassName}
-                                                        />
-                                                    </div>
-                                                </EditorSection>
                                             </>
-                                        ) : (
-                                            <EditorSection title="Datos del negocio" description="Completa lo que el agente necesita saber antes de responder clientes.">
+                                        ) : null}
+
+
+                                        <EditorSection title={t("workflow_agents.section_business_title")} description={t("workflow_agents.section_business_desc")}>
+                                            <textarea
+                                                rows={9}
+                                                value={form.system_prompt}
+                                                onChange={(event) => setForm((prev) => ({ ...prev, system_prompt: event.target.value }))}
+                                                placeholder={t("workflow_agents.field_business_context_placeholder")}
+                                                className={textAreaCardClassName}
+                                            />
+                                            <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                                {t("workflow_agents.field_business_context_help")}
+                                            </div>
+                                        </EditorSection>
+
+                                        <EditorSection title={t("workflow_agents.section_behavior_title")} description={t("workflow_agents.section_behavior_desc")}>
+                                            <div className="grid gap-4 lg:grid-cols-2">
+                                                <div>
+                                                    <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_role")}</label>
+                                                    <textarea
+                                                        rows={6}
+                                                        value={form.behavior.role}
+                                                        onChange={(event) => setForm((prev) => ({
+                                                            ...prev,
+                                                            behavior: { ...prev.behavior, role: event.target.value }
+                                                        }))}
+                                                        placeholder={t("workflow_agents.field_behavior_role_placeholder")}
+                                                        className={textAreaCardClassName}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_tone")}</label>
+                                                    <textarea
+                                                        rows={6}
+                                                        value={form.behavior.tone}
+                                                        onChange={(event) => setForm((prev) => ({
+                                                            ...prev,
+                                                            behavior: { ...prev.behavior, tone: event.target.value }
+                                                        }))}
+                                                        placeholder={t("workflow_agents.field_behavior_tone_placeholder")}
+                                                        className={textAreaCardClassName}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="mt-4">
+                                                <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_objective")}</label>
                                                 <textarea
-                                                    rows={9}
-                                                    value={form.system_prompt}
-                                                    onChange={(event) => setForm((prev) => ({ ...prev, system_prompt: event.target.value }))}
-                                                    placeholder="Ej. Qué vende el negocio, ciudad, horarios, precios base, servicios, condiciones, preguntas frecuentes y cuándo debe derivar a una persona."
+                                                    rows={5}
+                                                    value={form.behavior.objective}
+                                                    onChange={(event) => setForm((prev) => ({
+                                                        ...prev,
+                                                        behavior: { ...prev.behavior, objective: event.target.value }
+                                                    }))}
+                                                    placeholder={t("workflow_agents.field_behavior_objective_placeholder")}
                                                     className={textAreaCardClassName}
                                                 />
-                                                <div className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
-                                                    Esto se usa como instrucción principal del agente. Si lo dejas incompleto, el agente pedirá los datos faltantes con naturalidad.
-                                                </div>
-                                            </EditorSection>
-                                        )}
-
+                                            </div>
+                                            <div className="mt-4">
+                                                <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_behavior_guardrails")}</label>
+                                                <textarea
+                                                    rows={7}
+                                                    value={form.behavior.guardrails}
+                                                    onChange={(event) => setForm((prev) => ({
+                                                        ...prev,
+                                                        behavior: { ...prev.behavior, guardrails: event.target.value }
+                                                    }))}
+                                                    placeholder={t("workflow_agents.field_behavior_guardrails_placeholder")}
+                                                    className={textAreaCardClassName}
+                                                />
+                                            </div>
+                                        </EditorSection>
                                         <EditorSection title="Acciones del agente" description="Activa solo las acciones que este agente podrá ejecutar en la bandeja.">
                                             <div className="grid gap-3 lg:grid-cols-2">
                                                 {actionPermissionItems.map(([permissionKey, labelText, descText]) => {
@@ -1647,3 +1648,4 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
         </>
     );
 }
+
