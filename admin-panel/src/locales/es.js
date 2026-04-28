@@ -382,7 +382,7 @@ export const es = {
     "workflow_agents.location_key_save": "Guardar key",
     "workflow_agents.location_key_saving": "Guardando...",
     "workflow_agents.location_key_remove": "Quitar key",
-    "workflow_agents.location_key_ready": "La subcuenta ya tiene una OpenAI key propia.",
+    "workflow_agents.location_key_ready": "Ya tienes una OpenAI key propia.",
     "workflow_agents.location_key_missing": "No hay key en la subcuenta. Agrega una para evitar depender del fallback legacy.",
     "workflow_agents.location_key_legacy_fallback": "Hay {count} slot(s) con key legacy. Siguen funcionando como respaldo temporal.",
     "workflow_agents.location_key_agency_fallback": "No hay key en la subcuenta, pero existe una key de agencia como respaldo.",
