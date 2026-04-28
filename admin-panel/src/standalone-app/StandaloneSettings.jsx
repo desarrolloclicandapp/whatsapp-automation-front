@@ -32,19 +32,19 @@ const MASKED_API_KEY_PLACEHOLDER = '••••••••••••••�
 const API_KEY_TUTORIAL_STEPS = [
   {
     image: tutorialPaso1,
-    text: 'El primer paso es abrir https://platform.openai.com/home e iniciar sesion o registrarte.',
+    textKey: 'standalone.settings.openai_tutorial_step1',
   },
   {
     image: tutorialPaso2,
-    text: 'Ya dentro, presiona "Create API key". Tambien debes agregar creditos en "Add Credits".',
+    textKey: 'standalone.settings.openai_tutorial_step2',
   },
   {
     image: tutorialPaso3,
-    text: 'Coloca un nombre para la key y haz clic en "Create secret key".',
+    textKey: 'standalone.settings.openai_tutorial_step3',
   },
   {
     image: tutorialPaso4,
-    text: 'Copia la API key y guardala en un lugar seguro. Si la pierdes, puedes crear una nueva.',
+    textKey: 'standalone.settings.openai_tutorial_step4',
   },
 ];
 
@@ -1638,7 +1638,7 @@ export default function StandaloneSettings({
               <div>
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <Key size={22} className="text-emerald-500" />
-                  OpenAI
+                  {t('standalone.settings.openai_title') || 'OpenAI'}
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   {t('standalone.settings.openai_desc') ||
@@ -1758,7 +1758,7 @@ export default function StandaloneSettings({
                         <div>
                           <h5 className="text-sm font-bold text-gray-900 dark:text-white">{t('standalone.settings.elevenlabs_title') || 'ElevenLabs'}</h5>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Configura API key y voz por defecto para este WhatsApp.
+                            {t('standalone.settings.elevenlabs_slot_desc') || 'Configura API key y voz por defecto para este WhatsApp.'}
                           </p>
                         </div>
                       </div>
@@ -1803,7 +1803,9 @@ export default function StandaloneSettings({
                           className="w-full px-3 py-2.5 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
                         >
                           <option value="">
-                            {slot.elevenlabs_api_key ? 'Sin voz por defecto' : 'Configura primero la API key'}
+                            {slot.elevenlabs_api_key
+                              ? (t('standalone.settings.elevenlabs_no_default_voice') || 'Sin voz por defecto')
+                              : (t('standalone.settings.elevenlabs_configure_key_first') || 'Configura primero la API key')}
                           </option>
                           {slot.elevenlabs_voice_id && !voices.some((voice) => voice.id === slot.elevenlabs_voice_id) && (
                             <option value={slot.elevenlabs_voice_id}>Voz actual ({slot.elevenlabs_voice_id})</option>
@@ -2312,7 +2314,7 @@ export default function StandaloneSettings({
                 <div>
                   <h4 className="text-base font-bold text-gray-900 dark:text-white">{t('standalone.settings.openai_title') || 'OpenAI'}</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    API key global de la cuenta para automatizaciones y agentes.
+                    {t('standalone.settings.openai_global_desc') || 'API key global de la cuenta para automatizaciones y agentes.'}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -2426,7 +2428,7 @@ export default function StandaloneSettings({
                     <option value="">
                       {standaloneGlobal?.integrations?.elevenlabs_api_key
                         ? 'Sin voz por defecto'
-                        : 'Configura primero la API key'}
+                        : (t('standalone.settings.elevenlabs_configure_key_first') || 'Configura primero la API key')}
                     </option>
                     {globalVoices.map((voice) => (
                       <option key={voice.id} value={voice.id}>
@@ -2832,9 +2834,15 @@ export default function StandaloneSettings({
                 <div className="max-h-[65vh] space-y-5 overflow-y-auto px-6 py-5">
                   {API_KEY_TUTORIAL_STEPS.map((step, index) => (
                     <div key={step.image} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-700 dark:bg-gray-800/40">
-                      <div className="mb-3 text-sm font-bold text-gray-800 dark:text-gray-200">Paso {index + 1}</div>
-                      <img src={step.image} alt={`Paso ${index + 1}`} className="w-full rounded-xl border border-gray-200 object-contain dark:border-gray-700" />
-                      <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{step.text}</p>
+                      <div className="mb-3 text-sm font-bold text-gray-800 dark:text-gray-200">
+                        {t('standalone.settings.openai_tutorial_step_label').replace('{step}', String(index + 1))}
+                      </div>
+                      <img
+                        src={step.image}
+                        alt={t('standalone.settings.openai_tutorial_step_alt').replace('{step}', String(index + 1))}
+                        className="w-full rounded-xl border border-gray-200 object-contain dark:border-gray-700"
+                      />
+                      <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{t(step.textKey)}</p>
                     </div>
                   ))}
                 </div>

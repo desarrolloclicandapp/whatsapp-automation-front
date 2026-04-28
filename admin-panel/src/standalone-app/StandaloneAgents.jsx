@@ -373,19 +373,19 @@ function EditorSection({ title, description, children, className = "" }) {
 const API_KEY_TUTORIAL_STEPS = [
     {
         image: tutorialPaso1,
-        text: "El primer paso es abrir https://platform.openai.com/home e iniciar sesión o registrarte."
+        textKey: "workflow_agents.apikey_tutorial_step1"
     },
     {
         image: tutorialPaso2,
-        text: "Ya dentro, presiona \"Create API key\". También debes agregar créditos en \"Add Credits\"."
+        textKey: "workflow_agents.apikey_tutorial_step2"
     },
     {
         image: tutorialPaso3,
-        text: "Coloca un nombre para la key y haz clic en \"Create secret key\"."
+        textKey: "workflow_agents.apikey_tutorial_step3"
     },
     {
         image: tutorialPaso4,
-        text: "Copia la API key y guárdala en un lugar seguro. Si la pierdes, puedes crear una nueva."
+        textKey: "workflow_agents.apikey_tutorial_step4"
     }
 ];
 
@@ -1616,13 +1616,13 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                         <div className="max-h-[65vh] space-y-6 overflow-y-auto px-6 py-5">
                             {API_KEY_TUTORIAL_STEPS.map((step, index) => (
                                 <div key={step.image} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-700 dark:bg-gray-800/40">
-                                    <div className="mb-3 text-sm font-bold text-gray-800 dark:text-gray-200">Paso {index + 1}</div>
+                                    <div className="mb-3 text-sm font-bold text-gray-800 dark:text-gray-200">{t("workflow_agents.apikey_tutorial_step_label").replace("{step}", String(index + 1))}</div>
                                     <img
                                         src={step.image}
-                                        alt={`Paso ${index + 1} para crear API key`}
+                                        alt={t("workflow_agents.apikey_tutorial_step_alt").replace("{step}", String(index + 1))}
                                         className="w-full rounded-xl border border-gray-200 object-contain dark:border-gray-700"
                                     />
-                                    <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{step.text}</p>
+                                    <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{t(step.textKey)}</p>
                                 </div>
                             ))}
                         </div>
