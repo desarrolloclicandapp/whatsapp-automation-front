@@ -1531,6 +1531,15 @@ const disableTagAction = (permissionKey) => {
                                                     return (
                                                         <div
                                                             key={permissionKey}
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={() => openActionRuleModal(permissionKey)}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === "Enter" || event.key === " ") {
+                                                                    event.preventDefault();
+                                                                    openActionRuleModal(permissionKey);
+                                                                }
+                                                            }}
                                                             className={`cursor-pointer rounded-2xl border px-4 py-4 transition ${enabled
                                                                 ? "border-indigo-400 bg-indigo-50/80 dark:border-indigo-700 dark:bg-indigo-900/20"
                                                                 : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800/80"
@@ -1551,26 +1560,22 @@ const disableTagAction = (permissionKey) => {
                                                                     : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300"
                                                                     }`}>
                                                                     {enabled ? t("workflow_agents.action_enabled") : t("workflow_agents.action_disabled")}
-                                                                </span>
-                                                            </div>
-                                                            <div className="mt-4 flex flex-wrap gap-2">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => openActionRuleModal(permissionKey)}
-                                                                    className="rounded-2xl border border-indigo-200 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-900 dark:text-indigo-200 dark:hover:bg-indigo-950/40"
-                                                                >
-                                                                    {enabled ? t("workflow_agents.action_rules_edit") || "Editar reglas" : t("workflow_agents.action_rules_configure") || "Configurar"}
-                                                                </button>
-                                                                {enabled ? (
+                                                            </span>
+                                                        </div>
+                                                            {enabled ? (
+                                                                <div className="mt-4 flex flex-wrap gap-2">
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => disableTagAction(permissionKey)}
+                                                                        onClick={(event) => {
+                                                                            event.stopPropagation();
+                                                                            disableTagAction(permissionKey);
+                                                                        }}
                                                                         className="rounded-2xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                                                                     >
                                                                         {t("workflow_agents.action_rules_disable") || "Desactivar"}
                                                                     </button>
-                                                                ) : null}
-                                                            </div>
+                                                                </div>
+                                                            ) : null}
                                                         </div>
                                                     );
                                                 })}
