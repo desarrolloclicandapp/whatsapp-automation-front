@@ -820,16 +820,16 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
         ? (t("workflow_agents.location_key_ready") || "OpenAI API key funcional")
         : (t("workflow_agents.models_require_key") || "Sin OpenAI API key");
     const toggleHintText = !editingAgentId
-        ? "Guarda el agente para poder activarlo."
+        ? (t("workflow_agents.toggle_hint_save_first") || "Guarda el agente para poder activarlo.")
         : !hasAnyOpenAiKey
             ? (t("workflow_agents.models_require_key_help") || "Conecta una OpenAI API key para habilitar este agente.")
             : isActiveStatus
-                ? "El agente está activo."
-                : "El agente está inactivo.";
+                ? (t("workflow_agents.toggle_hint_active") || "El agente está activo.")
+                : (t("workflow_agents.toggle_hint_inactive") || "El agente está inactivo.");
 
     const handleToggleAgentStatus = () => {
         if (!editingAgentId) {
-            toast.error("Guarda el agente para poder cambiar su estado.");
+            toast.error(t("workflow_agents.toggle_save_first_error") || "Guarda el agente para poder cambiar su estado.");
             return;
         }
 
@@ -1422,7 +1422,10 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                                 />
                                             </div>
                                         </EditorSection>
-                                        <EditorSection title="Acciones del agente" description="Activa solo las acciones que este agente podrá ejecutar en la bandeja.">
+                                        <EditorSection
+                                            title={t("workflow_agents.section_actions_title") || "Acciones del agente"}
+                                            description={t("workflow_agents.section_actions_desc") || "Activa solo las acciones que este agente podrá ejecutar en la bandeja."}
+                                        >
                                             <div className="grid gap-3 lg:grid-cols-2">
                                                 {actionPermissionItems.map(([permissionKey, labelText, descText]) => {
                                                     const enabled = form.permissions[permissionKey] === true;
@@ -1474,7 +1477,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                                     onClick={() => onOpenIntegrations?.()}
                                                     className="text-xs font-bold text-indigo-600 underline-offset-2 transition hover:underline dark:text-indigo-300"
                                                 >
-                                                    Configurar API key
+                                                    {t("workflow_agents.openai_configure_cta") || "Configurar API key"}
                                                 </button>
                                             </div>
                                             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1482,7 +1485,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                                     ? "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-200"
                                                     : "border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"
                                                     }`}>
-                                                    <span>{isActiveStatus ? "Activo" : "Inactivo"}</span>
+                                                    <span>{isActiveStatus ? (t("workflow_agents.action_enabled") || "Activo") : (t("workflow_agents.action_disabled") || "Inactivo")}</span>
                                                     <button
                                                         type="button"
                                                         role="switch"
@@ -1605,9 +1608,9 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                 <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4">
                     <div className="w-full max-w-4xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">
                         <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
-                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">Cómo crear tu OpenAI API key</h4>
+                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">{t("workflow_agents.apikey_tutorial_title") || "Cómo crear tu OpenAI API key"}</h4>
                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                Necesitas una API key para activar el agente. Sigue estos pasos y luego vuelve a configurarla.
+                                {t("workflow_agents.apikey_tutorial_desc") || "Necesitas una API key para activar el agente. Sigue estos pasos y luego vuelve a configurarla."}
                             </p>
                         </div>
                         <div className="max-h-[65vh] space-y-6 overflow-y-auto px-6 py-5">
@@ -1629,7 +1632,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                 onClick={() => setShowApiKeyTutorialModal(false)}
                                 className="rounded-2xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
-                                Cerrar
+                                {t("common.close") || "Cerrar"}
                             </button>
                             <button
                                 type="button"
@@ -1639,7 +1642,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
                                 }}
                                 className="rounded-2xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-500"
                             >
-                                Configurar mi apikey
+                                {t("workflow_agents.apikey_tutorial_configure_cta") || "Configurar mi apikey"}
                             </button>
                         </div>
                     </div>

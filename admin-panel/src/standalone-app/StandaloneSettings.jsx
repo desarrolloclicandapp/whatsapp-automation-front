@@ -476,7 +476,7 @@ export default function StandaloneSettings({
 
   const handleSaveOpenAi = async () => {
     if (openAiKeyConfigured) {
-      toast.error('Primero elimina la API key actual para cargar una nueva.');
+      toast.error(t('standalone.settings.openai_replace_remove_first') || 'Primero elimina la API key actual para cargar una nueva.');
       return;
     }
     const safeKey = String(openAiKeyDraft || '').trim();
@@ -1690,7 +1690,7 @@ export default function StandaloneSettings({
 
                   <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 p-3 space-y-2">
                     <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
-                      Esta cuenta
+                      {t('standalone.settings.this_account') || 'Esta cuenta'}
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-300 break-all">
                       {String(accountInfo?.name || accountInfo?.email || accountIdValue)}
@@ -1721,7 +1721,7 @@ export default function StandaloneSettings({
                       onClick={openApiKeyTutorial}
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-emerald-200 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30 transition"
                     >
-                      como configurar mi api key
+                      {t('standalone.settings.openai_howto_cta') || 'como configurar mi api key'}
                     </button>
                   </div>
                 </div>
@@ -2352,7 +2352,7 @@ export default function StandaloneSettings({
                       onClick={openApiKeyTutorial}
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-emerald-200 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30 transition"
                     >
-                      como configurar mi api key
+                      {t('standalone.settings.openai_howto_cta') || 'como configurar mi api key'}
                     </button>
                   </div>
                 </div>
@@ -2818,8 +2818,8 @@ export default function StandaloneSettings({
               <div className="w-full max-w-4xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-4 dark:border-gray-800">
                   <div>
-                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">Como crear tu OpenAI API key</h4>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Sigue estos pasos y vuelve para pegar tu key.</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">{t('standalone.settings.openai_tutorial_title') || 'Como crear tu OpenAI API key'}</h4>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('standalone.settings.openai_tutorial_desc') || 'Sigue estos pasos y vuelve para pegar tu key.'}</p>
                   </div>
                   <button
                     type="button"
@@ -2847,7 +2847,7 @@ export default function StandaloneSettings({
                     }}
                     className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
                   >
-                    Ir a OpenAI
+                    {t('standalone.settings.openai_tutorial_openai_cta') || 'Ir a OpenAI'}
                   </button>
                 </div>
               </div>
