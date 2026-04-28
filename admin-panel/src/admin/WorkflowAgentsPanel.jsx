@@ -12,11 +12,15 @@ const DEFAULT_AGENT_BEHAVIOR = {
     objective: "",
     guardrails: ""
 };
+const EMPTY_AGENT_ACTION_RULES = {
+    add_tags: [],
+    remove_tags: []
+};
 const DEFAULT_AGENT_PERMISSIONS = {
     view_appointments: true,
     add_tags: true,
     remove_tags: true,
-    assign_owner: true,
+    assign_owner: false,
     set_fields: true,
     create_appointment: true,
     reschedule_appointment: true,
@@ -54,7 +58,7 @@ const PRESET_PERMISSION_PROFILES = {
         view_appointments: true,
         add_tags: true,
         remove_tags: false,
-        assign_owner: true,
+        assign_owner: false,
         set_fields: true,
         create_appointment: true,
         reschedule_appointment: false,
@@ -78,7 +82,8 @@ const PRESET_PERMISSION_PROFILES = {
 function applyIntegrationPermissionCaps(permissions = {}, integrationMode = "both") {
     const safePermissions = {
         ...DEFAULT_AGENT_PERMISSIONS,
-        ...(permissions || {})
+        ...(permissions || {}),
+        assign_owner: false
     };
     if (integrationMode !== "inbox") return safePermissions;
 
@@ -90,6 +95,40 @@ function applyIntegrationPermissionCaps(permissions = {}, integrationMode = "bot
         reschedule_appointment: false,
         cancel_appointment: false
     };
+}
+
+function normalizeTagsInput(value) {
+    return String(value || "")
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .filter((tag, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === tag.toLowerCase()) === index);
+}
+
+function normalizeActionRuleDrafts(rules = []) {
+    return (Array.isArray(rules) ? rules : [])
+        .map((rule) => ({
+            condition: String(rule?.condition || "").trim(),
+            tags: Array.isArray(rule?.tags)
+                ? normalizeTagsInput(rule.tags.join(","))
+                : normalizeTagsInput(rule?.tagsText || rule?.tags || "")
+        }))
+        .filter((rule) => rule.condition && rule.tags.length > 0)
+        .slice(0, 20);
+}
+
+function buildActionRuleDrafts(rules = []) {
+    const normalized = normalizeActionRuleDrafts(rules);
+    const source = normalized.length > 0 ? normalized : [{ condition: "", tags: [] }];
+    return source.map((rule) => ({
+        condition: rule.condition,
+        tagsText: (rule.tags || []).join(", ")
+    }));
+}
+
+function countActionRules(actionRules = {}, permissionKey) {
+    const rules = Array.isArray(actionRules?.[permissionKey]) ? actionRules[permissionKey] : [];
+    return normalizeActionRuleDrafts(rules).length;
 }
 
 function buildWorkflowAgentPresets(t) {
@@ -129,7 +168,12 @@ function mergeAgentConfig(agent = {}) {
         },
         permissions: {
             ...DEFAULT_AGENT_PERMISSIONS,
-            ...(agent?.config?.permissions || {})
+            ...(agent?.config?.permissions || {}),
+            assign_owner: false
+        },
+        action_rules: {
+            add_tags: normalizeActionRuleDrafts(agent?.config?.action_rules?.add_tags || agent?.config?.actionRules?.addTags || []),
+            remove_tags: normalizeActionRuleDrafts(agent?.config?.action_rules?.remove_tags || agent?.config?.actionRules?.removeTags || [])
         },
         calendar_scope: {
             mode: agent?.config?.calendar_scope?.mode === "selected" ? "selected" : "all",
@@ -196,7 +240,7 @@ function buildPresetForm(baseForm, preset) {
     return {
         ...baseForm,
         name: preset.name,
-        status: "active",
+        status: "paused",
         temperature: preset.temperature,
         max_output_chars: preset.maxOutputChars,
         system_prompt: preset.businessContext,
@@ -248,7 +292,7 @@ function buildEmptyForm(catalog = []) {
     return {
         name: "",
         agent_key: "",
-        status: "active",
+        status: "paused",
         credential_mode: "location",
         slot_ids: [],
         manual_api_key: "",
@@ -263,6 +307,7 @@ function buildEmptyForm(catalog = []) {
         use_contact_context: true,
         behavior: { ...DEFAULT_AGENT_BEHAVIOR },
         permissions: { ...DEFAULT_AGENT_PERMISSIONS },
+        action_rules: { ...EMPTY_AGENT_ACTION_RULES },
         calendar_scope_mode: "all",
         calendar_scope_ids: [],
         integrations: buildDefaultIntegrations(catalog)
@@ -299,6 +344,7 @@ function buildFormFromAgent(agent, catalog = []) {
         use_contact_context: agent?.use_contact_context !== false,
         behavior: { ...config.behavior },
         permissions: { ...config.permissions },
+        action_rules: { ...config.action_rules },
         calendar_scope_mode: config.calendar_scope.mode,
         calendar_scope_ids: Array.isArray(config.calendar_scope.calendar_ids)
             ? config.calendar_scope.calendar_ids.map((value) => String(value))
@@ -394,6 +440,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const [uploadingDocuments, setUploadingDocuments] = useState(false);
     const [availableModels, setAvailableModels] = useState([]);
     const [loadingModels, setLoadingModels] = useState(false);
+    const [actionRuleModal, setActionRuleModal] = useState(null);
+    const [actionRuleDrafts, setActionRuleDrafts] = useState([]);
     const agentPresets = useMemo(() => buildWorkflowAgentPresets(t), [t]);
 
     useEffect(() => {
@@ -584,6 +632,11 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const handleSave = async (event) => {
         event.preventDefault();
         if (!selectedLocationId) return;
+        if (!hasAnyOpenAiKey && form.status === "active") {
+            toast.error(t("workflow_agents.active_requires_openai_key") || "Carga una OpenAI API key antes de activar el agente.");
+            onOpenIntegrations?.();
+            return;
+        }
 
         setSaving(true);
         try {
@@ -609,6 +662,10 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                 config: {
                     behavior: form.behavior,
                     permissions: integrationAwarePermissions,
+                    action_rules: {
+                        add_tags: normalizeActionRuleDrafts(form.action_rules?.add_tags || []),
+                        remove_tags: normalizeActionRuleDrafts(form.action_rules?.remove_tags || [])
+                    },
                     calendar_scope: {
                         mode: hasGhlEnabled && form.calendar_scope_mode === "selected" ? "selected" : "all",
                         calendar_ids: hasGhlEnabled && form.calendar_scope_mode === "selected"
@@ -785,8 +842,6 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const agents = Array.isArray(workspace?.agents) ? workspace.agents : [];
     const slots = Array.isArray(workspace?.slots) ? workspace.slots : [];
     const calendarsCatalog = Array.isArray(workspace?.crm_catalog?.calendars) ? workspace.crm_catalog.calendars : [];
-    const ghlIntegration = catalog.find((item) => item?.key === "ghl") || null;
-    const showCrmActions = ghlIntegration?.supports_execution === true && (ghlIntegration?.connected === true || ghlIntegration?.status === "ready");
     const locationHasOpenAiKey = workspace?.credentials?.has_location_openai_key === true;
     const agencyHasOpenAiKey = workspace?.credentials?.has_agency_openai_key === true;
     const usingLegacySlotKeys = !locationHasOpenAiKey && slots.some((slot) => slot?.has_openai_api_key === true);
@@ -818,6 +873,66 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         [agentPresets, workspacePresetMode]
     );
     const isPresetDraft = !editingAgentId && agentDraftMode === "preset";
+    const hasGhlEnabled = form.integrations?.ghl?.enabled === true;
+    const hasInboxEnabled = form.integrations?.chatwoot?.enabled === true;
+    const actionPermissionItems = [
+        ["add_tags", t("workflow_agents.permission_add_tags"), t("workflow_agents.permission_add_tags_desc"), "tags"],
+        ["remove_tags", t("workflow_agents.permission_remove_tags"), t("workflow_agents.permission_remove_tags_desc"), "tags"],
+        ...(hasGhlEnabled || !hasInboxEnabled
+            ? [
+                ["view_appointments", t("workflow_agents.permission_view_appointments"), t("workflow_agents.permission_view_appointments_desc"), "toggle"],
+                ["set_fields", t("workflow_agents.permission_set_fields"), t("workflow_agents.permission_set_fields_desc"), "toggle"],
+                ["create_appointment", t("workflow_agents.permission_create_appointment"), t("workflow_agents.permission_create_appointment_desc"), "toggle"],
+                ["reschedule_appointment", t("workflow_agents.permission_reschedule_appointment"), t("workflow_agents.permission_reschedule_appointment_desc"), "toggle"],
+                ["cancel_appointment", t("workflow_agents.permission_cancel_appointment"), t("workflow_agents.permission_cancel_appointment_desc"), "toggle"]
+            ]
+            : [])
+    ];
+
+    const openActionRuleModal = (permissionKey) => {
+        setActionRuleModal(permissionKey);
+        setActionRuleDrafts(buildActionRuleDrafts(form.action_rules?.[permissionKey] || []));
+    };
+
+    const closeActionRuleModal = () => {
+        setActionRuleModal(null);
+        setActionRuleDrafts([]);
+    };
+
+    const saveActionRuleModal = () => {
+        if (!actionRuleModal) return;
+        const normalizedRules = normalizeActionRuleDrafts(actionRuleDrafts);
+        if (normalizedRules.length === 0) {
+            toast.error(t("workflow_agents.action_rules_required") || "Agrega al menos una regla con condición y tags.");
+            return;
+        }
+        setForm((prev) => ({
+            ...prev,
+            permissions: {
+                ...prev.permissions,
+                [actionRuleModal]: true
+            },
+            action_rules: {
+                ...(prev.action_rules || EMPTY_AGENT_ACTION_RULES),
+                [actionRuleModal]: normalizedRules
+            }
+        }));
+        closeActionRuleModal();
+    };
+
+    const disableTagAction = (permissionKey) => {
+        setForm((prev) => ({
+            ...prev,
+            permissions: {
+                ...prev.permissions,
+                [permissionKey]: false
+            },
+            action_rules: {
+                ...(prev.action_rules || EMPTY_AGENT_ACTION_RULES),
+                [permissionKey]: []
+            }
+        }));
+    };
 
     const buildMissingCredentialMessage = () => {
         if (locationHasOpenAiKey) {
@@ -1274,8 +1389,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                     <div className="p-6">
                         {activeTab === "general" && (
                             <form onSubmit={handleSave} className="space-y-5">
-                                {!isPresetDraft ? (
-                                    <>
+                                <>
                                 <EditorSection title={t("workflow_agents.section_identity_title")} description={t("workflow_agents.section_identity_desc")}>
                                     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),220px]">
                                         <div>
@@ -1291,8 +1405,19 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         </div>
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_status")}</label>
-                                            <select value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))} className={inputClassName}>
-                                                <option value="active">{t("workflow_agents.status_active")}</option>
+                                            <select
+                                                value={form.status}
+                                                onChange={(event) => {
+                                                    if (event.target.value === "active" && !hasAnyOpenAiKey) {
+                                                        toast.error(t("workflow_agents.active_requires_openai_key") || "Carga una OpenAI API key antes de activar el agente.");
+                                                        onOpenIntegrations?.();
+                                                        return;
+                                                    }
+                                                    setForm((prev) => ({ ...prev, status: event.target.value }));
+                                                }}
+                                                className={inputClassName}
+                                            >
+                                                <option value="active" disabled={!hasAnyOpenAiKey}>{t("workflow_agents.status_active")}</option>
                                                 <option value="draft">{t("workflow_agents.status_draft")}</option>
                                                 <option value="paused">{t("workflow_agents.status_paused")}</option>
                                             </select>
@@ -1344,10 +1469,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         {t("workflow_agents.field_use_contact_context")}
                                     </label>
                                 </EditorSection>
-                                    </>
-                                ) : null}
+                                </>
 
-                                {isPresetDraft ? (
                                 <EditorSection title={t("workflow_agents.section_business_title")} description={t("workflow_agents.section_business_desc")}>
                                     <textarea
                                         rows={9}
@@ -1360,10 +1483,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         {t("workflow_agents.field_business_context_help")}
                                     </div>
                                 </EditorSection>
-                                ) : null}
 
-                                {!isPresetDraft ? (
-                                    <>
+                                <>
                                 <EditorSection title={t("workflow_agents.section_behavior_title")} description={t("workflow_agents.section_behavior_desc")}>
                                     <div className="grid gap-4 lg:grid-cols-2">
                                         <div>
@@ -1421,45 +1542,31 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                     </div>
                                 </EditorSection>
 
-                                {showCrmActions ? (
                                     <EditorSection title={t("workflow_agents.section_permissions_title")} description={t("workflow_agents.section_permissions_desc")}>
                                         <div className="grid gap-3 lg:grid-cols-2">
-                                            {[
-                                                ["view_appointments", "workflow_agents.permission_view_appointments", "workflow_agents.permission_view_appointments_desc"],
-                                                ["add_tags", "workflow_agents.permission_add_tags", "workflow_agents.permission_add_tags_desc"],
-                                                ["remove_tags", "workflow_agents.permission_remove_tags", "workflow_agents.permission_remove_tags_desc"],
-                                                ["assign_owner", "workflow_agents.permission_assign_owner", "workflow_agents.permission_assign_owner_desc"],
-                                                ["set_fields", "workflow_agents.permission_set_fields", "workflow_agents.permission_set_fields_desc"],
-                                                ["create_appointment", "workflow_agents.permission_create_appointment", "workflow_agents.permission_create_appointment_desc"],
-                                                ["reschedule_appointment", "workflow_agents.permission_reschedule_appointment", "workflow_agents.permission_reschedule_appointment_desc"],
-                                                ["cancel_appointment", "workflow_agents.permission_cancel_appointment", "workflow_agents.permission_cancel_appointment_desc"]
-                                            ].map(([permissionKey, labelKey, descKey]) => {
+                                            {actionPermissionItems.map(([permissionKey, labelText, descText, actionKind]) => {
                                                 const enabled = form.permissions[permissionKey] === true;
+                                                const ruleCount = actionKind === "tags" ? countActionRules(form.action_rules, permissionKey) : 0;
                                                 return (
-                                                    <label
+                                                    <div
                                                         key={permissionKey}
-                                                        className={`cursor-pointer rounded-2xl border px-4 py-4 transition ${
+                                                        className={`rounded-2xl border px-4 py-4 transition ${
                                                             enabled
                                                                 ? "border-indigo-400 bg-indigo-50/80 dark:border-indigo-700 dark:bg-indigo-900/20"
                                                                 : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800/80"
                                                         }`}
                                                     >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={enabled}
-                                                            onChange={(event) => setForm((prev) => ({
-                                                                ...prev,
-                                                                permissions: {
-                                                                    ...prev.permissions,
-                                                                    [permissionKey]: event.target.checked
-                                                                }
-                                                            }))}
-                                                            className="hidden"
-                                                        />
                                                         <div className="flex items-start justify-between gap-3">
                                                             <div className="min-w-0">
-                                                                <div className="font-semibold text-gray-900 dark:text-white">{t(labelKey)}</div>
-                                                                <div className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{t(descKey)}</div>
+                                                                <div className="font-semibold text-gray-900 dark:text-white">{labelText}</div>
+                                                                <div className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{descText}</div>
+                                                                {actionKind === "tags" ? (
+                                                                    <div className="mt-2 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                                                                        {ruleCount > 0
+                                                                            ? (t("workflow_agents.action_rules_count") || "{count} regla(s)").replace("{count}", String(ruleCount))
+                                                                            : t("workflow_agents.action_rules_empty") || "Sin reglas configuradas"}
+                                                                    </div>
+                                                                ) : null}
                                                             </div>
                                                             <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
                                                                 enabled
@@ -1469,11 +1576,47 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                                 {enabled ? t("workflow_agents.action_enabled") : t("workflow_agents.action_disabled")}
                                                             </span>
                                                         </div>
-                                                    </label>
+                                                        {actionKind === "tags" ? (
+                                                            <div className="mt-4 flex flex-wrap gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openActionRuleModal(permissionKey)}
+                                                                    className="rounded-2xl border border-indigo-200 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-900 dark:text-indigo-200 dark:hover:bg-indigo-950/40"
+                                                                >
+                                                                    {enabled ? t("workflow_agents.action_rules_edit") || "Editar reglas" : t("workflow_agents.action_rules_configure") || "Configurar"}
+                                                                </button>
+                                                                {enabled ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => disableTagAction(permissionKey)}
+                                                                        className="rounded-2xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                                                                    >
+                                                                        {t("workflow_agents.action_rules_disable") || "Desactivar"}
+                                                                    </button>
+                                                                ) : null}
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setForm((prev) => ({
+                                                                    ...prev,
+                                                                    permissions: {
+                                                                        ...prev.permissions,
+                                                                        [permissionKey]: !enabled
+                                                                    }
+                                                                }))}
+                                                                className="mt-4 rounded-2xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                            >
+                                                                {enabled ? t("workflow_agents.action_rules_disable") || "Desactivar" : t("workflow_agents.action_enabled") || "Activar"}
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 );
                                             })}
                                         </div>
 
+                                        {(hasGhlEnabled || !hasInboxEnabled) ? (
+                                        <>
                                         <div className="mt-5">
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_calendar_scope")}</label>
                                             <select
@@ -1529,10 +1672,10 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                 )}
                                             </div>
                                         ) : null}
+                                        </>
+                                        ) : null}
                                     </EditorSection>
-                                ) : null}
                                     </>
-                                ) : null}
 
                                 <div className="space-y-3 rounded-[26px] border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
                                     {renderOpenAiKeyFooterCta()}
@@ -1643,6 +1786,76 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                     {renderChatPanel()}
                 </div>
             )}
+            {actionRuleModal ? (
+                <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/60 p-4">
+                    <div className="w-full max-w-3xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">
+                        <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                {actionRuleModal === "add_tags"
+                                    ? t("workflow_agents.action_rules_add_title") || "Reglas para agregar tags"
+                                    : t("workflow_agents.action_rules_remove_title") || "Reglas para quitar tags"}
+                            </h4>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                {t("workflow_agents.action_rules_modal_desc") || "Define cuándo el agente puede ejecutar esta acción. Puedes cargar varios tags separados por coma."}
+                            </p>
+                        </div>
+                        <div className="max-h-[65vh] space-y-4 overflow-y-auto px-6 py-5">
+                            {actionRuleDrafts.map((rule, index) => (
+                                <div key={index} className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-950/40">
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <div className="text-sm font-bold text-gray-900 dark:text-white">
+                                            {(t("workflow_agents.action_rule_item_title") || "Regla {index}").replace("{index}", String(index + 1))}
+                                        </div>
+                                        {actionRuleDrafts.length > 1 ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setActionRuleDrafts((prev) => prev.filter((_, ruleIndex) => ruleIndex !== index))}
+                                                className="rounded-xl border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-50 dark:border-red-800/60 dark:text-red-300 dark:hover:bg-red-900/20"
+                                            >
+                                                {t("workflow_agents.action_rule_remove") || "Eliminar"}
+                                            </button>
+                                        ) : null}
+                                    </div>
+                                    <label className="mb-2 block text-xs font-bold text-gray-600 dark:text-gray-300">
+                                        {t("workflow_agents.action_rule_condition") || "Cuando el cliente diga o demuestre"}
+                                    </label>
+                                    <textarea
+                                        rows={3}
+                                        value={rule.condition}
+                                        onChange={(event) => setActionRuleDrafts((prev) => prev.map((item, ruleIndex) => ruleIndex === index ? { ...item, condition: event.target.value } : item))}
+                                        placeholder={t("workflow_agents.action_rule_condition_placeholder") || "Ej. El cliente pide precio, plan o inscripción del curso"}
+                                        className={textAreaCardClassName}
+                                    />
+                                    <label className="mb-2 mt-3 block text-xs font-bold text-gray-600 dark:text-gray-300">
+                                        {t("workflow_agents.action_rule_tags") || "Tags a aplicar"}
+                                    </label>
+                                    <input
+                                        value={rule.tagsText}
+                                        onChange={(event) => setActionRuleDrafts((prev) => prev.map((item, ruleIndex) => ruleIndex === index ? { ...item, tagsText: event.target.value } : item))}
+                                        placeholder={t("workflow_agents.action_rule_tags_placeholder") || "interesado, precio_solicitado"}
+                                        className={inputClassName}
+                                    />
+                                </div>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={() => setActionRuleDrafts((prev) => [...prev, { condition: "", tagsText: "" }])}
+                                className="rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            >
+                                {t("workflow_agents.action_rule_add") || "Agregar regla"}
+                            </button>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-800">
+                            <button type="button" onClick={closeActionRuleModal} className="rounded-2xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+                                {t("common.close") || "Cerrar"}
+                            </button>
+                            <button type="button" onClick={saveActionRuleModal} className="rounded-2xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-500">
+                                {t("workflow_agents.action_rules_save") || "Guardar reglas"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 }
