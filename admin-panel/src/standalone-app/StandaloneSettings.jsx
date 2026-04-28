@@ -21,9 +21,32 @@ import {
 import { toast } from 'sonner';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import tutorialPaso1 from '../img-tutorial-openaiapi/paso1.png';
+import tutorialPaso2 from '../img-tutorial-openaiapi/paso2.png';
+import tutorialPaso3 from '../img-tutorial-openaiapi/paso3.png';
+import tutorialPaso4 from '../img-tutorial-openaiapi/paso4.png';
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
+const MASKED_API_KEY_PLACEHOLDER = '••••••••••••••••••••••••••••';
+const API_KEY_TUTORIAL_STEPS = [
+  {
+    image: tutorialPaso1,
+    text: 'El primer paso es abrir https://platform.openai.com/home e iniciar sesion o registrarte.',
+  },
+  {
+    image: tutorialPaso2,
+    text: 'Ya dentro, presiona "Create API key". Tambien debes agregar creditos en "Add Credits".',
+  },
+  {
+    image: tutorialPaso3,
+    text: 'Coloca un nombre para la key y haz clic en "Create secret key".',
+  },
+  {
+    image: tutorialPaso4,
+    text: 'Copia la API key y guardala en un lugar seguro. Si la pierdes, puedes crear una nueva.',
+  },
+];
 
 const maskEmail = (email) => {
   const safeEmail = String(email || '').trim();
@@ -78,6 +101,7 @@ export default function StandaloneSettings({
   const [openAiKeyDraft, setOpenAiKeyDraft] = useState('');
   const [openAiKeyConfigured, setOpenAiKeyConfigured] = useState(false);
   const [isSavingOpenAi, setIsSavingOpenAi] = useState(false);
+  const [showApiKeyTutorialModal, setShowApiKeyTutorialModal] = useState(false);
 
   const [apiKeys, setApiKeys] = useState([]);
   const [generatedKey, setGeneratedKey] = useState(null);
@@ -451,6 +475,10 @@ export default function StandaloneSettings({
   }, [token]);
 
   const handleSaveOpenAi = async () => {
+    if (openAiKeyConfigured) {
+      toast.error('Primero elimina la API key actual para cargar una nueva.');
+      return;
+    }
     const safeKey = String(openAiKeyDraft || '').trim();
 
     if (!safeKey) {
@@ -479,6 +507,7 @@ export default function StandaloneSettings({
       setIsSavingOpenAi(false);
     }
   };
+  const openApiKeyTutorial = () => setShowApiKeyTutorialModal(true);
 
   const handleRemoveOpenAi = async () => {
     setIsSavingOpenAi(true);
@@ -1651,8 +1680,9 @@ export default function StandaloneSettings({
                         type="password"
                         value={openAiKeyDraft}
                         onChange={(event) => setOpenAiKeyDraft(event.target.value)}
-                        placeholder={t('agency.integrations.openai_key_placeholder') || 'sk-...'}
+                        placeholder={openAiKeyConfigured ? MASKED_API_KEY_PLACEHOLDER : (t('agency.integrations.openai_key_placeholder') || 'sk-...')}
                         autoComplete="new-password"
+                        disabled={openAiKeyConfigured}
                         className="w-full pl-10 pr-4 py-3 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-shadow"
                       />
                     </div>
@@ -1671,7 +1701,7 @@ export default function StandaloneSettings({
                     <button
                       type="button"
                       onClick={handleSaveOpenAi}
-                      disabled={isSavingOpenAi}
+                      disabled={isSavingOpenAi || openAiKeyConfigured}
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition disabled:opacity-60"
                     >
                       {isSavingOpenAi ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
@@ -1686,14 +1716,13 @@ export default function StandaloneSettings({
                       <Trash2 size={15} />
                       {t('agency.integrations.openai_key_remove') || 'Eliminar key'}
                     </button>
-                    <a
-                      href="https://platform.openai.com/home"
-                      target="_blank"
-                      rel="noreferrer"
+                    <button
+                      type="button"
+                      onClick={openApiKeyTutorial}
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-emerald-200 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30 transition"
                     >
                       como configurar mi api key
-                    </a>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2293,8 +2322,9 @@ export default function StandaloneSettings({
                       type="password"
                       value={openAiKeyDraft}
                       onChange={(event) => setOpenAiKeyDraft(event.target.value)}
-                      placeholder={t('agency.integrations.openai_key_placeholder') || 'sk-...'}
+                      placeholder={openAiKeyConfigured ? MASKED_API_KEY_PLACEHOLDER : (t('agency.integrations.openai_key_placeholder') || 'sk-...')}
                       autoComplete="new-password"
+                      disabled={openAiKeyConfigured}
                       className="w-full pl-10 pr-4 py-3 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-shadow"
                     />
                   </div>
@@ -2302,7 +2332,7 @@ export default function StandaloneSettings({
                     <button
                       type="button"
                       onClick={handleSaveOpenAi}
-                      disabled={isSavingOpenAi}
+                      disabled={isSavingOpenAi || openAiKeyConfigured}
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition disabled:opacity-60"
                     >
                       {isSavingOpenAi ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
@@ -2317,14 +2347,13 @@ export default function StandaloneSettings({
                       <Trash2 size={15} />
                       {t('agency.integrations.openai_key_remove') || 'Eliminar key'}
                     </button>
-                    <a
-                      href="https://platform.openai.com/home"
-                      target="_blank"
-                      rel="noreferrer"
+                    <button
+                      type="button"
+                      onClick={openApiKeyTutorial}
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-emerald-200 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30 transition"
                     >
                       como configurar mi api key
-                    </a>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2780,6 +2809,47 @@ export default function StandaloneSettings({
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {showApiKeyTutorialModal && (
+            <div className="fixed inset-0 z-[105] flex items-center justify-center bg-black/60 p-4">
+              <div className="w-full max-w-4xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">Como crear tu OpenAI API key</h4>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Sigue estos pasos y vuelve para pegar tu key.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyTutorialModal(false)}
+                    className="rounded-lg border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <div className="max-h-[65vh] space-y-5 overflow-y-auto px-6 py-5">
+                  {API_KEY_TUTORIAL_STEPS.map((step, index) => (
+                    <div key={step.image} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-700 dark:bg-gray-800/40">
+                      <div className="mb-3 text-sm font-bold text-gray-800 dark:text-gray-200">Paso {index + 1}</div>
+                      <img src={step.image} alt={`Paso ${index + 1}`} className="w-full rounded-xl border border-gray-200 object-contain dark:border-gray-700" />
+                      <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{step.text}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-end border-t border-gray-200 px-6 py-4 dark:border-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowApiKeyTutorialModal(false);
+                      window.open('https://platform.openai.com/home', '_blank', 'noopener,noreferrer');
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                  >
+                    Ir a OpenAI
+                  </button>
+                </div>
               </div>
             </div>
           )}

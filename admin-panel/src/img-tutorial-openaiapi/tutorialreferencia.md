@@ -1,0 +1,4 @@
+1. paso1.png El primer paso es abrir este link https://platform.openai.com/home y presionar en el boton correspondiente según nuestro caso, se puede iniciar sesión o registrarse con una cuenta de Google u otros.
+2. paso2.png Una vez iniciada sesión nos aparecerá esta pantalla y debemos presionar en el botón de "Create API key". También luego deberemos de cargar créditos y nuestro medio de pago en "Add Credits".
+3. paso3.png Una vez presionado el botón de "Create API key" nos aparecerá esta pantalla y podemos darle el nombre que queramos a nuestra API key y luego clic en el botón "Create secret key".
+4. paso4.png Una vez creado el API key nos aparecerá esta pantalla y debemos copiar el API key y guardarlo en un lugar seguro, ya que no podremos verlo nuevamente. (en caso de perderlo, no hay problema se puede crear uno nuevo y reemplazarlo con estos mismos pasos).
