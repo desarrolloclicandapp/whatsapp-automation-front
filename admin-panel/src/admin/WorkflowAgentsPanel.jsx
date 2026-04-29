@@ -733,12 +733,17 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             const res = await authFetch(endpoint, { method, body: JSON.stringify(payload) });
             const data = await parseResponse(res);
             if (!res.ok || !data?.success) throw new Error(data?.error || t("workflow_agents.save_error"));
+            const wasCreatingAgent = !editingAgentId;
             toast.success(t("workflow_agents.saved_success"));
-            await loadWorkspace(selectedLocationId);
+            const nextWorkspace = await loadWorkspace(selectedLocationId);
+            if (wasCreatingAgent) {
+                applyAgentToForm(null, nextWorkspace);
+                return;
+            }
             if (data.agent) {
                 applyAgentToForm(
                     { ...data.agent, integrations: data.agent.integrations || normalizedForm.integrations },
-                    { ...(workspace || {}), integration_catalog: workspace?.integration_catalog || [] },
+                    { ...(nextWorkspace || workspace || {}), integration_catalog: nextWorkspace?.integration_catalog || workspace?.integration_catalog || [] },
                     { openEditor: true }
                 );
             }
@@ -760,6 +765,44 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             await loadWorkspace(selectedLocationId);
         } catch (error) {
             toast.error(t("workflow_agents.delete_error"), { description: error.message });
+        }
+    };
+
+    const handleToggleAgentStatusFromList = async (agent, event) => {
+        event?.stopPropagation();
+        if (!agent?.id || !selectedLocationId || saving) return;
+
+        const nextStatus = agent.status === "active" ? "paused" : "active";
+        if (nextStatus === "active" && !hasAnyOpenAiKey) {
+            toast.error(t("workflow_agents.active_requires_openai_key") || "Carga una OpenAI API key antes de activar el agente.");
+            setShowOpenAiKeyModal(true);
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const res = await authFetch(`/agency/workflow-agents/${agent.id}`, {
+                method: "PUT",
+                body: JSON.stringify({
+                    locationId: selectedLocationId,
+                    status: nextStatus
+                })
+            });
+            const data = await parseResponse(res);
+            if (!res.ok || !data?.success) throw new Error(data?.error || t("workflow_agents.save_error"));
+            toast.success(nextStatus === "active" ? t("workflow_agents.status_active") : t("workflow_agents.status_paused"));
+            const nextWorkspace = await loadWorkspace(selectedLocationId);
+            if (editingAgentId === agent.id && data.agent) {
+                applyAgentToForm(
+                    { ...data.agent, integrations: data.agent.integrations || agent.integrations },
+                    { ...(nextWorkspace || workspace || {}), integration_catalog: nextWorkspace?.integration_catalog || workspace?.integration_catalog || [] },
+                    { openEditor: true }
+                );
+            }
+        } catch (error) {
+            toast.error(t("workflow_agents.save_error"), { description: error.message });
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -1057,39 +1100,59 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                     </div>
                 ) : null}
 
-                {filteredAgents.map((agent) => (
-                    <button
+                {filteredAgents.map((agent) => {
+                    const isActive = agent.status === "active";
+                    return (
+                    <div
                         key={agent.id}
-                        type="button"
-                        onClick={() => applyAgentToForm(agent)}
-                        className={`w-full rounded-[22px] border px-4 py-3.5 text-left transition ${
+                        className={`flex w-full items-start gap-3 rounded-[22px] border px-4 py-3.5 text-left transition ${
                             isEditorMode && editingAgentId === agent.id
                                 ? "border-indigo-300 bg-indigo-50/80 shadow-sm dark:border-indigo-700 dark:bg-indigo-900/20"
                                 : "border-gray-200 bg-white/80 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950/40 dark:hover:border-gray-600 dark:hover:bg-gray-800/60"
                         }`}
                     >
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
+                        <button
+                            type="button"
+                            onClick={() => applyAgentToForm(agent)}
+                            className="min-w-0 flex-1 text-left"
+                        >
+                            <div className="min-w-0 pr-2">
                                 <div className="truncate font-bold text-gray-900 dark:text-white">{agent.name}</div>
                                 <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{agent.model || "OpenAI"}</div>
                             </div>
-                            <StatusPill
-                                label={t(`workflow_agents.status_${agent.status}`)}
-                                kind={agent.status === "active" ? "good" : agent.status === "paused" ? "warn" : "neutral"}
-                            />
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                            <span className="rounded-full border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                                {t("workflow_agents.account_scope_badge")}
-                            </span>
-                            {Number(agent.document_count || 0) > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-1.5">
                                 <span className="rounded-full border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                                    {t("workflow_agents.documents_count").replace("{count}", String(agent.document_count))}
+                                    {t("workflow_agents.account_scope_badge")}
                                 </span>
-                            ) : null}
-                        </div>
-                    </button>
-                ))}
+                                {Number(agent.document_count || 0) > 0 ? (
+                                    <span className="rounded-full border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                                        {t("workflow_agents.documents_count").replace("{count}", String(agent.document_count))}
+                                    </span>
+                                ) : null}
+                            </div>
+                        </button>
+                        <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isActive}
+                            disabled={saving}
+                            onClick={(event) => handleToggleAgentStatusFromList(agent, event)}
+                            className={`mt-0.5 inline-flex h-8 w-14 shrink-0 items-center rounded-full border px-1 transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                                isActive
+                                    ? "border-emerald-400/60 bg-emerald-500/20"
+                                    : "border-gray-300 bg-gray-200 dark:border-gray-700 dark:bg-gray-800"
+                            }`}
+                            title={t(`workflow_agents.status_${agent.status}`)}
+                        >
+                            <span
+                                className={`h-5 w-5 rounded-full shadow-sm transition ${
+                                    isActive ? "translate-x-6 bg-emerald-400" : "translate-x-0 bg-gray-500 dark:bg-gray-400"
+                                }`}
+                            />
+                        </button>
+                    </div>
+                    );
+                })}
             </div>
         </section>
     );
@@ -1456,22 +1519,9 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         </div>
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_status")}</label>
-                                            <select
-                                                value={form.status}
-                                                onChange={(event) => {
-                                                    if (event.target.value === "active" && !hasAnyOpenAiKey) {
-                                                        toast.error(t("workflow_agents.active_requires_openai_key") || "Carga una OpenAI API key antes de activar el agente.");
-                                                        setShowOpenAiKeyModal(true);
-                                                        return;
-                                                    }
-                                                    setForm((prev) => ({ ...prev, status: event.target.value }));
-                                                }}
-                                                className={inputClassName}
-                                            >
-                                                <option value="active" disabled={!hasAnyOpenAiKey}>{t("workflow_agents.status_active")}</option>
-                                                <option value="draft">{t("workflow_agents.status_draft")}</option>
-                                                <option value="paused">{t("workflow_agents.status_paused")}</option>
-                                            </select>
+                                            <div className="flex h-[50px] items-center rounded-2xl border border-gray-200 bg-gray-50 px-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                                                {t(`workflow_agents.status_${form.status}`)}
+                                            </div>
                                         </div>
                                     </div>
                                 </EditorSection>
