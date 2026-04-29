@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { buildRewardfulCheckoutBody } from '../utils/rewardfulReferral';
 import {
     Check, Zap, Building2, Smartphone,
     CreditCard, FileText, ExternalLink, Crown, AlertCircle,
@@ -143,7 +144,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
             const res = await fetch(`${API_URL}/payments/subscribe`, {
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                body: JSON.stringify({ priceId })
+                body: JSON.stringify(buildRewardfulCheckoutBody(priceId))
             });
             const data = await res.json();
             
@@ -197,7 +198,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
                 const checkoutRes = await fetch(`${API_URL}/payments/subscribe`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ priceId: selectedPlan.priceId })
+                    body: JSON.stringify(buildRewardfulCheckoutBody(selectedPlan.priceId))
                 });
                 const checkoutData = await checkoutRes.json();
                 if (checkoutData.url) window.location.href = checkoutData.url;

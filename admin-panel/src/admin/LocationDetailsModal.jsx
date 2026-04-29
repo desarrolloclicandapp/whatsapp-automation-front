@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
+import { resolveSlotQrPollTransition } from '../utils/slotQrTransition';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const QR_POST_SCAN_GRACE_MS = 15000;
 
 function translateOr(t, key, fallback) {
     const translated = typeof t === 'function' ? t(key) : null;
@@ -5010,6 +5012,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
     const [slotSuspendedBy, setSlotSuspendedBy] = useState(slot?.suspended_by || null);
     const [slotLockMessage, setSlotLockMessage] = useState(null);
     const [qrExpired, setQrExpired] = useState(false);
+    const [qrPostScanGrace, setQrPostScanGrace] = useState(false);
     const [shareUrl, setShareUrl] = useState("");
     const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
     const pollInterval = useRef(null);
@@ -5090,6 +5093,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         setQr(null);
         setQrUpdatedAt(null);
         setQrExpired(false);
+        setQrPostScanGrace(false);
         stopPolling();
         return true;
     };
@@ -5110,6 +5114,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                 if (data.connected) {
                     setQr(null);
                     setQrUpdatedAt(null);
+                    setQrPostScanGrace(false);
                     setLoading(false);
                     stopPolling();
                     onUpdate();
@@ -5127,6 +5132,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
         setShareUrl("");
         setIsGeneratingShareUrl(false);
         setQrExpired(false);
+        setQrPostScanGrace(false);
     }, [locationId, slot?.slot_id]);
 
     useEffect(() => {
@@ -5150,6 +5156,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setQr(null);
             setQrUpdatedAt(null);
             setQrExpired(false);
+            setQrPostScanGrace(false);
             setLoading(false);
             stopPolling();
         }
@@ -5164,6 +5171,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
 
         setLoading(true);
         setQrExpired(false);
+        setQrPostScanGrace(false);
         setQr(null);
         setQrUpdatedAt(null);
         try {
@@ -5178,6 +5186,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setAccountSuspensionState(null);
             stopPolling();
             let sawFreshQr = false;
+            let qrMissingSince = null;
 
             const pollStep = async () => {
                 try {
@@ -5194,18 +5203,37 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                     const nextQr = data.qr || null;
                     const stillWaitingForQr = data.waitingForQr === true;
                     setQrUpdatedAt(nextQrUpdatedAt);
-                    setQr(nextQr);
                     if (nextQr) {
                         sawFreshQr = true;
-                    } else if (!data.connected && sawFreshQr && !stillWaitingForQr) {
-                        setLoading(false);
-                        setQrExpired(true);
-                        stopPolling();
-                        return;
+                        qrMissingSince = null;
+                    } else if (sawFreshQr && !stillWaitingForQr) {
+                        qrMissingSince = qrMissingSince || Date.now();
                     }
-                    if (data.connected) {
+
+                    const transition = resolveSlotQrPollTransition({
+                        connected: data.connected === true,
+                        qr: nextQr,
+                        waitingForQr: stillWaitingForQr,
+                        sawFreshQr,
+                        qrMissingSince,
+                        now: Date.now(),
+                        postScanGraceMs: QR_POST_SCAN_GRACE_MS
+                    });
+
+                    setQr(transition.action === 'show_qr' ? nextQr : null);
+                    setQrPostScanGrace(transition.inPostScanGrace === true);
+
+                    if (transition.action === 'connected') {
                         checkStatus();
                         return; // Stop polling, checkStatus will clear the rest
+                    }
+
+                    if (transition.action === 'expired') {
+                        setLoading(false);
+                        setQrExpired(true);
+                        setQrPostScanGrace(false);
+                        stopPolling();
+                        return;
                     }
                 } catch (e) {
                     console.error('[SlotQR] Poll failed:', e);
@@ -5252,6 +5280,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                 ? 'Pausado por administracion. Solo admin puede reactivar.'
                 : 'Pausado por ti. Puedes reconectar sin escanear QR.');
             setQrExpired(false);
+            setQrPostScanGrace(false);
             setQr(null);
             setQrUpdatedAt(null);
             stopPolling();
@@ -5289,6 +5318,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setSlotLockMessage(null);
             setAccountSuspensionState(null);
             setQrExpired(false);
+            setQrPostScanGrace(false);
             setQr(null);
             setQrUpdatedAt(null);
             toast.success('Reconectando...');
@@ -5335,6 +5365,7 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
             setSlotSuspendedBy(null);
             setSlotLockMessage(null);
             setQrExpired(false);
+            setQrPostScanGrace(false);
             setQr(null);
             setQrUpdatedAt(null);
             stopPolling();
@@ -5491,12 +5522,12 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                         <div className="flex flex-col items-center gap-3">
                             {qrExpired && (
                                 <p className="text-sm text-amber-700 dark:text-amber-300 text-center">
-                                    El QR expiro. Pulsa de nuevo para generar uno nuevo.
+                                    El QR expiró. Pulsa de nuevo para generar uno nuevo.
                                 </p>
                             )}
                             <div className="flex flex-col sm:flex-row gap-3 justify-center">
                                 <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
-                                    <QrCode size={20} /> Generar Codigo QR
+                                    <QrCode size={20} /> Generar Código QR
                                 </button>
                                 <button
                                     onClick={handleGenerateShareUrl}
@@ -5515,13 +5546,18 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                             <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
                                 {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
                             </div>
-                            <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">
+                            {qrPostScanGrace && !qr && (
+                                <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">
+                                    Verificando conexión del dispositivo...
+                                </p>
+                            )}
+                            <p className={`text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4 ${qrPostScanGrace && !qr ? 'hidden' : ''}`}>
                                 {qr
                                     ? '📷 Escanea con WhatsApp (Expira pronto)'
                                     : (slotSuspendedBy ? '🔄 Reconectando automáticamente...' : '⏳ Consiguiendo QR seguro...')
                                 }
                             </p>
-                            <button onClick={() => { setQr(null); setQrUpdatedAt(null); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-red-500 underline text-sm transition">Cancelar</button>
+                            <button onClick={() => { setQr(null); setQrUpdatedAt(null); setQrPostScanGrace(false); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-red-500 underline text-sm transition">Cancelar</button>
                         </div>
                     )}
 

@@ -18,6 +18,7 @@ import {
 } from '../admin/constants/plans';
 import { useLanguage } from '../context/LanguageContext';
 import { translateOr } from './i18n';
+import { buildRewardfulCheckoutBody } from '../utils/rewardfulReferral';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
 
@@ -123,7 +124,7 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ priceId }),
+        body: JSON.stringify(buildRewardfulCheckoutBody(priceId)),
       });
       const payload = await response.json();
       if (payload?.url) {
@@ -173,7 +174,7 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ priceId: selectedPlan.priceId }),
+          body: JSON.stringify(buildRewardfulCheckoutBody(selectedPlan.priceId)),
         });
         const checkoutPayload = await checkoutResponse.json();
         if (checkoutPayload?.url) {
