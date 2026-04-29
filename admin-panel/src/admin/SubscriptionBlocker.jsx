@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Check, LogOut, AlertTriangle, Loader2, Sparkles } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { PLANS_STANDARD, PLANS_FOUNDER, PLANS_VOLUME, PLAN_LIFETIME } from './constants/plans';
+import { buildRewardfulCheckoutBody } from '../utils/rewardfulReferral';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
@@ -65,7 +66,7 @@ export default function SubscriptionBlocker({ token, onLogout, accountInfo }) {
             const res = await fetch(`${API_URL}/payments/subscribe`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ priceId })
+                body: JSON.stringify(buildRewardfulCheckoutBody(priceId))
             });
             const data = await res.json();
             if (data.url) window.location.href = data.url;

@@ -3,10 +3,8 @@ import { ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Sparkles
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 import { BASE_AGENT_MODEL_OPTIONS } from "./agentModelOptions";
-import tutorialPaso1 from "../img-tutorial-openaiapi/paso1.png";
-import tutorialPaso2 from "../img-tutorial-openaiapi/paso2.png";
-import tutorialPaso3 from "../img-tutorial-openaiapi/paso3.png";
-import tutorialPaso4 from "../img-tutorial-openaiapi/paso4.png";
+import OpenAiKeySetupModal from "../components/OpenAiKeySetupModal";
+import { resolveOpenAiAccountLabel } from "../utils/openAiKeySetup";
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const inputClassName = "w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
@@ -446,26 +444,7 @@ function EditorSection({ title, description, children, className = "" }) {
     );
 }
 
-const API_KEY_TUTORIAL_STEPS = [
-    {
-        image: tutorialPaso1,
-        textKey: "workflow_agents.apikey_tutorial_step1"
-    },
-    {
-        image: tutorialPaso2,
-        textKey: "workflow_agents.apikey_tutorial_step2"
-    },
-    {
-        image: tutorialPaso3,
-        textKey: "workflow_agents.apikey_tutorial_step3"
-    },
-    {
-        image: tutorialPaso4,
-        textKey: "workflow_agents.apikey_tutorial_step4"
-    }
-];
-
-export default function StandaloneAgents({ onUnauthorized, token, locationId, onOpenIntegrations }) {
+export default function StandaloneAgents({ onUnauthorized, token, locationId }) {
     const languageContext = useLanguage();
     const t = typeof languageContext?.t === "function" ? languageContext.t : ((key) => key);
     const documentInputRef = useRef(null);
@@ -654,6 +633,23 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSaveOpenAiKey = async (openAiApiKey) => {
+        const safeLocationId = String(selectedLocationId || "").trim();
+        if (!safeLocationId) throw new Error(t("workflow_agents.location_required") || "Selecciona una cuenta.");
+
+        const res = await authFetch(`/agency/settings/${encodeURIComponent(safeLocationId)}`, {
+            method: "PUT",
+            body: JSON.stringify({ openai_api_key: openAiApiKey })
+        });
+        const data = await parseResponse(res);
+        if (!res.ok || data?.success === false) {
+            throw new Error(data?.error || t("workflow_agents.location_key_save_error") || "No se pudo guardar la OpenAI key de la subcuenta");
+        }
+
+        toast.success(t("workflow_agents.location_key_saved") || "OpenAI key guardada en la subcuenta");
+        await loadWorkspace(safeLocationId);
     };
 
     useEffect(() => {
@@ -898,6 +894,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId, on
     const catalog = Array.isArray(workspace?.integration_catalog) ? workspace.integration_catalog : [];
     const agents = Array.isArray(workspace?.agents) ? workspace.agents : [];
     const slots = Array.isArray(workspace?.slots) ? workspace.slots : [];
+    const openAiAccountLabel = resolveOpenAiAccountLabel({ workspace, selectedLocationId });
     const locationHasOpenAiKey = workspace?.credentials?.has_location_openai_key === true;
     const agencyHasOpenAiKey = workspace?.credentials?.has_agency_openai_key === true;
     const usingLegacySlotKeys = !locationHasOpenAiKey && slots.some((slot) => slot?.has_openai_api_key === true);
@@ -1470,7 +1467,7 @@ const disableTagAction = (permissionKey) => {
                                                         </div>
                                                         <div>
                                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_max_chars")}</label>
-                                                            <input type="number" min="120" max="4000" step="20" value={form.max_output_chars} onChange={(event) => setForm((prev) => ({ ...prev, max_output_chars: event.target.value }))} className={inputClassName} />
+                                                        <input type="number" min="120" max="4000" step="10" value={form.max_output_chars} onChange={(event) => setForm((prev) => ({ ...prev, max_output_chars: event.target.value }))} className={inputClassName} />
                                                         </div>
                                                     </div>
                                                     <label className="mt-4 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
@@ -1620,7 +1617,7 @@ const disableTagAction = (permissionKey) => {
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    onClick={() => onOpenIntegrations?.()}
+                                                    onClick={() => setShowApiKeyTutorialModal(true)}
                                                     className="text-xs font-bold text-indigo-600 underline-offset-2 transition hover:underline dark:text-indigo-300"
                                                 >
                                                     {t("workflow_agents.openai_configure_cta") || "Configurar API key"}
@@ -1821,6 +1818,15 @@ const disableTagAction = (permissionKey) => {
                 </div>
             ) : null}
             {showApiKeyTutorialModal ? (
+                <OpenAiKeySetupModal
+                    accountLabel={openAiAccountLabel}
+                    alreadyConfigured={locationHasOpenAiKey}
+                    onClose={() => setShowApiKeyTutorialModal(false)}
+                    onSave={handleSaveOpenAiKey}
+                    t={t}
+                />
+            ) : null}
+            {false && showApiKeyTutorialModal ? (
                 <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4">
                     <div className="w-full max-w-4xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">
                         <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">

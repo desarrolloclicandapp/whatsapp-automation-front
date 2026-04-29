@@ -806,6 +806,10 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                 const suspensionStatus = user.suspension_status || null;
                                                 const isSuspended = ['grace', 'suspended', 'pending_deletion', 'permanently_deleted'].includes(suspensionStatus);
                                                 const graceDaysLeft = user.grace_ends_at ? Math.max(0, Math.ceil((new Date(user.grace_ends_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000))) : null;
+                                                const productInterface = String(user.product_interface || '').toLowerCase();
+                                                const isInboxUser = productInterface === 'inbox' || String(user.interface || '').toLowerCase() === 'standalone';
+                                                const canEditAccountLimit = user.can_edit_account_limit !== false && !isInboxUser;
+                                                const productBadgeLabel = user.product_interface_label || (isInboxUser ? 'Waflow Inbox' : 'CRM Waflow');
                                                 return (
                                                     <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
                                                         <td className="px-6 py-4">
@@ -814,7 +818,12 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                 {user.is_active === false && <span className="px-2 py-0.5 text-[10px] uppercase font-bold bg-red-100 text-red-600 rounded border border-red-200">Inactivo</span>}
                                                             </div>
                                                             <div className="text-xs text-gray-500">{user.email}</div>
-                                                            {user.agency_id && <div className="mt-1 text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded w-fit">{user.agency_id}</div>}
+                                                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                                                {user.agency_id && <div className="text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded w-fit">{user.agency_id}</div>}
+                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${isInboxUser ? 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900/20 dark:text-cyan-300 dark:border-cyan-900/40' : 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-900/40'}`}>
+                                                                    {productBadgeLabel}
+                                                                </span>
+                                                            </div>
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             {user.active_plans && user.active_plans.length > 0 ? (
@@ -850,28 +859,37 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-sm font-bold text-gray-900 dark:text-white">{user.max_subagencies || 1}</span>
-                                                                {user.bonus_subagencies > 0 && (
+                                                                <span className="text-sm font-bold text-gray-900 dark:text-white">{isInboxUser ? '1 fija' : (user.max_subagencies || 1)}</span>
+                                                                {!isInboxUser && user.bonus_subagencies > 0 && (
                                                                     <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full font-bold border border-purple-200">
                                                                         +{user.bonus_subagencies} bonus
                                                                     </span>
                                                                 )}
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setBonusModal({ 
-                                                                            show: true, 
-                                                                            userId: user.id, 
-                                                                            userName: user.name || user.email, 
-                                                                            currentBonus: user.bonus_subagencies || 0,
-                                                                            maxSubs: user.max_subagencies || 1
-                                                                        });
-                                                                        setBonusInput(user.bonus_subagencies || 0);
-                                                                    }}
-                                                                    className="p-1 text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition"
-                                                                    title="Editar Bonus Subcuentas"
-                                                                >
-                                                                    <Plus size={14} />
-                                                                </button>
+                                                                {canEditAccountLimit ? (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setBonusModal({
+                                                                                show: true,
+                                                                                userId: user.id,
+                                                                                userName: user.name || user.email,
+                                                                                currentBonus: user.bonus_subagencies || 0,
+                                                                                maxSubs: user.max_subagencies || 1
+                                                                            });
+                                                                            setBonusInput(user.bonus_subagencies || 0);
+                                                                        }}
+                                                                        className="p-1 text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition"
+                                                                        title="Editar Bonus Subcuentas"
+                                                                    >
+                                                                        <Plus size={14} />
+                                                                    </button>
+                                                                ) : (
+                                                                    <span
+                                                                        className="text-[10px] text-gray-400"
+                                                                        title="Waflow Inbox usa una cuenta fija y multiples numeros desde slots."
+                                                                    >
+                                                                        Bloqueado
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 tabular-nums">

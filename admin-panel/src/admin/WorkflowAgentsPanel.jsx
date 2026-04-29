@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Building2, ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Sparkles, Trash2, Upload } from "lucide-react";
+import { Building2, ChevronLeft, FileText, Loader2, Play, RefreshCw, Save, Search, Sparkles, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
+import OpenAiKeySetupModal from "../components/OpenAiKeySetupModal";
+import { resolveOpenAiAccountLabel } from "../utils/openAiKeySetup";
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const inputClassName = "w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
@@ -447,7 +449,7 @@ function EditorSection({ title, description, children, className = "" }) {
     );
 }
 
-export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, token, onOpenIntegrations }) {
+export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, token }) {
     const languageContext = useLanguage();
     const t = typeof languageContext?.t === "function" ? languageContext.t : ((key) => key);
     const documentInputRef = useRef(null);
@@ -472,6 +474,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const [loadingModels, setLoadingModels] = useState(false);
     const [actionRuleModal, setActionRuleModal] = useState(null);
     const [actionRuleDrafts, setActionRuleDrafts] = useState([]);
+    const [showOpenAiKeyModal, setShowOpenAiKeyModal] = useState(false);
     const agentPresets = useMemo(() => buildWorkflowAgentPresets(t), [t]);
 
     useEffect(() => {
@@ -642,6 +645,23 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         }
     };
 
+    const handleSaveOpenAiKey = async (openAiApiKey) => {
+        const safeLocationId = String(selectedLocationId || "").trim();
+        if (!safeLocationId) throw new Error(t("workflow_agents.location_required") || "Selecciona una cuenta.");
+
+        const res = await authFetch(`/agency/settings/${encodeURIComponent(safeLocationId)}`, {
+            method: "PUT",
+            body: JSON.stringify({ openai_api_key: openAiApiKey })
+        });
+        const data = await parseResponse(res);
+        if (!res.ok || data?.success === false) {
+            throw new Error(data?.error || t("workflow_agents.location_key_save_error") || "No se pudo guardar la OpenAI key de la subcuenta");
+        }
+
+        toast.success(t("workflow_agents.location_key_saved") || "OpenAI key guardada en la subcuenta");
+        await loadWorkspace(safeLocationId);
+    };
+
     useEffect(() => {
         if (selectedLocationId) {
             setViewMode("list");
@@ -664,7 +684,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         if (!selectedLocationId) return;
         if (!hasAnyOpenAiKey && form.status === "active") {
             toast.error(t("workflow_agents.active_requires_openai_key") || "Carga una OpenAI API key antes de activar el agente.");
-            onOpenIntegrations?.();
+            setShowOpenAiKeyModal(true);
             return;
         }
 
@@ -873,6 +893,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const agents = Array.isArray(workspace?.agents) ? workspace.agents : [];
     const slots = Array.isArray(workspace?.slots) ? workspace.slots : [];
     const calendarsCatalog = Array.isArray(workspace?.crm_catalog?.calendars) ? workspace.crm_catalog.calendars : [];
+    const openAiAccountLabel = resolveOpenAiAccountLabel({ workspace, selectedLocationId });
     const locationHasOpenAiKey = workspace?.credentials?.has_location_openai_key === true;
     const agencyHasOpenAiKey = workspace?.credentials?.has_agency_openai_key === true;
     const usingLegacySlotKeys = !locationHasOpenAiKey && slots.some((slot) => slot?.has_openai_api_key === true);
@@ -1174,7 +1195,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     );
 
     const renderOpenAiKeyFooterCta = () => {
-        if (hasAnyOpenAiKey || typeof onOpenIntegrations !== "function") return null;
+        if (hasAnyOpenAiKey) return null;
 
         return (
             <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-sm dark:border-indigo-900/60 dark:bg-indigo-950/20">
@@ -1188,11 +1209,10 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                 </div>
                 <button
                     type="button"
-                    onClick={onOpenIntegrations}
+                    onClick={() => setShowOpenAiKeyModal(true)}
                     className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-indigo-500"
                 >
                     {t("workflow_agents.models_require_key_cta_button")}
-                    <ArrowUpRight size={13} />
                 </button>
             </div>
         );
@@ -1441,7 +1461,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                                 onChange={(event) => {
                                                     if (event.target.value === "active" && !hasAnyOpenAiKey) {
                                                         toast.error(t("workflow_agents.active_requires_openai_key") || "Carga una OpenAI API key antes de activar el agente.");
-                                                        onOpenIntegrations?.();
+                                                        setShowOpenAiKeyModal(true);
                                                         return;
                                                     }
                                                     setForm((prev) => ({ ...prev, status: event.target.value }));
@@ -1492,7 +1512,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                         </div>
                                         <div>
                                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">{t("workflow_agents.field_max_chars")}</label>
-                                            <input type="number" min="120" max="4000" step="20" value={form.max_output_chars} onChange={(event) => setForm((prev) => ({ ...prev, max_output_chars: event.target.value }))} className={inputClassName} />
+                                            <input type="number" min="120" max="4000" step="10" value={form.max_output_chars} onChange={(event) => setForm((prev) => ({ ...prev, max_output_chars: event.target.value }))} className={inputClassName} />
                                         </div>
                                     </div>
                                     <label className="mt-4 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
@@ -1892,6 +1912,15 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                         </div>
                     </div>
                 </div>
+            ) : null}
+            {showOpenAiKeyModal ? (
+                <OpenAiKeySetupModal
+                    accountLabel={openAiAccountLabel}
+                    alreadyConfigured={locationHasOpenAiKey}
+                    onClose={() => setShowOpenAiKeyModal(false)}
+                    onSave={handleSaveOpenAiKey}
+                    t={t}
+                />
             ) : null}
         </div>
     );

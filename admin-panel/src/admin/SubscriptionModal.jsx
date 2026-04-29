@@ -5,6 +5,7 @@ import {
     CreditCard, FileText, Layers, PlusCircle, ExternalLink, Crown, AlertCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { ADDONS } from './constants/plans';
+import { buildRewardfulCheckoutBody } from '../utils/rewardfulReferral';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
@@ -83,7 +84,7 @@ export default function SubscriptionModal({ onClose, token, accountInfo, blockin
             const res = await fetch(`${API_URL}/payments/subscribe`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ priceId })
+                body: JSON.stringify(buildRewardfulCheckoutBody(priceId))
             });
             const data = await res.json();
             
