@@ -61,6 +61,16 @@ const clearAuthSessionStorage = () => {
     AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 };
 
+const shouldClearSessionForGhlInstall = () => {
+    if (!isGhlInstallCallback(new URLSearchParams(window.location.search))) return false;
+    if (!localStorage.getItem('authToken')) return false;
+
+    const storedRole = String(localStorage.getItem('userRole') || '').trim().toLowerCase();
+    const storedInterface = normalizeInterface(localStorage.getItem('userInterface'), '');
+
+    return storedRole !== 'agency' || storedInterface === 'standalone';
+};
+
 const normalizeInterface = (value, fallback = 'agency') => {
     const normalized = String(value || '').trim().toLowerCase();
 
@@ -106,16 +116,22 @@ const buildAccountInfoFromStorage = () => {
 };
 
 function App() {
+    const clearInitialGhlSession = shouldClearSessionForGhlInstall();
+    if (clearInitialGhlSession) {
+        clearAuthSessionStorage();
+        sessionStorage.removeItem(STANDALONE_MASK_KEY);
+    }
+
     const [currentPath, setCurrentPath] = useState(window.location.pathname);
-    const [token, setToken] = useState(localStorage.getItem('authToken'));
-    const [role, setRole] = useState(localStorage.getItem('userRole'));
-    const [restoreToken, setRestoreToken] = useState(localStorage.getItem('admin_restore_token'));
-    const [userInterface, setUserInterface] = useState(localStorage.getItem('userInterface'));
+    const [token, setToken] = useState(clearInitialGhlSession ? null : localStorage.getItem('authToken'));
+    const [role, setRole] = useState(clearInitialGhlSession ? null : localStorage.getItem('userRole'));
+    const [restoreToken, setRestoreToken] = useState(clearInitialGhlSession ? null : localStorage.getItem('admin_restore_token'));
+    const [userInterface, setUserInterface] = useState(clearInitialGhlSession ? null : localStorage.getItem('userInterface'));
     const [accountRefreshKey, setAccountRefreshKey] = useState(0);
     const [standaloneMaskEnabled, setStandaloneMaskEnabled] = useState(() => {
         if (isStandalonePath(window.location.pathname)) return true;
-        if (sessionStorage.getItem(STANDALONE_MASK_KEY) === '1') return true;
-        return normalizeInterface(localStorage.getItem('userInterface'), 'agency') === 'standalone';
+        if (!clearInitialGhlSession && sessionStorage.getItem(STANDALONE_MASK_KEY) === '1') return true;
+        return !clearInitialGhlSession && normalizeInterface(localStorage.getItem('userInterface'), 'agency') === 'standalone';
     });
     const lastStandaloneScreenRef = useRef(null);
 
@@ -136,13 +152,16 @@ function App() {
         const params = new URLSearchParams(window.location.search);
         if (!isGhlInstallCallback(params)) return;
 
+        const storedRole = String(localStorage.getItem('userRole') || '').trim().toLowerCase();
         const storedInterface = normalizeInterface(localStorage.getItem('userInterface'), '');
-        const hasStandaloneSession = Boolean(localStorage.getItem('authToken')) && storedInterface === 'standalone';
+        const hasIncompatibleSession = Boolean(localStorage.getItem('authToken')) && (
+            storedRole !== 'agency' || storedInterface === 'standalone'
+        );
 
         sessionStorage.removeItem(STANDALONE_MASK_KEY);
         setStandaloneMaskEnabled(false);
 
-        if (hasStandaloneSession) {
+        if (hasIncompatibleSession) {
             clearAuthSessionStorage();
             setToken(null);
             setRole(null);
