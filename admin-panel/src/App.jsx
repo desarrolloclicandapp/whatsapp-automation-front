@@ -13,6 +13,21 @@ const STANDALONE_INTERNAL_PATHS = ['/crm', '/standalone'];
 const STANDALONE_MASK_KEY = 'standalone_url_mask';
 const AGENCY_HOME = '/agency';
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
+const AUTH_STORAGE_KEYS = [
+    'token',
+    'authToken',
+    'userRole',
+    'agencyId',
+    'subscriptionStatus',
+    'agencyFeatures',
+    'admin_restore_token',
+    'admin_restore_role',
+    'admin_restore_agencyId',
+    'userInterface',
+    'userEmail',
+    'userName',
+    'agencyBranding',
+];
 
 const safeJsonParse = (value, fallback = null) => {
     if (!value) return fallback;
@@ -35,6 +50,15 @@ const getModeFromPath = (pathname = '/', standaloneMaskEnabled = false) => {
     if (normalized === '/' && standaloneMaskEnabled) return 'standalone';
 
     return 'agency';
+};
+
+const isGhlInstallCallback = (params = new URLSearchParams()) => {
+    const oauth = String(params.get('oauth') || '').trim().toLowerCase();
+    return oauth === 'ghl' || params.has('new_install') || Boolean(params.get('code') && params.has('location_id'));
+};
+
+const clearAuthSessionStorage = () => {
+    AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 };
 
 const normalizeInterface = (value, fallback = 'agency') => {
@@ -109,6 +133,31 @@ function App() {
     );
 
     useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (!isGhlInstallCallback(params)) return;
+
+        const storedInterface = normalizeInterface(localStorage.getItem('userInterface'), '');
+        const hasStandaloneSession = Boolean(localStorage.getItem('authToken')) && storedInterface === 'standalone';
+
+        sessionStorage.removeItem(STANDALONE_MASK_KEY);
+        setStandaloneMaskEnabled(false);
+
+        if (hasStandaloneSession) {
+            clearAuthSessionStorage();
+            setToken(null);
+            setRole(null);
+            setUserInterface(null);
+            setRestoreToken(null);
+        }
+
+        if (window.location.pathname !== AGENCY_HOME) {
+            const nextUrl = `${AGENCY_HOME}${window.location.search}`;
+            window.history.replaceState({}, document.title, nextUrl);
+            setCurrentPath(AGENCY_HOME);
+        }
+    }, []);
+
+    useEffect(() => {
         const handlePopState = () => setCurrentPath(window.location.pathname);
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
@@ -116,6 +165,7 @@ function App() {
 
     useEffect(() => {
         if (!isStandalonePath(currentPath)) return;
+        if (isGhlInstallCallback(new URLSearchParams(window.location.search))) return;
 
         setStandaloneMaskEnabled(true);
         sessionStorage.setItem(STANDALONE_MASK_KEY, '1');
