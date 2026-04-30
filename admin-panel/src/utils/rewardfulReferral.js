@@ -25,13 +25,27 @@ export function getRewardfulReferral() {
   }
 
   try {
+    const queryReferral = cleanReferral(new URLSearchParams(window.location?.search || '').get('referral'));
+    if (queryReferral) {
+      window.localStorage?.setItem(STORAGE_KEY, queryReferral);
+      return queryReferral;
+    }
+  } catch {
+    // Query parsing/storage is best effort only.
+  }
+
+  try {
     return cleanReferral(window.localStorage?.getItem(STORAGE_KEY)) || null;
   } catch {
     return null;
   }
 }
 
-export function buildRewardfulCheckoutBody(priceId) {
+export function buildRewardfulAuthBody(payload = {}) {
   const rewardfulReferral = getRewardfulReferral();
-  return rewardfulReferral ? { priceId, rewardfulReferral } : { priceId };
+  return rewardfulReferral ? { ...payload, rewardfulReferral } : { ...payload };
+}
+
+export function buildRewardfulCheckoutBody(priceId) {
+  return buildRewardfulAuthBody({ priceId });
 }
