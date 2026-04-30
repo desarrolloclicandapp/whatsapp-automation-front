@@ -822,15 +822,15 @@ const handleDeleteUser = (user, type = 'soft') => {
                         ) : (
                             <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-sm overflow-hidden">
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
+                                    <table className="w-full min-w-[1120px] text-left border-collapse">
                                         <thead className="bg-gray-50 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">
                                             <tr>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Usuario / Email</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Plan & Estado</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cuentas Límite</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Números límite</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Números</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vencimiento Trial</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right w-40">Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -843,6 +843,13 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                 const isInboxUser = productInterface === 'inbox' || String(user.interface || '').toLowerCase() === 'standalone';
                                                 const canEditAccountLimit = user.can_edit_account_limit !== false && !isInboxUser;
                                                 const productBadgeLabel = user.product_interface_label || (isInboxUser ? 'Waflow Inbox' : 'CRM Waflow');
+                                                const connectedSlotCount = Number(user.connected_slot_count || 0);
+                                                const totalSlotCount = Number(user.total_slot_count || 0);
+                                                const connectedNumbers = Array.isArray(user.connected_numbers) ? user.connected_numbers : [];
+                                                const hasConnectedNumbers = connectedSlotCount > 0;
+                                                const connectedNumbersTitle = hasConnectedNumbers
+                                                    ? connectedNumbers.map(item => `${item.phone_number || 'Sin numero'}${item.slot_name ? ` · ${item.slot_name}` : ''}`).join('\n')
+                                                    : 'Sin numeros conectados';
                                                 return (
                                                     <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
                                                         <td className="px-6 py-4">
@@ -933,43 +940,49 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-sm font-bold text-gray-900 dark:text-white">{user.max_slots || 0}</span>
-                                                                {user.manual_entitlements_enabled === true && (
-                                                                    <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-bold border border-amber-200">
-                                                                        gratis
-                                                                    </span>
-                                                                )}
-                                                                {!isInboxUser ? (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            const maxSubagencies = user.max_subagencies || 1;
-                                                                            const maxSlots = user.max_slots || 5;
-                                                                            setManualEntitlementsModal({
-                                                                                show: true,
-                                                                                userId: user.id,
-                                                                                userName: user.name || user.email,
-                                                                                maxSubagencies,
-                                                                                maxSlots,
-                                                                                enabled: user.manual_entitlements_enabled === true
-                                                                            });
-                                                                            setManualEntitlementsInput({ maxSubagencies, maxSlots });
-                                                                        }}
-                                                                        className="p-1 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition"
-                                                                        title="Configurar acceso gratis manual"
-                                                                    >
-                                                                        <Smartphone size={14} />
-                                                                    </button>
-                                                                ) : (
-                                                                    <span className="text-[10px] text-gray-400" title="Los usuarios Inbox se gestionan desde slots.">Inbox</span>
-                                                                )}
+                                                            <div className="flex flex-col gap-1" title={connectedNumbersTitle}>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`h-2.5 w-2.5 rounded-full ${hasConnectedNumbers ? 'bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.15)]' : 'bg-gray-400 dark:bg-gray-600'}`} />
+                                                                    <span className="text-sm font-bold text-gray-900 dark:text-white">{connectedSlotCount}/{user.max_slots || 0}</span>
+                                                                    {user.manual_entitlements_enabled === true && (
+                                                                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-bold border border-amber-200">
+                                                                            gratis
+                                                                        </span>
+                                                                    )}
+                                                                    {!isInboxUser ? (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                const maxSubagencies = user.max_subagencies || 1;
+                                                                                const maxSlots = user.max_slots || 5;
+                                                                                setManualEntitlementsModal({
+                                                                                    show: true,
+                                                                                    userId: user.id,
+                                                                                    userName: user.name || user.email,
+                                                                                    maxSubagencies,
+                                                                                    maxSlots,
+                                                                                    enabled: user.manual_entitlements_enabled === true
+                                                                                });
+                                                                                setManualEntitlementsInput({ maxSubagencies, maxSlots });
+                                                                            }}
+                                                                            className="p-1 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition"
+                                                                            title="Configurar acceso gratis manual"
+                                                                        >
+                                                                            <Smartphone size={14} />
+                                                                        </button>
+                                                                    ) : (
+                                                                        <span className="text-[10px] text-gray-400" title="Los usuarios Inbox se gestionan desde slots.">Inbox</span>
+                                                                    )}
+                                                                </div>
+                                                                <span className={`text-[10px] font-semibold ${hasConnectedNumbers ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
+                                                                    {hasConnectedNumbers ? `${connectedSlotCount} conectado${connectedSlotCount === 1 ? '' : 's'}` : 'sin conectar'}{totalSlotCount > 0 ? ` · ${totalSlotCount} creado${totalSlotCount === 1 ? '' : 's'}` : ''}
+                                                                </span>
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 tabular-nums">
                                                             {user.trial_ends_at ? new Date(user.trial_ends_at).toLocaleDateString() : '-'}
                                                         </td>
-                                                        <td className="px-6 py-4 text-right">
-                                                            <div className="flex justify-end items-center gap-2">
+                                                        <td className="px-4 py-4 text-right align-middle">
+                                                            <div className="grid grid-cols-4 justify-items-end gap-1 min-w-[116px] max-w-[132px] ml-auto">
                                                                 {user.role !== 'admin' && (isSuspended || user.is_active === false) && (
                                                                     <button
                                                                         onClick={() => {
@@ -990,7 +1003,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                                 false
                                                                             );
                                                                         }}
-                                                                        className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-lg hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 transition"
+                                                                        className="col-span-4 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-lg hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 transition"
                                                                         title={t('dash.users.reactivate_tooltip')}
                                                                     >
                                                                         {t('dash.users.reactivate_button')}
@@ -1002,10 +1015,10 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                             setTrialModal({ show: true, userId: user.id, userName: user.email, currentEnd: user.trial_ends_at });
                                                                             setTrialDaysInput(0); 
                                                                         }} 
-                                                                        className="p-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30 rounded-lg transition border border-transparent hover:border-indigo-100 dark:hover:border-indigo-800"
+                                                                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30 rounded-lg transition border border-transparent hover:border-indigo-100 dark:hover:border-indigo-800"
                                                                         title="Extender/Reducir Trial"
                                                                     >
-                                                                        <CalendarDays size={18} />
+                                                                        <CalendarDays size={16} />
                                                                     </button>
                                                                 )}
                                                                 
@@ -1017,10 +1030,10 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                             () => executeSoftDisconnectUser(user.id),
                                                                             true
                                                                         )}
-                                                                        className="p-2 text-sky-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition"
+                                                                        className="p-1.5 text-sky-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition"
                                                                         title="Inactivar suave (preserva credenciales)"
                                                                     >
-                                                                        <RotateCcw size={18} />
+                                                                        <RotateCcw size={16} />
                                                                     </button>
                                                                 )}
                                                                 {user.role !== 'admin' && !isSuspended && (
@@ -1031,10 +1044,10 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                             () => executeSuspendUser(user.id, 'Manual admin action'),
                                                                             true
                                                                         )}
-                                                                        className="p-2 text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition"
+                                                                        className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition"
                                                                         title="Suspender temporalmente"
                                                                     >
-                                                                        <AlertCircle size={18} />
+                                                                        <AlertCircle size={16} />
                                                                     </button>
                                                                 )}
 
@@ -1046,17 +1059,17 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                             () => executeReactivateSuspension(user.id),
                                                                             false
                                                                         )}
-                                                                        className="p-2 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition"
+                                                                        className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition"
                                                                         title="Reactivar suspension"
                                                                     >
-                                                                        <CheckCircle2 size={18} />
+                                                                        <CheckCircle2 size={16} />
                                                                     </button>
                                                                 )}
 
                                                                 {user.role !== 'admin' && (
                                                                     <button
                                                                         onClick={() => handleImpersonateUser(user)}
-                                                                        className="p-2 text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition"
+                                                                        className="p-1.5 text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition"
                                                                         title="Impersonar usuario"
                                                                     >
                                                                         <span className="text-[11px] font-bold">IMP</span>
@@ -1065,24 +1078,24 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                 {/* Crown button: dar plan admin */}
                                                                 <button
                                                                     onClick={() => handleGrantAdmin(user.id, user.name || user.email)}
-                                                                    className="p-2 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition"
+                                                                    className="p-1.5 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition"
                                                                     title="Dar Plan Admin (Ilimitado)"
                                                                 >
                                                                     <div className="flex items-center justify-center">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>
                                                                     </div>
                                                                 </button>
 
                                                                 {user.role !== 'admin' && (
-                                                                    <button onClick={() => handleDeleteUser(user)} className={`p-2 rounded-lg transition ${user.is_active === false ? 'text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'}`} title={user.is_active === false ? t('dash.users.reactivate_tooltip') : t('dash.users.soft_delete_tooltip')}>
-                                                                        {user.is_active === false ? <RefreshCw size={18} /> : <Trash2 size={18} />}
+                                                                    <button onClick={() => handleDeleteUser(user)} className={`p-1.5 rounded-lg transition ${user.is_active === false ? 'text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'}`} title={user.is_active === false ? t('dash.users.reactivate_tooltip') : t('dash.users.soft_delete_tooltip')}>
+                                                                        {user.is_active === false ? <RefreshCw size={16} /> : <Trash2 size={16} />}
                                                                     </button>
                                                                 )}
                                                                 
                                                                 {/* HARD DELETE BUTTON */}
                                                                 {user.role !== 'admin' && (
-                                                                    <button onClick={() => handleDeleteUser(user, 'hard')} className="p-2 text-gray-300 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition" title={t('dash.users.hard_delete_tooltip')}>
-                                                                         <AlertTriangle size={18} />
+                                                                    <button onClick={() => handleDeleteUser(user, 'hard')} className="p-1.5 text-gray-300 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition" title={t('dash.users.hard_delete_tooltip')}>
+                                                                         <AlertTriangle size={16} />
                                                                     </button>
                                                                 )}
                                                             </div>

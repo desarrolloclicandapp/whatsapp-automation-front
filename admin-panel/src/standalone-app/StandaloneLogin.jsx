@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { useBranding } from '../context/BrandingContext';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
+import { buildRewardfulAuthBody } from '../utils/rewardfulReferral';
 import { translateOr } from './i18n';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
@@ -114,7 +115,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       const res = await fetch(`${API_URL}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code: phoneCode, email, source: SIGNUP_SOURCE, interface: 'standalone' }),
+        body: JSON.stringify(buildRewardfulAuthBody({ phone, code: phoneCode, email, source: SIGNUP_SOURCE, interface: 'standalone' })),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
@@ -204,7 +205,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${tempToken}`,
         },
-        body: JSON.stringify({ email, agencyName: name, source: SIGNUP_SOURCE, interface: 'standalone' }),
+        body: JSON.stringify(buildRewardfulAuthBody({ email, agencyName: name, source: SIGNUP_SOURCE, interface: 'standalone' })),
       });
 
       if (!updateRes.ok) {

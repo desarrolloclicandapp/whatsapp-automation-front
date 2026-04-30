@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useBranding } from '../context/BrandingContext';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
+import { buildRewardfulAuthBody } from '../utils/rewardfulReferral';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || "34611770270";
@@ -105,7 +106,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
         try {
             const res = await fetch(`${API_URL}/auth/otp/verify`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phone, code: phoneCode, email }) // Pasamos el email para vincular
+                body: JSON.stringify(buildRewardfulAuthBody({ phone, code: phoneCode, email })) // Pasamos el email para vincular
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
@@ -192,7 +193,7 @@ export default function WelcomeAuth({ onLoginSuccess }) {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${tempToken}`
                 },
-                body: JSON.stringify({ email, agencyName: name })
+                body: JSON.stringify(buildRewardfulAuthBody({ email, agencyName: name }))
             });
 
             if (!updateRes.ok) {
