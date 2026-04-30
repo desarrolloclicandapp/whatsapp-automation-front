@@ -224,12 +224,6 @@ function formatRunTimestamp(value) {
     return Number.isNaN(parsed.getTime()) ? "" : parsed.toLocaleString();
 }
 
-function formatDuration(value) {
-    const parsed = Number.parseInt(String(value || ""), 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) return "0 ms";
-    return parsed < 1000 ? `${parsed} ms` : `${(parsed / 1000).toFixed(1)} s`;
-}
-
 function formatFileSize(bytes) {
     const safeBytes = Number.parseInt(String(bytes || ""), 10);
     if (!Number.isFinite(safeBytes) || safeBytes <= 0) return "0 KB";
@@ -387,28 +381,6 @@ function buildFormFromAgent(agent, catalog = []) {
     });
 }
 
-function getIntegrationTitle(t, integrationKey) {
-    return t(`workflow_agents.integration_${integrationKey}_title`);
-}
-
-function getIntegrationDescription(t, integrationKey) {
-    return t(`workflow_agents.integration_${integrationKey}_desc`);
-}
-
-function getIntegrationStatusLabel(t, status) {
-    return t(`workflow_agents.integration_status_${status}`) || status;
-}
-
-function getIntegrationStatusKind(status) {
-    if (status === "ready" || status === "connected") return "good";
-    if (status === "setup_needed") return "warn";
-    return "neutral";
-}
-
-function getRunSourceLabel(t, source) {
-    return t(`workflow_agents.run_source_${String(source || "unknown").toLowerCase()}`) || String(source || "unknown");
-}
-
 function getRunStatusLabel(t, status) {
     return t(`workflow_agents.run_status_${String(status || "unknown").toLowerCase()}`) || String(status || "unknown");
 }
@@ -501,7 +473,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId }) 
         if (!rawText) return null;
         try {
             return JSON.parse(rawText);
-        } catch (_) {
+        } catch {
             return { rawText };
         }
     };
@@ -819,7 +791,7 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId }) 
 
     const getSlotLabel = (slot) => {
         const slotName = slot?.slot_name || `Slot ${slot?.slot_id || ""}`;
-        const phone = slot?.phone_number ? ` · ${slot.phone_number}` : "";
+        const phone = slot?.phone_number ? ` - ${slot.phone_number}` : "";
         return `${slotName}${phone}`;
     };
 
@@ -834,9 +806,13 @@ export default function StandaloneAgents({ onUnauthorized, token, locationId }) 
             toast.error("Esta cuenta no tiene numeros o slots disponibles.");
             return;
         }
-        const currentSlotId = Array.isArray(agent.slot_ids) && agent.slot_ids.length > 0
+        const firstAvailableSlotId = String(slots[0]?.slot_id || "");
+        const existingSlotId = Array.isArray(agent.slot_ids) && agent.slot_ids.length > 0
             ? String(agent.slot_ids[0])
-            : String(slots[0]?.slot_id || "");
+            : "";
+        const currentSlotId = slots.some((slot) => String(slot.slot_id) === existingSlotId)
+            ? existingSlotId
+            : firstAvailableSlotId;
         setDefaultAssignmentModal({
             agent,
             slotId: currentSlotId,
@@ -1207,40 +1183,65 @@ const disableTagAction = (permissionKey) => {
 
                 {filteredAgents.map((agent) => {
                     const isActive = agent.status === "active";
+                    const isDefaultReady = Array.isArray(agent.slot_ids) && agent.slot_ids.length > 0;
                     return (
                     <div
                         key={agent.id}
-                        className={`flex w-full items-start gap-3 rounded-[22px] border px-4 py-3.5 text-left transition ${isEditorMode && editingAgentId === agent.id
-                            ? "border-indigo-300 bg-indigo-50/80 shadow-sm dark:border-indigo-700 dark:bg-indigo-900/20"
-                            : "border-gray-200 bg-white/80 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950/40 dark:hover:border-gray-600 dark:hover:bg-gray-800/60"
+                        className={`group flex w-full flex-col items-stretch gap-4 rounded-[24px] border px-4 py-4 text-left transition sm:flex-row ${isEditorMode && editingAgentId === agent.id
+                            ? "border-indigo-300 bg-indigo-50/80 shadow-sm ring-1 ring-indigo-200 dark:border-indigo-700 dark:bg-indigo-900/20 dark:ring-indigo-700/40"
+                            : "border-gray-200 bg-white/80 hover:border-indigo-200 hover:bg-gray-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-950/40 dark:hover:border-indigo-800/80 dark:hover:bg-gray-900/70"
                             }`}
                     >
                         <button
                             type="button"
                             onClick={() => applyAgentToForm(agent)}
-                            className="min-w-0 flex-1 text-left"
+                            className="flex min-w-0 flex-1 items-start gap-3 text-left"
                         >
-                            <div className="min-w-0 pr-2">
+                            <span className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${
+                                isActive
+                                    ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-500"
+                                    : "border-gray-200 bg-gray-50 text-gray-400 dark:border-gray-700 dark:bg-gray-900"
+                            }`}>
+                                <Sparkles size={18} />
+                            </span>
+                            <div className="min-w-0 flex-1 pr-2">
                                 <div className="truncate font-bold text-gray-900 dark:text-white">{agent.name}</div>
                                 <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{agent.agent_key}</div>
-
-                            </div>
-                            {Number(agent.document_count || 0) > 0 ? (
+                                {isDefaultReady ? (
+                                    <div className="mt-2 text-xs font-semibold text-indigo-600 dark:text-indigo-300">
+                                        Preparado como agente por defecto
+                                    </div>
+                                ) : null}
+                                {!isActive ? (
+                                    <div className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                                        Activalo para poder usarlo en un numero.
+                                    </div>
+                                ) : null}
+                                {isActive && !isDefaultReady ? (
+                                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                        Asignalo como defecto para que responda sin configurar Chatwoot.
+                                    </div>
+                                ) : null}
                                 <div className="mt-3 flex flex-wrap gap-1.5">
+                                    <span className="rounded-full border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                                        Waflow Inbox
+                                    </span>
+                                    {Number(agent.document_count || 0) > 0 ? (
                                     <span className="rounded-full border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-300">
                                         {t("workflow_agents.documents_count").replace("{count}", String(agent.document_count))}
                                     </span>
+                                    ) : null}
                                 </div>
-                            ) : null}
+                            </div>
                         </button>
-                        <div className="flex shrink-0 flex-col items-end gap-2">
+                        <div className="flex w-full shrink-0 flex-col justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50/80 p-2.5 dark:border-gray-800 dark:bg-gray-900/70 sm:w-[150px]">
                             <button
                                 type="button"
                                 role="switch"
                                 aria-checked={isActive}
                                 disabled={saving}
                                 onClick={(event) => handleToggleAgentStatusFromList(agent, event)}
-                                className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                                className={`inline-flex w-full items-center justify-center gap-2 rounded-full border px-2.5 py-2 text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                                     isActive
                                         ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                                         : "border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200"
@@ -1254,9 +1255,13 @@ const disableTagAction = (permissionKey) => {
                                 type="button"
                                 disabled={!isActive || saving}
                                 onClick={(event) => openDefaultAssignmentModal(agent, event)}
-                                className="rounded-full border border-indigo-200 px-3 py-1.5 text-[11px] font-bold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/20"
+                                className={`rounded-full border px-3 py-2 text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                    isDefaultReady
+                                        ? "border-indigo-400 bg-indigo-500/10 text-indigo-700 dark:border-indigo-500/70 dark:text-indigo-200"
+                                        : "border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/20"
+                                }`}
                             >
-                                Por defecto
+                                {isDefaultReady ? "Defecto listo" : "Por defecto"}
                             </button>
                         </div>
                     </div>
@@ -1916,18 +1921,34 @@ const disableTagAction = (permissionKey) => {
                                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Solo hay un numero, se usara automaticamente.</p>
                                 ) : null}
                             </div>
-                            <label className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-950/40">
+                            <label className={`relative flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
+                                defaultAssignmentModal.newConversationsOnly
+                                    ? "border-indigo-400 bg-indigo-500/10 shadow-[0_0_0_1px_rgba(99,102,241,0.32)] dark:border-indigo-500/70 dark:bg-indigo-500/15"
+                                    : "border-gray-200 bg-gray-50/80 hover:border-indigo-200 hover:bg-indigo-50/40 dark:border-gray-700 dark:bg-gray-950/40 dark:hover:border-indigo-800/80 dark:hover:bg-indigo-950/30"
+                            }`}>
                                 <input
                                     type="checkbox"
                                     checked={defaultAssignmentModal.newConversationsOnly}
                                     onChange={(event) => setDefaultAssignmentModal((prev) => ({ ...prev, newConversationsOnly: event.target.checked }))}
-                                    className="mt-1 h-4 w-4 rounded text-indigo-600"
+                                    className="mt-1 h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500"
                                 />
-                                <span>
-                                    <span className="block text-sm font-bold text-gray-900 dark:text-white">Responder solo conversaciones nuevas</span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="flex flex-wrap items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+                                        Responder solo conversaciones nuevas
+                                        {defaultAssignmentModal.newConversationsOnly ? (
+                                            <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
+                                                Seleccionado
+                                            </span>
+                                        ) : null}
+                                    </span>
                                     <span className="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">
                                         Si esta activo, el agente solo respondera cuando el cliente abre una conversacion nueva. No seguira respondiendo mensajes posteriores de la misma charla.
                                     </span>
+                                    {defaultAssignmentModal.newConversationsOnly ? (
+                                        <span className="mt-3 block rounded-xl border border-indigo-200 bg-white/80 px-3 py-2 text-xs font-semibold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200">
+                                            Modo activo: ideal para leads nuevos o primeras consultas.
+                                        </span>
+                                    ) : null}
                                 </span>
                             </label>
                         </div>
@@ -2030,50 +2051,6 @@ const disableTagAction = (permissionKey) => {
                     onSave={handleSaveOpenAiKey}
                     t={t}
                 />
-            ) : null}
-            {false && showApiKeyTutorialModal ? (
-                <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4">
-                    <div className="w-full max-w-4xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">
-                        <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
-                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">{t("workflow_agents.apikey_tutorial_title") || "Cómo crear tu OpenAI API key"}</h4>
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                {t("workflow_agents.apikey_tutorial_desc") || "Necesitas una API key para activar el agente. Sigue estos pasos y luego vuelve a configurarla."}
-                            </p>
-                        </div>
-                        <div className="max-h-[65vh] space-y-6 overflow-y-auto px-6 py-5">
-                            {API_KEY_TUTORIAL_STEPS.map((step, index) => (
-                                <div key={step.image} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-700 dark:bg-gray-800/40">
-                                    <div className="mb-3 text-sm font-bold text-gray-800 dark:text-gray-200">{t("workflow_agents.apikey_tutorial_step_label").replace("{step}", String(index + 1))}</div>
-                                    <img
-                                        src={step.image}
-                                        alt={t("workflow_agents.apikey_tutorial_step_alt").replace("{step}", String(index + 1))}
-                                        className="w-full rounded-xl border border-gray-200 object-contain dark:border-gray-700"
-                                    />
-                                    <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{t(step.textKey)}</p>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-800">
-                            <button
-                                type="button"
-                                onClick={() => setShowApiKeyTutorialModal(false)}
-                                className="rounded-2xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                            >
-                                {t("common.close") || "Cerrar"}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowApiKeyTutorialModal(false);
-                                    onOpenIntegrations?.();
-                                }}
-                                className="rounded-2xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-500"
-                            >
-                                {t("workflow_agents.apikey_tutorial_configure_cta") || "Configurar mi apikey"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
             ) : null}
         </>
     );
