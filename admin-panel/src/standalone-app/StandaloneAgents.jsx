@@ -21,7 +21,13 @@ const EMPTY_AGENT_ACTION_RULES = {
 };
 const OBJECTIVE_SENTENCES_FROM_BUSINESS_CONTEXT = [
     "Si falta informaci\u00f3n, pide el dato m\u00ednimo con empat\u00eda antes de responder.",
-    "If information is missing, ask for the minimum detail with empathy before replying."
+    "Si falta alguno de estos datos, preg\u00fantalo de forma natural, uno por uno. No inventes precios, disponibilidad ni promesas comerciales.",
+    "Si falta fecha, hora o dato obligatorio, pide solo ese dato antes de crear o modificar una cita.",
+    "Si una pregunta sale de este contexto, responde de forma \u00fatil pero reconoce que debe confirmarlo con el equipo.",
+    "If information is missing, ask for the minimum detail with empathy before replying.",
+    "If any of these details are missing, ask naturally, one at a time. Do not invent prices, availability or commercial promises.",
+    "If date, time or a required detail is missing, ask only for that before creating or modifying an appointment.",
+    "If a question goes beyond this context, reply helpfully but state that the team should confirm it."
 ];
 const DEFAULT_AGENT_PERMISSIONS = {
     view_appointments: true,

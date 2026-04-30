@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { useBranding } from '../context/BrandingContext';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
-import { buildRewardfulAuthBody } from '../utils/rewardfulReferral';
+import { buildRewardfulAuthBody, trackRewardfulLead } from '../utils/rewardfulReferral';
 import { translateOr } from './i18n';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
@@ -225,6 +225,8 @@ export default function StandaloneLogin({ onLoginSuccess }) {
         }
         throw new Error(errorData?.error || t('auth.save_profile_error'));
       }
+
+      trackRewardfulLead(email);
 
       const savedFbclid = localStorage.getItem('waflow_fbclid') || '';
       const savedGclid = localStorage.getItem('waflow_gclid') || '';

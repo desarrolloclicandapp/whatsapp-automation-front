@@ -173,10 +173,22 @@ export default function AdminDashboard({ token, onLogout }) {
     const openConfirm = (title, message, action, isDestructive = false) => {
         setConfirmModal({ show: true, title, message, action, isDestructive });
     };
+    const getActivePlansForUser = (user) => Array.isArray(user?.active_plans) ? user.active_plans : [];
 
-    const executeDeleteUser = async (userId) => {
+    const buildActivePlanWarning = (activePlans) => {
+        if (!activePlans.length) return '';
+        const planLines = activePlans
+            .map((plan) => `- ${plan.name || 'Plan activo'}${Number(plan.quantity || 0) > 1 ? ` x${plan.quantity}` : ''}`)
+            .join('\n');
+        return `\n\nATENCION: este usuario tiene plan activo vigente.\n${planLines}\n\nAl confirmar, WaFlow programara la cancelacion de esas suscripciones en Stripe y eliminara/desactivara el usuario.`;
+    };
+
+    const executeDeleteUser = async (userId, options = {}) => {
         try {
-            const res = await authFetch(`/admin/users/${userId}`, { method: 'DELETE' });
+            const res = await authFetch(`/admin/users/${userId}`, {
+                method: 'DELETE',
+                body: JSON.stringify({ forceActivePlanDeletion: options.forceActivePlanDeletion === true })
+            });
             if (res.ok) {
                 toast.success(t('dash.users.soft_delete_success'));
                 fetchUsers();
@@ -193,10 +205,13 @@ export default function AdminDashboard({ token, onLogout }) {
         setConfirmModal({ ...confirmModal, show: false });
     };
 
-    const executeHardDeleteUser = async (userId) => {
+    const executeHardDeleteUser = async (userId, options = {}) => {
         const tId = toast.loading(t('agency.tenant.deleting'));
         try {
-            const res = await authFetch(`/admin/users/${userId}/hard`, { method: 'DELETE' });
+            const res = await authFetch(`/admin/users/${userId}/hard`, {
+                method: 'DELETE',
+                body: JSON.stringify({ forceActivePlanDeletion: options.forceActivePlanDeletion === true })
+            });
             if (res.ok) {
                 toast.success(t('dash.users.hard_delete_success'), { id: tId });
                 fetchUsers();
@@ -385,11 +400,15 @@ const handleDeleteUser = (user, type = 'soft') => {
             return;
         }
 
+        const activePlans = getActivePlansForUser(user);
+        const activePlanWarning = buildActivePlanWarning(activePlans);
+        const forceActivePlanDeletion = activePlans.length > 0;
+
         if (type === 'hard') {
              openConfirm(
                 t('dash.users.hard_delete_title'),
-                t('dash.users.hard_delete_msg').replace('{name}', user.name || user.email),
-                () => executeHardDeleteUser(user.id),
+                `${t('dash.users.hard_delete_msg').replace('{name}', user.name || user.email)}${activePlanWarning}`,
+                () => executeHardDeleteUser(user.id, { forceActivePlanDeletion }),
                 true
             );
         } else if (user.is_active === false) {
@@ -402,8 +421,8 @@ const handleDeleteUser = (user, type = 'soft') => {
         } else {
             openConfirm(
                 t('dash.users.soft_delete_title'),
-                t('dash.users.soft_delete_msg').replace('{name}', user.name || 'Usuario'),
-                () => executeDeleteUser(user.id),
+                `${t('dash.users.soft_delete_msg').replace('{name}', user.name || 'Usuario')}${activePlanWarning}`,
+                () => executeDeleteUser(user.id, { forceActivePlanDeletion }),
                 true
             );
         }
@@ -1242,7 +1261,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                         </div>
                     </div>
                 )}
-{/* MODAL DE GESTIÁ“N DE TRIAL CON INPUT */}
+{/* MODAL DE GESTION DE TRIAL CON INPUT */}
 {trialModal.show && (
                     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6">
