@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { useBranding } from '../context/BrandingContext';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
-import { buildRewardfulAuthBody } from '../utils/rewardfulReferral';
+import { buildRewardfulAuthBody, trackRewardfulLead } from '../utils/rewardfulReferral';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || "34611770270";
@@ -216,6 +216,8 @@ export default function WelcomeAuth({ onLoginSuccess }) {
 // ==========================================
             // 🚀 INICIO DE LÓGICA DE TRACKING Y N8N
             // ==========================================
+            trackRewardfulLead(email);
+
             const savedFbclid = localStorage.getItem('waflow_fbclid') || "";
             const savedGclid = localStorage.getItem('waflow_gclid') || "";
             

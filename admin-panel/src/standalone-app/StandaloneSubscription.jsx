@@ -46,6 +46,7 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
 
   const activeSubscriptions = useMemo(
@@ -195,12 +196,8 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
     }
   };
 
-  const handleUpdatePlan = async (newPriceId) => {
+  const executeUpdatePlan = async (newPriceId) => {
     if (!primarySubscription?.stripe_subscription_id || !newPriceId) return;
-    const confirmed = window.confirm(
-      translateOr(t, 'sub.toast.confirm_plan_change', '¿Quieres confirmar el cambio de plan?'),
-    );
-    if (!confirmed) return;
 
     setLoading(true);
     const toastId = toast.loading(translateOr(t, 'sub.toast.updating', 'Actualizando...'));
@@ -220,7 +217,10 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
       if (!response.ok) {
         throw new Error(payload?.error || 'No se pudo actualizar el plan');
       }
-      toast.success(translateOr(t, 'sub.toast.plan_updated', 'Plan actualizado'), { id: toastId });
+      const message = payload?.scheduled
+        ? 'Cambio programado. El plan nuevo se aplicará al terminar el periodo ya pagado.'
+        : translateOr(t, 'sub.toast.plan_updated', 'Plan actualizado');
+      toast.success(message, { id: toastId, duration: 6000 });
       await fetchSubscriptions();
       onDataChange?.();
     } catch (error) {
@@ -230,12 +230,24 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
     }
   };
 
-  const handleCancel = async () => {
+  const handleUpdatePlan = (newPriceId, plan) => {
+    if (!primarySubscription?.stripe_subscription_id || !newPriceId) return;
+    const isDowngrade = Number(plan?.priceValue || 0) < Number(currentPlan?.priceValue || 0);
+    setConfirmDialog({
+      title: isDowngrade ? 'Reducir plan' : 'Cambiar plan',
+      description: isDowngrade
+        ? 'Tu plan actual seguirá activo hasta terminar el periodo ya pagado. No se hará un nuevo cobro ahora; el nuevo plan se aplicará en la próxima renovación.'
+        : 'El cambio se aplicará ahora. Si corresponde una diferencia, Stripe intentará cobrarla con el método de pago guardado.',
+      details: [`Nuevo plan: ${plan ? t(plan.nameKey) : 'Plan seleccionado'}`],
+      confirmLabel: isDowngrade ? 'Programar reducción' : 'Confirmar cambio',
+      cancelLabel: 'Volver',
+      destructive: false,
+      onConfirm: () => executeUpdatePlan(newPriceId),
+    });
+  };
+
+  const executeCancel = async () => {
     if (!primarySubscription?.stripe_subscription_id) return;
-    const confirmed = window.confirm(
-      translateOr(t, 'sub.confirm.cancel', '¿Quieres cancelar tu plan actual al final del periodo?'),
-    );
-    if (!confirmed) return;
 
     setLoading(true);
     const toastId = toast.loading(translateOr(t, 'sub.toast.cancelling', 'Cancelando...'));
@@ -262,6 +274,19 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCancel = async () => {
+    if (!primarySubscription?.stripe_subscription_id) return;
+    setConfirmDialog({
+      title: 'Cancelar suscripción',
+      description: 'La cancelación quedará programada para el final del periodo actual. Hasta esa fecha el servicio seguirá disponible.',
+      details: currentPeriodEnd ? [`Fecha estimada de finalización: ${currentPeriodEnd}`] : [],
+      confirmLabel: 'Programar cancelación',
+      cancelLabel: 'Mantener plan',
+      destructive: true,
+      onConfirm: executeCancel,
+    });
   };
 
   const handleResume = async () => {
@@ -425,7 +450,7 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
                 const action = () => {
                   if (currentPlanMatch || loading) return;
                   if (primarySubscription?.stripe_subscription_id) {
-                    handleUpdatePlan(selectedPriceId);
+                    handleUpdatePlan(selectedPriceId, plan);
                   } else {
                     handlePurchase({
                       priceId: selectedPriceId,
@@ -575,7 +600,53 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
           </button>
         </div>
       )}
-
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl">
+            <div className="flex items-start gap-3 border-b border-gray-200 dark:border-gray-800 p-6">
+              <div className={`rounded-xl p-3 ${confirmDialog.destructive ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30'}`}>
+                {confirmDialog.destructive ? <XCircle size={22} /> : <AlertCircle size={22} />}
+              </div>
+              <div>
+                <h5 className="text-lg font-bold text-gray-900 dark:text-white">{confirmDialog.title}</h5>
+                <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">{confirmDialog.description}</p>
+              </div>
+            </div>
+            {confirmDialog.details?.length > 0 && (
+              <div className="space-y-2 bg-gray-50 dark:bg-gray-800/50 px-6 py-4">
+                {confirmDialog.details.map((detail, index) => (
+                  <div key={index} className="flex gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <Check size={15} className="mt-0.5 shrink-0 text-indigo-500" />
+                    <span>{detail}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-col-reverse gap-2 p-6 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                disabled={loading}
+                className="rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300"
+              >
+                {confirmDialog.cancelLabel || 'Cancelar'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const action = confirmDialog.onConfirm;
+                  setConfirmDialog(null);
+                  if (action) await action();
+                }}
+                disabled={loading}
+                className={`rounded-xl px-4 py-2 text-sm font-bold text-white ${confirmDialog.destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+              >
+                {confirmDialog.confirmLabel || 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showConfirmModal && selectedPlan && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl p-6">

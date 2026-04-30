@@ -49,3 +49,21 @@ export function buildRewardfulAuthBody(payload = {}) {
 export function buildRewardfulCheckoutBody(priceId) {
   return buildRewardfulAuthBody({ priceId });
 }
+
+export function trackRewardfulLead(email) {
+  if (typeof window === 'undefined') return false;
+
+  const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (!cleanEmail || !cleanEmail.includes('@')) return false;
+
+  getRewardfulReferral();
+
+  if (typeof window.rewardful !== 'function') return false;
+
+  try {
+    window.rewardful('convert', { email: cleanEmail });
+    return true;
+  } catch {
+    return false;
+  }
+}

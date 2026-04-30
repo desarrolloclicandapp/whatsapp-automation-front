@@ -34,6 +34,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
     const [showPlans, setShowPlans] = useState(false);
     const [editingSubId, setEditingSubId] = useState(null);
     const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'annual'
+    const [confirmDialog, setConfirmDialog] = useState(null);
 
     // ✅ NUEVO: Estados para pago directo con tarjeta guardada
     const [paymentMethods, setPaymentMethods] = useState([]);
@@ -233,8 +234,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
         }
     };
 
-    const handleUpdatePlan = async (subscriptionId, newPriceId) => {
-        if (!confirm(t('sub.toast.confirm_plan_change'))) return;
+    const executeUpdatePlan = async (subscriptionId, newPriceId) => {
         setLoading(true);
         const tId = toast.loading(t('sub.toast.updating'));
         try {
@@ -245,14 +245,36 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
             });
             const data = await res.json();
             if (res.ok) {
-                toast.success(t('sub.toast.plan_updated'), { id: tId });
+                const message = data.scheduled
+                    ? 'Cambio programado. El plan nuevo se aplicará al terminar el periodo ya pagado.'
+                    : t('sub.toast.plan_updated');
+                toast.success(message, { id: tId, duration: 6000 });
                 setEditingSubId(null);
                 fetchSubscriptions(); // Recarga la lista local
                 if (onDataChange) onDataChange(); // Recarga los límites del dashboard
             } else {
                 toast.error("Error: " + data.error, { id: tId });
             }
-        } catch { toast.error(t('sub.toast.error_connection'), { id: tId }); } finally { setLoading(false); }
+        } catch {
+            toast.error(t('sub.toast.error_connection'), { id: tId });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpdatePlan = (subscriptionId, newPriceId, planName, isDowngrade = false) => {
+        setConfirmDialog({
+            type: isDowngrade ? 'downgrade' : 'upgrade',
+            title: isDowngrade ? 'Reducir plan' : 'Cambiar plan',
+            description: isDowngrade
+                ? 'El plan actual seguirá activo hasta terminar el periodo ya pagado. No se hará un nuevo cobro ahora; el nuevo plan se aplicará en la próxima renovación.'
+                : 'El cambio se aplicará ahora. Si corresponde una diferencia, Stripe intentará cobrarla con el método de pago guardado.',
+            details: planName ? [`Nuevo plan: ${planName}`] : [],
+            confirmLabel: isDowngrade ? 'Programar reducción' : 'Confirmar cambio',
+            cancelLabel: 'Volver',
+            destructive: false,
+            onConfirm: () => executeUpdatePlan(subscriptionId, newPriceId)
+        });
     };
 
     const handlePortal = async () => {
@@ -273,37 +295,9 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
         }
     };
 
-    const handleCancelClick = async (subId) => {
-        const tId = toast.loading(t('sub.toast.verifying_links'));
+    const executeCancelPlan = async (subId) => {
+        const cancelId = toast.loading(t('sub.toast.processing_cancel'));
         try {
-            // 1. Verificar qué se va a borrar
-            const res = await fetch(`${API_URL}/payments/preview-cancel?subscriptionId=${subId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            toast.dismiss(tId);
-
-            let confirmMsg = t('sub.toast.confirm_cancel');
-
-            if (data.affected && data.affected.length > 0) {
-                confirmMsg += "\n\n⚠️ " + t('sub.toast.cancel_warning') + "\n";
-                data.affected.forEach(aff => {
-                    confirmMsg += `\n• ${aff.name}`;
-                    if (aff.numbers.length > 0) {
-                        confirmMsg += ` (Nums: ${aff.numbers.join(", ")})`;
-                    } else {
-                        confirmMsg += ` ${t('sub.toast.no_active_numbers')}`;
-                    }
-                });
-            } else {
-                confirmMsg += "\n\n" + t('sub.toast.no_linked_subs');
-            }
-
-            // 2. Pedir confirmación
-            if (!confirm(confirmMsg)) return;
-
-            // 3. Ejecutar Cancelación
-            const cancelId = toast.loading(t('sub.toast.processing_cancel'));
             const cancelRes = await fetch(`${API_URL}/payments/cancel`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -315,10 +309,45 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
                 fetchSubscriptions();
                 if (onDataChange) onDataChange();
             } else {
-                throw new Error(t('sub.toast.cancel_error'));
+                const data = await cancelRes.json().catch(() => ({}));
+                throw new Error(data.error || t('sub.toast.cancel_error'));
             }
-
         } catch (e) {
+            toast.error("Error: " + e.message, { id: cancelId });
+        }
+    };
+
+    const handleCancelClick = async (subId) => {
+        const tId = toast.loading(t('sub.toast.verifying_links'));
+        try {
+            const res = await fetch(`${API_URL}/payments/preview-cancel?subscriptionId=${subId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            toast.dismiss(tId);
+
+            const affected = Array.isArray(data.affected) ? data.affected : [];
+            const details = affected.length > 0
+                ? affected.map((aff) => {
+                    const numbers = Array.isArray(aff.numbers) && aff.numbers.length > 0
+                        ? `Números: ${aff.numbers.join(', ')}`
+                        : t('sub.toast.no_active_numbers');
+                    return `${aff.name || 'Subcuenta'} - ${numbers}`;
+                })
+                : ['No encontramos subcuentas vinculadas directamente a este plan.'];
+
+            setConfirmDialog({
+                type: 'cancel',
+                title: 'Cancelar suscripción',
+                description: 'La cancelación quedará programada para el final del periodo actual. Hasta esa fecha el servicio seguirá disponible.',
+                details,
+                confirmLabel: 'Programar cancelación',
+                cancelLabel: 'Mantener plan',
+                destructive: true,
+                onConfirm: () => executeCancelPlan(subId)
+            });
+        } catch (e) {
+            toast.dismiss(tId);
             toast.error("Error: " + e.message);
         }
     };
@@ -485,9 +514,17 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
 
                                         // Lógica de visualización de estado
                                         const isCancelled = sub.cancel_at_period_end;
-                                        let statusText = sub.status;
-                                        let statusColor = sub.status === 'active' ? 'text-emerald-600' : 'text-red-600';
-                                        let badgeColor = sub.status === 'active' ? 'bg-emerald-500' : 'bg-red-500';
+                                        const statusLabels = {
+                                            active: 'Activo',
+                                            trialing: 'Trial',
+                                            past_due: 'Pago pendiente',
+                                            incomplete: 'Pago incompleto',
+                                            unpaid: 'Pago vencido',
+                                            canceled: 'Cancelado'
+                                        };
+                                        let statusText = statusLabels[sub.status] || sub.status;
+                                        let statusColor = sub.status === 'active' || sub.status === 'trialing' ? 'text-emerald-600' : 'text-red-600';
+                                        let badgeColor = sub.status === 'active' || sub.status === 'trialing' ? 'bg-emerald-500' : 'bg-red-500';
 
                                         if (isCancelled) {
                                             const dateStr = sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : '';
@@ -564,7 +601,7 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
                                                                         <button
                                                                             key={plan.id}
                                                                             disabled={isCurrent || loading}
-                                                                            onClick={() => handleUpdatePlan(sub.stripe_subscription_id, plan.id)}
+                                                                            onClick={() => handleUpdatePlan(sub.stripe_subscription_id, plan.id, t(plan.nameKey), isDowngrade)}
                                                                             className={`relative p-4 rounded-xl border text-left transition-all group
                                                                         ${isCurrent
                                                                                     ? 'bg-white dark:bg-gray-800 border-indigo-500 ring-2 ring-indigo-500 opacity-80 cursor-default'
@@ -701,6 +738,57 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
             </div>
 
             {/* ✅ MODAL DE CONFIRMACIÓN DE PAGO DIRECTO */}
+            {confirmDialog && (
+                <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden animate-in zoom-in-95">
+                        <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-start gap-4">
+                            <div className={`p-3 rounded-2xl ${confirmDialog.destructive ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30'}`}>
+                                {confirmDialog.destructive ? <XCircle size={24} /> : <ArrowRightLeft size={24} />}
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-white">{confirmDialog.title}</h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 leading-relaxed">{confirmDialog.description}</p>
+                            </div>
+                        </div>
+
+                        {confirmDialog.details?.length > 0 && (
+                            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/50">
+                                <div className="space-y-2">
+                                    {confirmDialog.details.map((detail, index) => (
+                                        <div key={index} className="text-sm text-gray-700 dark:text-gray-300 flex gap-2">
+                                            <Check size={15} className="mt-0.5 shrink-0 text-indigo-500" />
+                                            <span>{detail}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="p-6 flex flex-col-reverse sm:flex-row justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setConfirmDialog(null)}
+                                disabled={loading}
+                                className="px-5 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                            >
+                                {confirmDialog.cancelLabel || 'Cancelar'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const action = confirmDialog.onConfirm;
+                                    setConfirmDialog(null);
+                                    if (action) await action();
+                                }}
+                                disabled={loading}
+                                className={`px-5 py-3 rounded-xl text-white font-bold shadow-lg transition ${confirmDialog.destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                            >
+                                {confirmDialog.confirmLabel || 'Confirmar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {showConfirmModal && selectedPlan && paymentMethods.length > 0 && (
                 <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95">
