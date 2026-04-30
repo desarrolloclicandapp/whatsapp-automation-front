@@ -481,6 +481,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
     const [actionRuleModal, setActionRuleModal] = useState(null);
     const [actionRuleDrafts, setActionRuleDrafts] = useState([]);
     const [showOpenAiKeyModal, setShowOpenAiKeyModal] = useState(false);
+    const [defaultAssignmentModal, setDefaultAssignmentModal] = useState(null);
+    const [assigningDefaultAgent, setAssigningDefaultAgent] = useState(false);
     const agentPresets = useMemo(() => buildWorkflowAgentPresets(t), [t]);
 
     useEffect(() => {
@@ -812,6 +814,68 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         }
     };
 
+    const getSlotLabel = (slot) => {
+        const slotName = slot?.slot_name || `Slot ${slot?.slot_id || ""}`;
+        const phone = slot?.phone_number ? ` · ${slot.phone_number}` : "";
+        return `${slotName}${phone}`;
+    };
+
+    const openDefaultAssignmentModal = (agent, event) => {
+        event?.stopPropagation();
+        if (!agent?.id || !selectedLocationId) return;
+        if (agent.status !== "active") {
+            toast.error("Activa el agente antes de dejarlo por defecto.");
+            return;
+        }
+        if (slots.length === 0) {
+            toast.error("Esta cuenta no tiene numeros o slots disponibles.");
+            return;
+        }
+        const currentSlotId = Array.isArray(agent.slot_ids) && agent.slot_ids.length > 0
+            ? String(agent.slot_ids[0])
+            : String(slots[0]?.slot_id || "");
+        setDefaultAssignmentModal({
+            agent,
+            slotId: currentSlotId,
+            newConversationsOnly: false
+        });
+    };
+
+    const handleAssignDefaultAgent = async () => {
+        const agent = defaultAssignmentModal?.agent;
+        const slotId = defaultAssignmentModal?.slotId;
+        if (!agent?.id || !selectedLocationId || !slotId) return;
+
+        setAssigningDefaultAgent(true);
+        try {
+            const res = await authFetch(`/agency/workflow-agents/${agent.id}/default-assignment`, {
+                method: "POST",
+                body: JSON.stringify({
+                    locationId: selectedLocationId,
+                    slotId,
+                    mode: "reply",
+                    newConversationsOnly: defaultAssignmentModal.newConversationsOnly === true
+                })
+            });
+            const data = await parseResponse(res);
+            if (!res.ok || !data?.success) throw new Error(data?.error || t("workflow_agents.save_error"));
+
+            await loadWorkspace(selectedLocationId);
+            setDefaultAssignmentModal(null);
+            if (data.chatwoot_sync?.success === false && data.chatwoot_sync?.skipped !== true) {
+                toast.warning("Agente asignado al slot, pero no se pudo sincronizar Chatwoot.", {
+                    description: data.chatwoot_sync?.error || "Revisa la configuracion de Chatwoot."
+                });
+            } else {
+                toast.success("Agente dejado por defecto para el numero seleccionado.");
+            }
+        } catch (error) {
+            toast.error("No se pudo dejar el agente por defecto.", { description: error.message });
+        } finally {
+            setAssigningDefaultAgent(false);
+        }
+    };
+
     const handleRunTest = async () => {
         if (!editingAgentId || !selectedLocationId) return;
         const nextMessage = String(testMessage || "").trim() || t("workflow_agents.test_placeholder");
@@ -1137,25 +1201,36 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                 ) : null}
                             </div>
                         </button>
-                        <button
-                            type="button"
-                            role="switch"
-                            aria-checked={isActive}
-                            disabled={saving}
-                            onClick={(event) => handleToggleAgentStatusFromList(agent, event)}
-                            className={`mt-0.5 inline-flex h-8 w-14 shrink-0 items-center rounded-full border px-1 transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                                isActive
-                                    ? "border-emerald-400/60 bg-emerald-500/20"
-                                    : "border-gray-300 bg-gray-200 dark:border-gray-700 dark:bg-gray-800"
-                            }`}
-                            title={t(`workflow_agents.status_${agent.status}`)}
-                        >
-                            <span
-                                className={`h-5 w-5 rounded-full shadow-sm transition ${
-                                    isActive ? "translate-x-6 bg-emerald-400" : "translate-x-0 bg-gray-500 dark:bg-gray-400"
+                        <div className="flex shrink-0 flex-col items-end gap-2">
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={isActive}
+                                disabled={saving}
+                                onClick={(event) => handleToggleAgentStatusFromList(agent, event)}
+                                className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                                    isActive
+                                        ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                                        : "border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200"
                                 }`}
-                            />
-                        </button>
+                                title={isActive ? "Desactivar agente" : "Activar agente"}
+                            >
+                                <span
+                                    className={`h-4 w-4 rounded-full shadow-sm transition ${
+                                        isActive ? "bg-emerald-400" : "bg-amber-500"
+                                    }`}
+                                />
+                                {isActive ? "Activo" : "Activar"}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={!isActive || saving}
+                                onClick={(event) => openDefaultAssignmentModal(agent, event)}
+                                className="rounded-full border border-indigo-200 px-3 py-1.5 text-[11px] font-bold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/20"
+                            >
+                                Por defecto
+                            </button>
+                        </div>
                     </div>
                     );
                 })}
@@ -1899,6 +1974,71 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                     {renderChatPanel()}
                 </div>
             )}
+            {defaultAssignmentModal ? (
+                <div className="fixed inset-0 z-[84] flex items-center justify-center bg-black/60 p-4">
+                    <div className="w-full max-w-xl rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-800 dark:bg-gray-900">
+                        <div>
+                            <div className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-500">Agente por defecto</div>
+                            <h4 className="mt-2 text-xl font-extrabold text-gray-900 dark:text-white">{defaultAssignmentModal.agent?.name}</h4>
+                            <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                Este agente respondera por defecto en el numero seleccionado. Si el numero esta conectado a Waflow Inbox, tambien se sincroniza la configuracion del bot en Chatwoot.
+                            </p>
+                        </div>
+                        <div className="mt-5 space-y-4">
+                            <div>
+                                <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">Numero o slot</label>
+                                <select
+                                    value={defaultAssignmentModal.slotId}
+                                    onChange={(event) => setDefaultAssignmentModal((prev) => ({ ...prev, slotId: event.target.value }))}
+                                    disabled={slots.length <= 1}
+                                    className={inputClassName}
+                                >
+                                    {slots.map((slot) => (
+                                        <option key={slot.slot_id} value={String(slot.slot_id)}>
+                                            {getSlotLabel(slot)}
+                                        </option>
+                                    ))}
+                                </select>
+                                {slots.length <= 1 ? (
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Solo hay un numero, se usara automaticamente.</p>
+                                ) : null}
+                            </div>
+                            <label className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-950/40">
+                                <input
+                                    type="checkbox"
+                                    checked={defaultAssignmentModal.newConversationsOnly}
+                                    onChange={(event) => setDefaultAssignmentModal((prev) => ({ ...prev, newConversationsOnly: event.target.checked }))}
+                                    className="mt-1 h-4 w-4 rounded text-indigo-600"
+                                />
+                                <span>
+                                    <span className="block text-sm font-bold text-gray-900 dark:text-white">Responder solo conversaciones nuevas</span>
+                                    <span className="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                        Si esta activo, el agente solo respondera cuando el cliente abre una conversacion nueva. No seguira respondiendo mensajes posteriores de la misma charla.
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+                        <div className="mt-6 flex flex-wrap justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setDefaultAssignmentModal(null)}
+                                className="rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                disabled={assigningDefaultAgent}
+                                onClick={handleAssignDefaultAgent}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {assigningDefaultAgent ? <Loader2 size={16} className="animate-spin" /> : null}
+                                Guardar como defecto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
             {actionRuleModal ? (
                 <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/60 p-4">
                     <div className="w-full max-w-3xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">
