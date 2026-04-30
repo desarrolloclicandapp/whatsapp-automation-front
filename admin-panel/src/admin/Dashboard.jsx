@@ -44,6 +44,9 @@ export default function AdminDashboard({ token, onLogout }) {
     // Estado para modal de bonus subcuentas
     const [bonusModal, setBonusModal] = useState({ show: false, userId: null, userName: '', currentBonus: 0, maxSubs: 0 });
     const [bonusInput, setBonusInput] = useState(0);
+    // Estado para acceso gratuito manual: subcuentas y numeros definidos por admin
+    const [manualEntitlementsModal, setManualEntitlementsModal] = useState({ show: false, userId: null, userName: '', maxSubagencies: 1, maxSlots: 5, enabled: false });
+    const [manualEntitlementsInput, setManualEntitlementsInput] = useState({ maxSubagencies: 1, maxSlots: 5 });
 
     // Nuevo: estado para modal de confirmacion (reemplaza window.confirm)
     const [confirmModal, setConfirmModal] = useState({ 
@@ -497,6 +500,35 @@ const handleDeleteUser = (user, type = 'soft') => {
         }
     };
 
+    const handleSaveManualEntitlements = async () => {
+        const { userId } = manualEntitlementsModal;
+        const maxSubagencies = parseInt(manualEntitlementsInput.maxSubagencies, 10);
+        const maxSlots = parseInt(manualEntitlementsInput.maxSlots, 10);
+
+        if (!userId || isNaN(maxSubagencies) || isNaN(maxSlots) || maxSubagencies < 1 || maxSlots < 1) {
+            return toast.warning("Ingresa subcuentas y numeros validos (>= 1).");
+        }
+
+        const tId = toast.loading("Guardando acceso gratis...");
+        try {
+            const res = await authFetch(`/admin/users/${userId}/manual-entitlements`, {
+                method: 'PUT',
+                body: JSON.stringify({ enabled: true, maxSubagencies, maxSlots })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                toast.success(`Acceso gratis activo: ${maxSubagencies} subcuentas y ${maxSlots} numeros.`, { id: tId });
+                setManualEntitlementsModal({ show: false, userId: null, userName: '', maxSubagencies: 1, maxSlots: 5, enabled: false });
+                fetchUsers();
+            } else {
+                toast.error(data.error || "Error actualizando acceso gratis", { id: tId });
+            }
+        } catch (e) {
+            toast.error("Error de conexion", { id: tId });
+        }
+    };
+
     // Nuevo: logica para dar plan admin
     const executeGrantAdmin = async (userId) => {
         const tId = toast.loading("Aplicando Plan Admin...");
@@ -796,6 +828,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Usuario / Email</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Plan & Estado</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cuentas Límite</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Números límite</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vencimiento Trial</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
                                             </tr>
@@ -839,6 +872,13 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                     {user.plan_status ? user.plan_status.toUpperCase() : 'TRIAL'}
                                                                 </span>
                                                                                                                         )}
+                                                            {user.manual_entitlements_enabled === true && (
+                                                                <div className="mt-2">
+                                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800">
+                                                                        GRATIS ADMIN
+                                                                    </span>
+                                                                </div>
+                                                            )}
                                                             {suspensionStatus && (
                                                                 <div className="mt-2 flex flex-col gap-1 items-start">
                                                                     {suspensionStatus === 'grace' && (
@@ -889,6 +929,39 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                                     >
                                                                         Bloqueado
                                                                     </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-bold text-gray-900 dark:text-white">{user.max_slots || 0}</span>
+                                                                {user.manual_entitlements_enabled === true && (
+                                                                    <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-bold border border-amber-200">
+                                                                        gratis
+                                                                    </span>
+                                                                )}
+                                                                {!isInboxUser ? (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const maxSubagencies = user.max_subagencies || 1;
+                                                                            const maxSlots = user.max_slots || 5;
+                                                                            setManualEntitlementsModal({
+                                                                                show: true,
+                                                                                userId: user.id,
+                                                                                userName: user.name || user.email,
+                                                                                maxSubagencies,
+                                                                                maxSlots,
+                                                                                enabled: user.manual_entitlements_enabled === true
+                                                                            });
+                                                                            setManualEntitlementsInput({ maxSubagencies, maxSlots });
+                                                                        }}
+                                                                        className="p-1 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition"
+                                                                        title="Configurar acceso gratis manual"
+                                                                    >
+                                                                        <Smartphone size={14} />
+                                                                    </button>
+                                                                ) : (
+                                                                    <span className="text-[10px] text-gray-400" title="Los usuarios Inbox se gestionan desde slots.">Inbox</span>
                                                                 )}
                                                             </div>
                                                         </td>
@@ -1233,6 +1306,54 @@ const handleDeleteUser = (user, type = 'soft') => {
                     </div>
                 )}
 
+                {/* Modal de acceso gratuito manual */}
+                {manualEntitlementsModal.show && (
+                    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6">
+                            <div className="text-center mb-6">
+                                <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <Smartphone size={24} />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Acceso gratis manual</h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Usuario: <span className="font-bold text-gray-800 dark:text-white">{manualEntitlementsModal.userName || 'Usuario'}</span></p>
+                                <p className="text-xs text-gray-400 mt-1">Quedara activo sin vencimiento y sin depender de Stripe.</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Subcuentas permitidas</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        className="w-full p-4 text-center text-lg font-bold bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-gray-900 dark:text-white"
+                                        value={manualEntitlementsInput.maxSubagencies}
+                                        onChange={e => setManualEntitlementsInput(prev => ({ ...prev, maxSubagencies: e.target.value }))}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Numeros WhatsApp</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        className="w-full p-4 text-center text-lg font-bold bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-gray-900 dark:text-white"
+                                        value={manualEntitlementsInput.maxSlots}
+                                        onChange={e => setManualEntitlementsInput(prev => ({ ...prev, maxSlots: e.target.value }))}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-100 dark:border-amber-800 mb-6 text-sm text-amber-800 dark:text-amber-200">
+                                Este override marca la cuenta como activa, borra el vencimiento de trial y usa exactamente estos limites manuales.
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button onClick={() => setManualEntitlementsModal({ show: false, userId: null, userName: '', maxSubagencies: 1, maxSlots: 5, enabled: false })} className="flex-1 py-3 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium text-sm transition">Cancelar</button>
+                                <button onClick={handleSaveManualEntitlements} className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition"><Save size={18} /> Guardar</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Modal de confirmacion personalizado (reemplaza alertas nativas) */}
                 {confirmModal.show && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -1285,19 +1406,4 @@ const handleDeleteUser = (user, type = 'soft') => {
         </div>
     );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
