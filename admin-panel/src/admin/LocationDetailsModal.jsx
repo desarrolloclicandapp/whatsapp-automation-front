@@ -3017,49 +3017,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         </p>
                                     </button>
                                 </div>
-                                {embeddedPhoneCandidates.length > 0 ? (
-                                    <div className="mt-5 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-white/80 dark:bg-gray-950/40 p-4">
-                                        <p className="text-sm font-extrabold text-gray-900 dark:text-white">
-                                            Selecciona el numero que quieres vincular
-                                        </p>
-                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                            Encontramos varios numeros en tu cuenta de Meta. Elige el que corresponde a este slot.
-                                        </p>
-                                        <div className="mt-4 space-y-2">
-                                            {embeddedPhoneCandidates.map((candidate) => {
-                                                const candidateKey = `${candidate.businessAccountId || 'waba'}:${candidate.phoneNumberId || candidate.displayPhoneNumber}`;
-                                                return (
-                                                    <button
-                                                        key={candidateKey}
-                                                        type="button"
-                                                        onClick={() => chooseEmbeddedSignupPhoneCandidate(slot.slot_id, candidate)}
-                                                        disabled={isWorkingEmbedded || isSavingOfficial}
-                                                        className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-left hover:border-emerald-400 dark:hover:border-emerald-500 disabled:opacity-60 transition"
-                                                    >
-                                                        <span className="block text-sm font-bold text-gray-900 dark:text-white">
-                                                            {candidate.displayPhoneNumber || candidate.phoneNumberId || 'Numero de WhatsApp'}
-                                                        </span>
-                                                        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                                                            {candidate.verifiedName ? `${candidate.verifiedName} · ` : ''}
-                                                            {candidate.qualityRating ? `Calidad ${candidate.qualityRating} · ` : ''}
-                                                            WABA {candidate.businessAccountId || 'sin ID'}
-                                                        </span>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                ) : null}
-                                {embeddedSelection?.needsSetupGuide ? (
-                                    <div className="mt-5 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 p-4">
-                                        <p className="text-sm font-extrabold text-amber-900 dark:text-amber-100">
-                                            No encontramos numeros disponibles en Meta
-                                        </p>
-                                        <p className="mt-2 text-xs leading-5 text-amber-800 dark:text-amber-200">
-                                            Continua el flujo de Meta creando o seleccionando tu portfolio de negocio, agrega el numero de WhatsApp Business y completa la verificacion que Meta solicite. Cuando el numero quede disponible, vuelve a presionar Conectar con WhatsApp Business.
-                                        </p>
-                                    </div>
-                                ) : null}
                             </div>
                             ) : null}
                             {showEmbeddedMethod && !showManualMethod ? (
@@ -3107,6 +3064,51 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 : (t('slots.official.embedded.cta') || 'Conectar con WhatsApp Business')}
                                     </button>
                                 </div>
+                            </div>
+                            ) : null}
+
+                            {embeddedPhoneCandidates.length > 0 ? (
+                            <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-white/80 dark:bg-gray-950/40 p-4">
+                                <p className="text-sm font-extrabold text-gray-900 dark:text-white">
+                                    Selecciona el numero que quieres vincular
+                                </p>
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Encontramos varios numeros en tu cuenta de Meta. Elige el que corresponde a este slot.
+                                </p>
+                                <div className="mt-4 space-y-2">
+                                    {embeddedPhoneCandidates.map((candidate) => {
+                                        const candidateKey = `${candidate.businessAccountId || 'waba'}:${candidate.phoneNumberId || candidate.displayPhoneNumber}`;
+                                        return (
+                                            <button
+                                                key={candidateKey}
+                                                type="button"
+                                                onClick={() => chooseEmbeddedSignupPhoneCandidate(slot.slot_id, candidate)}
+                                                disabled={isWorkingEmbedded || isSavingOfficial}
+                                                className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-left hover:border-emerald-400 dark:hover:border-emerald-500 disabled:opacity-60 transition"
+                                            >
+                                                <span className="block text-sm font-bold text-gray-900 dark:text-white">
+                                                    {candidate.displayPhoneNumber || candidate.phoneNumberId || 'Numero de WhatsApp'}
+                                                </span>
+                                                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                                                    {candidate.verifiedName ? `${candidate.verifiedName} - ` : ''}
+                                                    {candidate.qualityRating ? `Calidad ${candidate.qualityRating} - ` : ''}
+                                                    WABA {candidate.businessAccountId || 'sin ID'}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            ) : null}
+
+                            {embeddedSelection?.needsSetupGuide ? (
+                            <div className="rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 p-4">
+                                <p className="text-sm font-extrabold text-amber-900 dark:text-amber-100">
+                                    No encontramos numeros disponibles en Meta
+                                </p>
+                                <p className="mt-2 text-xs leading-5 text-amber-800 dark:text-amber-200">
+                                    Continua el flujo de Meta creando o seleccionando tu portfolio de negocio, agrega el numero de WhatsApp Business y completa la verificacion que Meta solicite. Cuando el numero quede disponible, vuelve a presionar Conectar con WhatsApp Business.
+                                </p>
                             </div>
                             ) : null}
 
