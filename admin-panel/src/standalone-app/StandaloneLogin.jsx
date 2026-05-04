@@ -12,8 +12,10 @@ import { toast } from 'sonner';
 import { useBranding } from '../context/BrandingContext';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
+import AuthPhoneInput from '../components/AuthPhoneInput';
 import { buildRewardfulAuthBody, trackRewardfulLead } from '../utils/rewardfulReferral';
 import { translateOr } from './i18n';
+import { isPossiblePhoneNumber } from 'react-phone-number-input';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
 const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '34611770270';
@@ -29,6 +31,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
   const [step, setStep] = useState('EMAIL');
 
   const [phone, setPhone] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState('PY');
   const [phoneCode, setPhoneCode] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -84,7 +87,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
 
   const requestPhoneOtp = async (e) => {
     if (e) e.preventDefault();
-    if (phone.length < 8) return toast.error(t('auth.phone_too_short'));
+    if (!phone || !isPossiblePhoneNumber(phone)) return toast.error(t('auth.phone_too_short'));
     if (phoneCooldown > 0) {
       return toast.warning(t('auth.wait_to_resend').replace('{seconds}', phoneCooldown));
     }
@@ -94,7 +97,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       const res = await fetch(`${API_URL}/auth/otp/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, source: SIGNUP_SOURCE, interface: 'standalone' }),
+        body: JSON.stringify({ phone, country: phoneCountry, source: SIGNUP_SOURCE, interface: 'standalone' }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('auth.otp_request_error'));
@@ -115,7 +118,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
       const res = await fetch(`${API_URL}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildRewardfulAuthBody({ phone, code: phoneCode, email, source: SIGNUP_SOURCE, interface: 'standalone' })),
+        body: JSON.stringify(buildRewardfulAuthBody({ phone, country: phoneCountry, code: phoneCode, email, source: SIGNUP_SOURCE, interface: 'standalone' })),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('auth.invalid_code'));
@@ -436,19 +439,10 @@ export default function StandaloneLogin({ onLoginSuccess }) {
                   </div>
                   <form onSubmit={requestPhoneOtp} className="space-y-6">
                     <div className="relative group">
-                      <span className="absolute left-4 top-4 text-gray-400 font-mono text-lg">+</span>
-                      <input
-                        type="tel"
-                        placeholder="595981..."
-                        className="w-full pl-10 p-4 rounded-xl border border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white text-lg tracking-wide outline-none focus:ring-2 transition-all"
-                        style={{ '--tw-ring-color': branding.accentColor }}
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                        required
-                      />
+                      <AuthPhoneInput value={phone} onChange={setPhone} onCountryChange={setPhoneCountry} accentColor={branding.accentColor} disabled={loading} />
                     </div>
                     <button
-                      disabled={loading || phone.length < 8}
+                      disabled={loading || !phone || !isPossiblePhoneNumber(phone)}
                       className="w-full text-white p-4 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl active:scale-95 flex justify-center items-center gap-2"
                       style={{
                         background: `linear-gradient(to right, ${branding.primaryColor}, ${branding.accentColor})`,
@@ -473,7 +467,7 @@ export default function StandaloneLogin({ onLoginSuccess }) {
                   <div className="text-center">
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('auth.security_code')}</h2>
                     <p className="text-gray-500 mt-2">
-                      {t('auth.code_sent_to_phone').replace('{phone}', `+${phone}`)}
+                      {t('auth.code_sent_to_phone').replace('{phone}', phone)}
                     </p>
                   </div>
                   <form onSubmit={verifyPhoneOtp} className="space-y-6">
