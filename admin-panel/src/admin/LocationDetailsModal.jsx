@@ -128,7 +128,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         businessAccountId: "",
         phoneNumberId: "",
         businessId: "",
-        displayPhoneNumber: ""
+        displayPhoneNumber: "",
+        oauthState: "",
+        oauthRedirectUri: ""
     });
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
@@ -328,6 +330,31 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     useEffect(() => {
         const handleEmbeddedSignupMessage = (event) => {
             const origin = String(event?.origin || '').toLowerCase();
+            const callbackPayload = event?.data;
+            if (callbackPayload?.type === "waflow_meta_embedded_signup_callback") {
+                const flow = embeddedSignupFlowRef.current;
+                if (!flow?.slotId || callbackPayload.state !== flow.oauthState) return;
+                setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                if (callbackPayload.error) {
+                    toast.error(t('slots.official.embedded.error') || 'Meta devolvio un error en el Embedded Signup', {
+                        description: callbackPayload.errorMessage || callbackPayload.error
+                    });
+                    resetEmbeddedSignupFlow();
+                    return;
+                }
+                flow.authCode = pickFirstNonEmptyString(callbackPayload.code, flow.authCode);
+                if (!flow.completionSent && flow.authCode) {
+                    const snapshot = { ...flow };
+                    flow.completionSent = true;
+                    logEmbeddedSignupDebug("completion requested from oauth callback", snapshot);
+                    completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch((error) => {
+                        logEmbeddedSignupDebug("completion failed from oauth callback", {
+                            message: error?.message || String(error || "Unknown error")
+                        }, "error");
+                    });
+                }
+                return;
+            }
             if (!origin || (!origin.includes('facebook.com') && !origin.includes('fb.com'))) {
                 return;
             }
@@ -1124,6 +1151,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         embeddedSignupGraphVersion: "",
         embeddedSignupSessionInfoVersion: 3,
         embeddedSignupSolutionId: "",
+        embeddedSignupRedirectUri: "",
         embeddedSignupProviderTokenConfigured: false,
         embeddedSignupMissing: []
     });
@@ -1164,6 +1192,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             embeddedSignupGraphVersion: embeddedSignup.graphVersion ? String(embeddedSignup.graphVersion) : "",
             embeddedSignupSessionInfoVersion: Number(embeddedSignup.sessionInfoVersion) || 3,
             embeddedSignupSolutionId: embeddedSignup.solutionId ? String(embeddedSignup.solutionId) : "",
+            embeddedSignupRedirectUri: embeddedSignup.redirectUri ? String(embeddedSignup.redirectUri) : "",
             embeddedSignupProviderTokenConfigured: embeddedSignup.providerTokenConfigured === true,
             embeddedSignupMissing: Array.isArray(embeddedSignup.missing) ? embeddedSignup.missing : []
         };
@@ -1201,7 +1230,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             businessAccountId: "",
             phoneNumberId: "",
             businessId: "",
-            displayPhoneNumber: ""
+            displayPhoneNumber: "",
+            oauthState: "",
+            oauthRedirectUri: ""
         };
     };
 
@@ -2135,6 +2166,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: true }));
         setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
         try {
+            const oauthRedirectUri = flowSnapshot?.oauthRedirectUri || "";
             const res = await authFetch(`/agency/whatsapp-official/embedded-signup/complete`, {
                 method: 'POST',
                 body: JSON.stringify({
@@ -2145,7 +2177,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     businessAccountId: flowSnapshot?.businessAccountId || "",
                     phoneNumberId: flowSnapshot?.phoneNumberId || "",
                     businessId: flowSnapshot?.businessId || "",
-                    displayPhoneNumber: flowSnapshot?.displayPhoneNumber || ""
+                    displayPhoneNumber: flowSnapshot?.displayPhoneNumber || "",
+                    oauthRedirectUri
                 })
             });
             if (!res) return;
@@ -2234,10 +2267,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
         setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
-            const fb = await ensureFacebookSdk(official);
             clearEmbeddedSignupSelection(slotId);
             resetEmbeddedSignupFlow();
-            embeddedSignupFlowRef.current.slotId = slotId;
 
             const extras = {
                 sessionInfoVersion: Number(official.embeddedSignupSessionInfoVersion) || 3
@@ -2248,83 +2279,46 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 };
             }
 
-            logEmbeddedSignupDebug("starting fb.login", {
+            const redirectUri = String(official.embeddedSignupRedirectUri || "").trim();
+            if (!redirectUri) {
+                throw new Error("Falta redirect_uri para Meta Embedded Signup.");
+            }
+
+            const oauthState = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+            embeddedSignupFlowRef.current = {
+                ...embeddedSignupFlowRef.current,
+                slotId,
+                oauthState,
+                oauthRedirectUri: redirectUri
+            };
+
+            const graphVersion = String(official.embeddedSignupGraphVersion || official.embeddedSignupSdkVersion || "v21.0").trim() || "v21.0";
+            const oauthUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
+            oauthUrl.searchParams.set("client_id", official.embeddedSignupAppId);
+            oauthUrl.searchParams.set("app_id", official.embeddedSignupAppId);
+            oauthUrl.searchParams.set("config_id", official.embeddedSignupConfigurationId);
+            oauthUrl.searchParams.set("redirect_uri", redirectUri);
+            oauthUrl.searchParams.set("response_type", "code");
+            oauthUrl.searchParams.set("override_default_response_type", "true");
+            oauthUrl.searchParams.set("display", "popup");
+            oauthUrl.searchParams.set("state", oauthState);
+            oauthUrl.searchParams.set("extras", JSON.stringify(extras));
+
+            logEmbeddedSignupDebug("starting manual oauth", {
                 slotId,
                 configId: official.embeddedSignupConfigurationId,
+                redirectUri,
                 extras
             });
 
-            fb.login((response) => {
-                logEmbeddedSignupDebug("fb.login callback", response);
-                const authResponse = response?.authResponse || null;
-                if (!authResponse) {
-                    setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
-                    window.setTimeout(() => {
-                        const currentFlow = embeddedSignupFlowRef.current;
-                        if (
-                            currentFlow?.slotId === slotId &&
-                            !currentFlow.completionSent &&
-                            !currentFlow.authCode &&
-                            !currentFlow.accessToken
-                        ) {
-                            toast.error(t('slots.official.embedded.cancelled') || 'El asistente de Meta fue cancelado');
-                            resetEmbeddedSignupFlow();
-                        }
-                    }, 800);
-                    return;
-                }
-
-                embeddedSignupFlowRef.current.authCode = pickFirstNonEmptyString(
-                    authResponse.code,
-                    embeddedSignupFlowRef.current.authCode
-                );
-                embeddedSignupFlowRef.current.accessToken = pickFirstNonEmptyString(
-                    authResponse.accessToken,
-                    embeddedSignupFlowRef.current.accessToken
-                );
-                setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
-
-                const flow = embeddedSignupFlowRef.current;
-                window.setTimeout(() => {
-                    const currentFlow = embeddedSignupFlowRef.current;
-                    if (
-                        currentFlow?.slotId === slotId &&
-                        !currentFlow.completionSent &&
-                        !currentFlow.phoneNumberId &&
-                        (currentFlow.authCode || currentFlow.accessToken) &&
-                        !currentFlow.missingPhoneNumberWarned
-                    ) {
-                        currentFlow.missingPhoneNumberWarned = true;
-                        logEmbeddedSignupDebug("auth response received but Meta did not return phoneNumberId", {
-                            response,
-                            flow: currentFlow
-                        }, "warn");
-                        currentFlow.completionSent = true;
-                        completeOfficialEmbeddedSignup(slotId, { ...currentFlow }).catch((error) => {
-                            logEmbeddedSignupDebug("completion failed after missing phoneNumberId fallback", {
-                                message: error?.message || String(error || "Unknown error")
-                            }, "error");
-                        });
-                        return;
-                    }
-                }, 2500);
-
-                if (!flow.completionSent && flow.phoneNumberId && (flow.authCode || flow.accessToken)) {
-                    const snapshot = { ...flow };
-                    flow.completionSent = true;
-                    logEmbeddedSignupDebug("completion requested from fb.login callback", snapshot);
-                    completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch((error) => {
-                        logEmbeddedSignupDebug("completion failed from fb.login callback", {
-                            message: error?.message || String(error || "Unknown error")
-                        }, "error");
-                    });
-                }
-            }, {
-                config_id: official.embeddedSignupConfigurationId,
-                response_type: 'token',
-                override_default_response_type: true,
-                extras
-            });
+            const popup = window.open(
+                oauthUrl.toString(),
+                "meta_embedded_signup",
+                "width=720,height=760,menubar=no,toolbar=no,location=yes,status=no"
+            );
+            if (!popup) {
+                throw new Error("El navegador bloqueo la ventana de Meta.");
+            }
         } catch (e) {
             setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
             toast.error(t('slots.official.embedded.start_error') || 'No se pudo abrir el Embedded Signup de Meta', {
