@@ -94,6 +94,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [officialLinkMethodBySlot, setOfficialLinkMethodBySlot] = useState({});
     const [startingOfficialEmbeddedBySlot, setStartingOfficialEmbeddedBySlot] = useState({});
     const [completingOfficialEmbeddedBySlot, setCompletingOfficialEmbeddedBySlot] = useState({});
+    const [embeddedSignupSelectionBySlot, setEmbeddedSignupSelectionBySlot] = useState({});
     const [officialTemplatesBySlot, setOfficialTemplatesBySlot] = useState({});
     const [loadingOfficialTemplatesBySlot, setLoadingOfficialTemplatesBySlot] = useState({});
     const [sendingOfficialTemplateBySlot, setSendingOfficialTemplateBySlot] = useState({});
@@ -2108,6 +2109,27 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         return parsed.toLocaleString();
     };
 
+    const clearEmbeddedSignupSelection = (slotId) => {
+        setEmbeddedSignupSelectionBySlot(prev => {
+            if (!prev[slotId]) return prev;
+            const next = { ...prev };
+            delete next[slotId];
+            return next;
+        });
+    };
+
+    const chooseEmbeddedSignupPhoneCandidate = async (slotId, candidate) => {
+        const pending = embeddedSignupSelectionBySlot[slotId] || {};
+        const flowSnapshot = pending.flowSnapshot || {};
+        clearEmbeddedSignupSelection(slotId);
+        await completeOfficialEmbeddedSignup(slotId, {
+            ...flowSnapshot,
+            businessAccountId: candidate?.businessAccountId || flowSnapshot.businessAccountId || "",
+            phoneNumberId: candidate?.phoneNumberId || "",
+            displayPhoneNumber: candidate?.displayPhoneNumber || flowSnapshot.displayPhoneNumber || ""
+        });
+    };
+
     const completeOfficialEmbeddedSignup = async (slotId, flowSnapshot) => {
         const loadingId = toast.loading(t('slots.official.embedded.completing') || 'Completando vinculación con Meta...');
         setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: true }));
@@ -2129,9 +2151,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res) return;
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                throw new Error(data.error || (t('slots.official.embedded.complete_error') || 'No se pudo completar la vinculación con Meta'));
+                const error = new Error(data.error || (t('slots.official.embedded.complete_error') || 'No se pudo completar la vinculación con Meta'));
+                error.code = data.code || "";
+                error.phoneCandidates = Array.isArray(data.phoneCandidates) ? data.phoneCandidates : [];
+                throw error;
             }
 
+            clearEmbeddedSignupSelection(slotId);
             await loadData();
             await loadOfficialWhatsappConfig(slotId, true);
             syncSlotConnectionMode(slotId, 'official_api', {
@@ -2157,6 +2183,31 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 toast.success(t('slots.official.embedded.completed') || 'WhatsApp oficial conectado desde Meta');
             }
         } catch (e) {
+            if (Array.isArray(e.phoneCandidates) && e.phoneCandidates.length > 0) {
+                setEmbeddedSignupSelectionBySlot(prev => ({
+                    ...prev,
+                    [slotId]: {
+                        flowSnapshot: { ...(flowSnapshot || {}) },
+                        phoneCandidates: e.phoneCandidates,
+                        error: e.message || ""
+                    }
+                }));
+                toast.info('Selecciona el numero de WhatsApp Business que quieres vincular');
+                return;
+            }
+
+            if (e.code === "OFFICIAL_EMBEDDED_SIGNUP_PHONE_NOT_FOUND") {
+                setEmbeddedSignupSelectionBySlot(prev => ({
+                    ...prev,
+                    [slotId]: {
+                        flowSnapshot: { ...(flowSnapshot || {}) },
+                        phoneCandidates: [],
+                        error: e.message || "",
+                        needsSetupGuide: true
+                    }
+                }));
+            }
+
             toast.error(t('slots.official.embedded.complete_error') || 'Error completando la vinculación con Meta', {
                 description: e.message
             });
@@ -2184,6 +2235,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
             const fb = await ensureFacebookSdk(official);
+            clearEmbeddedSignupSelection(slotId);
             resetEmbeddedSignupFlow();
             embeddedSignupFlowRef.current.slotId = slotId;
 
@@ -2246,13 +2298,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         logEmbeddedSignupDebug("auth response received but Meta did not return phoneNumberId", {
                             response,
                             flow: currentFlow
-                        }, "error");
-                        toast.error(
-                            t('slots.official.embedded.error') || 'Meta devolviÃ³ un error en el Embedded Signup',
-                            {
-                                description: 'Meta devolviÃ³ autenticaciÃ³n, pero no enviÃ³ phoneNumberId ni el payload final del Embedded Signup.'
-                            }
-                        );
+                        }, "warn");
+                        currentFlow.completionSent = true;
+                        completeOfficialEmbeddedSignup(slotId, { ...currentFlow }).catch((error) => {
+                            logEmbeddedSignupDebug("completion failed after missing phoneNumberId fallback", {
+                                message: error?.message || String(error || "Unknown error")
+                            }, "error");
+                        });
+                        return;
                     }
                 }, 2500);
 
@@ -2888,6 +2941,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const embeddedMissingLabel = Array.isArray(official.embeddedSignupMissing) && official.embeddedSignupMissing.length > 0
             ? official.embeddedSignupMissing.join(', ')
             : '';
+        const embeddedSelection = embeddedSignupSelectionBySlot[slot.slot_id] || null;
+        const embeddedPhoneCandidates = Array.isArray(embeddedSelection?.phoneCandidates)
+            ? embeddedSelection.phoneCandidates
+            : [];
         const showEmbeddedMethod = official.embeddedSignupEnabled === true;
         const resolvedLinkMethod = officialLinkMethodBySlot[slot.slot_id] || resolveOfficialLinkMethod(official);
         const showManualMethod = !showEmbeddedMethod || resolvedLinkMethod === 'manual';
@@ -2960,6 +3017,49 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         </p>
                                     </button>
                                 </div>
+                                {embeddedPhoneCandidates.length > 0 ? (
+                                    <div className="mt-5 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-white/80 dark:bg-gray-950/40 p-4">
+                                        <p className="text-sm font-extrabold text-gray-900 dark:text-white">
+                                            Selecciona el numero que quieres vincular
+                                        </p>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            Encontramos varios numeros en tu cuenta de Meta. Elige el que corresponde a este slot.
+                                        </p>
+                                        <div className="mt-4 space-y-2">
+                                            {embeddedPhoneCandidates.map((candidate) => {
+                                                const candidateKey = `${candidate.businessAccountId || 'waba'}:${candidate.phoneNumberId || candidate.displayPhoneNumber}`;
+                                                return (
+                                                    <button
+                                                        key={candidateKey}
+                                                        type="button"
+                                                        onClick={() => chooseEmbeddedSignupPhoneCandidate(slot.slot_id, candidate)}
+                                                        disabled={isWorkingEmbedded || isSavingOfficial}
+                                                        className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-left hover:border-emerald-400 dark:hover:border-emerald-500 disabled:opacity-60 transition"
+                                                    >
+                                                        <span className="block text-sm font-bold text-gray-900 dark:text-white">
+                                                            {candidate.displayPhoneNumber || candidate.phoneNumberId || 'Numero de WhatsApp'}
+                                                        </span>
+                                                        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                                                            {candidate.verifiedName ? `${candidate.verifiedName} · ` : ''}
+                                                            {candidate.qualityRating ? `Calidad ${candidate.qualityRating} · ` : ''}
+                                                            WABA {candidate.businessAccountId || 'sin ID'}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ) : null}
+                                {embeddedSelection?.needsSetupGuide ? (
+                                    <div className="mt-5 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 p-4">
+                                        <p className="text-sm font-extrabold text-amber-900 dark:text-amber-100">
+                                            No encontramos numeros disponibles en Meta
+                                        </p>
+                                        <p className="mt-2 text-xs leading-5 text-amber-800 dark:text-amber-200">
+                                            Continua el flujo de Meta creando o seleccionando tu portfolio de negocio, agrega el numero de WhatsApp Business y completa la verificacion que Meta solicite. Cuando el numero quede disponible, vuelve a presionar Conectar con WhatsApp Business.
+                                        </p>
+                                    </div>
+                                ) : null}
                             </div>
                             ) : null}
                             {showEmbeddedMethod && !showManualMethod ? (
