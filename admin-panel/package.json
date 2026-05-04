@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:phone-country": "node scripts/testPhoneCountry.js"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.6.1",

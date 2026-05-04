@@ -1,4 +1,7 @@
+import { useEffect, useMemo } from 'react';
 import PhoneInput from 'react-phone-number-input';
+import { getCountries } from 'react-phone-number-input';
+import { detectBrowserPhoneCountry } from '../utils/phoneCountry';
 import 'react-phone-number-input/style.css';
 
 export default function AuthPhoneInput({
@@ -8,6 +11,12 @@ export default function AuthPhoneInput({
   disabled = false,
   accentColor = '#22c55e',
 }) {
+  const defaultCountry = useMemo(() => detectBrowserPhoneCountry(getCountries()), []);
+
+  useEffect(() => {
+    onCountryChange?.(defaultCountry);
+  }, [defaultCountry, onCountryChange]);
+
   return (
     <div
       className="auth-phone-input"
@@ -15,7 +24,7 @@ export default function AuthPhoneInput({
     >
       <PhoneInput
         international={false}
-        defaultCountry="PY"
+        defaultCountry={defaultCountry}
         value={value}
         onChange={(nextValue) => onChange(nextValue || '')}
         onCountryChange={(nextCountry) => onCountryChange?.(nextCountry || '')}
