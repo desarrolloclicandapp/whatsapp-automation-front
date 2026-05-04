@@ -2321,7 +2321,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 }
             }, {
                 config_id: official.embeddedSignupConfigurationId,
-                response_type: 'code',
+                response_type: 'token',
                 override_default_response_type: true,
                 extras
             });
