@@ -1199,7 +1199,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const resolveOfficialLinkMethod = (official = createEmptyOfficialWhatsappState()) => {
-        if (String(official.setupSource || '').trim() === 'manual') return 'manual';
+        const setupSource = String(official.setupSource || '').trim();
+        if (setupSource === 'embedded_signup') return 'embedded';
+        if (setupSource === 'manual') return 'manual';
         if (
             String(official.phoneNumberId || '').trim() ||
             String(official.accessToken || '').trim() ||
@@ -2191,6 +2193,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             }
 
             clearEmbeddedSignupSelection(slotId);
+            setOfficialLinkMethodBySlot(prev => ({ ...prev, [slotId]: 'embedded' }));
             await loadData();
             await loadOfficialWhatsappConfig(slotId, true);
             syncSlotConnectionMode(slotId, 'official_api', {
@@ -2949,6 +2952,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             String(official.accessToken || '').trim() ||
             String(official.accessTokenMasked || '').trim()
         );
+        const isOfficialConnected = ['verified', 'verified_warning'].includes(status) && Boolean(
+            String(official.displayPhoneNumber || '').trim() ||
+            String(official.phoneNumberId || '').trim()
+        );
+        const embeddedPanelEyebrow = isOfficialConnected
+            ? (t('slots.official.embedded.connected_eyebrow') || 'Conectada')
+            : (t('slots.official.embedded.eyebrow') || 'Recomendado');
+        const embeddedPanelTitle = isOfficialConnected
+            ? (t('slots.official.embedded.connected_title') || 'WhatsApp Business conectado')
+            : (t('slots.official.embedded.title') || 'Conectar con WhatsApp Business');
+        const embeddedPanelDescription = isOfficialConnected
+            ? (t('slots.official.embedded.connected_desc') || 'Este slot ya esta vinculado a Meta y listo para enviar y recibir mensajes por la API oficial.')
+            : (t('slots.official.embedded.desc') || 'Abre el flujo oficial de Meta dentro de Waflow para crear o vincular la cuenta, elegir el numero y dejar el slot listo sin copiar IDs ni tokens manualmente.');
+        const embeddedCtaLabel = isOfficialConnected
+            ? (t('slots.official.embedded.reconnect_cta') || 'Cambiar o reconectar numero')
+            : (t('slots.official.embedded.cta') || 'Conectar con WhatsApp Business');
 
         return (
             <div className="max-w-3xl space-y-6">
@@ -3018,14 +3037,38 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 <div className="flex flex-wrap items-start justify-between gap-4">
                                     <div className="max-w-2xl">
                                         <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-600 mb-2">
-                                            {t('slots.official.embedded.eyebrow') || 'Recomendado'}
+                                            {embeddedPanelEyebrow}
                                         </p>
                                         <h5 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2">
-                                            {t('slots.official.embedded.title') || 'Conectar con WhatsApp Business'}
+                                            {embeddedPanelTitle}
                                         </h5>
                                         <p className="text-sm text-gray-600 dark:text-gray-300 leading-6">
-                                            {t('slots.official.embedded.desc') || 'Abre el flujo oficial de Meta dentro de Waflow para crear o vincular la cuenta, elegir el número y dejar el slot listo sin copiar IDs ni tokens manualmente.'}
+                                            {embeddedPanelDescription}
                                         </p>
+                                        {isOfficialConnected ? (
+                                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                {official.displayPhoneNumber ? (
+                                                    <div className="rounded-2xl border border-emerald-200/70 bg-white/80 px-4 py-3 dark:border-emerald-900/50 dark:bg-gray-950/40">
+                                                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-300">
+                                                            {t('slots.official.display_phone') || 'Numero visible'}
+                                                        </p>
+                                                        <p className="mt-1 text-sm font-extrabold text-gray-900 dark:text-white">
+                                                            {official.displayPhoneNumber}
+                                                        </p>
+                                                    </div>
+                                                ) : null}
+                                                {official.verifiedName ? (
+                                                    <div className="rounded-2xl border border-emerald-200/70 bg-white/80 px-4 py-3 dark:border-emerald-900/50 dark:bg-gray-950/40">
+                                                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-300">
+                                                            {t('slots.official.verified_name') || 'Verified name'}
+                                                        </p>
+                                                        <p className="mt-1 text-sm font-extrabold text-gray-900 dark:text-white">
+                                                            {official.verifiedName}
+                                                        </p>
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        ) : null}
                                         {official.setupSource === 'embedded_signup' && official.embeddedSignupCompletedAt ? (
                                             <p className="mt-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                                                 {t('slots.official.embedded.connected_at') || 'Conectado desde Meta'}: {formatOfficialDatetime(official.embeddedSignupCompletedAt)}
@@ -3050,12 +3093,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         disabled={!official.embeddedSignupEnabled || isWorkingEmbedded || isSavingOfficial}
                                         className="min-w-[240px] px-5 py-3 rounded-2xl bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed transition flex items-center justify-center gap-3 font-bold shadow-[0_18px_40px_rgba(16,185,129,0.25)]"
                                     >
-                                        {isWorkingEmbedded ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+                                        {isWorkingEmbedded ? <Loader2 className="animate-spin" size={18} /> : isOfficialConnected ? <RefreshCw size={18} /> : <Link2 size={18} />}
                                         {isCompletingEmbedded
                                             ? (t('slots.official.embedded.completing_cta') || 'Conectando...')
                                             : isStartingEmbedded
                                                 ? (t('slots.official.embedded.starting') || 'Abriendo Meta...')
-                                                : (t('slots.official.embedded.cta') || 'Conectar con WhatsApp Business')}
+                                                : embeddedCtaLabel}
                                     </button>
                                 </div>
                             </div>
@@ -3224,7 +3267,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </>
                             ) : (
                                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200">
-                                    WaFloW configura y enruta el webhook oficial automÃ¡ticamente para este canal. El cliente no necesita copiar ni pegar nada en Meta por slot.
+                                    WaFloW configura y enruta el webhook oficial automaticamente para este canal. El cliente no necesita copiar ni pegar nada en Meta por slot.
                                 </div>
                             )}
 
