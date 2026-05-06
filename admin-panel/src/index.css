@@ -10,6 +10,61 @@ body {
   min-height: 100vh;
 }
 
+.auth-phone-input {
+  width: 100%;
+}
+
+.auth-phone-input .PhoneInput {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid rgb(229 231 235);
+  border-radius: 0.75rem;
+  background: rgb(255 255 255);
+  padding: 0.5rem 1rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.dark .auth-phone-input .PhoneInput {
+  border-color: rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.05);
+}
+
+.auth-phone-input .PhoneInput:focus-within {
+  border-color: var(--auth-phone-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--auth-phone-accent) 28%, transparent);
+}
+
+.auth-phone-input .PhoneInputCountry {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.auth-phone-input .PhoneInputCountrySelect {
+  cursor: pointer;
+}
+
+.auth-phone-input .PhoneInputInput {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: rgb(17 24 39);
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  outline: 0;
+}
+
+.dark .auth-phone-input .PhoneInputInput {
+  color: rgb(255 255 255);
+}
+
+.auth-phone-input .PhoneInputInput::placeholder {
+  color: rgb(156 163 175);
+}
+
 .agency-dashboard-ui {
   --wf-scroll-thumb: rgba(148, 163, 184, 0.52);
   --wf-scroll-thumb-hover: rgba(129, 140, 248, 0.72);

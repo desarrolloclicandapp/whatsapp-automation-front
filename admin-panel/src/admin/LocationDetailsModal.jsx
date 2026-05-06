@@ -94,6 +94,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [officialLinkMethodBySlot, setOfficialLinkMethodBySlot] = useState({});
     const [startingOfficialEmbeddedBySlot, setStartingOfficialEmbeddedBySlot] = useState({});
     const [completingOfficialEmbeddedBySlot, setCompletingOfficialEmbeddedBySlot] = useState({});
+    const [embeddedSignupSelectionBySlot, setEmbeddedSignupSelectionBySlot] = useState({});
     const [officialTemplatesBySlot, setOfficialTemplatesBySlot] = useState({});
     const [loadingOfficialTemplatesBySlot, setLoadingOfficialTemplatesBySlot] = useState({});
     const [sendingOfficialTemplateBySlot, setSendingOfficialTemplateBySlot] = useState({});
@@ -127,7 +128,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         businessAccountId: "",
         phoneNumberId: "",
         businessId: "",
-        displayPhoneNumber: ""
+        displayPhoneNumber: "",
+        oauthState: "",
+        oauthRedirectUri: ""
     });
     const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
     const isGhlMode = crmType === "ghl";
@@ -327,6 +330,31 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     useEffect(() => {
         const handleEmbeddedSignupMessage = (event) => {
             const origin = String(event?.origin || '').toLowerCase();
+            const callbackPayload = event?.data;
+            if (callbackPayload?.type === "waflow_meta_embedded_signup_callback") {
+                const flow = embeddedSignupFlowRef.current;
+                if (!flow?.slotId || callbackPayload.state !== flow.oauthState) return;
+                setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                if (callbackPayload.error) {
+                    toast.error(t('slots.official.embedded.error') || 'Meta devolvio un error en el Embedded Signup', {
+                        description: callbackPayload.errorMessage || callbackPayload.error
+                    });
+                    resetEmbeddedSignupFlow();
+                    return;
+                }
+                flow.authCode = pickFirstNonEmptyString(callbackPayload.code, flow.authCode);
+                if (!flow.completionSent && flow.authCode) {
+                    const snapshot = { ...flow };
+                    flow.completionSent = true;
+                    logEmbeddedSignupDebug("completion requested from oauth callback", snapshot);
+                    completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch((error) => {
+                        logEmbeddedSignupDebug("completion failed from oauth callback", {
+                            message: error?.message || String(error || "Unknown error")
+                        }, "error");
+                    });
+                }
+                return;
+            }
             if (!origin || (!origin.includes('facebook.com') && !origin.includes('fb.com'))) {
                 return;
             }
@@ -1123,6 +1151,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         embeddedSignupGraphVersion: "",
         embeddedSignupSessionInfoVersion: 3,
         embeddedSignupSolutionId: "",
+        embeddedSignupRedirectUri: "",
         embeddedSignupProviderTokenConfigured: false,
         embeddedSignupMissing: []
     });
@@ -1163,13 +1192,16 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             embeddedSignupGraphVersion: embeddedSignup.graphVersion ? String(embeddedSignup.graphVersion) : "",
             embeddedSignupSessionInfoVersion: Number(embeddedSignup.sessionInfoVersion) || 3,
             embeddedSignupSolutionId: embeddedSignup.solutionId ? String(embeddedSignup.solutionId) : "",
+            embeddedSignupRedirectUri: embeddedSignup.redirectUri ? String(embeddedSignup.redirectUri) : "",
             embeddedSignupProviderTokenConfigured: embeddedSignup.providerTokenConfigured === true,
             embeddedSignupMissing: Array.isArray(embeddedSignup.missing) ? embeddedSignup.missing : []
         };
     };
 
     const resolveOfficialLinkMethod = (official = createEmptyOfficialWhatsappState()) => {
-        if (String(official.setupSource || '').trim() === 'manual') return 'manual';
+        const setupSource = String(official.setupSource || '').trim();
+        if (setupSource === 'embedded_signup') return 'embedded';
+        if (setupSource === 'manual') return 'manual';
         if (
             String(official.phoneNumberId || '').trim() ||
             String(official.accessToken || '').trim() ||
@@ -1200,7 +1232,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             businessAccountId: "",
             phoneNumberId: "",
             businessId: "",
-            displayPhoneNumber: ""
+            displayPhoneNumber: "",
+            oauthState: "",
+            oauthRedirectUri: ""
         };
     };
 
@@ -2108,11 +2142,33 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         return parsed.toLocaleString();
     };
 
+    const clearEmbeddedSignupSelection = (slotId) => {
+        setEmbeddedSignupSelectionBySlot(prev => {
+            if (!prev[slotId]) return prev;
+            const next = { ...prev };
+            delete next[slotId];
+            return next;
+        });
+    };
+
+    const chooseEmbeddedSignupPhoneCandidate = async (slotId, candidate) => {
+        const pending = embeddedSignupSelectionBySlot[slotId] || {};
+        const flowSnapshot = pending.flowSnapshot || {};
+        clearEmbeddedSignupSelection(slotId);
+        await completeOfficialEmbeddedSignup(slotId, {
+            ...flowSnapshot,
+            businessAccountId: candidate?.businessAccountId || flowSnapshot.businessAccountId || "",
+            phoneNumberId: candidate?.phoneNumberId || "",
+            displayPhoneNumber: candidate?.displayPhoneNumber || flowSnapshot.displayPhoneNumber || ""
+        });
+    };
+
     const completeOfficialEmbeddedSignup = async (slotId, flowSnapshot) => {
         const loadingId = toast.loading(t('slots.official.embedded.completing') || 'Completando vinculación con Meta...');
         setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: true }));
         setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
         try {
+            const oauthRedirectUri = flowSnapshot?.oauthRedirectUri || "";
             const res = await authFetch(`/agency/whatsapp-official/embedded-signup/complete`, {
                 method: 'POST',
                 body: JSON.stringify({
@@ -2123,15 +2179,21 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     businessAccountId: flowSnapshot?.businessAccountId || "",
                     phoneNumberId: flowSnapshot?.phoneNumberId || "",
                     businessId: flowSnapshot?.businessId || "",
-                    displayPhoneNumber: flowSnapshot?.displayPhoneNumber || ""
+                    displayPhoneNumber: flowSnapshot?.displayPhoneNumber || "",
+                    oauthRedirectUri
                 })
             });
             if (!res) return;
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                throw new Error(data.error || (t('slots.official.embedded.complete_error') || 'No se pudo completar la vinculación con Meta'));
+                const error = new Error(data.error || (t('slots.official.embedded.complete_error') || 'No se pudo completar la vinculación con Meta'));
+                error.code = data.code || "";
+                error.phoneCandidates = Array.isArray(data.phoneCandidates) ? data.phoneCandidates : [];
+                throw error;
             }
 
+            clearEmbeddedSignupSelection(slotId);
+            setOfficialLinkMethodBySlot(prev => ({ ...prev, [slotId]: 'embedded' }));
             await loadData();
             await loadOfficialWhatsappConfig(slotId, true);
             syncSlotConnectionMode(slotId, 'official_api', {
@@ -2157,6 +2219,31 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 toast.success(t('slots.official.embedded.completed') || 'WhatsApp oficial conectado desde Meta');
             }
         } catch (e) {
+            if (Array.isArray(e.phoneCandidates) && e.phoneCandidates.length > 0) {
+                setEmbeddedSignupSelectionBySlot(prev => ({
+                    ...prev,
+                    [slotId]: {
+                        flowSnapshot: { ...(flowSnapshot || {}) },
+                        phoneCandidates: e.phoneCandidates,
+                        error: e.message || ""
+                    }
+                }));
+                toast.info('Selecciona el numero de WhatsApp Business que quieres vincular');
+                return;
+            }
+
+            if (e.code === "OFFICIAL_EMBEDDED_SIGNUP_PHONE_NOT_FOUND") {
+                setEmbeddedSignupSelectionBySlot(prev => ({
+                    ...prev,
+                    [slotId]: {
+                        flowSnapshot: { ...(flowSnapshot || {}) },
+                        phoneCandidates: [],
+                        error: e.message || "",
+                        needsSetupGuide: true
+                    }
+                }));
+            }
+
             toast.error(t('slots.official.embedded.complete_error') || 'Error completando la vinculación con Meta', {
                 description: e.message
             });
@@ -2183,9 +2270,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
         setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
-            const fb = await ensureFacebookSdk(official);
+            clearEmbeddedSignupSelection(slotId);
             resetEmbeddedSignupFlow();
-            embeddedSignupFlowRef.current.slotId = slotId;
 
             const extras = {
                 sessionInfoVersion: Number(official.embeddedSignupSessionInfoVersion) || 3
@@ -2196,82 +2282,46 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 };
             }
 
-            logEmbeddedSignupDebug("starting fb.login", {
+            const redirectUri = String(official.embeddedSignupRedirectUri || "").trim();
+            if (!redirectUri) {
+                throw new Error("Falta redirect_uri para Meta Embedded Signup.");
+            }
+
+            const oauthState = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+            embeddedSignupFlowRef.current = {
+                ...embeddedSignupFlowRef.current,
+                slotId,
+                oauthState,
+                oauthRedirectUri: redirectUri
+            };
+
+            const graphVersion = String(official.embeddedSignupGraphVersion || official.embeddedSignupSdkVersion || "v21.0").trim() || "v21.0";
+            const oauthUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
+            oauthUrl.searchParams.set("client_id", official.embeddedSignupAppId);
+            oauthUrl.searchParams.set("app_id", official.embeddedSignupAppId);
+            oauthUrl.searchParams.set("config_id", official.embeddedSignupConfigurationId);
+            oauthUrl.searchParams.set("redirect_uri", redirectUri);
+            oauthUrl.searchParams.set("response_type", "code");
+            oauthUrl.searchParams.set("override_default_response_type", "true");
+            oauthUrl.searchParams.set("display", "popup");
+            oauthUrl.searchParams.set("state", oauthState);
+            oauthUrl.searchParams.set("extras", JSON.stringify(extras));
+
+            logEmbeddedSignupDebug("starting manual oauth", {
                 slotId,
                 configId: official.embeddedSignupConfigurationId,
+                redirectUri,
                 extras
             });
 
-            fb.login((response) => {
-                logEmbeddedSignupDebug("fb.login callback", response);
-                const authResponse = response?.authResponse || null;
-                if (!authResponse) {
-                    setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
-                    window.setTimeout(() => {
-                        const currentFlow = embeddedSignupFlowRef.current;
-                        if (
-                            currentFlow?.slotId === slotId &&
-                            !currentFlow.completionSent &&
-                            !currentFlow.authCode &&
-                            !currentFlow.accessToken
-                        ) {
-                            toast.error(t('slots.official.embedded.cancelled') || 'El asistente de Meta fue cancelado');
-                            resetEmbeddedSignupFlow();
-                        }
-                    }, 800);
-                    return;
-                }
-
-                embeddedSignupFlowRef.current.authCode = pickFirstNonEmptyString(
-                    authResponse.code,
-                    embeddedSignupFlowRef.current.authCode
-                );
-                embeddedSignupFlowRef.current.accessToken = pickFirstNonEmptyString(
-                    authResponse.accessToken,
-                    embeddedSignupFlowRef.current.accessToken
-                );
-                setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
-
-                const flow = embeddedSignupFlowRef.current;
-                window.setTimeout(() => {
-                    const currentFlow = embeddedSignupFlowRef.current;
-                    if (
-                        currentFlow?.slotId === slotId &&
-                        !currentFlow.completionSent &&
-                        !currentFlow.phoneNumberId &&
-                        (currentFlow.authCode || currentFlow.accessToken) &&
-                        !currentFlow.missingPhoneNumberWarned
-                    ) {
-                        currentFlow.missingPhoneNumberWarned = true;
-                        logEmbeddedSignupDebug("auth response received but Meta did not return phoneNumberId", {
-                            response,
-                            flow: currentFlow
-                        }, "error");
-                        toast.error(
-                            t('slots.official.embedded.error') || 'Meta devolviÃ³ un error en el Embedded Signup',
-                            {
-                                description: 'Meta devolviÃ³ autenticaciÃ³n, pero no enviÃ³ phoneNumberId ni el payload final del Embedded Signup.'
-                            }
-                        );
-                    }
-                }, 2500);
-
-                if (!flow.completionSent && flow.phoneNumberId && (flow.authCode || flow.accessToken)) {
-                    const snapshot = { ...flow };
-                    flow.completionSent = true;
-                    logEmbeddedSignupDebug("completion requested from fb.login callback", snapshot);
-                    completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch((error) => {
-                        logEmbeddedSignupDebug("completion failed from fb.login callback", {
-                            message: error?.message || String(error || "Unknown error")
-                        }, "error");
-                    });
-                }
-            }, {
-                config_id: official.embeddedSignupConfigurationId,
-                response_type: 'code',
-                override_default_response_type: true,
-                extras
-            });
+            const popup = window.open(
+                oauthUrl.toString(),
+                "meta_embedded_signup",
+                "width=720,height=760,menubar=no,toolbar=no,location=yes,status=no"
+            );
+            if (!popup) {
+                throw new Error("El navegador bloqueo la ventana de Meta.");
+            }
         } catch (e) {
             setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
             toast.error(t('slots.official.embedded.start_error') || 'No se pudo abrir el Embedded Signup de Meta', {
@@ -2888,6 +2938,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const embeddedMissingLabel = Array.isArray(official.embeddedSignupMissing) && official.embeddedSignupMissing.length > 0
             ? official.embeddedSignupMissing.join(', ')
             : '';
+        const embeddedSelection = embeddedSignupSelectionBySlot[slot.slot_id] || null;
+        const embeddedPhoneCandidates = Array.isArray(embeddedSelection?.phoneCandidates)
+            ? embeddedSelection.phoneCandidates
+            : [];
         const showEmbeddedMethod = official.embeddedSignupEnabled === true;
         const resolvedLinkMethod = officialLinkMethodBySlot[slot.slot_id] || resolveOfficialLinkMethod(official);
         const showManualMethod = !showEmbeddedMethod || resolvedLinkMethod === 'manual';
@@ -2898,6 +2952,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             String(official.accessToken || '').trim() ||
             String(official.accessTokenMasked || '').trim()
         );
+        const isOfficialConnected = ['verified', 'verified_warning'].includes(status) && Boolean(
+            String(official.displayPhoneNumber || '').trim() ||
+            String(official.phoneNumberId || '').trim()
+        );
+        const embeddedPanelEyebrow = isOfficialConnected
+            ? (t('slots.official.embedded.connected_eyebrow') || 'Conectada')
+            : (t('slots.official.embedded.eyebrow') || 'Recomendado');
+        const embeddedPanelTitle = isOfficialConnected
+            ? (t('slots.official.embedded.connected_title') || 'WhatsApp Business conectado')
+            : (t('slots.official.embedded.title') || 'Conectar con WhatsApp Business');
+        const embeddedPanelDescription = isOfficialConnected
+            ? (t('slots.official.embedded.connected_desc') || 'Este slot ya esta vinculado a Meta y listo para enviar y recibir mensajes por la API oficial.')
+            : (t('slots.official.embedded.desc') || 'Abre el flujo oficial de Meta dentro de Waflow para crear o vincular la cuenta, elegir el numero y dejar el slot listo sin copiar IDs ni tokens manualmente.');
+        const embeddedCtaLabel = isOfficialConnected
+            ? (t('slots.official.embedded.reconnect_cta') || 'Cambiar o reconectar numero')
+            : (t('slots.official.embedded.cta') || 'Conectar con WhatsApp Business');
 
         return (
             <div className="max-w-3xl space-y-6">
@@ -2967,14 +3037,38 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 <div className="flex flex-wrap items-start justify-between gap-4">
                                     <div className="max-w-2xl">
                                         <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-600 mb-2">
-                                            {t('slots.official.embedded.eyebrow') || 'Recomendado'}
+                                            {embeddedPanelEyebrow}
                                         </p>
                                         <h5 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2">
-                                            {t('slots.official.embedded.title') || 'Conectar con WhatsApp Business'}
+                                            {embeddedPanelTitle}
                                         </h5>
                                         <p className="text-sm text-gray-600 dark:text-gray-300 leading-6">
-                                            {t('slots.official.embedded.desc') || 'Abre el flujo oficial de Meta dentro de Waflow para crear o vincular la cuenta, elegir el número y dejar el slot listo sin copiar IDs ni tokens manualmente.'}
+                                            {embeddedPanelDescription}
                                         </p>
+                                        {isOfficialConnected ? (
+                                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                {official.displayPhoneNumber ? (
+                                                    <div className="rounded-2xl border border-emerald-200/70 bg-white/80 px-4 py-3 dark:border-emerald-900/50 dark:bg-gray-950/40">
+                                                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-300">
+                                                            {t('slots.official.display_phone') || 'Numero visible'}
+                                                        </p>
+                                                        <p className="mt-1 text-sm font-extrabold text-gray-900 dark:text-white">
+                                                            {official.displayPhoneNumber}
+                                                        </p>
+                                                    </div>
+                                                ) : null}
+                                                {official.verifiedName ? (
+                                                    <div className="rounded-2xl border border-emerald-200/70 bg-white/80 px-4 py-3 dark:border-emerald-900/50 dark:bg-gray-950/40">
+                                                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-300">
+                                                            {t('slots.official.verified_name') || 'Verified name'}
+                                                        </p>
+                                                        <p className="mt-1 text-sm font-extrabold text-gray-900 dark:text-white">
+                                                            {official.verifiedName}
+                                                        </p>
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        ) : null}
                                         {official.setupSource === 'embedded_signup' && official.embeddedSignupCompletedAt ? (
                                             <p className="mt-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                                                 {t('slots.official.embedded.connected_at') || 'Conectado desde Meta'}: {formatOfficialDatetime(official.embeddedSignupCompletedAt)}
@@ -2999,14 +3093,59 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         disabled={!official.embeddedSignupEnabled || isWorkingEmbedded || isSavingOfficial}
                                         className="min-w-[240px] px-5 py-3 rounded-2xl bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed transition flex items-center justify-center gap-3 font-bold shadow-[0_18px_40px_rgba(16,185,129,0.25)]"
                                     >
-                                        {isWorkingEmbedded ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+                                        {isWorkingEmbedded ? <Loader2 className="animate-spin" size={18} /> : isOfficialConnected ? <RefreshCw size={18} /> : <Link2 size={18} />}
                                         {isCompletingEmbedded
                                             ? (t('slots.official.embedded.completing_cta') || 'Conectando...')
                                             : isStartingEmbedded
                                                 ? (t('slots.official.embedded.starting') || 'Abriendo Meta...')
-                                                : (t('slots.official.embedded.cta') || 'Conectar con WhatsApp Business')}
+                                                : embeddedCtaLabel}
                                     </button>
                                 </div>
+                            </div>
+                            ) : null}
+
+                            {embeddedPhoneCandidates.length > 0 ? (
+                            <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-white/80 dark:bg-gray-950/40 p-4">
+                                <p className="text-sm font-extrabold text-gray-900 dark:text-white">
+                                    Selecciona el numero que quieres vincular
+                                </p>
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Encontramos varios numeros en tu cuenta de Meta. Elige el que corresponde a este slot.
+                                </p>
+                                <div className="mt-4 space-y-2">
+                                    {embeddedPhoneCandidates.map((candidate) => {
+                                        const candidateKey = `${candidate.businessAccountId || 'waba'}:${candidate.phoneNumberId || candidate.displayPhoneNumber}`;
+                                        return (
+                                            <button
+                                                key={candidateKey}
+                                                type="button"
+                                                onClick={() => chooseEmbeddedSignupPhoneCandidate(slot.slot_id, candidate)}
+                                                disabled={isWorkingEmbedded || isSavingOfficial}
+                                                className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-left hover:border-emerald-400 dark:hover:border-emerald-500 disabled:opacity-60 transition"
+                                            >
+                                                <span className="block text-sm font-bold text-gray-900 dark:text-white">
+                                                    {candidate.displayPhoneNumber || candidate.phoneNumberId || 'Numero de WhatsApp'}
+                                                </span>
+                                                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                                                    {candidate.verifiedName ? `${candidate.verifiedName} - ` : ''}
+                                                    {candidate.qualityRating ? `Calidad ${candidate.qualityRating} - ` : ''}
+                                                    WABA {candidate.businessAccountId || 'sin ID'}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            ) : null}
+
+                            {embeddedSelection?.needsSetupGuide ? (
+                            <div className="rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 p-4">
+                                <p className="text-sm font-extrabold text-amber-900 dark:text-amber-100">
+                                    No encontramos numeros disponibles en Meta
+                                </p>
+                                <p className="mt-2 text-xs leading-5 text-amber-800 dark:text-amber-200">
+                                    Continua el flujo de Meta creando o seleccionando tu portfolio de negocio, agrega el numero de WhatsApp Business y completa la verificacion que Meta solicite. Cuando el numero quede disponible, vuelve a presionar Conectar con WhatsApp Business.
+                                </p>
                             </div>
                             ) : null}
 
@@ -3128,7 +3267,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </>
                             ) : (
                                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200">
-                                    WaFloW configura y enruta el webhook oficial automÃ¡ticamente para este canal. El cliente no necesita copiar ni pegar nada en Meta por slot.
+                                    WaFloW configura y enruta el webhook oficial automaticamente para este canal. El cliente no necesita copiar ni pegar nada en Meta por slot.
                                 </div>
                             )}
 
