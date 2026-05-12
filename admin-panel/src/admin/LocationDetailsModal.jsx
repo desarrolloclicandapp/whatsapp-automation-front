@@ -1151,6 +1151,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         embeddedSignupGraphVersion: "",
         embeddedSignupSessionInfoVersion: 3,
         embeddedSignupSolutionId: "",
+        embeddedSignupCoexistenceEnabled: false,
         embeddedSignupRedirectUri: "",
         embeddedSignupProviderTokenConfigured: false,
         embeddedSignupMissing: []
@@ -1192,6 +1193,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             embeddedSignupGraphVersion: embeddedSignup.graphVersion ? String(embeddedSignup.graphVersion) : "",
             embeddedSignupSessionInfoVersion: Number(embeddedSignup.sessionInfoVersion) || 3,
             embeddedSignupSolutionId: embeddedSignup.solutionId ? String(embeddedSignup.solutionId) : "",
+            embeddedSignupCoexistenceEnabled: embeddedSignup.coexistenceEnabled !== false,
             embeddedSignupRedirectUri: embeddedSignup.redirectUri ? String(embeddedSignup.redirectUri) : "",
             embeddedSignupProviderTokenConfigured: embeddedSignup.providerTokenConfigured === true,
             embeddedSignupMissing: Array.isArray(embeddedSignup.missing) ? embeddedSignup.missing : []
@@ -2274,8 +2276,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             resetEmbeddedSignupFlow();
 
             const extras = {
+                version: "v3",
                 sessionInfoVersion: Number(official.embeddedSignupSessionInfoVersion) || 3
             };
+            if (official.embeddedSignupCoexistenceEnabled !== false) {
+                extras.featureType = "whatsapp_business_app_onboarding";
+            }
             if (String(official.embeddedSignupSolutionId || '').trim()) {
                 extras.setup = {
                     solutionID: String(official.embeddedSignupSolutionId || '').trim()
@@ -2311,7 +2317,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 slotId,
                 configId: official.embeddedSignupConfigurationId,
                 redirectUri,
-                extras
+                extras,
+                coexistenceEnabled: official.embeddedSignupCoexistenceEnabled !== false
             });
 
             const popup = window.open(
