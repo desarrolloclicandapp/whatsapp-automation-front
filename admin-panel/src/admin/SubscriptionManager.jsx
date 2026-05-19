@@ -192,6 +192,9 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
                 setSelectedPlan(null);
                 fetchSubscriptions();
                 if (onDataChange) onDataChange();
+            } else if (data.url) {
+                toast.info(t('sub.toast.bank_verification'), { id: toastId });
+                window.location.href = data.url;
             } else if (data.requiresAction) {
                 // Si requiere 3DS, manejarlo (por ahora redirigir a checkout)
                 toast.info(t('sub.toast.bank_verification'), { id: toastId });
