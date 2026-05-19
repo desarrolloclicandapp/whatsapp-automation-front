@@ -168,6 +168,12 @@ export default function StandaloneSubscription({ token, accountInfo, onDataChang
         return;
       }
 
+      if (payload?.url) {
+        toast.success(translateOr(t, 'sub.toast.bank_verification', 'Completa la verificación del pago'), { id: toastId });
+        window.location.href = payload.url;
+        return;
+      }
+
       if (payload?.requiresAction) {
         const checkoutResponse = await fetch(`${API_URL}/payments/subscribe`, {
           method: 'POST',
