@@ -48,6 +48,12 @@ function getNumberQualityLabel(level = '', t) {
     }
 }
 
+function normalizeSlotId(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const parsed = Number.parseInt(String(value), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
 export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange, isAdminMode = false }) {
     const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
@@ -446,9 +452,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
             if (detailsRes && detailsRes.ok) {
                 const data = await detailsRes.json();
-                setSlots(data.slots || []);
+                const nextSlots = Array.isArray(data.slots) ? data.slots : [];
+                setSlots(nextSlots);
                 setHealthSummary(data.healthSummary || null);
-                setKeywords(data.keywords || []);
+                const topLevelKeywords = Array.isArray(data.keywords) ? data.keywords : [];
+                const slotKeywords = nextSlots.flatMap((slot) => (
+                    Array.isArray(slot?.keywords)
+                        ? slot.keywords.map((keyword) => ({
+                            ...keyword,
+                            slot_id: keyword?.slot_id ?? slot.slot_id
+                        }))
+                        : []
+                ));
+                setKeywords(topLevelKeywords.length > 0 ? topLevelKeywords : slotKeywords);
                 setLocationOpenAiKeyConfigured(data.openai_key_configured === true);
                 setLocationOpenAiKeyDraft("");
 
@@ -3938,6 +3954,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const slotHeaderModeLabel = isOfficialSlotMode
                                     ? (t('slots.card.official_mode') || 'Meta API')
                                     : (isExpanded ? t('slots.card.managing') : t('slots.card.manage'));
+                                const slotKeywords = keywords.filter((keyword) => (
+                                    normalizeSlotId(keyword?.slot_id) === normalizeSlotId(slot.slot_id)
+                                ));
 
                                 return (
                                     <div id={`slot-card-${slot.slot_id}`} key={slot.slot_id} className={`bg-white dark:bg-gray-900 border rounded-2xl transition-all duration-300 overflow-hidden ${isExpanded ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-xl' : 'border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md'}`}>
@@ -5051,12 +5070,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 <button type="submit" className="bg-indigo-600 text-white px-5 rounded-xl hover:bg-indigo-700 font-bold"><Plus size={20} /></button>
                                                             </form>
                                                             <div className="space-y-2">
-                                                                {keywords.filter(k => k.slot_id === slot.slot_id).map(k => (
+                                                                {slotKeywords.map(k => (
                                                                     <div key={k.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                         <div className="flex gap-2 items-center"><span className="font-bold text-gray-800 dark:text-white">"{k.keyword}"</span> <span className="text-gray-400">&rarr;</span> <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-bold">{k.tag}</span></div>
                                                                         <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
                                                                     </div>
                                                                 ))}
+                                                                {slotKeywords.length === 0 && (
+                                                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                                        Sin reglas para este WhatsApp.
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     )}
