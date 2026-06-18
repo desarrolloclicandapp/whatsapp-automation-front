@@ -192,6 +192,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             String(officialSettings?.status || "").trim()
         );
     };
+    const hasAnyOfficialWhatsappConfig = () => slots.some((slot) => hasOfficialWhatsappConfig(slot));
     const expandedSlot = slots.find((slot) => slot.slot_id === expandedSlotId) || null;
     const expandedConnectionMode = getEffectiveSlotConnectionMode(expandedSlot);
     const isExpandedChatwootLoaded = Boolean(
@@ -2837,7 +2838,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const ghlHeaderDashboardUrl = String(ghlAccessInfo?.dashboardUrl || "").trim();
     const ghlOAuthConnected = Boolean(ghlAccessInfo?.oauthConnected);
 
-    const renderConnectionModeSelector = (slot) => (
+    const renderConnectionModeSelector = (slot) => {
+        const officialApiAvailable = OFFICIAL_WHATSAPP_API_UI_ENABLED && hasAnyOfficialWhatsappConfig();
+
+        return (
         <div className="max-w-4xl mx-auto">
             <div className="mb-6">
                 <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-indigo-500 mb-3">
@@ -2870,16 +2874,35 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
                 <button
                     type="button"
-                    onClick={() => selectSlotConnectionMode(slot, 'official_api')}
-                    className="relative text-left rounded-3xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-800 p-6 pt-10 hover:border-emerald-400 hover:shadow-lg transition"
+                    disabled={!officialApiAvailable}
+                    aria-disabled={!officialApiAvailable}
+                    onClick={() => {
+                        if (!officialApiAvailable) return;
+                        selectSlotConnectionMode(slot, 'official_api');
+                    }}
+                    className={`relative text-left rounded-3xl border p-6 pt-10 transition ${
+                        officialApiAvailable
+                            ? 'border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-800 hover:border-emerald-400 hover:shadow-lg'
+                            : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 opacity-65 cursor-not-allowed'
+                    }`}
                 >
-                    <span className="absolute left-6 top-0 -translate-y-1/2 inline-flex items-center rounded-full bg-emerald-400 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.24em] text-emerald-950 shadow-[0_10px_24px_rgba(16,185,129,0.28)]">
-                        {t('slots.connection_mode.official_badge') || 'Beta'}
+                    <span className={`absolute left-6 top-0 -translate-y-1/2 inline-flex items-center rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.24em] shadow-[0_10px_24px_rgba(16,185,129,0.28)] ${
+                        officialApiAvailable
+                            ? 'bg-emerald-400 text-emerald-950'
+                            : 'bg-gray-300 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                    }`}>
+                        {t('slots.connection_mode.official_badge') || 'En desarrollo'}
                     </span>
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center mb-5">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-5 ${
+                        officialApiAvailable
+                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'
+                            : 'bg-gray-200 dark:bg-gray-800 text-gray-500'
+                    }`}>
                         <Link2 size={22} />
                     </div>
-                    <h5 className="text-xl font-extrabold text-gray-900 dark:text-white mb-2">
+                    <h5 className={`text-xl font-extrabold mb-2 ${
+                        officialApiAvailable ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'
+                    }`}>
                         {t('slots.connection_mode.official_title') || 'API oficial de WhatsApp'}
                     </h5>
                     <p className="text-sm text-gray-500 dark:text-gray-400 leading-6">
@@ -2888,7 +2911,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 </button>
             </div>
         </div>
-    );
+        );
+    };
 
     const renderConnectionModeSwitch = (slot, connectionMode) => (
         <div className="flex items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800 px-6 py-4 bg-slate-50/90 dark:bg-gray-950/50">
