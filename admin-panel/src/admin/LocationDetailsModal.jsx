@@ -18,6 +18,13 @@ function translateOr(t, key, fallback) {
     return translated;
 }
 
+function getRuntimeConfigValue(key, fallback) {
+    const runtimeValue = typeof window !== "undefined"
+        ? window.__WAFLOW_ADMIN_CONFIG__?.[key]
+        : undefined;
+    return runtimeValue ?? fallback;
+}
+
 function getNumberQualityTone(level = '') {
     switch (String(level || '').toLowerCase()) {
         case 'delicate':
@@ -158,8 +165,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const supportsSmsTab = isGhlMode || isChatwootMode;
     const supportsKeywordsTab = isGhlMode;
     const OFFICIAL_WHATSAPP_API_UI_ENABLED = isEnabledTenantFlag(
-        import.meta.env.VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED ?? true
+        getRuntimeConfigValue("VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED", import.meta.env.VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED ?? true)
     );
+    const OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED = isEnabledTenantFlag(
+        getRuntimeConfigValue("VITE_OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED", import.meta.env.VITE_OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED ?? false)
+    );
+    const officialWhatsappAdminBypassAvailable = OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED && storedRole === 'admin';
     const SLOT_CONNECTION_MODE_CHANGE_ENABLED = false;
     const SHOW_OFFICIAL_WEBHOOK_DEBUG = !!isAdminMode;
     const getEffectiveSlotConnectionMode = (slot) => {
@@ -2839,7 +2850,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const ghlOAuthConnected = Boolean(ghlAccessInfo?.oauthConnected);
 
     const renderConnectionModeSelector = (slot) => {
-        const officialApiAvailable = OFFICIAL_WHATSAPP_API_UI_ENABLED && hasAnyOfficialWhatsappConfig();
+        const officialApiAvailable = OFFICIAL_WHATSAPP_API_UI_ENABLED
+            && (hasAnyOfficialWhatsappConfig() || officialWhatsappAdminBypassAvailable);
 
         return (
         <div className="max-w-4xl mx-auto">

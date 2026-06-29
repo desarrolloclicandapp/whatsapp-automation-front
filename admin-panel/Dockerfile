@@ -18,11 +18,15 @@ COPY . .
 # Si tienes más variables VITE_, agrégalas aquí.
 ARG VITE_API_URL
 ARG VITE_ADMIN_SECRET
+ARG VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED=true
+ARG VITE_OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED=false
 ARG GIT_SHA
 
 # Las convertimos en variables de entorno disponibles para el proceso de build
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_ADMIN_SECRET=$VITE_ADMIN_SECRET
+ENV VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED=$VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED
+ENV VITE_OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED=$VITE_OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED
 ENV GIT_SHA=$GIT_SHA
 
 # 7. Ejecutamos el build de Vite
@@ -32,5 +36,5 @@ RUN npm run build
 EXPOSE 3000
 
 # 9. Comando de inicio
-# Usamos 'serve' para servir la carpeta 'dist' generada
-CMD ["npx", "serve", "-s", "dist", "-p", "3000"]
+# Genera runtime-config.js desde el .env del servicio y sirve la carpeta dist.
+CMD ["sh", "-c", "node scripts/writeRuntimeConfig.cjs && npx serve -s dist -p 3000"]
