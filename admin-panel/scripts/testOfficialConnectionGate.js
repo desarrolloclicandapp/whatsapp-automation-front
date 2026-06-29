@@ -35,8 +35,13 @@ assert.match(
 );
 assert.match(
     component,
-    /const officialWhatsappAdminBypassAvailable = OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED && storedRole === 'admin'/,
-    "The official API admin bypass must only apply to admin users"
+    /const hasAdminImpersonationSession = Boolean\(localStorage\.getItem\("admin_restore_token"\)\)\s*\|\| localStorage\.getItem\("admin_restore_role"\) === 'admin'/,
+    "The official API test bypass must recognize admin impersonation sessions"
+);
+assert.match(
+    component,
+    /const officialWhatsappAdminBypassAvailable = OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED\s*&& \(storedRole === 'admin' \|\| hasAdminImpersonationSession\)/,
+    "The official API admin bypass must only apply to direct admins or admin impersonation sessions"
 );
 assert.match(
     component,

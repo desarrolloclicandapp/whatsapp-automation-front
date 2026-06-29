@@ -77,6 +77,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [loading, setLoading] = useState(true);
     const rawFeatures = localStorage.getItem("agencyFeatures");
     const storedRole = localStorage.getItem("userRole");
+    const hasAdminImpersonationSession = Boolean(localStorage.getItem("admin_restore_token"))
+        || localStorage.getItem("admin_restore_role") === 'admin';
     let canWhiteLabel = false;
     try {
         const features = rawFeatures ? JSON.parse(rawFeatures) : {};
@@ -170,7 +172,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED = isEnabledTenantFlag(
         getRuntimeConfigValue("VITE_OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED", import.meta.env.VITE_OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED ?? false)
     );
-    const officialWhatsappAdminBypassAvailable = OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED && storedRole === 'admin';
+    const officialWhatsappAdminBypassAvailable = OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED
+        && (storedRole === 'admin' || hasAdminImpersonationSession);
     const SLOT_CONNECTION_MODE_CHANGE_ENABLED = false;
     const SHOW_OFFICIAL_WEBHOOK_DEBUG = !!isAdminMode;
     const getEffectiveSlotConnectionMode = (slot) => {
