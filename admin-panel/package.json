@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test:phone-country": "node scripts/testPhoneCountry.js",
     "test:location-keywords": "node scripts/testLocationDetailsKeywords.js",
-    "test:official-connection-gate": "node scripts/testOfficialConnectionGate.js"
+    "test:official-connection-gate": "node scripts/testOfficialConnectionGate.js",
+    "test:official-template-builder": "node scripts/testOfficialTemplateBuilder.js"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.6.1",
