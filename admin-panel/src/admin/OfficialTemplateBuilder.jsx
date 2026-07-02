@@ -90,6 +90,14 @@ function isOfficialSlot(slot = {}) {
     );
 }
 
+function isTemplateReadyOfficialSlot(slot = {}) {
+    const official = getSlotOfficialSettings(slot);
+    return isOfficialSlot(slot) && Boolean(
+        official.phoneNumberId &&
+        (official.accessToken || official.accessTokenEncrypted)
+    );
+}
+
 function buildTemplateCommand(template = {}, fallbackLanguage = "es") {
     const name = String(template?.name || "").trim();
     const language = String(template?.language || fallbackLanguage || "es").trim();
@@ -166,7 +174,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                     if (!res.ok) return [];
                     const data = await res.json();
                     return (Array.isArray(data.slots) ? data.slots : [])
-                        .filter(isOfficialSlot)
+                        .filter(isTemplateReadyOfficialSlot)
                         .map((slot) => {
                             const official = getSlotOfficialSettings(slot);
                             return {
@@ -177,6 +185,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                 phone: official.displayPhoneNumber || slot.phone_number || official.phoneNumberId || "",
                                 verifiedName: official.verifiedName || "",
                                 businessAccountId: official.businessAccountId || "",
+                                phoneNumberId: official.phoneNumberId || "",
                                 hasAccessToken: Boolean(official.accessToken || official.accessTokenEncrypted)
                             };
                         });
@@ -202,6 +211,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
 
     const loadTemplates = async (slot = selectedSlot) => {
         if (!slot) return;
+        if (!slot.hasAccessToken) return;
         const key = `${slot.locationId}:${slot.slotId}`;
         setLoadingTemplates(true);
         try {
@@ -233,7 +243,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     }, [locations]);
 
     useEffect(() => {
-        if (selectedSlot) loadTemplates(selectedSlot);
+        if (selectedSlot?.hasAccessToken) loadTemplates(selectedSlot);
     }, [selectedSlot?.locationId, selectedSlot?.slotId]);
 
     const applyExample = () => {
@@ -373,6 +383,18 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 </button>
             </div>
 
+            {loadingSlots ? (
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-6 text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-100">
+                    <div className="flex items-start gap-3">
+                        <Loader2 size={20} className="mt-0.5 shrink-0 animate-spin" />
+                        <div>
+                            <p className="font-bold">{t("templates.builder.loading_slots") || "Buscando numeros Meta oficiales..."}</p>
+                            <p className="mt-1 text-sm">{t("templates.builder.loading_slots_desc") || "Estamos revisando las cuentas conectadas. Esto puede tardar unos segundos si tienes varias cuentas."}</p>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
             {officialSlots.length === 0 && !loadingSlots ? (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
                     <p className="font-bold">{t("templates.builder.no_official_slots") || "No hay numeros Meta oficiales conectados."}</p>
@@ -393,8 +415,15 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                     const [locationId, slotId] = event.target.value.split(":");
                                     setForm((prev) => ({ ...prev, locationId, slotId }));
                                 }}
+                                disabled={loadingSlots || officialSlots.length === 0}
                                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                             >
+                                {loadingSlots ? (
+                                    <option value="">{t("templates.builder.loading_slots_short") || "Cargando numeros..."}</option>
+                                ) : null}
+                                {!loadingSlots && officialSlots.length === 0 ? (
+                                    <option value="">{t("templates.builder.no_ready_slots_short") || "Sin numeros listos para templates"}</option>
+                                ) : null}
                                 {officialSlots.map((slot) => (
                                     <option key={`${slot.locationId}:${slot.slotId}`} value={`${slot.locationId}:${slot.slotId}`}>
                                         {slot.locationName} - {slot.slotName} {slot.phone ? `(${slot.phone})` : ""}
@@ -503,7 +532,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
 
                     <button
                         type="submit"
-                        disabled={creating || !selectedSlot}
+                        disabled={creating || loadingSlots || !selectedSlot}
                         className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
                     >
                         {creating ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
@@ -555,26 +584,36 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             <button
                                 type="button"
                                 onClick={() => loadTemplates(selectedSlot)}
-                                disabled={!selectedSlot || loadingTemplates}
+                                disabled={!selectedSlot || loadingTemplates || loadingSlots}
                                 className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 hover:text-indigo-600 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900"
                             >
                                 <RefreshCw size={15} className={loadingTemplates ? "animate-spin" : ""} />
                             </button>
                         </div>
-                        {selectedSlot ? (
+                        {loadingSlots ? (
+                            <p className="text-xs text-gray-500">
+                                {t("templates.builder.loading_slots_short") || "Cargando numeros..."}
+                            </p>
+                        ) : selectedSlot ? (
                             <p className="text-xs text-gray-500">
                                 {selectedSlot.locationName} / {selectedSlot.slotName} {selectedSlot.phone ? `- ${selectedSlot.phone}` : ""}
                             </p>
-                        ) : null}
+                        ) : (
+                            <p className="text-xs text-gray-500">
+                                {t("templates.builder.no_ready_slots_short") || "Sin numeros listos para templates"}
+                            </p>
+                        )}
                     </div>
                 </aside>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                {renderTemplateList(t("templates.builder.approved") || "Aprobadas", groupedTemplates.approved, "text-emerald-500", CheckCircle2)}
-                {renderTemplateList(t("templates.builder.pending") || "Pendientes", groupedTemplates.pending, "text-amber-500", FileText)}
-                {renderTemplateList(t("templates.builder.rejected") || "Rechazadas", groupedTemplates.rejected, "text-red-500", XCircle)}
-            </div>
+            {!selectedSlot || loadingSlots ? null : (
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                    {renderTemplateList(t("templates.builder.approved") || "Aprobadas", groupedTemplates.approved, "text-emerald-500", CheckCircle2)}
+                    {renderTemplateList(t("templates.builder.pending") || "Pendientes", groupedTemplates.pending, "text-amber-500", FileText)}
+                    {renderTemplateList(t("templates.builder.rejected") || "Rechazadas", groupedTemplates.rejected, "text-red-500", XCircle)}
+                </div>
+            )}
         </div>
     );
 }

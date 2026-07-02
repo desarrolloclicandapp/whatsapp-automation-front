@@ -27,13 +27,19 @@ assert.match(builder, /\/agency\/location-details\/\$\{encodeURIComponent\(locat
 assert.match(builder, /\/agency\/whatsapp-official\/templates\?\$\{query\.toString\(\)\}/);
 assert.match(builder, /authFetch\("\/agency\/whatsapp-official\/templates"/);
 assert.match(builder, /function isOfficialSlot/);
+assert.match(builder, /function isTemplateReadyOfficialSlot/);
+assert.match(builder, /\.filter\(isTemplateReadyOfficialSlot\)/);
+assert.match(builder, /if \(!slot\.hasAccessToken\) return;/);
+assert.match(builder, /templates\.builder\.loading_slots/);
 assert.match(builder, /normalizeTemplateName/);
 assert.match(builder, /!\[TPL:\$\{name\}:\$\{language\}/);
 assert.match(builder, /groupTemplates/);
 
 assert.match(esLocale, /"dash\.nav\.templates": "Generar templates"/);
 assert.match(esLocale, /"templates\.builder\.title": "Constructor de templates"/);
+assert.match(esLocale, /"templates\.builder\.loading_slots": "Buscando numeros Meta oficiales\.\.\."/);
 assert.match(enLocale, /"dash\.nav\.templates": "Generate templates"/);
 assert.match(enLocale, /"templates\.builder\.title": "Template builder"/);
+assert.match(enLocale, /"templates\.builder\.loading_slots": "Searching official Meta numbers\.\.\."/);
 
 console.log("testOfficialTemplateBuilder passed");
