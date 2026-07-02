@@ -15,13 +15,38 @@ const enLocale = fs.readFileSync(enLocalePath, "utf8");
 
 assert.match(
     component,
+    /function getRuntimeConfigValue\(key, fallback\)/,
+    "LocationDetailsModal must read production runtime config generated from the frontend service environment"
+);
+assert.match(
+    component,
+    /window\.__WAFLOW_ADMIN_CONFIG__\?\.\[key\]/,
+    "Runtime config must be read from window.__WAFLOW_ADMIN_CONFIG__"
+);
+assert.match(
+    component,
     /const hasAnyOfficialWhatsappConfig = \(\) => slots\.some\(\(slot\) => hasOfficialWhatsappConfig\(slot\)\)/,
     "LocationDetailsModal must detect whether the account already has an official Meta number configured"
 );
 assert.match(
     component,
-    /const officialApiAvailable = OFFICIAL_WHATSAPP_API_UI_ENABLED && hasAnyOfficialWhatsappConfig\(\)/,
-    "The official API option must only be available when the tenant already has an official Meta config"
+    /getRuntimeConfigValue\("VITE_OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED", import\.meta\.env\.VITE_OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED \?\? false\)/,
+    "The official API admin bypass must be controlled by an explicit environment flag"
+);
+assert.match(
+    component,
+    /const hasAdminImpersonationSession = Boolean\(localStorage\.getItem\("admin_restore_token"\)\)\s*\|\| localStorage\.getItem\("admin_restore_role"\) === 'admin'/,
+    "The official API test bypass must recognize admin impersonation sessions"
+);
+assert.match(
+    component,
+    /const officialWhatsappAdminBypassAvailable = OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED\s*&& \(storedRole === 'admin' \|\| hasAdminImpersonationSession\)/,
+    "The official API admin bypass must only apply to direct admins or admin impersonation sessions"
+);
+assert.match(
+    component,
+    /const officialApiAvailable = OFFICIAL_WHATSAPP_API_UI_ENABLED\s*&& \(hasAnyOfficialWhatsappConfig\(\) \|\| officialWhatsappAdminBypassAvailable\)/,
+    "The official API option must only be available for existing official Meta configs or explicit admin test bypass"
 );
 assert.match(
     component,
