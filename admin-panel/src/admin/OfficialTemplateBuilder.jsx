@@ -92,9 +92,15 @@ function isOfficialSlot(slot = {}) {
 
 function isTemplateReadyOfficialSlot(slot = {}) {
     const official = getSlotOfficialSettings(slot);
+    const hasAccessToken = Boolean(
+        official.hasAccessToken ||
+        official.accessToken ||
+        official.accessTokenEncrypted ||
+        official.accessTokenMasked
+    );
     return isOfficialSlot(slot) && Boolean(
         official.phoneNumberId &&
-        (official.accessToken || official.accessTokenEncrypted)
+        hasAccessToken
     );
 }
 
@@ -186,7 +192,12 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                 verifiedName: official.verifiedName || "",
                                 businessAccountId: official.businessAccountId || "",
                                 phoneNumberId: official.phoneNumberId || "",
-                                hasAccessToken: Boolean(official.accessToken || official.accessTokenEncrypted)
+                                hasAccessToken: Boolean(
+                                    official.hasAccessToken ||
+                                    official.accessToken ||
+                                    official.accessTokenEncrypted ||
+                                    official.accessTokenMasked
+                                )
                             };
                         });
                 })

@@ -29,6 +29,7 @@ assert.match(builder, /authFetch\("\/agency\/whatsapp-official\/templates"/);
 assert.match(builder, /function isOfficialSlot/);
 assert.match(builder, /function isTemplateReadyOfficialSlot/);
 assert.match(builder, /\.filter\(isTemplateReadyOfficialSlot\)/);
+assert.match(builder, /official\.hasAccessToken/);
 assert.match(builder, /if \(!slot\.hasAccessToken\) return;/);
 assert.match(builder, /templates\.builder\.loading_slots/);
 assert.match(builder, /normalizeTemplateName/);
