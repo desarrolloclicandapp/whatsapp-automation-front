@@ -1981,6 +1981,7 @@ export const es = {
     "standalone.slots.official.embedded_title": "Conectar con WhatsApp Business",
     "standalone.slots.official.embedded_desc": "Abre el flujo oficial de Meta para crear o vincular la cuenta, elegir el numero y dejar este slot listo sin copiar IDs ni tokens.",
     "standalone.slots.official.embedded_cta": "Conectar Meta Cloud API",
+    "standalone.slots.official.qr_card_cta": "API Meta Cloud",
     "standalone.slots.official.embedded_missing": "Faltan datos de configuracion",
     "standalone.slots.official.embedded_unavailable": "Embedded Signup no esta configurado en este entorno.",
     "standalone.slots.official.opening": "Abriendo Meta...",

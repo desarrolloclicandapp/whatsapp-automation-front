@@ -1778,14 +1778,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const loadOfficialWhatsappConfig = async (slotId, forceRefresh = false) => {
-        if (!slotId || !location?.location_id) return;
-        if (!forceRefresh && officialConfigBySlot[slotId]?.loaded) return;
+        if (!slotId || !location?.location_id) return null;
+        if (!forceRefresh && officialConfigBySlot[slotId]?.loaded) return officialConfigBySlot[slotId];
 
         const previousOfficial = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
         setLoadingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
             const res = await authFetch(`/agency/whatsapp-official/config?locationId=${location.location_id}&slotId=${slotId}`);
-            if (!res) return;
+            if (!res) return null;
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
                 throw new Error(err.error || "No se pudo cargar la configuración oficial");
@@ -1793,6 +1793,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             const data = await res.json();
             const nextBusinessAccountId = data.businessAccountId ? String(data.businessAccountId) : "";
             const nextHasAccessToken = !!data.hasAccessToken;
+            const nextOfficial = hydrateOfficialWhatsappState(data, previousOfficial);
             setOfficialConfigBySlot(prev => ({
                 ...prev,
                 [slotId]: hydrateOfficialWhatsappState(data, prev[slotId] || previousOfficial)
@@ -1806,10 +1807,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     [slotId]: createEmptyOfficialTemplateState()
                 }));
             }
+            return nextOfficial;
         } catch (e) {
             toast.error(t('slots.official.load_error') || "Error cargando WhatsApp API oficial", {
                 description: e.message
             });
+            return null;
         } finally {
             setLoadingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
         }
@@ -2385,7 +2388,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const startOfficialEmbeddedSignup = async (slotId) => {
-        const official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        let official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        if (!official.loaded) {
+            const loadedOfficial = await loadOfficialWhatsappConfig(slotId, true);
+            official = loadedOfficial || official;
+        }
         const missing = Array.isArray(official.embeddedSignupMissing) ? official.embeddedSignupMissing : [];
 
         if (!official.embeddedSignupEnabled) {
@@ -5379,6 +5386,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             token={token}
                                                             onUpdate={loadData}
                                                             isAdminMode={isAdminMode}
+                                                            officialEmbeddedEnabled={(officialConfigBySlot[slot.slot_id] || createEmptyOfficialWhatsappState()).embeddedSignupEnabled === true}
+                                                            officialEmbeddedLoading={!!loadingOfficialBySlot[slot.slot_id]}
+                                                            officialEmbeddedStarting={!!startingOfficialEmbeddedBySlot[slot.slot_id]}
+                                                            onConnectOfficial={() => startOfficialEmbeddedSignup(slot.slot_id)}
                                                         />
                                                     )}
                                                 </div>
@@ -5423,7 +5434,17 @@ const SettingRow = ({ label, desc, checked, onChange }) => (
 );
 
 // ✅ COMPONENTE DE GESTIÓN DE CONEXIÓN
-function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode = false }) {
+function SlotConnectionManager({
+    slot,
+    locationId,
+    token,
+    onUpdate,
+    isAdminMode = false,
+    officialEmbeddedEnabled = false,
+    officialEmbeddedLoading = false,
+    officialEmbeddedStarting = false,
+    onConnectOfficial
+}) {
     const { t } = useLanguage();
     const [status, setStatus] = useState({
         connected: slot?.is_connected === true,
@@ -5960,6 +5981,18 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                                 >
                                     {isGeneratingShareUrl ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
                                     {t('slots.share.generate_link') || "Generar URL QR"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={onConnectOfficial}
+                                    disabled={officialEmbeddedLoading || officialEmbeddedStarting || typeof onConnectOfficial !== 'function'}
+                                    className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    title={!officialEmbeddedEnabled ? (t('slots.official.embedded.unavailable') || 'Embedded Signup no esta configurado en este entorno.') : undefined}
+                                >
+                                    {officialEmbeddedLoading || officialEmbeddedStarting ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+                                    {officialEmbeddedStarting
+                                        ? (t('slots.official.embedded.starting') || 'Abriendo Meta...')
+                                        : (t('slots.official.qr_card_cta') || 'API Meta Cloud')}
                                 </button>
                             </div>
                         </div>

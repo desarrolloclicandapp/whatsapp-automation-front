@@ -1341,7 +1341,7 @@ export default function StandaloneSlotManager({
                               onUpdate={refreshAndKeepExpanded}
                               onRealtimeStateChange={(nextState) => patchLocalSlot(slotId, nextState)}
                               onUnauthorized={onUnauthorized}
-                              officialEmbeddedLink={officialEmbeddedLinkBySlot[slotId]}
+                              officialEmbeddedLink={officialEmbeddedLinkBySlot[slotId] || (officialLoadingBySlot[slotId] ? { loading: true } : null)}
                               onPrepareOfficial={() => prepareOfficialMetaConnection(slotId, officialEmbeddedLinkBySlot[slotId])}
                             />
                           )}
@@ -2413,7 +2413,7 @@ function StandaloneSlotConnectionManager({
                   {translateOr(t, 'standalone.slots.qr_expired', 'El QR expiró. Pulsa de nuevo para generar uno nuevo.')}
                 </p>
               )}
-              <div className={`flex flex-col sm:flex-row gap-3 justify-center ${tutorialConfirmed ? '' : 'hidden'}`}>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button
                   onClick={handleConnect}
                   className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2"
@@ -2432,20 +2432,24 @@ function StandaloneSlotConnectionManager({
                   )}
                   {t('slots.share.generate_link') || 'Generar URL QR'}
                 </button>
-                {officialEmbeddedLink?.url ? (
+                {officialEmbeddedLink?.url || officialEmbeddedLink?.loading ? (
                   <a
-                    href={officialEmbeddedLink.url}
+                    href={officialEmbeddedLink.url || '#'}
                     target="_blank"
                     rel="noreferrer"
                     onClick={(event) => {
+                      if (!officialEmbeddedLink?.url) {
+                        event.preventDefault();
+                        return;
+                      }
                       if (!onPrepareOfficial?.()) {
                         event.preventDefault();
                       }
                     }}
-                    className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center gap-2"
+                    className={`bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center gap-2 ${officialEmbeddedLink?.loading ? 'pointer-events-none opacity-60' : ''}`}
                   >
-                    <Link2 size={18} />
-                    {translateOr(t, 'standalone.slots.official.embedded_cta', 'Conectar Meta Cloud API')}
+                    {officialEmbeddedLink?.loading ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+                    {translateOr(t, 'standalone.slots.official.qr_card_cta', 'API Meta Cloud')}
                   </a>
                 ) : (
                   <button
