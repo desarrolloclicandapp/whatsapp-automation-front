@@ -290,6 +290,7 @@ export const en = {
     "templates.builder.submit": "Submit to Meta review",
     "templates.builder.no_official_slots": "No official Meta numbers are connected.",
     "templates.builder.no_official_slots_desc": "This section is enabled when an account has at least one number linked through official WhatsApp Meta.",
+    "templates.builder.loading_slots": "Searching official Meta numbers...",
     "templates.builder.load_slots_error": "Could not load official Meta numbers",
     "templates.builder.load_templates_error": "Could not load templates",
     "templates.builder.access_lost_title": "The Meta connection lost permissions",

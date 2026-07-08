@@ -399,6 +399,15 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 </button>
             </div>
 
+            {loadingSlots ? (
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-6 text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-100">
+                    <div className="flex items-center gap-3">
+                        <Loader2 size={18} className="animate-spin" />
+                        <p className="font-bold">{t("templates.builder.loading_slots") || "Buscando numeros Meta oficiales..."}</p>
+                    </div>
+                </div>
+            ) : null}
+
             {officialSlots.length === 0 && !loadingSlots ? (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
                     <p className="font-bold">{t("templates.builder.no_official_slots") || "No hay numeros Meta oficiales conectados."}</p>

@@ -288,6 +288,7 @@ export const es = {
     "templates.builder.submit": "Enviar a revision de Meta",
     "templates.builder.no_official_slots": "No hay numeros Meta oficiales conectados.",
     "templates.builder.no_official_slots_desc": "Este apartado se habilita cuando una cuenta tiene al menos un numero vinculado con WhatsApp Meta oficial.",
+    "templates.builder.loading_slots": "Buscando numeros Meta oficiales...",
     "templates.builder.load_slots_error": "No se pudieron cargar numeros Meta oficiales",
     "templates.builder.load_templates_error": "No se pudieron cargar templates",
     "templates.builder.access_lost_title": "La conexion con Meta perdio permisos",
