@@ -55,6 +55,26 @@ assert.match(
 );
 assert.match(
     component,
+    /function officialBillingNeedsAction\(official = \{\}\)/,
+    "LocationDetailsModal must detect official Meta billing states that need customer action"
+);
+assert.match(
+    component,
+    /buildMetaBusinessPaymentUrl\(official\)/,
+    "LocationDetailsModal must build a Meta Business payment URL for official WABA billing guidance"
+);
+assert.match(
+    component,
+    /slots\.official\.billing\.open_meta/,
+    "LocationDetailsModal must show a Meta Business payment settings CTA when billing is pending"
+);
+assert.match(
+    component,
+    /validateOfficialWhatsappConfigSlot\(slot\.slot_id\)/,
+    "LocationDetailsModal must let customers revalidate after updating Meta billing"
+);
+assert.match(
+    component,
     /if \(!officialApiAvailable\) return;\s*selectSlotConnectionMode\(slot, 'official_api'\)/,
     "The official API click handler must not select official_api while disabled"
 );
@@ -67,5 +87,7 @@ assert.match(esLocale, /"slots\.connection_mode\.official_badge": "En desarrollo
 assert.match(enLocale, /"slots\.connection_mode\.official_badge": "In development"/);
 assert.match(esLocale, /"slots\.connection_mode\.official_disabled_desc"/);
 assert.match(enLocale, /"slots\.connection_mode\.official_disabled_desc"/);
+assert.match(esLocale, /"slots\.official\.billing\.open_meta": "Abrir configuracion de pagos en Meta Business"/);
+assert.match(enLocale, /"slots\.official\.billing\.open_meta": "Open payment settings in Meta Business"/);
 
 console.log("testOfficialConnectionGate passed");

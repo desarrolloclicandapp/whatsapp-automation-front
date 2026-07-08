@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy, CreditCard, ExternalLink
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
@@ -53,6 +53,33 @@ function getNumberQualityLabel(level = '', t) {
         default:
             return translateOr(t, 'agency.reliability.number_quality_unknown', 'Aun sin historial');
     }
+}
+
+function buildMetaBusinessPaymentUrl(official = {}) {
+    const providedUrl = String(official.metaBusinessPaymentUrl || "").trim();
+    if (providedUrl) return providedUrl;
+
+    const businessId = String(official.embeddedSignupBusinessId || "").trim();
+    const businessAccountId = String(official.businessAccountId || "").trim();
+    const url = new URL("https://business.facebook.com/latest/settings/whatsapp_account");
+    if (businessId) url.searchParams.set("business_id", businessId);
+    if (businessAccountId) url.searchParams.set("waba_id", businessAccountId);
+    url.searchParams.set("nav_ref", "waflow_official_billing");
+    return url.toString();
+}
+
+function officialBillingNeedsAction(official = {}) {
+    const status = String(official.billingStatus || "").trim().toLowerCase();
+    const lastBillingError = String(official.lastBillingError || "").trim().toLowerCase();
+    const connectionStatus = String(official.status || "").trim().toLowerCase();
+    return Boolean(
+        status === "billing_check_required" ||
+        status === "billing_input_missing" ||
+        connectionStatus === "billing_pending" ||
+        lastBillingError.includes("metodo de pago pendiente") ||
+        lastBillingError.includes("método de pago pendiente") ||
+        lastBillingError.includes("payment method")
+    );
 }
 
 function normalizeSlotId(value) {
@@ -1165,6 +1192,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         verifiedAt: null,
         lastValidationAt: null,
         lastValidationError: "",
+        billingStatus: "",
+        billingCheckedAt: null,
+        lastBillingCheckAt: null,
+        lastBillingError: "",
+        metaBusinessPaymentUrl: "",
         lastWebhookAt: null,
         displayPhoneNumber: "",
         verifiedName: "",
@@ -1207,6 +1239,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             verifiedAt: data.verifiedAt || null,
             lastValidationAt: data.lastValidationAt || null,
             lastValidationError: data.lastValidationError || "",
+            billingStatus: data.billingStatus || "",
+            billingCheckedAt: data.billingCheckedAt || null,
+            lastBillingCheckAt: data.lastBillingCheckAt || null,
+            lastBillingError: data.lastBillingError || "",
+            metaBusinessPaymentUrl: data.metaBusinessPaymentUrl || "",
             lastWebhookAt: data.lastWebhookAt || null,
             displayPhoneNumber: data.displayPhoneNumber || "",
             verifiedName: data.verifiedName || "",
@@ -3018,6 +3055,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             String(official.displayPhoneNumber || '').trim() ||
             String(official.phoneNumberId || '').trim()
         );
+        const needsBillingAction = officialBillingNeedsAction(official);
+        const metaBusinessPaymentUrl = buildMetaBusinessPaymentUrl(official);
         const embeddedPanelEyebrow = isOfficialConnected
             ? (t('slots.official.embedded.connected_eyebrow') || 'Conectada')
             : (t('slots.official.embedded.eyebrow') || 'Recomendado');
@@ -3209,6 +3248,52 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     Continua el flujo de Meta creando o seleccionando tu portfolio de negocio, agrega el numero de WhatsApp Business y completa la verificacion que Meta solicite. Cuando el numero quede disponible, vuelve a presionar Conectar con WhatsApp Business.
                                 </p>
                             </div>
+                            ) : null}
+
+                            {needsBillingAction ? (
+                                <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
+                                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                        <div className="flex min-w-0 gap-3">
+                                            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                                                <CreditCard size={18} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-extrabold">
+                                                    {t('slots.official.billing.title') || 'Falta revisar el metodo de pago en Meta'}
+                                                </p>
+                                                <p className="mt-1 text-sm leading-6 text-amber-900 dark:text-amber-100">
+                                                    {t('slots.official.billing.desc') || 'El numero puede recibir mensajes, pero Meta puede bloquear los envios si el WABA no tiene metodo de pago confirmado. Abre Meta Business, revisa el metodo de pago de la cuenta de WhatsApp y vuelve a validar.'}
+                                                </p>
+                                                {official.lastBillingError ? (
+                                                    <p className="mt-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                                        {official.lastBillingError}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                        <div className="flex shrink-0 flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => window.open(metaBusinessPaymentUrl, "_blank", "noopener,noreferrer")}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-700"
+                                            >
+                                                <ExternalLink size={15} />
+                                                {t('slots.official.billing.open_meta') || 'Abrir configuracion de pagos en Meta Business'}
+                                            </button>
+                                            {canValidateOfficial ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => validateOfficialWhatsappConfigSlot(slot.slot_id)}
+                                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
+                                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-bold text-amber-800 transition hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100 dark:hover:bg-amber-950/40"
+                                                >
+                                                    <RefreshCw size={15} className={isLoadingOfficial ? "animate-spin" : ""} />
+                                                    {t('slots.official.billing.revalidate') || 'Ya cargue el metodo, revalidar'}
+                                                </button>
+                                            ) : null}
+                                        </div>
+                                    </div>
+                                </div>
                             ) : null}
 
                             {showManualMethod ? (
