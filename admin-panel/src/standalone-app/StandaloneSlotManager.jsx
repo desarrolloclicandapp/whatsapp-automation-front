@@ -28,6 +28,8 @@ const OFFICIAL_EMPTY_STATE = {
   phoneNumberId: '',
   accessToken: '',
   status: 'draft',
+  embeddedSignupEnabled: false,
+  embeddedSignupMissing: [],
 };
 
 function parseResponseBody(response) {
@@ -47,6 +49,78 @@ function getConnectionMode(slot = {}) {
     String(slot?.settings?.connection_mode || '').trim().toLowerCase() ||
     null
   );
+}
+
+function mapOfficialConfigBody(body = {}) {
+  const embeddedSignup = body?.embeddedSignup || {};
+  return {
+    businessAccountId: body?.businessAccountId || '',
+    phoneNumberId: body?.phoneNumberId || '',
+    accessToken: '',
+    status: body?.status || 'draft',
+    configured: body?.configured === true,
+    displayPhoneNumber: body?.displayPhoneNumber || '',
+    verifiedName: body?.verifiedName || '',
+    setupSource: body?.setupSource || '',
+    embeddedSignupCompletedAt: body?.embeddedSignupCompletedAt || null,
+    embeddedSignupEnabled: embeddedSignup?.enabled === true,
+    embeddedSignupAppId: embeddedSignup?.appId || '',
+    embeddedSignupConfigurationId: embeddedSignup?.configurationId || '',
+    embeddedSignupSdkVersion: embeddedSignup?.sdkVersion || '',
+    embeddedSignupGraphVersion: embeddedSignup?.graphVersion || '',
+    embeddedSignupSessionInfoVersion: embeddedSignup?.sessionInfoVersion || 3,
+    embeddedSignupSolutionId: embeddedSignup?.solutionId || '',
+    embeddedSignupCoexistenceEnabled: embeddedSignup?.coexistenceEnabled === true,
+    embeddedSignupRedirectUri: embeddedSignup?.redirectUri || '',
+    embeddedSignupMissing: Array.isArray(embeddedSignup?.missing) ? embeddedSignup.missing : [],
+  };
+}
+
+function buildStandaloneMetaOauthUrl(official = {}, slotId, locationId) {
+  const appId = String(official.embeddedSignupAppId || '').trim();
+  const configurationId = String(official.embeddedSignupConfigurationId || '').trim();
+  const redirectUri = String(official.embeddedSignupRedirectUri || '').trim();
+
+  if (!official.embeddedSignupEnabled) {
+    const missing = Array.isArray(official.embeddedSignupMissing) ? official.embeddedSignupMissing : [];
+    throw new Error(
+      missing.length > 0
+        ? `Embedded Signup no configurado. Faltan: ${missing.join(', ')}`
+        : 'Embedded Signup no configurado para este entorno.',
+    );
+  }
+  if (!appId || !configurationId || !redirectUri) {
+    throw new Error('Faltan datos de Meta Embedded Signup para abrir la vinculacion.');
+  }
+
+  const graphVersion = String(official.embeddedSignupGraphVersion || official.embeddedSignupSdkVersion || 'v21.0').trim() || 'v21.0';
+  const oauthState = `${Date.now()}-${slotId}-${Math.random().toString(36).slice(2, 10)}`;
+  const extras = {
+    version: 'v3',
+    sessionInfoVersion: Number(official.embeddedSignupSessionInfoVersion) || 3,
+  };
+
+  if (official.embeddedSignupCoexistenceEnabled !== false) {
+    extras.featureType = 'whatsapp_business_app_onboarding';
+  }
+
+  const solutionId = String(official.embeddedSignupSolutionId || '').trim();
+  if (solutionId) {
+    extras.setup = { solutionID: solutionId };
+  }
+
+  const oauthUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
+  oauthUrl.searchParams.set('client_id', appId);
+  oauthUrl.searchParams.set('app_id', appId);
+  oauthUrl.searchParams.set('config_id', configurationId);
+  oauthUrl.searchParams.set('redirect_uri', redirectUri);
+  oauthUrl.searchParams.set('response_type', 'code');
+  oauthUrl.searchParams.set('override_default_response_type', 'true');
+  oauthUrl.searchParams.set('display', 'popup');
+  oauthUrl.searchParams.set('state', oauthState);
+  oauthUrl.searchParams.set('extras', JSON.stringify(extras));
+
+  return { oauthUrl, oauthState, oauthRedirectUri: redirectUri };
 }
 
 export default function StandaloneSlotManager({
@@ -72,6 +146,9 @@ export default function StandaloneSlotManager({
   const [qrLoadingBySlot, setQrLoadingBySlot] = useState({});
   const [officialDraftBySlot, setOfficialDraftBySlot] = useState({});
   const [officialLoadingBySlot, setOfficialLoadingBySlot] = useState({});
+  const [officialStartingBySlot, setOfficialStartingBySlot] = useState({});
+  const [officialCompletingBySlot, setOfficialCompletingBySlot] = useState({});
+  const [officialPopupFallbackBySlot, setOfficialPopupFallbackBySlot] = useState({});
   const [twilioConfigBySlot, setTwilioConfigBySlot] = useState({});
   const [loadingTwilioBySlot, setLoadingTwilioBySlot] = useState({});
   const [savingTwilioBySlot, setSavingTwilioBySlot] = useState({});
@@ -87,6 +164,7 @@ export default function StandaloneSlotManager({
   const [renameSlotName, setRenameSlotName] = useState('');
   const [renameSlotLoading, setRenameSlotLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const officialEmbeddedFlowRef = useRef(null);
   const safeCrmType = String(crmType || 'chatwoot').trim().toLowerCase();
   const supportsSmsTab = safeCrmType === 'ghl' || safeCrmType === 'chatwoot';
   const normalizedMaxSlots = Number.parseInt(String(maxSlots || 1), 10) || 1;
@@ -309,30 +387,34 @@ export default function StandaloneSlotManager({
     }, delayMs);
   };
 
+  const fetchOfficialConfig = async (slotId) => {
+    if (!locationId || !slotId) return null;
+
+    const response = await authFetch(
+      `/agency/whatsapp-official/config?locationId=${encodeURIComponent(locationId)}&slotId=${encodeURIComponent(slotId)}`,
+    );
+    const body = await parseResponseBody(response);
+    if (!response.ok) {
+      throw new Error(body?.error || 'No se pudo cargar la configuracion oficial');
+    }
+
+    const mapped = mapOfficialConfigBody(body);
+    setOfficialDraftBySlot((prev) => ({
+      ...prev,
+      [slotId]: mapped,
+    }));
+    return mapped;
+  };
+
   const loadOfficialConfig = async (slotId) => {
-    if (!locationId || !slotId) return;
+    if (!locationId || !slotId) return null;
     setOfficialLoadingBySlot((prev) => ({ ...prev, [slotId]: true }));
 
     try {
-      const response = await authFetch(
-        `/agency/whatsapp-official/config?locationId=${encodeURIComponent(locationId)}&slotId=${encodeURIComponent(slotId)}`,
-      );
-      const body = await parseResponseBody(response);
-      if (!response.ok) {
-        throw new Error(body?.error || 'No se pudo cargar la configuración oficial');
-      }
-
-      setOfficialDraftBySlot((prev) => ({
-        ...prev,
-        [slotId]: {
-          businessAccountId: body?.businessAccountId || '',
-          phoneNumberId: body?.phoneNumberId || '',
-          accessToken: '',
-          status: body?.status || 'draft',
-        },
-      }));
+      return await fetchOfficialConfig(slotId);
     } catch (error) {
-      toast.error(error.message || translateOr(t, 'standalone.slots.error_load_official', 'No se pudo cargar la configuración oficial'));
+      toast.error(error.message || translateOr(t, 'standalone.slots.error_load_official', 'No se pudo cargar la configuracion oficial'));
+      return null;
     } finally {
       setOfficialLoadingBySlot((prev) => ({ ...prev, [slotId]: false }));
     }
@@ -611,6 +693,127 @@ export default function StandaloneSlotManager({
       updateActionLoading(slot.slot_id, false);
     }
   };
+
+  const completeOfficialMetaConnection = async (slotId, flowSnapshot) => {
+    setOfficialCompletingBySlot((prev) => ({ ...prev, [slotId]: true }));
+    setOfficialStartingBySlot((prev) => ({ ...prev, [slotId]: false }));
+
+    try {
+      const response = await authFetch('/agency/whatsapp-official/embedded-signup/complete', {
+        method: 'POST',
+        body: JSON.stringify({
+          locationId,
+          slotId,
+          authCode: flowSnapshot?.authCode || '',
+          accessToken: flowSnapshot?.accessToken || '',
+          businessAccountId: flowSnapshot?.businessAccountId || '',
+          phoneNumberId: flowSnapshot?.phoneNumberId || '',
+          businessId: flowSnapshot?.businessId || '',
+          displayPhoneNumber: flowSnapshot?.displayPhoneNumber || '',
+          oauthRedirectUri: flowSnapshot?.oauthRedirectUri || '',
+        }),
+      });
+      const body = await parseResponseBody(response);
+      if (!response.ok) {
+        throw new Error(body?.error || translateOr(t, 'standalone.slots.official.complete_error', 'No se pudo completar la conexion con Meta'));
+      }
+
+      setOfficialPopupFallbackBySlot((prev) => {
+        const next = { ...prev };
+        delete next[slotId];
+        return next;
+      });
+      await refreshAndKeepExpanded();
+      await loadOfficialConfig(slotId);
+      toast.success(translateOr(t, 'standalone.slots.official.completed', 'Meta Cloud API conectada'));
+    } catch (error) {
+      toast.error(error.message || translateOr(t, 'standalone.slots.official.complete_error', 'No se pudo completar la conexion con Meta'));
+    } finally {
+      setOfficialCompletingBySlot((prev) => ({ ...prev, [slotId]: false }));
+      officialEmbeddedFlowRef.current = null;
+    }
+  };
+
+  const openOfficialMetaConnection = async (slotId, slotForMode = null) => {
+    let popup = null;
+    try {
+      popup = window.open('about:blank', 'meta_embedded_signup', 'width=720,height=760,menubar=no,toolbar=no,location=yes,status=no');
+    } catch {
+      popup = null;
+    }
+
+    setOfficialStartingBySlot((prev) => ({ ...prev, [slotId]: true }));
+    setOfficialPopupFallbackBySlot((prev) => {
+      const next = { ...prev };
+      delete next[slotId];
+      return next;
+    });
+
+    try {
+      if (slotForMode && getConnectionMode(slotForMode) !== 'official_api') {
+        await persistConnectionMode(slotForMode, 'official_api');
+        patchLocalSlot(slotId, {
+          settings: {
+            ...(slotForMode.settings || {}),
+            connection_mode: 'official_api',
+          },
+        });
+      }
+
+      setActiveTabBySlot((prev) => ({ ...prev, [slotId]: 'official' }));
+      const official = await fetchOfficialConfig(slotId);
+      const { oauthUrl, oauthState, oauthRedirectUri } = buildStandaloneMetaOauthUrl(official, slotId, locationId);
+
+      officialEmbeddedFlowRef.current = {
+        slotId,
+        oauthState,
+        oauthRedirectUri,
+        completionSent: false,
+      };
+      setOfficialPopupFallbackBySlot((prev) => ({ ...prev, [slotId]: oauthUrl.toString() }));
+
+      if (popup && !popup.closed) {
+        popup.location.href = oauthUrl.toString();
+      } else {
+        toast.warning(translateOr(t, 'standalone.slots.official.popup_blocked_title', 'No se pudo abrir Meta automaticamente'));
+        setOfficialStartingBySlot((prev) => ({ ...prev, [slotId]: false }));
+      }
+    } catch (error) {
+      if (popup && !popup.closed) popup.close();
+      setOfficialStartingBySlot((prev) => ({ ...prev, [slotId]: false }));
+      toast.error(error.message || translateOr(t, 'standalone.slots.official.start_error', 'No se pudo abrir Meta Cloud API'));
+    }
+  };
+
+  useEffect(() => {
+    const handleOfficialMetaMessage = (event) => {
+      const callbackPayload = event?.data;
+      if (callbackPayload?.type !== 'waflow_meta_embedded_signup_callback') return;
+
+      const flow = officialEmbeddedFlowRef.current;
+      if (!flow?.slotId || callbackPayload.state !== flow.oauthState) return;
+
+      setOfficialStartingBySlot((prev) => ({ ...prev, [flow.slotId]: false }));
+
+      if (callbackPayload.error) {
+        toast.error(translateOr(t, 'standalone.slots.official.error', 'Meta devolvio un error'), {
+          description: callbackPayload.errorMessage || callbackPayload.error,
+        });
+        officialEmbeddedFlowRef.current = null;
+        return;
+      }
+
+      const authCode = String(callbackPayload.code || '').trim();
+      if (!authCode || flow.completionSent) return;
+
+      flow.authCode = authCode;
+      flow.completionSent = true;
+      completeOfficialMetaConnection(flow.slotId, { ...flow }).catch(() => {});
+    };
+
+    window.addEventListener('message', handleOfficialMetaMessage);
+    return () => window.removeEventListener('message', handleOfficialMetaMessage);
+  }, [t, locationId]);
 
   const handleStartQr = async (slotId) => {
     updateActionLoading(slotId, true);
@@ -1085,7 +1288,13 @@ export default function StandaloneSlotManager({
                   <div className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/60 dark:bg-black/20">
                     {!connectionMode ? (
                       <div className="p-8">
-                        <ConnectionModeSelector onSelect={(mode) => handleSelectConnectionMode(slot, mode)} />
+                        <ConnectionModeSelector
+                          onSelect={(mode) =>
+                            mode === 'official_api'
+                              ? openOfficialMetaConnection(slotId, slot)
+                              : handleSelectConnectionMode(slot, mode)
+                          }
+                        />
                       </div>
                     ) : (
                       <>
@@ -1155,6 +1364,7 @@ export default function StandaloneSlotManager({
                               onUpdate={refreshAndKeepExpanded}
                               onRealtimeStateChange={(nextState) => patchLocalSlot(slotId, nextState)}
                               onUnauthorized={onUnauthorized}
+                              onConnectOfficial={() => openOfficialMetaConnection(slotId, slot)}
                             />
                           )}
 
@@ -1201,6 +1411,10 @@ export default function StandaloneSlotManager({
                               onFieldChange={(field, value) => updateOfficialField(slotId, field, value)}
                               onSave={() => handleSaveOfficial(slotId)}
                               onClear={() => handleClearOfficial(slotId)}
+                              onOpenEmbedded={() => openOfficialMetaConnection(slotId, slot)}
+                              embeddedStarting={!!officialStartingBySlot[slotId]}
+                              embeddedCompleting={!!officialCompletingBySlot[slotId]}
+                              officialPopupFallbackUrl={officialPopupFallbackBySlot[slotId]}
                             />
                           )}
                         </div>
@@ -1594,6 +1808,7 @@ function StandaloneSlotConnectionManager({
   onUpdate,
   onRealtimeStateChange,
   onUnauthorized,
+  onConnectOfficial,
 }) {
   const { t } = useLanguage();
   const socket = useSocket();
@@ -2238,6 +2453,14 @@ function StandaloneSlotConnectionManager({
                   )}
                   {t('slots.share.generate_link') || 'Generar URL QR'}
                 </button>
+                <button
+                  type="button"
+                  onClick={onConnectOfficial}
+                  className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center gap-2"
+                >
+                  <Link2 size={18} />
+                  {translateOr(t, 'standalone.slots.official.embedded_cta', 'Conectar Meta Cloud API')}
+                </button>
               </div>
             </div>
           )}
@@ -2364,11 +2587,87 @@ function QrPanel({
   );
 }
 
-function OfficialPanel({ official, loading, onFieldChange, onSave, onClear }) {
+function OfficialPanel({
+  official,
+  loading,
+  onFieldChange,
+  onSave,
+  onClear,
+  onOpenEmbedded,
+  embeddedStarting,
+  embeddedCompleting,
+  officialPopupFallbackUrl,
+}) {
   const { t } = useLanguage();
+  const embeddedMissing = Array.isArray(official.embeddedSignupMissing) ? official.embeddedSignupMissing : [];
+  const embeddedBusy = loading || embeddedStarting || embeddedCompleting;
 
   return (
     <div className="max-w-3xl space-y-4">
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-5 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">
+              {translateOr(t, 'standalone.slots.official.recommended', 'Recomendado')}
+            </p>
+            <h4 className="mt-2 text-lg font-extrabold text-gray-900 dark:text-white">
+              {translateOr(t, 'standalone.slots.official.embedded_title', 'Conectar con WhatsApp Business')}
+            </h4>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              {translateOr(t, 'standalone.slots.official.embedded_desc', 'Abre el flujo oficial de Meta para crear o vincular la cuenta, elegir el numero y dejar este slot listo sin copiar IDs ni tokens.')}
+            </p>
+            {!official.embeddedSignupEnabled && (
+              <p className="mt-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                {embeddedMissing.length > 0
+                  ? `${translateOr(t, 'standalone.slots.official.embedded_missing', 'Faltan datos de configuracion')}: ${embeddedMissing.join(', ')}`
+                  : translateOr(t, 'standalone.slots.official.embedded_unavailable', 'Embedded Signup no esta configurado en este entorno.')}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onOpenEmbedded}
+            disabled={!official.embeddedSignupEnabled || embeddedBusy}
+            className="inline-flex min-w-[230px] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {embeddedBusy ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+            {embeddedCompleting
+              ? translateOr(t, 'standalone.slots.official.completing', 'Conectando...')
+              : embeddedStarting
+                ? translateOr(t, 'standalone.slots.official.opening', 'Abriendo Meta...')
+                : translateOr(t, 'standalone.slots.official.embedded_cta', 'Conectar Meta Cloud API')}
+          </button>
+        </div>
+
+        {officialPopupFallbackUrl && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-white/80 p-4 dark:border-amber-900/40 dark:bg-gray-950/40">
+            <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
+              {translateOr(t, 'standalone.slots.official.popup_blocked_title', 'No se pudo abrir Meta automaticamente')}
+            </p>
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+              {translateOr(t, 'standalone.slots.official.popup_blocked_desc', 'GoHighLevel o el navegador pueden bloquear ventanas desde el iframe. Abre la conexion en una nueva pestana para continuar.')}
+            </p>
+            <a
+              href={officialPopupFallbackUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700"
+            >
+              <Link2 size={14} />
+              {translateOr(t, 'standalone.slots.official.open_fallback', 'Abrir conexion Meta')}
+            </a>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+        <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+          {translateOr(t, 'standalone.slots.official.manual_title', 'Configuracion manual avanzada')}
+        </h4>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {translateOr(t, 'standalone.slots.official.manual_desc', 'Usa estos campos solo si Meta requiere un ajuste puntual o si necesitas cargar IDs manualmente.')}
+        </p>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <InputField
           label={translateOr(t, 'standalone.slots.official.business_account_id', 'Business Account ID')}
