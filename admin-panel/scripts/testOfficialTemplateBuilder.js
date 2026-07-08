@@ -27,13 +27,27 @@ assert.match(builder, /\/agency\/location-details\/\$\{encodeURIComponent\(locat
 assert.match(builder, /\/agency\/whatsapp-official\/templates\?\$\{query\.toString\(\)\}/);
 assert.match(builder, /authFetch\("\/agency\/whatsapp-official\/templates"/);
 assert.match(builder, /function isOfficialSlot/);
+assert.match(builder, /hasAccessToken: Boolean\(official\.accessToken \|\| official\.accessTokenEncrypted\)/);
+assert.match(builder, /templates\.builder\.loading_slots/);
+assert.match(builder, /templateLoadError/);
+assert.match(builder, /friendlyTemplateError/);
+assert.match(builder, /templates\.builder\.access_lost_title/);
+assert.match(builder, /templates\.builder\.access_lost_action_clear/);
+assert.match(builder, /translate="no"/);
+assert.doesNotMatch(builder, /toast\.error\(t\("templates\.builder\.load_templates_error"\)[\s\S]*description: error\.message/, "template load failures must render a stable in-page diagnostic instead of only a toast");
 assert.match(builder, /normalizeTemplateName/);
 assert.match(builder, /!\[TPL:\$\{name\}:\$\{language\}/);
 assert.match(builder, /groupTemplates/);
 
 assert.match(esLocale, /"dash\.nav\.templates": "Generar templates"/);
 assert.match(esLocale, /"templates\.builder\.title": "Constructor de templates"/);
+assert.match(esLocale, /"templates\.builder\.loading_slots": "Buscando numeros Meta oficiales\.\.\."/);
+assert.match(esLocale, /"templates\.builder\.access_lost_title": "La conexion con Meta perdio permisos"/);
+assert.match(esLocale, /"templates\.builder\.access_lost_action_clear": "Pulsa Limpiar en la configuracion del numero para quitar la vinculacion anterior\."/);
 assert.match(enLocale, /"dash\.nav\.templates": "Generate templates"/);
 assert.match(enLocale, /"templates\.builder\.title": "Template builder"/);
+assert.match(enLocale, /"templates\.builder\.loading_slots": "Searching official Meta numbers\.\.\."/);
+assert.match(enLocale, /"templates\.builder\.access_lost_title": "The Meta connection lost permissions"/);
+assert.match(enLocale, /"templates\.builder\.access_lost_action_clear": "Click Clear in the number settings to remove the previous connection\."/);
 
 console.log("testOfficialTemplateBuilder passed");
