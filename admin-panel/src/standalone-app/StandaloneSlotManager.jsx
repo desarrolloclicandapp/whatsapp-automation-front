@@ -148,7 +148,7 @@ export default function StandaloneSlotManager({
   const [officialLoadingBySlot, setOfficialLoadingBySlot] = useState({});
   const [officialStartingBySlot, setOfficialStartingBySlot] = useState({});
   const [officialCompletingBySlot, setOfficialCompletingBySlot] = useState({});
-  const [officialPopupFallbackBySlot, setOfficialPopupFallbackBySlot] = useState({});
+  const [officialEmbeddedLinkBySlot, setOfficialEmbeddedLinkBySlot] = useState({});
   const [twilioConfigBySlot, setTwilioConfigBySlot] = useState({});
   const [loadingTwilioBySlot, setLoadingTwilioBySlot] = useState({});
   const [savingTwilioBySlot, setSavingTwilioBySlot] = useState({});
@@ -403,6 +403,25 @@ export default function StandaloneSlotManager({
       ...prev,
       [slotId]: mapped,
     }));
+
+    try {
+      const { oauthUrl, oauthState, oauthRedirectUri } = buildStandaloneMetaOauthUrl(mapped, slotId, locationId);
+      setOfficialEmbeddedLinkBySlot((prev) => ({
+        ...prev,
+        [slotId]: {
+          url: oauthUrl.toString(),
+          oauthState,
+          oauthRedirectUri,
+        },
+      }));
+    } catch {
+      setOfficialEmbeddedLinkBySlot((prev) => {
+        const next = { ...prev };
+        delete next[slotId];
+        return next;
+      });
+    }
+
     return mapped;
   };
 
@@ -458,7 +477,7 @@ export default function StandaloneSlotManager({
     if (!expandedSlot || !locationId) return undefined;
 
     const expandedTab = activeTabBySlot[expandedSlot.slot_id] || 'general';
-    if (getConnectionMode(expandedSlot) === 'official_api') {
+    if (!officialDraftBySlot[expandedSlot.slot_id]) {
       loadOfficialConfig(expandedSlot.slot_id);
     }
     if (supportsSmsTab && expandedTab === 'sms') {
@@ -466,7 +485,7 @@ export default function StandaloneSlotManager({
     }
 
     return undefined;
-  }, [expandedSlotId, locationId, localSlots, activeTabBySlot, supportsSmsTab]);
+  }, [expandedSlotId, locationId, localSlots, activeTabBySlot, supportsSmsTab, officialDraftBySlot]);
 
   useEffect(() => {
     const handleCreate = () => openCreateModal(false);
@@ -718,11 +737,6 @@ export default function StandaloneSlotManager({
         throw new Error(body?.error || translateOr(t, 'standalone.slots.official.complete_error', 'No se pudo completar la conexion con Meta'));
       }
 
-      setOfficialPopupFallbackBySlot((prev) => {
-        const next = { ...prev };
-        delete next[slotId];
-        return next;
-      });
       await refreshAndKeepExpanded();
       await loadOfficialConfig(slotId);
       toast.success(translateOr(t, 'standalone.slots.official.completed', 'Meta Cloud API conectada'));
@@ -734,55 +748,24 @@ export default function StandaloneSlotManager({
     }
   };
 
-  const openOfficialMetaConnection = async (slotId, slotForMode = null) => {
-    let popup = null;
-    try {
-      popup = window.open('about:blank', 'meta_embedded_signup', 'width=720,height=760,menubar=no,toolbar=no,location=yes,status=no');
-    } catch {
-      popup = null;
+  const prepareOfficialMetaConnection = (slotId, embeddedLink) => {
+    if (!embeddedLink?.url || !embeddedLink?.oauthState || !embeddedLink?.oauthRedirectUri) {
+      toast.error(translateOr(t, 'standalone.slots.official.start_error', 'No se pudo abrir Meta Cloud API'));
+      return false;
     }
+
+    officialEmbeddedFlowRef.current = {
+      slotId,
+      oauthState: embeddedLink.oauthState,
+      oauthRedirectUri: embeddedLink.oauthRedirectUri,
+      completionSent: false,
+    };
 
     setOfficialStartingBySlot((prev) => ({ ...prev, [slotId]: true }));
-    setOfficialPopupFallbackBySlot((prev) => {
-      const next = { ...prev };
-      delete next[slotId];
-      return next;
-    });
-
-    try {
-      if (slotForMode && getConnectionMode(slotForMode) !== 'official_api') {
-        await persistConnectionMode(slotForMode, 'official_api');
-        patchLocalSlot(slotId, {
-          settings: {
-            ...(slotForMode.settings || {}),
-            connection_mode: 'official_api',
-          },
-        });
-      }
-
-      setActiveTabBySlot((prev) => ({ ...prev, [slotId]: 'official' }));
-      const official = await fetchOfficialConfig(slotId);
-      const { oauthUrl, oauthState, oauthRedirectUri } = buildStandaloneMetaOauthUrl(official, slotId, locationId);
-
-      officialEmbeddedFlowRef.current = {
-        slotId,
-        oauthState,
-        oauthRedirectUri,
-        completionSent: false,
-      };
-      setOfficialPopupFallbackBySlot((prev) => ({ ...prev, [slotId]: oauthUrl.toString() }));
-
-      if (popup && !popup.closed) {
-        popup.location.href = oauthUrl.toString();
-      } else {
-        toast.warning(translateOr(t, 'standalone.slots.official.popup_blocked_title', 'No se pudo abrir Meta automaticamente'));
-        setOfficialStartingBySlot((prev) => ({ ...prev, [slotId]: false }));
-      }
-    } catch (error) {
-      if (popup && !popup.closed) popup.close();
+    window.setTimeout(() => {
       setOfficialStartingBySlot((prev) => ({ ...prev, [slotId]: false }));
-      toast.error(error.message || translateOr(t, 'standalone.slots.official.start_error', 'No se pudo abrir Meta Cloud API'));
-    }
+    }, 2500);
+    return true;
   };
 
   useEffect(() => {
@@ -1288,13 +1271,7 @@ export default function StandaloneSlotManager({
                   <div className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/60 dark:bg-black/20">
                     {!connectionMode ? (
                       <div className="p-8">
-                        <ConnectionModeSelector
-                          onSelect={(mode) =>
-                            mode === 'official_api'
-                              ? openOfficialMetaConnection(slotId, slot)
-                              : handleSelectConnectionMode(slot, mode)
-                          }
-                        />
+                        <ConnectionModeSelector onSelect={(mode) => handleSelectConnectionMode(slot, mode)} />
                       </div>
                     ) : (
                       <>
@@ -1364,7 +1341,8 @@ export default function StandaloneSlotManager({
                               onUpdate={refreshAndKeepExpanded}
                               onRealtimeStateChange={(nextState) => patchLocalSlot(slotId, nextState)}
                               onUnauthorized={onUnauthorized}
-                              onConnectOfficial={() => openOfficialMetaConnection(slotId, slot)}
+                              officialEmbeddedLink={officialEmbeddedLinkBySlot[slotId]}
+                              onPrepareOfficial={() => prepareOfficialMetaConnection(slotId, officialEmbeddedLinkBySlot[slotId])}
                             />
                           )}
 
@@ -1411,10 +1389,10 @@ export default function StandaloneSlotManager({
                               onFieldChange={(field, value) => updateOfficialField(slotId, field, value)}
                               onSave={() => handleSaveOfficial(slotId)}
                               onClear={() => handleClearOfficial(slotId)}
-                              onOpenEmbedded={() => openOfficialMetaConnection(slotId, slot)}
+                              onPrepareEmbedded={() => prepareOfficialMetaConnection(slotId, officialEmbeddedLinkBySlot[slotId])}
+                              officialEmbeddedUrl={officialEmbeddedLinkBySlot[slotId]?.url || ''}
                               embeddedStarting={!!officialStartingBySlot[slotId]}
                               embeddedCompleting={!!officialCompletingBySlot[slotId]}
-                              officialPopupFallbackUrl={officialPopupFallbackBySlot[slotId]}
                             />
                           )}
                         </div>
@@ -1808,7 +1786,8 @@ function StandaloneSlotConnectionManager({
   onUpdate,
   onRealtimeStateChange,
   onUnauthorized,
-  onConnectOfficial,
+  officialEmbeddedLink,
+  onPrepareOfficial,
 }) {
   const { t } = useLanguage();
   const socket = useSocket();
@@ -2453,14 +2432,31 @@ function StandaloneSlotConnectionManager({
                   )}
                   {t('slots.share.generate_link') || 'Generar URL QR'}
                 </button>
-                <button
-                  type="button"
-                  onClick={onConnectOfficial}
-                  className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center gap-2"
-                >
-                  <Link2 size={18} />
-                  {translateOr(t, 'standalone.slots.official.embedded_cta', 'Conectar Meta Cloud API')}
-                </button>
+                {officialEmbeddedLink?.url ? (
+                  <a
+                    href={officialEmbeddedLink.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(event) => {
+                      if (!onPrepareOfficial?.()) {
+                        event.preventDefault();
+                      }
+                    }}
+                    className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center gap-2"
+                  >
+                    <Link2 size={18} />
+                    {translateOr(t, 'standalone.slots.official.embedded_cta', 'Conectar Meta Cloud API')}
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 opacity-60 cursor-not-allowed"
+                  >
+                    <Loader2 className="animate-spin" size={18} />
+                    {translateOr(t, 'standalone.slots.official.loading_link', 'Preparando Meta...')}
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -2593,10 +2589,10 @@ function OfficialPanel({
   onFieldChange,
   onSave,
   onClear,
-  onOpenEmbedded,
+  onPrepareEmbedded,
+  officialEmbeddedUrl,
   embeddedStarting,
   embeddedCompleting,
-  officialPopupFallbackUrl,
 }) {
   const { t } = useLanguage();
   const embeddedMissing = Array.isArray(official.embeddedSignupMissing) ? official.embeddedSignupMissing : [];
@@ -2624,40 +2620,40 @@ function OfficialPanel({
               </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onOpenEmbedded}
-            disabled={!official.embeddedSignupEnabled || embeddedBusy}
-            className="inline-flex min-w-[230px] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {embeddedBusy ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
-            {embeddedCompleting
-              ? translateOr(t, 'standalone.slots.official.completing', 'Conectando...')
-              : embeddedStarting
-                ? translateOr(t, 'standalone.slots.official.opening', 'Abriendo Meta...')
-                : translateOr(t, 'standalone.slots.official.embedded_cta', 'Conectar Meta Cloud API')}
-          </button>
-        </div>
-
-        {officialPopupFallbackUrl && (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-white/80 p-4 dark:border-amber-900/40 dark:bg-gray-950/40">
-            <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
-              {translateOr(t, 'standalone.slots.official.popup_blocked_title', 'No se pudo abrir Meta automaticamente')}
-            </p>
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-              {translateOr(t, 'standalone.slots.official.popup_blocked_desc', 'GoHighLevel o el navegador pueden bloquear ventanas desde el iframe. Abre la conexion en una nueva pestana para continuar.')}
-            </p>
+          {officialEmbeddedUrl && official.embeddedSignupEnabled ? (
             <a
-              href={officialPopupFallbackUrl}
+              href={officialEmbeddedUrl}
               target="_blank"
               rel="noreferrer"
-              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700"
+              onClick={(event) => {
+                if (!onPrepareEmbedded?.()) {
+                  event.preventDefault();
+                }
+              }}
+              className={`inline-flex min-w-[230px] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 ${embeddedBusy ? 'pointer-events-none opacity-60' : ''}`}
             >
-              <Link2 size={14} />
-              {translateOr(t, 'standalone.slots.official.open_fallback', 'Abrir conexion Meta')}
+              {embeddedBusy ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+              {embeddedCompleting
+                ? translateOr(t, 'standalone.slots.official.completing', 'Conectando...')
+                : embeddedStarting
+                  ? translateOr(t, 'standalone.slots.official.opening', 'Abriendo Meta...')
+                  : translateOr(t, 'standalone.slots.official.embedded_cta', 'Conectar Meta Cloud API')}
             </a>
-          </div>
-        )}
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="inline-flex min-w-[230px] cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white opacity-60"
+            >
+              <Loader2 className="animate-spin" size={18} />
+              {translateOr(t, 'standalone.slots.official.loading_link', 'Preparando Meta...')}
+            </button>
+          )}
+        </div>
+
+        <p className="mt-4 rounded-xl border border-emerald-200 bg-white/80 px-4 py-3 text-xs font-semibold text-emerald-700 dark:border-emerald-900/40 dark:bg-gray-950/40 dark:text-emerald-300">
+          {translateOr(t, 'standalone.slots.official.open_in_new_tab', 'Se abrira Meta en una nueva pestana segura.')}
+        </p>
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">

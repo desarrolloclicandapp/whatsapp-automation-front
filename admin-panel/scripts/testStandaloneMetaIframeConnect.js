@@ -25,28 +25,33 @@ assert.match(
 );
 assert.match(
   component,
-  /const openOfficialMetaConnection = async \(slotId, slotForMode = null\) => \{/,
-  "Standalone iframe must expose a Meta Cloud API launcher",
+  /const prepareOfficialMetaConnection = \(slotId, embeddedLink\) => \{/,
+  "Standalone iframe must prepare the Meta callback state synchronously from the direct link click",
 );
 assert.match(
+  component,
+  /officialEmbeddedLinkBySlot/,
+  "Standalone iframe must preload and store the direct Meta OAuth link per slot",
+);
+assert.match(
+  component,
+  /href=\{officialEmbeddedUrl\}/,
+  "Standalone Meta CTA must be a real href so the browser opens it as a direct user action",
+);
+assert.match(
+  component,
+  /target="_blank"/,
+  "Standalone Meta CTA must open Meta in a new tab instead of replacing the GoHighLevel iframe",
+);
+assert.match(
+  component,
+  /onPrepareEmbedded=\{\(\) => prepareOfficialMetaConnection\(slotId, officialEmbeddedLinkBySlot\[slotId\]\)\}/,
+  "Standalone official panel must prepare the callback flow immediately when the direct link is clicked",
+);
+assert.doesNotMatch(
   component,
   /window\.open\('about:blank', 'meta_embedded_signup'/,
-  "Standalone Meta launcher must open a popup/tab synchronously before async config loading",
-);
-assert.match(
-  component,
-  /popup\.location\.href = oauthUrl\.toString\(\)/,
-  "Standalone Meta launcher must navigate the popup/tab to Meta after the config is loaded",
-);
-assert.match(
-  component,
-  /setOfficialPopupFallbackBySlot\(\(prev\) => \(\{ \.\.\.prev, \[slotId\]: oauthUrl\.toString\(\) \}\)\)/,
-  "Standalone Meta launcher must keep a fallback URL when the popup is blocked",
-);
-assert.match(
-  component,
-  /officialPopupFallbackUrl=\{officialPopupFallbackBySlot\[slotId\]\}/,
-  "Standalone official panel must receive the fallback URL for manual opening",
+  "Standalone Meta CTA must not depend on popup scripting that GoHighLevel can block",
 );
 assert.match(
   component,
@@ -55,12 +60,12 @@ assert.match(
 );
 assert.match(
   component,
-  /standalone\.slots\.official\.popup_blocked_title/,
-  "Standalone official panel must explain when GoHighLevel or the browser blocks the popup",
+  /standalone\.slots\.official\.open_in_new_tab/,
+  "Standalone official panel must explain that Meta opens in a new tab",
 );
 assert.match(esLocale, /"standalone\.slots\.official\.embedded_cta": "Conectar Meta Cloud API"/);
-assert.match(esLocale, /"standalone\.slots\.official\.popup_blocked_title": "No se pudo abrir Meta automaticamente"/);
+assert.match(esLocale, /"standalone\.slots\.official\.open_in_new_tab": "Se abrira Meta en una nueva pestana segura\."/);
 assert.match(enLocale, /"standalone\.slots\.official\.embedded_cta": "Connect Meta Cloud API"/);
-assert.match(enLocale, /"standalone\.slots\.official\.popup_blocked_title": "Meta could not open automatically"/);
+assert.match(enLocale, /"standalone\.slots\.official\.open_in_new_tab": "Meta will open in a secure new tab\."/);
 
 console.log("testStandaloneMetaIframeConnect passed");
