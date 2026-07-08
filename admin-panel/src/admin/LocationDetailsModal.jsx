@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy, CreditCard, ExternalLink
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy, CreditCard, ExternalLink, PauseCircle, PlayCircle
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
@@ -1750,6 +1750,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }));
     };
 
+    const syncSlotSuspendedState = (slotId, suspendedBy) => {
+        setSlots(prev => prev.map(slot => {
+            if (slot.slot_id !== slotId) return slot;
+            return { ...slot, suspended_by: suspendedBy || null };
+        }));
+    };
+
     const selectSlotConnectionMode = async (slot, nextMode) => {
         const nextSettings = { ...(slot.settings || {}) };
         if (nextMode) nextSettings.connection_mode = nextMode;
@@ -2197,6 +2204,58 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             });
         } catch (e) {
             toast.error(t('slots.official.clear_error') || "Error limpiando WhatsApp API oficial", {
+                description: e.message
+            });
+        } finally {
+            setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const pauseOfficialWhatsappSlot = async (slotId) => {
+        const loadingId = toast.loading(t('slots.official.pausing') || "Pausando envios oficiales...");
+        setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/soft-disconnect`, {
+                method: 'POST'
+            });
+            if (!res) return;
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.message || data.error || "No se pudo pausar la vinculacion Meta");
+            }
+            const suspendedBy = data.suspended_by || (isAdminMode ? 'admin' : 'agency');
+            syncSlotSuspendedState(slotId, suspendedBy);
+            toast.success(t('slots.official.paused') || "Envios oficiales pausados");
+        } catch (e) {
+            toast.error(t('slots.official.pause_error') || "No se pudo pausar la vinculacion Meta", {
+                description: e.message
+            });
+        } finally {
+            setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const resumeOfficialWhatsappSlot = async (slotId) => {
+        const loadingId = toast.loading(t('slots.official.resuming') || "Reanudando envios oficiales...");
+        setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/reconnect`, {
+                method: 'POST'
+            });
+            if (!res) return;
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.message || data.error || "No se pudo reanudar la vinculacion Meta");
+            }
+            syncSlotSuspendedState(slotId, null);
+            if (data.connection_mode === 'official_api') {
+                syncSlotConnectionMode(slotId, 'official_api', slots.find((slot) => slot.slot_id === slotId)?.settings?.official_api || {});
+            }
+            toast.success(t('slots.official.resumed') || "Envios oficiales reanudados");
+        } catch (e) {
+            toast.error(t('slots.official.resume_error') || "No se pudo reanudar la vinculacion Meta", {
                 description: e.message
             });
         } finally {
@@ -3051,6 +3110,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             String(official.accessToken || '').trim() ||
             String(official.accessTokenMasked || '').trim()
         );
+        const slotSuspendedBy = String(slot.suspended_by || '').trim();
+        const isOfficialPaused = Boolean(slotSuspendedBy);
+        const isPauseLockedByAdmin = slotSuspendedBy === 'admin' && !isAdminMode;
         const isOfficialConnected = ['verified', 'verified_warning'].includes(status) && Boolean(
             String(official.displayPhoneNumber || '').trim() ||
             String(official.phoneNumberId || '').trim()
@@ -3648,7 +3710,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </div>
                             ) : null}
 
-                            <div className="flex flex-wrap items-center gap-2 pt-2">
+                            {isOfficialPaused ? (
+                                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                                    <div className="flex items-start gap-3">
+                                        <PauseCircle size={18} className="mt-0.5 flex-shrink-0" />
+                                        <div>
+                                            <p className="font-bold">{t('slots.official.paused_notice_title') || 'Envios oficiales pausados'}</p>
+                                            <p className="mt-1 text-xs leading-5">
+                                                {t('slots.official.paused_notice_desc') || 'WaFloW conserva la vinculacion con Meta, pero no enviara mensajes desde este numero hasta reanudarlo.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            <div className="space-y-3 pt-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                 {canValidateOfficial ? (
                                     <button
                                         type="button"
@@ -3673,21 +3750,50 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 ) : null}
                                 <button
                                     type="button"
-                                    onClick={() => clearOfficialWhatsappConfigKeepMode(slot.slot_id)}
-                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded || !hasOfficialData}
-                                    className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
+                                    onClick={() => isOfficialPaused ? resumeOfficialWhatsappSlot(slot.slot_id) : pauseOfficialWhatsappSlot(slot.slot_id)}
+                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded || isPauseLockedByAdmin}
+                                    className={`px-4 py-2 rounded-xl disabled:opacity-60 disabled:cursor-not-allowed transition flex items-center gap-2 ${
+                                        isOfficialPaused
+                                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/40'
+                                            : 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40'
+                                    }`}
+                                    title={isPauseLockedByAdmin ? (t('slots.official.paused_by_admin') || 'Pausado por un administrador') : undefined}
                                 >
-                                    {t('slots.official.clear') || 'Limpiar'}
+                                    {isOfficialPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
+                                    {isOfficialPaused ? (t('slots.official.resume') || 'Reanudar envios') : (t('slots.official.pause') || 'Pausar envios')}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => loadOfficialWhatsappConfig(slot.slot_id, true)}
                                     disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
-                                    className="px-3 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
+                                    className="px-4 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition flex items-center gap-2 disabled:opacity-60"
                                     title={t('slots.official.reload') || 'Recargar configuración'}
                                 >
                                     <RefreshCw size={16} className={isLoadingOfficial ? "animate-spin" : ""} />
+                                    {t('slots.official.reload_short') || 'Recargar'}
                                 </button>
+                            </div>
+
+                                <div className="rounded-2xl border border-gray-200 bg-gray-50/70 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/30">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                                                {t('slots.official.danger_zone') || 'Acciones avanzadas'}
+                                            </p>
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                {t('slots.official.danger_zone_desc') || 'Limpiar borra los datos oficiales guardados de este slot. Usalo solo si vas a vincular el numero de nuevo.'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => clearOfficialWhatsappConfigKeepMode(slot.slot_id)}
+                                            disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded || !hasOfficialData}
+                                            className="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 disabled:opacity-60 transition"
+                                        >
+                                            {t('slots.official.clear_connection') || 'Limpiar vinculacion'}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}

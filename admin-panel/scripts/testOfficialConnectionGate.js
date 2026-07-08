@@ -75,6 +75,26 @@ assert.match(
 );
 assert.match(
     component,
+    /pauseOfficialWhatsappSlot\(slot\.slot_id\)/,
+    "LocationDetailsModal must expose a pause action for official Meta slots without clearing the connection"
+);
+assert.match(
+    component,
+    /resumeOfficialWhatsappSlot\(slot\.slot_id\)/,
+    "LocationDetailsModal must expose a resume action for paused official Meta slots"
+);
+assert.match(
+    component,
+    /slots\.official\.pause/,
+    "LocationDetailsModal must label the official Meta pause action clearly"
+);
+assert.match(
+    component,
+    /slots\.official\.danger_zone/,
+    "LocationDetailsModal must separate destructive official Meta cleanup from normal actions"
+);
+assert.match(
+    component,
     /if \(!officialApiAvailable\) return;\s*selectSlotConnectionMode\(slot, 'official_api'\)/,
     "The official API click handler must not select official_api while disabled"
 );
@@ -89,5 +109,9 @@ assert.match(esLocale, /"slots\.connection_mode\.official_disabled_desc"/);
 assert.match(enLocale, /"slots\.connection_mode\.official_disabled_desc"/);
 assert.match(esLocale, /"slots\.official\.billing\.open_meta": "Abrir configuracion de pagos en Meta Business"/);
 assert.match(enLocale, /"slots\.official\.billing\.open_meta": "Open payment settings in Meta Business"/);
+assert.match(esLocale, /"slots\.official\.pause": "Pausar envios"/);
+assert.match(enLocale, /"slots\.official\.pause": "Pause sends"/);
+assert.match(esLocale, /"slots\.official\.danger_zone": "Acciones avanzadas"/);
+assert.match(enLocale, /"slots\.official\.danger_zone": "Advanced actions"/);
 
 console.log("testOfficialConnectionGate passed");
