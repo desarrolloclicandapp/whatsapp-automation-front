@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Copy, FileText, Loader2, RefreshCw, Send, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, FileText, Loader2, RefreshCw, Send, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -113,12 +113,35 @@ function buildTemplateCommand(template = {}, fallbackLanguage = "es") {
     return `![TPL:${name}:${language}${values.length ? `|${values.join("|")}` : ""}]!`;
 }
 
+function friendlyTemplateError(payload = {}, t) {
+    const code = String(payload?.code || "").trim();
+    if (code === "OFFICIAL_WABA_ACCESS_LOST") {
+        return {
+            title: payload.title || (t("templates.builder.access_lost_title") || "La conexion con Meta perdio permisos"),
+            message: payload.error || (t("templates.builder.access_lost_message") || "Ya no tenemos acceso a la cuenta de WhatsApp Business vinculada a este numero."),
+            reason: payload.reason || (t("templates.builder.access_lost_reason") || "Esto suele pasar cuando se elimina a WaFloW como socio/partner del portfolio comercial del cliente o se revocan permisos en Meta."),
+            actions: Array.isArray(payload.actions) && payload.actions.length > 0 ? payload.actions : [
+                t("templates.builder.access_lost_action_clear") || "Pulsa Limpiar en la configuracion del numero para quitar la vinculacion anterior.",
+                t("templates.builder.access_lost_action_reconnect") || "Vuelve a conectar el numero con el boton de Meta oficial y acepta nuevamente los permisos.",
+                t("templates.builder.access_lost_action_partner") || "Confirma en Meta Business que WaFloW/Clic&App figure como socio con acceso al WABA y al numero."
+            ]
+        };
+    }
+    return {
+        title: t("templates.builder.load_templates_error") || "No se pudieron cargar templates",
+        message: payload?.error || payload?.message || (t("templates.builder.generic_templates_error") || "No pudimos consultar las plantillas de este numero."),
+        reason: payload?.reason || "",
+        actions: []
+    };
+}
+
 export default function OfficialTemplateBuilder({ locations = [], token, onUnauthorized }) {
     const { t } = useLanguage();
     const [officialSlots, setOfficialSlots] = useState([]);
     const [templatesBySlot, setTemplatesBySlot] = useState({});
     const [loadingSlots, setLoadingSlots] = useState(false);
     const [loadingTemplates, setLoadingTemplates] = useState(false);
+    const [templateLoadError, setTemplateLoadError] = useState(null);
     const [creating, setCreating] = useState(false);
     const [form, setForm] = useState(emptyForm);
 
@@ -170,6 +193,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     };
 
     const loadOfficialSlots = async () => {
+        setTemplateLoadError(null);
         setLoadingSlots(true);
         try {
             const details = await Promise.all(
@@ -221,6 +245,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     };
 
     const loadTemplates = async (slot = selectedSlot) => {
+        setTemplateLoadError(null);
         if (!slot) return;
         if (!slot.hasAccessToken) return;
         const key = `${slot.locationId}:${slot.slotId}`;
@@ -232,7 +257,10 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
             });
             const res = await authFetch(`/agency/whatsapp-official/templates?${query.toString()}`);
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || (t("templates.builder.load_templates_error") || "No se pudieron cargar templates"));
+            if (!res.ok) {
+                setTemplateLoadError(friendlyTemplateError(data, t));
+                return;
+            }
             setTemplatesBySlot((prev) => ({
                 ...prev,
                 [key]: {
@@ -241,9 +269,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 }
             }));
         } catch (error) {
-            toast.error(t("templates.builder.load_templates_error") || "No se pudieron cargar templates", {
-                description: error.message
-            });
+            setTemplateLoadError(friendlyTemplateError(error, t));
         } finally {
             setLoadingTemplates(false);
         }
@@ -373,7 +399,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     };
 
     return (
-        <div className="mx-auto max-w-7xl space-y-6 animate-in fade-in slide-in-from-bottom-4">
+        <div className="mx-auto max-w-7xl space-y-6 animate-in fade-in slide-in-from-bottom-4" translate="no">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">
@@ -410,6 +436,30 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
                     <p className="font-bold">{t("templates.builder.no_official_slots") || "No hay numeros Meta oficiales conectados."}</p>
                     <p className="mt-1 text-sm">{t("templates.builder.no_official_slots_desc") || "Este apartado se habilita cuando una cuenta tiene al menos un numero vinculado con WhatsApp Meta oficial."}</p>
+                </div>
+            ) : null}
+
+            {templateLoadError ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-100">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle size={20} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                        <div className="min-w-0 space-y-3">
+                            <div>
+                                <p className="font-extrabold">{templateLoadError.title}</p>
+                                <p className="mt-1 text-sm font-semibold">{templateLoadError.message}</p>
+                                {templateLoadError.reason ? (
+                                    <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">{templateLoadError.reason}</p>
+                                ) : null}
+                            </div>
+                            {templateLoadError.actions.length > 0 ? (
+                                <ol className="list-decimal space-y-1 pl-5 text-sm text-amber-900 dark:text-amber-100">
+                                    {templateLoadError.actions.map((action, index) => (
+                                        <li key={`${index}-${action}`}>{action}</li>
+                                    ))}
+                                </ol>
+                            ) : null}
+                        </div>
+                    </div>
                 </div>
             ) : null}
 
