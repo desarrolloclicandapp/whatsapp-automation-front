@@ -82,6 +82,14 @@ function deriveCapabilities(accountInfo) {
   };
 }
 
+function resolveCrmType(...sources) {
+  for (const source of sources) {
+    const value = String(source || '').trim().toLowerCase();
+    if (value) return value;
+  }
+  return '';
+}
+
 export default function useStandaloneWorkspace({ token, onUnauthorized }) {
   const [accountInfo, setAccountInfo] = useState(null);
   const [locations, setLocations] = useState([]);
@@ -168,9 +176,9 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
           null;
         setPrimaryLocationId(resolvedPrimaryLocationId);
 
-        const ghlAccessData = await loadGhlAccessInfo(resolvedPrimaryLocationId);
-
         if (!resolvedPrimaryLocationId) {
+          const shouldLoadGhlAccess = resolveCrmType(infoData?.crm_type, infoData?.settings?.crm_type) === 'ghl';
+          const ghlAccessData = shouldLoadGhlAccess ? await loadGhlAccessInfo(null) : null;
           setLocationDetails(null);
           setChatwootAccessInfo(null);
           setGhlAccessInfo(ghlAccessData);
@@ -190,6 +198,18 @@ export default function useStandaloneWorkspace({ token, onUnauthorized }) {
         const detailsData = await parseJsonResponse(detailsResponse);
         const chatwootAccessData = chatwootAccessResponse.ok
           ? await parseJsonResponse(chatwootAccessResponse)
+          : null;
+        const effectiveCrmType = resolveCrmType(
+          detailsData?.crmType,
+          detailsData?.crm_type,
+          detailsData?.settings?.crm_type,
+          infoData?.crm_type,
+          infoData?.settings?.crm_type,
+          locationsData?.[0]?.crm_type,
+          locationsData?.[0]?.settings?.crm_type,
+        );
+        const ghlAccessData = effectiveCrmType === 'ghl'
+          ? await loadGhlAccessInfo(resolvedPrimaryLocationId)
           : null;
 
         if (isCancelled) return;
