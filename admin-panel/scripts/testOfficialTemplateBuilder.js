@@ -39,6 +39,10 @@ assert.match(builder, /templates\.builder\.access_lost_action_clear/);
 assert.match(builder, /translate="no"/);
 assert.doesNotMatch(builder, /toast\.error\(t\("templates\.builder\.load_templates_error"\)[\s\S]*description: error\.message/, "template load failures must render a stable in-page diagnostic instead of only a toast");
 assert.match(builder, /normalizeTemplateName/);
+assert.match(builder, /function extractTemplatePlaceholders/);
+assert.match(builder, /function getTemplateCommandPlaceholders/);
+assert.match(builder, /valor_\$\{safePlaceholder\}/);
+assert.match(builder, /Variables: \{placeholders\.map/);
 assert.match(builder, /!\[TPL:\$\{name\}:\$\{language\}/);
 assert.match(builder, /groupTemplates/);
 

@@ -54,13 +54,55 @@ function extractVariableIndexes(text = "") {
     return [...indexes].sort((a, b) => a - b);
 }
 
-function countTemplateVariables(template = {}) {
+function extractTemplatePlaceholders(text = "") {
+    const placeholders = [];
+    const seen = new Set();
+    const matcher = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
+    let match;
+
+    while ((match = matcher.exec(String(text || ""))) !== null) {
+        const key = String(match[1] || "").trim();
+        if (!key) continue;
+        const seenKey = key.toLowerCase();
+        if (seen.has(seenKey)) continue;
+        seen.add(seenKey);
+        placeholders.push(key);
+    }
+
+    return placeholders;
+}
+
+function getTemplateCommandPlaceholders(template = {}) {
     const components = Array.isArray(template.components) ? template.components : [];
-    return components.reduce((total, component) => {
+    const placeholders = [];
+    const seen = new Set();
+    const addPlaceholders = (items = []) => {
+        items.forEach((key) => {
+            const safeKey = String(key || "").trim();
+            if (!safeKey) return;
+            const seenKey = safeKey.toLowerCase();
+            if (seen.has(seenKey)) return;
+            seen.add(seenKey);
+            placeholders.push(safeKey);
+        });
+    };
+
+    components.forEach((component) => {
         const type = String(component?.type || "").toUpperCase();
-        if (type !== "BODY" && type !== "HEADER") return total;
-        return total + extractVariableIndexes(component?.text || "").length;
-    }, 0);
+        if (type === "BODY" || type === "HEADER") {
+            addPlaceholders(extractTemplatePlaceholders(component?.text || ""));
+            return;
+        }
+
+        if (type === "BUTTONS") {
+            const buttons = Array.isArray(component?.buttons) ? component.buttons : [];
+            buttons.forEach((button = {}) => {
+                addPlaceholders(extractTemplatePlaceholders(button?.url || ""));
+            });
+        }
+    });
+
+    return placeholders;
 }
 
 function groupTemplates(templates = []) {
@@ -108,8 +150,11 @@ function buildTemplateCommand(template = {}, fallbackLanguage = "es") {
     const name = String(template?.name || "").trim();
     const language = String(template?.language || fallbackLanguage || "es").trim();
     if (!name || !language) return "";
-    const variableCount = countTemplateVariables(template);
-    const values = Array.from({ length: variableCount }, (_, index) => `valor_${index + 1}`);
+    const placeholders = getTemplateCommandPlaceholders(template);
+    const values = placeholders.map((placeholder, index) => {
+        const safePlaceholder = String(placeholder || "").trim();
+        return /^\d+$/.test(safePlaceholder) ? `valor_${index + 1}` : `valor_${safePlaceholder}`;
+    });
     return `![TPL:${name}:${language}${values.length ? `|${values.join("|")}` : ""}]!`;
 }
 
@@ -368,6 +413,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                         <p className="text-sm text-gray-500">{t("templates.builder.empty_status") || "Sin plantillas en este estado."}</p>
                     ) : items.map((template) => {
                         const command = buildTemplateCommand(template, form.language);
+                        const placeholders = getTemplateCommandPlaceholders(template);
                         return (
                             <div key={`${template.name}-${template.language}-${template.status}`} className="rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
                                 <div className="flex items-start justify-between gap-3">
@@ -376,6 +422,11 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                         <p className="mt-1 text-xs uppercase tracking-wide text-gray-500">
                                             {template.language || "es"} / {template.category || "-"} / {template.status || "-"}
                                         </p>
+                                        {placeholders.length ? (
+                                            <p className="mt-1 text-xs font-semibold text-indigo-600 dark:text-indigo-300">
+                                                Variables: {placeholders.map((key) => `{{${key}}}`).join(", ")}
+                                            </p>
+                                        ) : null}
                                         {template.rejectedReason ? <p className="mt-1 text-xs text-red-500">{template.rejectedReason}</p> : null}
                                     </div>
                                     {command ? (
