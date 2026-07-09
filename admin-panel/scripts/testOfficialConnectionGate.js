@@ -95,6 +95,31 @@ assert.match(
 );
 assert.match(
     component,
+    /function buildOfficialAccessLostDiagnostic\(payload = \{\}, t\)/,
+    "LocationDetailsModal must keep Meta access-lost diagnostics structured instead of collapsing them to a toast string"
+);
+assert.match(
+    component,
+    /markOfficialSlotAccessLost\(slotId, diagnostic\)/,
+    "LocationDetailsModal must mark the affected official slot when Meta partner permissions are removed"
+);
+assert.match(
+    component,
+    /officialStatus === 'access_lost'/,
+    "Official slot cards must detect access_lost status"
+);
+assert.doesNotMatch(
+    component,
+    /\['verified', 'verified_warning', 'active', 'connected'\]\.includes\(officialStatus\)/,
+    "Official slot cards must not treat every persisted verified status as connected without checking access-loss state"
+);
+assert.match(
+    component,
+    /slots\.official\.access_lost_title/,
+    "LocationDetailsModal must show clear recovery guidance when Meta access is lost"
+);
+assert.match(
+    component,
     /if \(!officialApiAvailable\) return;\s*selectSlotConnectionMode\(slot, 'official_api'\)/,
     "The official API click handler must not select official_api while disabled"
 );
@@ -113,5 +138,7 @@ assert.match(esLocale, /"slots\.official\.pause": "Pausar envios"/);
 assert.match(enLocale, /"slots\.official\.pause": "Pause sends"/);
 assert.match(esLocale, /"slots\.official\.danger_zone": "Acciones avanzadas"/);
 assert.match(enLocale, /"slots\.official\.danger_zone": "Advanced actions"/);
+assert.match(esLocale, /"slots\.official\.access_lost_title": "Meta perdio permisos"/);
+assert.match(enLocale, /"slots\.official\.access_lost_title": "Meta permissions lost"/);
 
 console.log("testOfficialConnectionGate passed");

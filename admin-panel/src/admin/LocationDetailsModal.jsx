@@ -82,6 +82,33 @@ function officialBillingNeedsAction(official = {}) {
     );
 }
 
+function buildOfficialAccessLostDiagnostic(payload = {}, t) {
+    const code = String(payload?.code || "").trim();
+    const message = String(payload?.error || payload?.message || "").trim();
+    const normalized = `${code} ${message}`.toLowerCase();
+    const isAccessLost = code === "OFFICIAL_WABA_ACCESS_LOST" ||
+        (
+            normalized.includes("ya no tenemos acceso") ||
+            normalized.includes("no longer have access") ||
+            normalized.includes("perdio permisos") ||
+            normalized.includes("lost permissions")
+        );
+
+    if (!isAccessLost) return null;
+
+    return {
+        isAccessLost: true,
+        title: payload.title || translateOr(t, 'slots.official.access_lost_title', 'Meta perdio permisos'),
+        message: message || translateOr(t, 'slots.official.access_lost_message', 'Ya no tenemos acceso a la cuenta de WhatsApp Business vinculada a este numero.'),
+        reason: payload.reason || translateOr(t, 'slots.official.access_lost_reason', 'Esto suele pasar cuando WaFloW fue eliminado como socio/partner del portfolio comercial del cliente o se revocaron permisos en Meta.'),
+        actions: Array.isArray(payload.actions) && payload.actions.length > 0 ? payload.actions : [
+            translateOr(t, 'slots.official.access_lost_action_clear', 'Pulsa Limpiar vinculacion para quitar los datos oficiales anteriores.'),
+            translateOr(t, 'slots.official.access_lost_action_reconnect', 'Vuelve a conectar el numero con Meta Cloud API y acepta nuevamente los permisos.'),
+            translateOr(t, 'slots.official.access_lost_action_partner', 'Si el cliente administra Meta, confirma que WaFloW/Clic&App figure como socio con acceso al WABA y al numero.')
+        ]
+    };
+}
+
 function normalizeSlotId(value) {
     if (value === null || value === undefined || value === "") return null;
     const parsed = Number.parseInt(String(value), 10);
@@ -1750,6 +1777,38 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }));
     };
 
+    const markOfficialSlotAccessLost = (slotId, diagnostic) => {
+        const safeDiagnostic = diagnostic || buildOfficialAccessLostDiagnostic({ code: "OFFICIAL_WABA_ACCESS_LOST" }, t);
+        const lastValidationError = safeDiagnostic?.message || translateOr(t, 'slots.official.access_lost_message', 'Ya no tenemos acceso a la cuenta de WhatsApp Business vinculada a este numero.');
+
+        setOfficialConfigBySlot(prev => {
+            const current = prev[slotId] || createEmptyOfficialWhatsappState();
+            return {
+                ...prev,
+                [slotId]: {
+                    ...current,
+                    loaded: true,
+                    configured: true,
+                    status: "access_lost",
+                    lastValidationError,
+                    accessLostDiagnostic: safeDiagnostic
+                }
+            };
+        });
+
+        setSlots(prev => prev.map(slot => {
+            if (slot.slot_id !== slotId) return slot;
+            const nextSettings = { ...(slot.settings || {}) };
+            nextSettings.connection_mode = "official_api";
+            nextSettings.official_api = {
+                ...(nextSettings.official_api && typeof nextSettings.official_api === "object" ? nextSettings.official_api : {}),
+                status: "access_lost",
+                lastValidationError
+            };
+            return { ...slot, settings: nextSettings };
+        }));
+    };
+
     const syncSlotSuspendedState = (slotId, suspendedBy) => {
         setSlots(prev => prev.map(slot => {
             if (slot.slot_id !== slotId) return slot;
@@ -1778,14 +1837,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const loadOfficialWhatsappConfig = async (slotId, forceRefresh = false) => {
-        if (!slotId || !location?.location_id) return;
-        if (!forceRefresh && officialConfigBySlot[slotId]?.loaded) return;
+        if (!slotId || !location?.location_id) return null;
+        if (!forceRefresh && officialConfigBySlot[slotId]?.loaded) return officialConfigBySlot[slotId];
 
         const previousOfficial = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
         setLoadingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
             const res = await authFetch(`/agency/whatsapp-official/config?locationId=${location.location_id}&slotId=${slotId}`);
-            if (!res) return;
+            if (!res) return null;
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
                 throw new Error(err.error || "No se pudo cargar la configuración oficial");
@@ -1793,6 +1852,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             const data = await res.json();
             const nextBusinessAccountId = data.businessAccountId ? String(data.businessAccountId) : "";
             const nextHasAccessToken = !!data.hasAccessToken;
+            const nextOfficial = hydrateOfficialWhatsappState(data, previousOfficial);
             setOfficialConfigBySlot(prev => ({
                 ...prev,
                 [slotId]: hydrateOfficialWhatsappState(data, prev[slotId] || previousOfficial)
@@ -1806,10 +1866,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     [slotId]: createEmptyOfficialTemplateState()
                 }));
             }
+            return nextOfficial;
         } catch (e) {
             toast.error(t('slots.official.load_error') || "Error cargando WhatsApp API oficial", {
                 description: e.message
             });
+            return null;
         } finally {
             setLoadingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
         }
@@ -1846,6 +1908,21 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res) return;
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
+                const diagnostic = buildOfficialAccessLostDiagnostic(err, t);
+                if (diagnostic?.isAccessLost) {
+                    markOfficialSlotAccessLost(slotId, diagnostic);
+                    updateOfficialTemplateState(slotId, (current) => ({
+                        ...current,
+                        loaded: false,
+                        templates: [],
+                        accessLostDiagnostic: diagnostic
+                    }));
+                    toast.error(diagnostic.title, {
+                        description: diagnostic.message,
+                        duration: 10000
+                    });
+                    return;
+                }
                 throw new Error(err.error || (t('slots.official.templates.load_error') || 'No se pudieron cargar los templates'));
             }
             const data = await res.json();
@@ -2385,7 +2462,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const startOfficialEmbeddedSignup = async (slotId) => {
-        const official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        let official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        if (!official.loaded) {
+            const loadedOfficial = await loadOfficialWhatsappConfig(slotId, true);
+            official = loadedOfficial || official;
+        }
         const missing = Array.isArray(official.embeddedSignupMissing) ? official.embeddedSignupMissing : [];
 
         if (!official.embeddedSignupEnabled) {
@@ -3075,12 +3156,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const templateFields = selectedTemplate ? getOfficialTemplateParameterFields(selectedTemplate) : [];
         const canSyncTemplates = Boolean(String(official.businessAccountId || '').trim() && official.hasAccessToken);
         const status = String(official.status || 'draft').toLowerCase();
-        const statusClassName = status === 'verified'
+        const officialAccessLostDiagnostic = official.accessLostDiagnostic ||
+            templateState.accessLostDiagnostic ||
+            (status === 'access_lost'
+                ? buildOfficialAccessLostDiagnostic({ code: "OFFICIAL_WABA_ACCESS_LOST", error: official.lastValidationError }, t)
+                : null);
+        const isOfficialAccessLost = status === 'access_lost' || officialAccessLostDiagnostic?.isAccessLost === true;
+        const statusClassName = isOfficialAccessLost
+            ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+            : status === 'verified'
             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
             : official.configured
                 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
                 : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
-        const statusLabel = status === 'verified'
+        const statusLabel = isOfficialAccessLost
+            ? (t('slots.official.access_lost_status') || 'Requiere reconexion')
+            : status === 'verified'
             ? (t('slots.official.verified') || 'Verificada')
             : official.configured
                 ? (t('slots.official.pending') || 'Pendiente de validación')
@@ -3113,7 +3204,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const slotSuspendedBy = String(slot.suspended_by || '').trim();
         const isOfficialPaused = Boolean(slotSuspendedBy);
         const isPauseLockedByAdmin = slotSuspendedBy === 'admin' && !isAdminMode;
-        const isOfficialConnected = ['verified', 'verified_warning'].includes(status) && Boolean(
+        const isOfficialConnected = !isOfficialAccessLost && ['verified', 'verified_warning'].includes(status) && Boolean(
             String(official.displayPhoneNumber || '').trim() ||
             String(official.phoneNumberId || '').trim()
         );
@@ -3703,7 +3794,25 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 )}
                             </div>
 
-                            {official.lastValidationError ? (
+                            {officialAccessLostDiagnostic ? (
+                                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-100">
+                                    <div className="flex items-start gap-3">
+                                        <AlertTriangle size={18} className="mt-0.5 flex-shrink-0" />
+                                        <div className="space-y-2">
+                                            <p className="font-extrabold">{officialAccessLostDiagnostic.title}</p>
+                                            <p>{officialAccessLostDiagnostic.message}</p>
+                                            <p className="text-red-800 dark:text-red-200">{officialAccessLostDiagnostic.reason}</p>
+                                            {officialAccessLostDiagnostic.actions?.length ? (
+                                                <ol className="list-decimal space-y-1 pl-5">
+                                                    {officialAccessLostDiagnostic.actions.map((action, index) => (
+                                                        <li key={`${slot.slot_id}-official-access-lost-action-${index}`}>{action}</li>
+                                                    ))}
+                                                </ol>
+                                            ) : null}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : official.lastValidationError ? (
                                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
                                     <span className="font-bold mr-2">{t('slots.official.validation_error') || 'Último error'}:</span>
                                     {official.lastValidationError}
@@ -4170,7 +4279,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const connectionMode = getEffectiveSlotConnectionMode(slot);
                                 const isOfficialSlotMode = connectionMode === 'official_api';
                                 const officialStatus = String(officialSlotSettings.status || '').trim().toLowerCase();
-                                const isOfficialConnected = isOfficialSlotMode && ['verified', 'verified_warning', 'active', 'connected'].includes(officialStatus);
+                                const isOfficialAccessLost = isOfficialSlotMode && officialStatus === 'access_lost';
+                                const officialConnectedStatuses = new Set(['verified', 'verified_warning', 'active', 'connected']);
+                                const isOfficialConnected = isOfficialSlotMode && !isOfficialAccessLost && officialConnectedStatuses.has(officialStatus);
                                 const isConnected = isOfficialSlotMode ? isOfficialConnected : slot.is_connected === true;
                                 const connectedPhone = isOfficialSlotMode
                                     ? String(officialSlotSettings.displayPhoneNumber || slot.phone_number || '').trim()
@@ -4208,7 +4319,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         {/* CABECERA SLOT */}
                                         <div className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" onClick={() => handleExpandSlot(slot.slot_id)}>
                                             <div className="flex items-center gap-5">
-                                                <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                                                <div className={`w-3 h-3 rounded-full ${isOfficialAccessLost ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.45)]' : isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
                                                 <div>
                                                     <div className="flex items-center gap-3">
                                                         <h3 className="font-bold text-gray-900 dark:text-white text-xl">{slot.slot_name || (isChatwootMode ? `Inbox ${slot.slot_id}` : `Dispositivo ${slot.slot_id}`)}</h3>
@@ -4244,7 +4355,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     </div>
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1 flex items-center gap-2">
-                                                        {isConnected && connectedPhone
+                                                        {isOfficialAccessLost
+                                                            ? <span className="text-red-600 dark:text-red-400 font-bold">{t('slots.card.official_access_lost') || 'Requiere reconexion Meta'}</span>
+                                                            : isConnected && connectedPhone
                                                             ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{connectedPhone}</span>
                                                             : isOfficialSlotMode && officialStatus && officialStatus !== 'draft'
                                                                 ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">{t('slots.card.official_verified') || 'Meta API validada'}</span>
@@ -5379,6 +5492,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             token={token}
                                                             onUpdate={loadData}
                                                             isAdminMode={isAdminMode}
+                                                            officialEmbeddedEnabled={(officialConfigBySlot[slot.slot_id] || createEmptyOfficialWhatsappState()).embeddedSignupEnabled === true}
+                                                            officialEmbeddedLoading={!!loadingOfficialBySlot[slot.slot_id]}
+                                                            officialEmbeddedStarting={!!startingOfficialEmbeddedBySlot[slot.slot_id]}
+                                                            onConnectOfficial={() => startOfficialEmbeddedSignup(slot.slot_id)}
                                                         />
                                                     )}
                                                 </div>
@@ -5423,7 +5540,17 @@ const SettingRow = ({ label, desc, checked, onChange }) => (
 );
 
 // ✅ COMPONENTE DE GESTIÓN DE CONEXIÓN
-function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode = false }) {
+function SlotConnectionManager({
+    slot,
+    locationId,
+    token,
+    onUpdate,
+    isAdminMode = false,
+    officialEmbeddedEnabled = false,
+    officialEmbeddedLoading = false,
+    officialEmbeddedStarting = false,
+    onConnectOfficial
+}) {
     const { t } = useLanguage();
     const [status, setStatus] = useState({
         connected: slot?.is_connected === true,
@@ -5960,6 +6087,18 @@ function SlotConnectionManager({ slot, locationId, token, onUpdate, isAdminMode 
                                 >
                                     {isGeneratingShareUrl ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
                                     {t('slots.share.generate_link') || "Generar URL QR"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={onConnectOfficial}
+                                    disabled={officialEmbeddedLoading || officialEmbeddedStarting || typeof onConnectOfficial !== 'function'}
+                                    className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    title={!officialEmbeddedEnabled ? (t('slots.official.embedded.unavailable') || 'Embedded Signup no esta configurado en este entorno.') : undefined}
+                                >
+                                    {officialEmbeddedLoading || officialEmbeddedStarting ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+                                    {officialEmbeddedStarting
+                                        ? (t('slots.official.embedded.starting') || 'Abriendo Meta...')
+                                        : (t('slots.official.qr_card_cta') || 'API Meta Cloud')}
                                 </button>
                             </div>
                         </div>
