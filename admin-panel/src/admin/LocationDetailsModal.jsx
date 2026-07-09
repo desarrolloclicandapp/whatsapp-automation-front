@@ -541,12 +541,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 setWhiteLabelEnabled(data.settings?.white_label ?? true);
                 setTenantSettings(data.settings || {});
                 const nextCrmType = String(data.settings?.crm_type || data.crmType || location?.crm_type || "ghl").toLowerCase();
-                if (nextCrmType === "ghl") {
-                    setChatwootAccessInfo(null);
-                    loadGhlAccessInfo();
-                } else {
+                if (nextCrmType === "chatwoot") {
                     setGhlAccessInfo(null);
                     loadChatwootAccessInfo();
+                } else {
+                    setChatwootAccessInfo(null);
+                    loadGhlAccessInfo();
                 }
             }
 
