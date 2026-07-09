@@ -76,6 +76,16 @@ assert.match(
   "Standalone official panel must explain that Meta opens in a new tab",
 );
 assert.match(
+  component,
+  /function formatPhoneForDisplay\(value\)/,
+  "Standalone iframe must format phone numbers through a helper to avoid duplicated plus signs",
+);
+assert.doesNotMatch(
+  component,
+  /\+\$\{slot\.phone_number|\+\$\{status\.myNumber|\+\$\{qrData\.myNumber/,
+  "Standalone iframe must not prepend '+' directly to phone values that may already include a plus sign",
+);
+assert.match(
   locationDetails,
   /onConnectOfficial=\{\(\) => startOfficialEmbeddedSignup\(slot\.slot_id\)\}/,
   "GoHighLevel iframe slot card must pass the Meta connect action into the QR connection card",
@@ -89,6 +99,11 @@ assert.match(
   locationDetails,
   /slots\.official\.qr_card_cta/,
   "GoHighLevel iframe QR connection card must render a visible Meta Cloud API CTA",
+);
+assert.match(
+  locationDetails,
+  /disabled=\{!officialEmbeddedEnabled \|\| officialEmbeddedLoading \|\| officialEmbeddedStarting \|\| typeof onConnectOfficial !== 'function'\}/,
+  "GoHighLevel iframe Meta CTA must only be disabled when Embedded Signup is unavailable or an operation is running",
 );
 assert.match(esLocale, /"standalone\.slots\.official\.embedded_cta": "Conectar Meta Cloud API"/);
 assert.match(esLocale, /"standalone\.slots\.official\.qr_card_cta": "API Meta Cloud"/);

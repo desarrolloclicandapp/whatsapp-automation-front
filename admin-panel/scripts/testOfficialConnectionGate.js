@@ -45,8 +45,13 @@ assert.match(
 );
 assert.match(
     component,
-    /const officialApiAvailable = OFFICIAL_WHATSAPP_API_UI_ENABLED\s*&& \(hasAnyOfficialWhatsappConfig\(\) \|\| officialWhatsappAdminBypassAvailable\)/,
-    "The official API option must only be available for existing official Meta configs or explicit admin test bypass"
+    /const slotAlreadyUsesOfficialApi = getEffectiveSlotConnectionMode\(slot\) === 'official_api'/,
+    "The official API selector must recognize slots that are already in official Meta mode"
+);
+assert.match(
+    component,
+    /const officialApiAvailable = OFFICIAL_WHATSAPP_API_UI_ENABLED\s*&& \(slotAlreadyUsesOfficialApi \|\| hasAnyOfficialWhatsappConfig\(\) \|\| officialWhatsappAdminBypassAvailable\)/,
+    "The official API option must stay available for slots already marked as official_api"
 );
 assert.match(
     component,
@@ -117,6 +122,16 @@ assert.match(
     component,
     /slots\.official\.access_lost_title/,
     "LocationDetailsModal must show clear recovery guidance when Meta access is lost"
+);
+assert.match(
+    component,
+    /function formatPhoneForDisplay\(value\)/,
+    "LocationDetailsModal must format phone numbers through a helper to avoid duplicated plus signs"
+);
+assert.doesNotMatch(
+    component,
+    /\+{connectedPhone}|\+\$\{status\.myNumber/,
+    "LocationDetailsModal must not prepend '+' directly to phone values that may already include a plus sign"
 );
 assert.match(
     component,

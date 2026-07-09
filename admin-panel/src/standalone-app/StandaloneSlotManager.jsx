@@ -51,6 +51,11 @@ function getConnectionMode(slot = {}) {
   );
 }
 
+function formatPhoneForDisplay(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits ? `+${digits}` : '';
+}
+
 function mapOfficialConfigBody(body = {}) {
   const embeddedSignup = body?.embeddedSignup || {};
   return {
@@ -1240,7 +1245,7 @@ export default function StandaloneSlotManager({
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1">
                         {slot.is_connected && slot.phone_number
-                          ? `+${slot.phone_number}`
+                          ? formatPhoneForDisplay(slot.phone_number)
                           : translateOr(t, 'slots.card.disconnected', 'Desconectado')}
                       </p>
                     </div>
@@ -2271,9 +2276,9 @@ function StandaloneSlotConnectionManager({
       : slotSuspendedBy === 'system'
         ? 'Este WhatsApp esta bloqueado temporalmente por el sistema.'
         : slotSuspendedBy === 'agency'
-          ? `${translateOr(t, 'standalone.slots.number_label', 'Número')}: +${status.myNumber || slot.phone_number || 'N/A'}`
+          ? `${translateOr(t, 'standalone.slots.number_label', 'Número')}: ${formatPhoneForDisplay(status.myNumber || slot.phone_number) || 'N/A'}`
           : status.connected
-            ? `${translateOr(t, 'standalone.slots.number_label', 'Número')}: +${status.myNumber}`
+            ? `${translateOr(t, 'standalone.slots.number_label', 'Número')}: ${formatPhoneForDisplay(status.myNumber) || 'N/A'}`
             : translateOr(t, 'standalone.slots.qr_link_desc', 'Escanea el código QR para conectar.');
 
   return (
@@ -2565,7 +2570,7 @@ function QrPanel({
               <h4 className="text-base font-bold text-gray-900 dark:text-white">{translateOr(t, 'standalone.slots.qr_title', 'Conexión QR')}</h4>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {isConnected
-                  ? `${translateOr(t, 'standalone.slots.connected_as', 'Conectado')}${qrData.myNumber ? ` +${qrData.myNumber}` : ''}`
+                  ? `${translateOr(t, 'standalone.slots.connected_as', 'Conectado')}${qrData.myNumber ? ` ${formatPhoneForDisplay(qrData.myNumber)}` : ''}`
                   : qrData.waitingForQr
                     ? translateOr(t, 'standalone.slots.waiting_qr', 'Esperando que el QR esté listo...')
                     : translateOr(t, 'standalone.slots.start_qr_hint', 'Inicia el proceso para generar un nuevo QR')}

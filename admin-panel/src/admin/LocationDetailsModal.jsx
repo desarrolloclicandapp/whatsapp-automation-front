@@ -18,6 +18,11 @@ function translateOr(t, key, fallback) {
     return translated;
 }
 
+function formatPhoneForDisplay(value) {
+    const digits = String(value || "").replace(/\D/g, "");
+    return digits ? `+${digits}` : "";
+}
+
 function getRuntimeConfigValue(key, fallback) {
     const runtimeValue = typeof window !== "undefined"
         ? window.__WAFLOW_ADMIN_CONFIG__?.[key]
@@ -3030,8 +3035,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const ghlOAuthConnected = Boolean(ghlAccessInfo?.oauthConnected);
 
     const renderConnectionModeSelector = (slot) => {
+        const slotAlreadyUsesOfficialApi = getEffectiveSlotConnectionMode(slot) === 'official_api';
         const officialApiAvailable = OFFICIAL_WHATSAPP_API_UI_ENABLED
-            && (hasAnyOfficialWhatsappConfig() || officialWhatsappAdminBypassAvailable);
+            && (slotAlreadyUsesOfficialApi || hasAnyOfficialWhatsappConfig() || officialWhatsappAdminBypassAvailable);
 
         return (
         <div className="max-w-4xl mx-auto">
@@ -4358,7 +4364,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         {isOfficialAccessLost
                                                             ? <span className="text-red-600 dark:text-red-400 font-bold">{t('slots.card.official_access_lost') || 'Requiere reconexion Meta'}</span>
                                                             : isConnected && connectedPhone
-                                                            ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{connectedPhone}</span>
+                                                            ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatPhoneForDisplay(connectedPhone)}</span>
                                                             : isOfficialSlotMode && officialStatus && officialStatus !== 'draft'
                                                                 ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">{t('slots.card.official_verified') || 'Meta API validada'}</span>
                                                             : t('slots.card.disconnected')}
@@ -5977,9 +5983,9 @@ function SlotConnectionManager({
         : slotSuspendedBy === 'system'
             ? 'Este slot esta bloqueado temporalmente por el sistema.'
             : slotSuspendedBy === 'agency'
-                ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
+                ? `Numero: ${formatPhoneForDisplay(status.myNumber || slot.phone_number) || 'N/A'}`
                 : status.connected
-                    ? `Numero: +${status.myNumber}`
+                    ? `Numero: ${formatPhoneForDisplay(status.myNumber) || 'N/A'}`
                     : 'Escanea el codigo QR para conectar.';
 
     return (
@@ -6091,7 +6097,7 @@ function SlotConnectionManager({
                                 <button
                                     type="button"
                                     onClick={onConnectOfficial}
-                                    disabled={officialEmbeddedLoading || officialEmbeddedStarting || typeof onConnectOfficial !== 'function'}
+                                    disabled={!officialEmbeddedEnabled || officialEmbeddedLoading || officialEmbeddedStarting || typeof onConnectOfficial !== 'function'}
                                     className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                                     title={!officialEmbeddedEnabled ? (t('slots.official.embedded.unavailable') || 'Embedded Signup no esta configurado en este entorno.') : undefined}
                                 >
