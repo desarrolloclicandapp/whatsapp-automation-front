@@ -9,7 +9,8 @@ import {
     Settings, Search, Palette, Upload,
     RefreshCw, Building2, Smartphone, CheckCircle2,
     ArrowLeft, LogOut, RotateCcw, Image as ImageIcon, Link, Users, Trash2,
-    Clock, CalendarDays, Plus, AlertCircle, Save, X, AlertTriangle
+    Clock, CalendarDays, Plus, AlertCircle, Save, X, AlertTriangle,
+    ArrowUpDown, ChevronDown, Pin
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -32,6 +33,26 @@ export default function AdminDashboard({ token, onLogout }) {
     const [users, setUsers] = useState([]); 
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    const [userSort, setUserSort] = useState({ key: 'name', direction: 'asc' });
+    const [userStatusFilters, setUserStatusFilters] = useState({
+        active: true,
+        trial: true,
+        adminFree: true,
+        grace: true,
+        suspended: false,
+        inactive: false,
+        other: true
+    });
+    const [showUserStatusFilters, setShowUserStatusFilters] = useState(false);
+    const [pinnedUserIds, setPinnedUserIds] = useState(() => {
+        try {
+            const stored = localStorage.getItem('adminPinnedUserIds');
+            const parsed = stored ? JSON.parse(stored) : [];
+            return Array.isArray(parsed) ? parsed.map(String) : [];
+        } catch (error) {
+            return [];
+        }
+    });
     const [masterOtp, setMasterOtp] = useState(null);
     const [masterOtpExpiresAt, setMasterOtpExpiresAt] = useState(null);
     const [masterOtpTick, setMasterOtpTick] = useState(Date.now());
@@ -71,6 +92,14 @@ export default function AdminDashboard({ token, onLogout }) {
         const id = setInterval(() => setMasterOtpTick(Date.now()), 60000);
         return () => clearInterval(id);
     }, []);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('adminPinnedUserIds', JSON.stringify(pinnedUserIds));
+        } catch (error) {
+            // Ignore localStorage write failures; pinning remains available in memory.
+        }
+    }, [pinnedUserIds]);
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -633,11 +662,87 @@ const handleDeleteUser = (user, type = 'soft') => {
         (s.location_id || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const filteredUsers = users.filter(u => 
-        (u.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (u.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (u.agency_id || "").toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const userStatusFilterOptions = [
+        { key: 'active', label: 'Con plan', description: 'Planes activos o plan_status ACTIVE' },
+        { key: 'trial', label: 'Trial', description: 'Usuarios en periodo de prueba' },
+        { key: 'adminFree', label: 'Gratis admin', description: 'Acceso manual gratuito' },
+        { key: 'grace', label: 'Grace', description: 'Periodo de gracia' },
+        { key: 'suspended', label: 'Suspendidos', description: 'Suspendidos o pending deletion' },
+        { key: 'inactive', label: 'Inactivos', description: 'is_active=false' },
+        { key: 'other', label: 'Otros', description: 'Estados no clasificados' }
+    ];
+
+    const getUserStatusCategory = (user) => {
+        const suspensionStatus = String(user?.suspension_status || '').toLowerCase();
+        const planStatus = String(user?.plan_status || '').toLowerCase();
+        if (user?.is_active === false) return 'inactive';
+        if (['suspended', 'pending_deletion', 'permanently_deleted'].includes(suspensionStatus)) return 'suspended';
+        if (suspensionStatus === 'grace') return 'grace';
+        if (user?.manual_entitlements_enabled === true) return 'adminFree';
+        if (Array.isArray(user?.active_plans) && user.active_plans.length > 0) return 'active';
+        if (planStatus === 'active') return 'active';
+        if (planStatus === 'trial' || !planStatus) return 'trial';
+        return 'other';
+    };
+
+    const getUserSortValue = (user, key) => {
+        if (key === 'name') return `${user?.name || ''} ${user?.email || ''}`.trim().toLowerCase();
+        if (key === 'plan') return getUserStatusCategory(user);
+        if (key === 'accounts') return Number(user?.max_subagencies || 0) + Number(user?.bonus_subagencies || 0);
+        if (key === 'numbers') return Number(user?.connected_slot_count || 0);
+        if (key === 'trial') return user?.trial_ends_at ? new Date(user.trial_ends_at).getTime() : Number.MAX_SAFE_INTEGER;
+        return '';
+    };
+
+    const handleUserSort = (key) => {
+        setUserSort((current) => ({
+            key,
+            direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
+        }));
+    };
+
+    const togglePinnedUser = (userId) => {
+        const id = String(userId);
+        setPinnedUserIds((current) => current.includes(id)
+            ? current.filter((item) => item !== id)
+            : [...current, id]
+        );
+    };
+
+    const filteredUsers = (() => {
+        const needle = searchTerm.trim().toLowerCase();
+        const visible = users.filter((u) => {
+            const matchesSearch = !needle ||
+                (u.email || "").toLowerCase().includes(needle) ||
+                (u.name || "").toLowerCase().includes(needle) ||
+                (u.agency_id || "").toLowerCase().includes(needle);
+
+            if (!matchesSearch) return false;
+            return userStatusFilters[getUserStatusCategory(u)] !== false;
+        });
+
+        return [...visible].sort((a, b) => {
+            const aPinned = pinnedUserIds.includes(String(a.id));
+            const bPinned = pinnedUserIds.includes(String(b.id));
+            if (aPinned !== bPinned) return aPinned ? -1 : 1;
+
+            const aValue = getUserSortValue(a, userSort.key);
+            const bValue = getUserSortValue(b, userSort.key);
+            let comparison = 0;
+
+            if (typeof aValue === 'number' && typeof bValue === 'number') {
+                comparison = aValue - bValue;
+            } else {
+                comparison = String(aValue).localeCompare(String(bValue), 'es', { numeric: true, sensitivity: 'base' });
+            }
+
+            if (comparison === 0) {
+                comparison = String(a.email || '').localeCompare(String(b.email || ''), 'es', { numeric: true, sensitivity: 'base' });
+            }
+
+            return userSort.direction === 'asc' ? comparison : -comparison;
+        });
+    })();
 
     const getMasterOtpLabel = () => {
         if (!masterOtpExpiresAt) return "";
@@ -647,6 +752,26 @@ const handleDeleteUser = (user, type = 'soft') => {
         const minutes = Math.floor((remainingMs % 3600000) / 60000);
         if (hours <= 0) return `Expira en ${Math.max(minutes, 1)}m`;
         return `Expira en ${hours}h ${minutes}m`;
+    };
+
+    const SortableUserHeader = ({ sortKey, children, align = 'left' }) => {
+        const active = userSort.key === sortKey;
+        return (
+            <button
+                type="button"
+                onClick={() => handleUserSort(sortKey)}
+                className={`group inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition ${align === 'right' ? 'justify-end w-full' : ''} ${active ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'}`}
+                title={`Ordenar por ${children}`}
+            >
+                <span>{children}</span>
+                <ArrowUpDown size={13} className={active ? 'opacity-100' : 'opacity-50 group-hover:opacity-100'} />
+                {active && (
+                    <span className="text-[10px] normal-case tracking-normal">
+                        {userSort.direction === 'asc' ? 'asc' : 'desc'}
+                    </span>
+                )}
+            </button>
+        );
     };
 
     // --- SUBCOMPONENTE: MARCA (GLOBAL / STANDALONE) ---
@@ -808,7 +933,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                             <button onClick={() => setView('standaloneBranding')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'standaloneBranding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Smartphone size={16} /> Marca Standalone</button>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3"><ThemeToggle /><button onClick={() => view === 'agencies' ? fetchAgencies() : (selectedAgency ? fetchSubaccounts(selectedAgency.agency_id) : null)} className="p-2.5 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-800 rounded-lg transition hover:scale-105" title="Recargar datos"><RefreshCw size={20} className={loading ? "animate-spin" : ""} /></button><div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div><button onClick={onLogout} className="p-2.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30 transition font-medium text-sm flex items-center gap-2"><LogOut size={18} /><span className="hidden sm:inline">Salir</span></button></div>
+                    <div className="flex items-center gap-3"><ThemeToggle /><button onClick={() => view === 'agencies' ? fetchAgencies() : view === 'users' ? fetchUsers() : (selectedAgency ? fetchSubaccounts(selectedAgency.agency_id) : null)} className="p-2.5 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-800 rounded-lg transition hover:scale-105" title="Recargar datos"><RefreshCw size={20} className={loading ? "animate-spin" : ""} /></button><div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div><button onClick={onLogout} className="p-2.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30 transition font-medium text-sm flex items-center gap-2"><LogOut size={18} /><span className="hidden sm:inline">Salir</span></button></div>
                 </div>
             </header>
 
@@ -832,6 +957,57 @@ const handleDeleteUser = (user, type = 'soft') => {
                             >
                                 Crear Usuario
                             </button>
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowUserStatusFilters((current) => !current)}
+                                    className="px-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-bold text-sm shadow-sm transition flex items-center gap-2 hover:border-indigo-300 dark:hover:border-indigo-700"
+                                >
+                                    Filtros
+                                    <ChevronDown size={16} className={`transition ${showUserStatusFilters ? 'rotate-180' : ''}`} />
+                                </button>
+                                {showUserStatusFilters && (
+                                    <div className="absolute z-30 mt-2 w-72 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 right-0 sm:left-0 sm:right-auto">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Plan & estado</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setUserStatusFilters({
+                                                    active: true,
+                                                    trial: true,
+                                                    adminFree: true,
+                                                    grace: true,
+                                                    suspended: false,
+                                                    inactive: false,
+                                                    other: true
+                                                })}
+                                                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                                            >
+                                                Default
+                                            </button>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            {userStatusFilterOptions.map((option) => (
+                                                <label key={option.key} className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={userStatusFilters[option.key] !== false}
+                                                        onChange={(event) => setUserStatusFilters((current) => ({ ...current, [option.key]: event.target.checked }))}
+                                                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <span>
+                                                        <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100">{option.label}</span>
+                                                        <span className="block text-[11px] text-gray-500 leading-snug">{option.description}</span>
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 sm:ml-auto">
+                                Mostrando <span className="font-bold text-gray-800 dark:text-gray-100">{filteredUsers.length}</span> de {users.length}
+                            </div>
                         </div>
 
                         {loading ? (
@@ -844,11 +1020,11 @@ const handleDeleteUser = (user, type = 'soft') => {
                                     <table className="w-full min-w-[1120px] text-left border-collapse">
                                         <thead className="bg-gray-50 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">
                                             <tr>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Usuario / Email</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Plan & Estado</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cuentas Límite</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Números</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vencimiento Trial</th>
+                                                <th className="px-6 py-4"><SortableUserHeader sortKey="name">Usuario / Email</SortableUserHeader></th>
+                                                <th className="px-6 py-4"><SortableUserHeader sortKey="plan">Plan & Estado</SortableUserHeader></th>
+                                                <th className="px-6 py-4"><SortableUserHeader sortKey="accounts">Cuentas Límite</SortableUserHeader></th>
+                                                <th className="px-6 py-4"><SortableUserHeader sortKey="numbers">Números</SortableUserHeader></th>
+                                                <th className="px-6 py-4"><SortableUserHeader sortKey="trial">Vencimiento Trial</SortableUserHeader></th>
                                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right w-40">Acciones</th>
                                             </tr>
                                         </thead>
@@ -869,10 +1045,20 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                 const connectedNumbersTitle = hasConnectedNumbers
                                                     ? connectedNumbers.map(item => `${item.phone_number || 'Sin numero'}${item.slot_name ? ` · ${item.slot_name}` : ''}`).join('\n')
                                                     : 'Sin numeros conectados';
+                                                const isPinned = pinnedUserIds.includes(String(user.id));
                                                 return (
-                                                    <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
+                                                    <tr key={user.id} className={`${isPinned ? 'bg-indigo-50/50 dark:bg-indigo-950/20' : ''} hover:bg-gray-50 dark:hover:bg-gray-800/50 transition`}>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => togglePinnedUser(user.id)}
+                                                                    className={`p-1 rounded-md transition ${isPinned ? 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-300 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'}`}
+                                                                    title={isPinned ? 'Quitar pin' : 'Fijar arriba'}
+                                                                    aria-label={isPinned ? 'Quitar pin del usuario' : 'Fijar usuario arriba'}
+                                                                >
+                                                                    <Pin size={14} fill={isPinned ? 'currentColor' : 'none'} />
+                                                                </button>
                                                                 <div className="font-bold text-gray-900 dark:text-white text-sm">{user.name || 'Sin nombre'}</div>
                                                                 {user.is_active === false && <span className="px-2 py-0.5 text-[10px] uppercase font-bold bg-red-100 text-red-600 rounded border border-red-200">Inactivo</span>}
                                                             </div>

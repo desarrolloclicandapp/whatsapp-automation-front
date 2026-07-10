@@ -159,8 +159,30 @@ function getNumberQualityLabel(level, t) {
         case "good":
             return translateOr(t, 'agency.reliability.number_quality_good', 'Buena');
         default:
-            return translateOr(t, 'agency.reliability.number_quality_unknown', 'Sin historial');
+            return translateOr(t, 'agency.reliability.number_quality_unknown', 'Sin datos recientes');
     }
+}
+
+function getNumberQualitySourceLabel(source = "", t) {
+    const normalized = String(source || "").toLowerCase();
+    if (normalized.includes("official")) {
+        return translateOr(t, 'agency.reliability.number_quality_source_meta', 'Calidad Meta');
+    }
+    if (normalized === "internal_history") {
+        return translateOr(t, 'agency.reliability.number_quality_source_internal', 'Salud QR');
+    }
+    return translateOr(t, 'agency.reliability.number_quality_source_unknown', 'Salud QR');
+}
+
+function getNumberQualityTooltip(source = "", t) {
+    const normalized = String(source || "").toLowerCase();
+    if (normalized.includes("official")) {
+        return translateOr(t, 'agency.reliability.number_quality_tooltip_meta', 'Rating oficial de Meta combinado con senales internas recientes.');
+    }
+    if (normalized === "internal_history") {
+        return translateOr(t, 'agency.reliability.number_quality_tooltip_internal', 'Estimacion interna de WaFloW basada en actividad reciente, respuestas, volumen y repeticion.');
+    }
+    return translateOr(t, 'agency.reliability.number_quality_tooltip_unknown', 'No hay suficientes datos recientes asociados a este slot. No significa que el numero sea nuevo ni malo.');
 }
 
 function getNumberQualityPreviewIdentity(preview = {}, t) {
@@ -2688,6 +2710,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             const totalSlots = Number(linkedLocation?.total_slots) || connectedSlotCount;
             const metaRiskLevel = String(entry.meta_risk_level || 'healthy').toLowerCase();
             const numberQualityLevel = String(entry.number_quality_level || 'unknown').toLowerCase();
+            const numberQualitySource = String(entry.number_quality_source || 'unknown').toLowerCase();
             const numberQualityPreview = Array.isArray(entry.number_quality_preview)
                 ? entry.number_quality_preview
                     .map((preview) => ({
@@ -2732,6 +2755,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 metaRiskLevel,
                 operationalState,
                 operationalStateLabel,
+                numberQualitySource,
                 numberQualityPreview,
                 suggestedAction,
                 onClick: linkedLocation ? () => setSelectedLocation(linkedLocation) : null
@@ -5186,6 +5210,9 @@ const ReliabilityAccountsTable = ({
                                     </td>
                                     <td className="px-4 py-4 align-top">
                                         <div className="min-w-[210px] space-y-2">
+                                            <div className="text-[11px] font-bold uppercase tracking-wide text-gray-400" title={getNumberQualityTooltip(item.numberQualitySource, translate)}>
+                                                {getNumberQualitySourceLabel(item.numberQualitySource, translate)}
+                                            </div>
                                             {Array.isArray(item.numberQualityPreview) && item.numberQualityPreview.length > 0 ? (
                                                 <>
                                                     {item.numberQualityPreview.slice(0, 2).map((preview) => (

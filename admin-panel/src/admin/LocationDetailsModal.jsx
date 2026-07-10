@@ -51,8 +51,29 @@ function getNumberQualityLabel(level = '', t) {
         case 'good':
             return translateOr(t, 'agency.reliability.number_quality_good', 'Buena');
         default:
-            return translateOr(t, 'agency.reliability.number_quality_unknown', 'Aun sin historial');
+            return translateOr(t, 'agency.reliability.number_quality_unknown', 'Sin datos recientes');
     }
+}
+
+function getNumberQualitySourceLabel(source = '', t) {
+    const normalized = String(source || '').toLowerCase();
+    if (normalized.includes('official')) {
+        return translateOr(t, 'agency.reliability.number_quality_source_meta', 'Calidad Meta');
+    }
+    if (normalized === 'internal_history') {
+        return translateOr(t, 'agency.reliability.number_quality_source_internal', 'Salud QR');
+    }
+    return translateOr(t, 'agency.reliability.number_quality_source_unknown', 'Salud QR');
+}
+
+function getNumberQualityTooltip({ source = '', activeDays = 0, sentMessages28d = 0 } = {}, t) {
+    const normalized = String(source || '').toLowerCase();
+    const base = normalized.includes('official')
+        ? translateOr(t, 'agency.reliability.number_quality_tooltip_meta', 'Rating oficial de Meta combinado con senales internas recientes.')
+        : normalized === 'internal_history'
+            ? translateOr(t, 'agency.reliability.number_quality_tooltip_internal', 'Estimacion interna de WaFloW basada en actividad reciente, respuestas, volumen y repeticion.')
+            : translateOr(t, 'agency.reliability.number_quality_tooltip_unknown', 'No hay suficientes datos recientes asociados a este slot. No significa que el numero sea nuevo ni malo.');
+    return `${base} ${translateOr(t, 'agency.reliability.active_days', 'Dias activos')}: ${Number(activeDays) || 0}. ${translateOr(t, 'agency.reliability.sent_28d', 'Enviados 28d')}: ${Number(sentMessages28d) || 0}.`;
 }
 
 function buildMetaBusinessPaymentUrl(official = {}) {
@@ -4292,6 +4313,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const slotSent24h = Number(slotHealth.sent_24h || 0);
                                 const slotNumberQualityLevel = String(slotHealth.number_quality_level || 'unknown').toLowerCase();
                                 const slotNumberQualityLabel = getNumberQualityLabel(slotNumberQualityLevel, t);
+                                const slotNumberQualitySource = String(slotHealth.number_quality_source || 'unknown').toLowerCase();
+                                const slotNumberQualitySourceLabel = getNumberQualitySourceLabel(slotNumberQualitySource, t);
+                                const slotNumberQualityTooltip = getNumberQualityTooltip({
+                                    source: slotNumberQualitySource,
+                                    activeDays: slotHealth.number_quality_active_days,
+                                    sentMessages28d: slotHealth.number_quality_sent_messages_28d
+                                }, t);
                                 const slotHeaderModeLabel = isOfficialSlotMode
                                     ? (t('slots.card.official_mode') || 'Meta API')
                                     : (isExpanded ? t('slots.card.managing') : t('slots.card.manage'));
@@ -4373,8 +4401,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
                                                             {(t('agency.reliability.sent_24h') || 'Enviados 24h')}: {slotSent24h}
                                                         </span>
-                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${getNumberQualityTone(slotNumberQualityLevel)}`}>
-                                                            {(t('agency.reliability.slot_quality') || 'Calidad')}: {slotNumberQualityLabel}
+                                                        <span
+                                                            className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full border ${getNumberQualityTone(slotNumberQualityLevel)}`}
+                                                            title={slotNumberQualityTooltip}
+                                                        >
+                                                            {slotNumberQualitySourceLabel}: {slotNumberQualityLabel}
                                                         </span>
                                                     </div>
                                                 </div>
