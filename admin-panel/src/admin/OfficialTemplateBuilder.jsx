@@ -180,7 +180,7 @@ function isTemplateReadyOfficialSlot(slot = {}) {
 }
 
 function getOfficialPortfolioKey(slot = {}) {
-    return String(slot?.businessAccountId || `slot:${slot?.locationId || ""}:${slot?.slotId || ""}`).trim();
+    return String(slot?.metaBusinessId || slot?.businessAccountId || `slot:${slot?.locationId || ""}:${slot?.slotId || ""}`).trim();
 }
 
 function getDefaultTemplateValue(placeholder = "", index = 0) {
@@ -306,12 +306,16 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
             if (!portfolios.has(portfolioId)) {
                 portfolios.set(portfolioId, {
                     portfolioId,
-                    businessAccountId: slot.businessAccountId || "",
+                    metaBusinessId: slot.metaBusinessId || "",
+                    metaBusinessName: slot.metaBusinessName || "",
+                    businessAccountIds: new Set(),
                     locationNames: new Set(),
                     slots: []
                 });
             }
             const portfolio = portfolios.get(portfolioId);
+            if (!portfolio.metaBusinessName && slot.metaBusinessName) portfolio.metaBusinessName = slot.metaBusinessName;
+            if (slot.businessAccountId) portfolio.businessAccountIds.add(slot.businessAccountId);
             portfolio.locationNames.add(slot.locationName || slot.locationId);
             portfolio.slots.push(slot);
         });
@@ -320,7 +324,8 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 ...portfolio,
                 locationLabel: [...portfolio.locationNames].sort().join(" · "),
                 locationCount: portfolio.locationNames.size,
-                count: portfolio.slots.length
+                count: portfolio.slots.length,
+                wabaCount: portfolio.businessAccountIds.size
             }))
             .sort((a, b) => a.locationLabel.localeCompare(b.locationLabel));
     }, [officialSlots]);
@@ -408,6 +413,8 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                 phone: official.displayPhoneNumber || slot.phone_number || official.phoneNumberId || "",
                                 verifiedName: official.verifiedName || "",
                                 businessAccountId: official.businessAccountId || "",
+                                metaBusinessId: official.metaBusinessId || official.embeddedSignupBusinessId || "",
+                                metaBusinessName: official.metaBusinessName || "",
                                 phoneNumberId: official.phoneNumberId || "",
                                 hasAccessToken: Boolean(
                                     official.hasAccessToken ||
@@ -419,7 +426,27 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                         });
                 })
             );
-            const nextSlots = details.flat();
+            const rawSlots = details.flat();
+            const portfolioRequests = new Map();
+            const nextSlots = await Promise.all(rawSlots.map(async (slot) => {
+                if (slot.metaBusinessId) return slot;
+                const requestKey = slot.businessAccountId || `${slot.locationId}:${slot.slotId}`;
+                if (!portfolioRequests.has(requestKey)) {
+                    const query = new URLSearchParams({
+                        locationId: slot.locationId,
+                        slotId: String(slot.slotId)
+                    });
+                    portfolioRequests.set(requestKey, authFetch(`/agency/whatsapp-official/template-portfolio?${query.toString()}`)
+                        .then((res) => res.ok ? res.json() : null)
+                        .catch(() => null));
+                }
+                const portfolio = await portfolioRequests.get(requestKey);
+                return {
+                    ...slot,
+                    metaBusinessId: String(portfolio?.metaBusinessId || "").trim(),
+                    metaBusinessName: String(portfolio?.metaBusinessName || "").trim()
+                };
+            }));
             if (!mountedRef.current || slotsLoadRequestRef.current !== requestId) return;
             setOfficialSlots(nextSlots);
             setForm((prev) => {
@@ -996,7 +1023,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                 ) : null}
                                 {portfolioOptions.map((portfolio) => (
                                     <option key={portfolio.portfolioId} value={portfolio.portfolioId}>
-                                        {portfolio.locationLabel} · {portfolio.count} numero{portfolio.count === 1 ? "" : "s"} · WABA {portfolio.businessAccountId || "local"}
+                                        {portfolio.metaBusinessName || `Meta Business ${portfolio.portfolioId}`} · {portfolio.locationLabel} · {portfolio.count} numero{portfolio.count === 1 ? "" : "s"} · {portfolio.wabaCount} WABA{portfolio.wabaCount === 1 ? "" : "s"}
                                     </option>
                                 ))}
                             </select>
