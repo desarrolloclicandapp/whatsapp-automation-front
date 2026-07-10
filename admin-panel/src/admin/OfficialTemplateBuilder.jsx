@@ -5,6 +5,7 @@ import { useLanguage } from "../context/LanguageContext";
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const TEMPLATE_VARIABLE_MAPPINGS_STORAGE_KEY = "waflow:official-template-variable-mappings";
+const MANUAL_GHL_MAPPING_PREFIX = "__manual__:";
 
 const emptyForm = {
     locationId: "",
@@ -244,6 +245,28 @@ function groupGhlVariableOptions(options = []) {
     }, {});
 }
 
+function normalizeManualGhlVariable(value = "") {
+    const raw = String(value || "").trim()
+        .replace(/^\{\{\s*/, "")
+        .replace(/\s*\}\}$/, "")
+        .trim();
+    return raw ? `{{${raw}}}` : "";
+}
+
+function resolveTemplateMappingValue(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    if (!raw.startsWith(MANUAL_GHL_MAPPING_PREFIX)) return raw;
+    return normalizeManualGhlVariable(raw.slice(MANUAL_GHL_MAPPING_PREFIX.length));
+}
+
+function getManualMappingInput(value = "") {
+    const raw = String(value || "").trim();
+    return raw.startsWith(MANUAL_GHL_MAPPING_PREFIX)
+        ? raw.slice(MANUAL_GHL_MAPPING_PREFIX.length)
+        : "";
+}
+
 function buildTemplateCommand(template = {}, fallbackLanguage = "es", variableMappings = {}) {
     const name = String(template?.name || "").trim();
     const language = String(template?.language || fallbackLanguage || "es").trim();
@@ -251,7 +274,7 @@ function buildTemplateCommand(template = {}, fallbackLanguage = "es", variableMa
     const placeholders = getTemplateCommandPlaceholders(template);
     const values = placeholders.map((placeholder, index) => {
         const safePlaceholder = String(placeholder || "").trim();
-        return String(variableMappings[safePlaceholder] || "").trim() || getDefaultTemplateValue(safePlaceholder, index);
+        return resolveTemplateMappingValue(variableMappings[safePlaceholder]) || getDefaultTemplateValue(safePlaceholder, index);
     });
     return `![TPL:${name}:${language}${values.length ? `|${values.join("|")}` : ""}]!`;
 }
@@ -302,7 +325,13 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
             return {};
         }
     });
-    const [mappingModal, setMappingModal] = useState({ open: false, template: null, search: "" });
+    const [mappingModal, setMappingModal] = useState({
+        open: false,
+        template: null,
+        openSelector: "",
+        manualPlaceholder: "",
+        searchByPlaceholder: {}
+    });
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -656,11 +685,11 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     };
 
     const openMappingModal = (template) => {
-        setMappingModal({ open: true, template, search: "" });
+        setMappingModal({ open: true, template, openSelector: "", manualPlaceholder: "", searchByPlaceholder: {} });
     };
 
     const closeMappingModal = () => {
-        setMappingModal({ open: false, template: null, search: "" });
+        setMappingModal({ open: false, template: null, openSelector: "", manualPlaceholder: "", searchByPlaceholder: {} });
     };
 
     const updateTemplateMapping = (template, placeholder, value) => {
@@ -766,7 +795,18 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 })
             });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || (t("templates.builder.create_error") || "No se pudo crear la plantilla"));
+            if (!res.ok) {
+                const firstFailure = Array.isArray(data?.results)
+                    ? data.results.find((result) => result?.status === "failed")
+                    : null;
+                const metaDetails = firstFailure?.meta || data?.meta || {};
+                const diagnostic = [
+                    data?.reason,
+                    firstFailure?.businessAccountId ? `WABA ${firstFailure.businessAccountId}` : "",
+                    Number.isFinite(Number(metaDetails?.code)) ? `Meta ${metaDetails.code}${metaDetails.subcode ? `/${metaDetails.subcode}` : ""}` : ""
+                ].filter(Boolean).join(" · ");
+                throw new Error([data.error || (t("templates.builder.create_error") || "No se pudo crear la plantilla"), diagnostic].filter(Boolean).join(" — "));
+            }
             setCreationResults(data);
             const createdCount = Number(data?.summary?.created || 0);
             const duplicateCount = Number(data?.summary?.duplicates || 0);
@@ -875,12 +915,6 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         const template = mappingModal.template;
         const placeholders = getTemplateCommandPlaceholders(template);
         const mapping = getTemplateMapping(template);
-        const search = String(mappingModal.search || "").trim().toLowerCase();
-        const filteredOptions = GHL_VARIABLE_OPTIONS.filter((option) => {
-            if (!search) return true;
-            return `${option.label} ${option.value} ${option.group}`.toLowerCase().includes(search);
-        });
-        const groupedFilteredOptions = groupGhlVariableOptions(filteredOptions);
         const mappedCommand = buildTemplateCommand(template, form.language, mapping);
 
         return (
@@ -926,32 +960,28 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             </code>
                         </div>
 
-                        <div className="mb-4">
-                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                {t("templates.builder.search_ghl_variable") || "Buscar variable GHL"}
-                            </label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                <input
-                                    value={mappingModal.search}
-                                    onChange={(event) => setMappingModal((prev) => ({ ...prev, search: event.target.value }))}
-                                    placeholder="name, email, appointment..."
-                                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                                />
-                            </div>
-                        </div>
-
                         <div className="space-y-3">
                             {placeholders.map((placeholder, index) => {
                                 const selectedValue = String(mapping[placeholder] || "").trim();
-                                const selectedInFilter = !selectedValue || filteredOptions.some((option) => option.value === selectedValue);
+                                const search = String(mappingModal.searchByPlaceholder?.[placeholder] || "").trim().toLowerCase();
+                                const filteredOptions = GHL_VARIABLE_OPTIONS.filter((option) => {
+                                    if (!search) return true;
+                                    return `${option.label} ${option.value} ${option.group}`.toLowerCase().includes(search);
+                                });
+                                const selectedInFilter = selectedValue.startsWith(MANUAL_GHL_MAPPING_PREFIX) || !selectedValue || filteredOptions.some((option) => option.value === selectedValue);
                                 const selectedOption = GHL_VARIABLE_OPTIONS.find((option) => option.value === selectedValue);
                                 const groupedSelectOptions = selectedInFilter
-                                    ? groupedFilteredOptions
+                                    ? groupGhlVariableOptions(filteredOptions)
                                     : groupGhlVariableOptions([
                                         selectedOption || { value: selectedValue, label: selectedValue, group: t("templates.builder.selected_variable") || "Seleccionada" },
                                         ...filteredOptions
                                     ]);
+                                const isSelectorOpen = mappingModal.openSelector === placeholder;
+                                const isManualMode = mappingModal.manualPlaceholder === placeholder;
+                                const manualValue = getManualMappingInput(selectedValue);
+                                const selectedLabel = selectedValue.startsWith(MANUAL_GHL_MAPPING_PREFIX)
+                                    ? `Manual: ${normalizeManualGhlVariable(manualValue) || "sin valor"}`
+                                    : (selectedOption?.label || getDefaultTemplateValue(placeholder, index));
 
                                 return (
                                     <div key={placeholder} className="grid grid-cols-1 gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40 md:grid-cols-[0.8fr_1.2fr]">
@@ -967,29 +997,92 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                             <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
                                                 {t("templates.builder.ghl_equivalence") || "Equivalencia GHL"}
                                             </p>
-                                            <select
-                                                value={selectedValue}
-                                                onChange={(event) => updateTemplateMapping(template, placeholder, event.target.value)}
-                                                className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                                            >
-                                                <option value="">{getDefaultTemplateValue(placeholder, index)}</option>
-                                                {Object.entries(groupedSelectOptions).map(([group, options]) => (
-                                                    <optgroup key={`${placeholder}-${group}`} label={group}>
-                                                        {options.map((option) => (
-                                                            <option key={`${placeholder}-${option.value}`} value={option.value}>
-                                                                {option.label}
-                                                            </option>
-                                                        ))}
-                                                    </optgroup>
-                                                ))}
-                                            </select>
+                                            <div className="relative mt-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMappingModal((prev) => ({
+                                                        ...prev,
+                                                        openSelector: isSelectorOpen ? "" : placeholder,
+                                                        manualPlaceholder: ""
+                                                    }))}
+                                                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                                >
+                                                    <span className="truncate">{selectedLabel}</span>
+                                                    <span className="text-gray-400">⌄</span>
+                                                </button>
+                                                {isSelectorOpen ? (
+                                                    <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                                                        <div className="border-b border-gray-100 p-2 dark:border-gray-800">
+                                                            <div className="relative">
+                                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+                                                                <input
+                                                                    autoFocus
+                                                                    value={search}
+                                                                    onChange={(event) => setMappingModal((prev) => ({
+                                                                        ...prev,
+                                                                        searchByPlaceholder: { ...(prev.searchByPlaceholder || {}), [placeholder]: event.target.value }
+                                                                    }))}
+                                                                    placeholder="Buscar variable GHL..."
+                                                                    className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                                                                />
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setMappingModal((prev) => ({ ...prev, manualPlaceholder: placeholder }))}
+                                                                className="mt-2 w-full rounded-lg border border-dashed border-indigo-300 px-3 py-2 text-left text-xs font-bold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+                                                            >
+                                                                + Escribir variable manualmente
+                                                            </button>
+                                                            {isManualMode ? (
+                                                                <input
+                                                                    value={manualValue}
+                                                                    onChange={(event) => updateTemplateMapping(template, placeholder, `${MANUAL_GHL_MAPPING_PREFIX}${event.target.value}`)}
+                                                                    placeholder="ej.: contact.custom_field"
+                                                                    className="mt-2 w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-indigo-800 dark:bg-gray-950 dark:text-white"
+                                                                />
+                                                            ) : null}
+                                                        </div>
+                                                        <div className="max-h-56 overflow-y-auto p-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    updateTemplateMapping(template, placeholder, "");
+                                                                    setMappingModal((prev) => ({ ...prev, openSelector: "", manualPlaceholder: "" }));
+                                                                }}
+                                                                className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                                                            >
+                                                                {getDefaultTemplateValue(placeholder, index)}
+                                                            </button>
+                                                            {Object.entries(groupedSelectOptions).map(([group, options]) => (
+                                                                <div key={`${placeholder}-${group}`} className="mt-2">
+                                                                    <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-gray-400">{group}</p>
+                                                                    {options.map((option) => (
+                                                                        <button
+                                                                            key={`${placeholder}-${option.value}`}
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                updateTemplateMapping(template, placeholder, option.value);
+                                                                                setMappingModal((prev) => ({ ...prev, openSelector: "", manualPlaceholder: "" }));
+                                                                            }}
+                                                                            className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-gray-700 hover:bg-indigo-50 dark:text-gray-200 dark:hover:bg-indigo-950/30"
+                                                                        >
+                                                                            {option.label}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            ))}
+                                                            {!filteredOptions.length ? <p className="px-3 py-2 text-xs text-gray-500">Sin coincidencias. Puedes usar la opción manual.</p> : null}
+                                                        </div>
+                                                    </div>
+                                                ) : null}
+                                            </div>
                                             {selectedValue ? (
                                                 <div className="mt-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 dark:border-indigo-900/40 dark:bg-indigo-950/20">
                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">
                                                         {t("templates.builder.selected_ghl_variable") || "Variable GHL seleccionada"}
                                                     </p>
                                                     <code className="mt-1 block break-all text-xs font-bold text-indigo-700 dark:text-indigo-200">
-                                                        {selectedValue}
+                                                        {resolveTemplateMappingValue(selectedValue)}
                                                     </code>
                                                 </div>
                                             ) : null}
@@ -1304,7 +1397,6 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                             </label>
                                         ))}
                                     </div>
-                                    <p className="mt-3 text-xs text-indigo-800 dark:text-indigo-200">Meta recibira: <code className="rounded bg-white px-1.5 py-0.5 dark:bg-gray-900">{bodyVariableAnalysis.metaText}</code></p>
                                 </div>
                             ) : null}
 
