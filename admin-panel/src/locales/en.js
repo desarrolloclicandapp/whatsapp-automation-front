@@ -291,6 +291,8 @@ export const en = {
     "templates.builder.approved": "Approved",
     "templates.builder.pending": "Pending",
     "templates.builder.rejected": "Rejected",
+    "templates.builder.review_status": "Meta review",
+    "templates.builder.review_status_help": "Review pending or rejected submissions for this WABA.",
     "templates.builder.empty_status": "No templates in this status.",
     "templates.builder.use_example": "Use example",
     "templates.builder.submit": "Submit to Meta review",

@@ -289,6 +289,8 @@ export const es = {
     "templates.builder.approved": "Aprobadas",
     "templates.builder.pending": "Pendientes",
     "templates.builder.rejected": "Rechazadas",
+    "templates.builder.review_status": "Revisión de Meta",
+    "templates.builder.review_status_help": "Consulta las solicitudes pendientes o rechazadas de este WABA.",
     "templates.builder.empty_status": "Sin plantillas en este estado.",
     "templates.builder.use_example": "Usar ejemplo",
     "templates.builder.submit": "Enviar a revision de Meta",

@@ -98,7 +98,12 @@ assert.match(builder, /min-h-\[32rem\] flex flex-col/);
 assert.match(builder, /Incluye campos estándar de contacto, usuario, cita, oportunidad/);
 assert.match(builder, /expandedTemplateSections/);
 assert.match(builder, /ChevronDown/);
-assert.match(builder, /containerClassName: "min-h-\[20rem\] flex-1 xl:min-h-0 xl:flex xl:flex-col"/);
+assert.match(builder, /builderStatusTab/);
+assert.match(builder, /renderBuilderReviewPanel/);
+assert.match(builder, /templates\.builder\.review_status/);
+assert.match(builder, /setBuilderStatusTab\("pending"\)/);
+assert.match(builder, /setBuilderStatusTab\("rejected"\)/);
+assert.match(builder, /bare: true/);
 assert.match(builder, /t\("templates\.builder\.approved"\) \|\| "Aprobadas"/);
 assert.match(builder, /collapsible: true/);
 assert.match(builder, /max-h-80 overflow-y-auto/);
@@ -129,6 +134,7 @@ assert.match(esLocale, /"templates\.builder\.access_lost_title": "La conexion co
 assert.match(esLocale, /"templates\.builder\.access_lost_action_clear": "Pulsa Limpiar en la configuracion del numero para quitar la vinculacion anterior\."/);
 assert.match(esLocale, /"templates\.builder\.variable_mapper": "Mapeador de variables"/);
 assert.match(esLocale, /"templates\.builder\.ghl_equivalence": "Equivalencia"/);
+assert.match(esLocale, /"templates\.builder\.review_status": "Revisión de Meta"/);
 assert.match(esLocale, /"templates\.builder\.selected_ghl_variable": "Variable GHL seleccionada"/);
 assert.match(enLocale, /"dash\.nav\.templates": "Generate templates"/);
 assert.match(enLocale, /"dash\.nav\.my_templates": "My templates"/);
@@ -139,6 +145,7 @@ assert.match(enLocale, /"templates\.builder\.access_lost_title": "The Meta conne
 assert.match(enLocale, /"templates\.builder\.access_lost_action_clear": "Click Clear in the number settings to remove the previous connection\."/);
 assert.match(enLocale, /"templates\.builder\.variable_mapper": "Variable mapper"/);
 assert.match(enLocale, /"templates\.builder\.ghl_equivalence": "Equivalence"/);
+assert.match(enLocale, /"templates\.builder\.review_status": "Meta review"/);
 assert.match(enLocale, /"templates\.builder\.selected_ghl_variable": "Selected GHL variable"/);
 
 console.log("testOfficialTemplateBuilder passed");

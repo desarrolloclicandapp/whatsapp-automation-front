@@ -375,6 +375,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     const [form, setForm] = useState(emptyForm);
     const [selectedSlotKeys, setSelectedSlotKeys] = useState([]);
     const [selectedPortfolioId, setSelectedPortfolioId] = useState("");
+    const [builderStatusTab, setBuilderStatusTab] = useState("pending");
     const [expandedTemplateSections, setExpandedTemplateSections] = useState({ pending: false, rejected: false });
     const [templateVariableMappings, setTemplateVariableMappings] = useState(() => {
         try {
@@ -905,14 +906,15 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         listClassName = "",
         collapsible = false,
         expanded = true,
-        onToggle = null
+        onToggle = null,
+        bare = false
     } = {}) => {
         const StatusIcon = icon;
         const canToggle = collapsible && items.length > 0;
         const showContent = !collapsible || expanded;
         return (
-            <section className={`rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 ${containerClassName}`}>
-                <div className={`flex items-center justify-between gap-3 ${showContent ? "mb-3" : ""}`}>
+            <section className={bare ? containerClassName : `rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 ${containerClassName}`}>
+                {!bare ? <div className={`flex items-center justify-between gap-3 ${showContent ? "mb-3" : ""}`}>
                     {canToggle ? (
                         <button type="button" onClick={onToggle} className="flex items-center gap-2 text-left">
                             <StatusIcon size={16} className={tone} />
@@ -937,7 +939,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                     ) : (
                         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-500 dark:bg-gray-800">{items.length}</span>
                     )}
-                </div>
+                </div> : null}
                 {showContent ? <div className={`space-y-2 ${listClassName}`}>
                     {items.length === 0 ? (
                         <p className="text-sm text-gray-500">{t("templates.builder.empty_status") || "Sin plantillas en este estado."}</p>
@@ -1002,6 +1004,59 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                         );
                     })}
                 </div> : null}
+            </section>
+        );
+    };
+
+    const renderBuilderReviewPanel = () => {
+        const activeItems = builderStatusTab === "rejected"
+            ? groupedTemplates.rejected
+            : groupedTemplates.pending;
+        const activeTitle = builderStatusTab === "rejected"
+            ? (t("templates.builder.rejected") || "Rechazadas")
+            : (t("templates.builder.pending") || "Pendientes");
+        const activeTone = builderStatusTab === "rejected" ? "text-red-500" : "text-amber-500";
+        const ActiveIcon = builderStatusTab === "rejected" ? XCircle : FileText;
+
+        return (
+            <section className="min-h-[20rem] flex-1 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 xl:min-h-0 xl:flex xl:flex-col">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                        <h4 className="text-sm font-extrabold text-gray-900 dark:text-white">
+                            {t("templates.builder.review_status") || "Revisión de Meta"}
+                        </h4>
+                        <p className="mt-1 text-xs text-gray-500">
+                            {t("templates.builder.review_status_help") || "Consulta las solicitudes pendientes o rechazadas de este WABA."}
+                        </p>
+                    </div>
+                </div>
+                <div className="mb-4 grid grid-cols-2 rounded-xl bg-gray-100 p-1 dark:bg-gray-950/60">
+                    <button
+                        type="button"
+                        onClick={() => setBuilderStatusTab("pending")}
+                        className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-extrabold transition ${builderStatusTab === "pending" ? "bg-white text-amber-600 shadow-sm dark:bg-gray-800 dark:text-amber-300" : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"}`}
+                    >
+                        <FileText size={14} />
+                        {t("templates.builder.pending") || "Pendientes"}
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">{groupedTemplates.pending.length}</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setBuilderStatusTab("rejected")}
+                        className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-extrabold transition ${builderStatusTab === "rejected" ? "bg-white text-red-600 shadow-sm dark:bg-gray-800 dark:text-red-300" : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"}`}
+                    >
+                        <XCircle size={14} />
+                        {t("templates.builder.rejected") || "Rechazadas"}
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] text-red-700 dark:bg-red-950/50 dark:text-red-300">{groupedTemplates.rejected.length}</span>
+                    </button>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                    {renderTemplateList(activeTitle, activeItems, activeTone, ActiveIcon, {
+                        bare: true,
+                        containerClassName: "",
+                        listClassName: "space-y-2"
+                    })}
+                </div>
             </section>
         );
     };
@@ -1777,35 +1832,9 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             </p>
                         )}
                     </div>
-                    {!selectedSlot || loadingSlots ? null : renderTemplateList(
-                        t("templates.builder.approved") || "Aprobadas",
-                        groupedTemplates.approved,
-                        "text-emerald-500",
-                        CheckCircle2,
-                        {
-                            containerClassName: "min-h-[20rem] flex-1 xl:min-h-0 xl:flex xl:flex-col",
-                            listClassName: "min-h-0 flex-1 overflow-y-auto pr-1",
-                        }
-                    )}
+                    {!selectedSlot || loadingSlots ? null : renderBuilderReviewPanel()}
                 </aside>
             </div>
-
-            {!selectedSlot || loadingSlots ? null : (
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                    {renderTemplateList(t("templates.builder.pending") || "Pendientes", groupedTemplates.pending, "text-amber-500", FileText, {
-                        collapsible: true,
-                        expanded: expandedTemplateSections.pending,
-                        onToggle: () => setExpandedTemplateSections((prev) => ({ ...prev, pending: !prev.pending })),
-                        listClassName: "max-h-80 overflow-y-auto pr-1"
-                    })}
-                    {renderTemplateList(t("templates.builder.rejected") || "Rechazadas", groupedTemplates.rejected, "text-red-500", XCircle, {
-                        collapsible: true,
-                        expanded: expandedTemplateSections.rejected,
-                        onToggle: () => setExpandedTemplateSections((prev) => ({ ...prev, rejected: !prev.rejected })),
-                        listClassName: "max-h-80 overflow-y-auto pr-1"
-                    })}
-                </div>
-            )}
         </div>
     );
 }
