@@ -10,7 +10,7 @@ import {
     RefreshCw, Building2, Smartphone, CheckCircle2,
     ArrowLeft, LogOut, RotateCcw, Image as ImageIcon, Link, Users, Trash2,
     Clock, CalendarDays, Plus, AlertCircle, Save, X, AlertTriangle,
-    ArrowUpDown, ChevronDown, Pin
+    ArrowUpDown, ChevronDown, Pin, Activity, Database, Filter, ShieldAlert
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -57,6 +57,18 @@ export default function AdminDashboard({ token, onLogout }) {
     const [masterOtpExpiresAt, setMasterOtpExpiresAt] = useState(null);
     const [masterOtpTick, setMasterOtpTick] = useState(Date.now());
     const [manualUserModal, setManualUserModal] = useState({ show: false, name: "", email: "", phone: "" });
+    const [adminLogs, setAdminLogs] = useState([]);
+    const [adminLogSummary, setAdminLogSummary] = useState({ total: 0, critical: 0, warning: 0, info: 0, bySource: {}, byType: {}, byCode: {} });
+    const [adminLogOptions, setAdminLogOptions] = useState({ types: [] });
+    const [adminLogsLoading, setAdminLogsLoading] = useState(false);
+    const [adminLogFilters, setAdminLogFilters] = useState({
+        source: 'all',
+        severity: 'all',
+        type: '',
+        code: '',
+        query: '',
+        hoursBack: '24'
+    });
 
     // Estado para modal de trial
     const [trialModal, setTrialModal] = useState({ show: false, userId: null, userName: '', currentEnd: null });
@@ -179,6 +191,34 @@ export default function AdminDashboard({ token, onLogout }) {
             const data = await res.json();
             setUsers(Array.isArray(data) ? data : []);
         } catch (error) { console.error("Error usuarios:", error); } finally { setLoading(false); }
+    };
+
+    const fetchAdminLogs = async () => {
+        setAdminLogsLoading(true);
+        try {
+            const params = new URLSearchParams({
+                limit: '250',
+                hoursBack: adminLogFilters.hoursBack || '24'
+            });
+            if (adminLogFilters.source && adminLogFilters.source !== 'all') params.set('source', adminLogFilters.source);
+            if (adminLogFilters.severity && adminLogFilters.severity !== 'all') params.set('severity', adminLogFilters.severity);
+            if (adminLogFilters.type) params.set('type', adminLogFilters.type);
+            if (adminLogFilters.code) params.set('code', adminLogFilters.code);
+            if (adminLogFilters.query) params.set('query', adminLogFilters.query);
+
+            const res = await authFetch(`/admin/logs?${params.toString()}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "No se pudieron cargar los logs");
+
+            setAdminLogs(Array.isArray(data.logs) ? data.logs : []);
+            setAdminLogSummary(data.summary || { total: 0, critical: 0, warning: 0, info: 0, bySource: {}, byType: {}, byCode: {} });
+            setAdminLogOptions(data.filterOptions || { types: [] });
+        } catch (error) {
+            console.error("Error logs:", error);
+            toast.error(error.message || "Error cargando logs");
+        } finally {
+            setAdminLogsLoading(false);
+        }
     };
 
     const fetchMasterOtp = async () => {
@@ -635,7 +675,14 @@ const handleDeleteUser = (user, type = 'soft') => {
     useEffect(() => {
         if (view === 'agencies') fetchAgencies();
         if (view === 'users') fetchUsers();
+        if (view === 'logs') fetchAdminLogs();
     }, [view]);
+
+    useEffect(() => {
+        if (view !== 'logs') return;
+        const timer = setTimeout(() => fetchAdminLogs(), 250);
+        return () => clearTimeout(timer);
+    }, [view, adminLogFilters]);
 
     const handleAgencyClick = (agency) => {
         setSelectedAgency(agency);
@@ -771,6 +818,225 @@ const handleDeleteUser = (user, type = 'soft') => {
                     </span>
                 )}
             </button>
+        );
+    };
+
+    const updateAdminLogFilter = (key, value) => {
+        setAdminLogFilters((current) => ({ ...current, [key]: value }));
+    };
+
+    const clearAdminLogFilters = () => {
+        setAdminLogFilters({
+            source: 'all',
+            severity: 'all',
+            type: '',
+            code: '',
+            query: '',
+            hoursBack: '24'
+        });
+    };
+
+    const formatAdminLogDate = (value) => {
+        if (!value) return 'Sin fecha';
+        try {
+            return new Date(value).toLocaleString('es', {
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (error) {
+            return String(value);
+        }
+    };
+
+    const getAdminLogSeverityStyle = (severity) => {
+        const value = String(severity || '').toLowerCase();
+        if (value === 'critical' || value === 'error') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900';
+        if (value === 'warning' || value === 'warn') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900';
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900';
+    };
+
+    const getAdminLogSourceLabel = (source) => {
+        if (source === 'system_events') return 'Sistema';
+        if (source === 'connectivity_logs') return 'Conexión';
+        if (source === 'error_logs') return 'Aplicación';
+        return source || 'Log';
+    };
+
+    const formatMetadataPreview = (metadata) => {
+        if (!metadata || typeof metadata !== 'object') return '';
+        try {
+            return JSON.stringify(metadata, null, 2);
+        } catch (error) {
+            return String(metadata);
+        }
+    };
+
+    const LogsPanel = () => {
+        const sourceOptions = [
+            { value: 'all', label: 'Todas' },
+            { value: 'system_events', label: 'Sistema' },
+            { value: 'connectivity_logs', label: 'Conexión' },
+            { value: 'error_logs', label: 'Aplicación' }
+        ];
+        const severityOptions = [
+            { value: 'all', label: 'Todo' },
+            { value: 'critical', label: 'Críticos' },
+            { value: 'warning', label: 'Warnings' },
+            { value: 'info', label: 'Info' }
+        ];
+        const topTypes = Array.isArray(adminLogOptions.types) ? adminLogOptions.types.slice(0, 8) : [];
+
+        return (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold uppercase text-gray-500">Total</span>
+                            <Activity size={18} className="text-indigo-500" />
+                        </div>
+                        <p className="text-2xl font-black mt-2 text-gray-900 dark:text-white">{adminLogSummary.total || 0}</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-900 border border-red-100 dark:border-red-900/60 rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold uppercase text-red-600 dark:text-red-300">Críticos</span>
+                            <ShieldAlert size={18} className="text-red-500" />
+                        </div>
+                        <p className="text-2xl font-black mt-2 text-red-600 dark:text-red-300">{adminLogSummary.critical || 0}</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-900 border border-amber-100 dark:border-amber-900/60 rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold uppercase text-amber-600 dark:text-amber-300">Warnings</span>
+                            <AlertTriangle size={18} className="text-amber-500" />
+                        </div>
+                        <p className="text-2xl font-black mt-2 text-amber-600 dark:text-amber-300">{adminLogSummary.warning || 0}</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold uppercase text-gray-500">Fuentes</span>
+                            <Database size={18} className="text-sky-500" />
+                        </div>
+                        <p className="text-2xl font-black mt-2 text-gray-900 dark:text-white">{Object.keys(adminLogSummary.bySource || {}).length}</p>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 space-y-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_160px_150px_150px_150px_auto] gap-3">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                            <input
+                                type="text"
+                                value={adminLogFilters.query}
+                                onChange={(e) => updateAdminLogFilter('query', e.target.value)}
+                                placeholder="Buscar por sesión, location, mensaje, servicio o teléfono..."
+                                className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                            />
+                        </div>
+                        <select value={adminLogFilters.source} onChange={(e) => updateAdminLogFilter('source', e.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold">
+                            {sourceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                        <select value={adminLogFilters.severity} onChange={(e) => updateAdminLogFilter('severity', e.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold">
+                            {severityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                        <input
+                            type="text"
+                            value={adminLogFilters.type}
+                            onChange={(e) => updateAdminLogFilter('type', e.target.value)}
+                            placeholder="Tipo"
+                            className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm"
+                        />
+                        <input
+                            type="text"
+                            value={adminLogFilters.code}
+                            onChange={(e) => updateAdminLogFilter('code', e.target.value)}
+                            placeholder="Código"
+                            className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm"
+                        />
+                        <div className="flex items-center gap-2">
+                            <select value={adminLogFilters.hoursBack} onChange={(e) => updateAdminLogFilter('hoursBack', e.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold">
+                                <option value="2">2h</option>
+                                <option value="6">6h</option>
+                                <option value="24">24h</option>
+                                <option value="72">72h</option>
+                                <option value="168">7d</option>
+                            </select>
+                            <button onClick={fetchAdminLogs} className="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition" title="Recargar logs">
+                                <RefreshCw size={18} className={adminLogsLoading ? 'animate-spin' : ''} />
+                            </button>
+                            <button onClick={clearAdminLogFilters} className="p-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-indigo-600 rounded-lg transition" title="Limpiar filtros">
+                                <Filter size={18} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {topTypes.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            {topTypes.map((item) => (
+                                <button
+                                    key={item.value}
+                                    type="button"
+                                    onClick={() => updateAdminLogFilter('type', item.value)}
+                                    className={`px-3 py-1.5 rounded-full border text-xs font-bold transition ${adminLogFilters.type === item.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 dark:bg-gray-950 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-indigo-400'}`}
+                                >
+                                    {item.value} <span className="opacity-70">{item.count}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
+                    {adminLogsLoading ? (
+                        <div className="py-20 text-center text-gray-500">
+                            <RefreshCw className="animate-spin mx-auto mb-3 text-indigo-600" size={32} />
+                            Cargando logs...
+                        </div>
+                    ) : adminLogs.length === 0 ? (
+                        <div className="py-20 text-center text-gray-500">
+                            <Database className="mx-auto mb-3 text-gray-300" size={40} />
+                            No hay logs para los filtros seleccionados.
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                            {adminLogs.map((log) => {
+                                const metadata = formatMetadataPreview(log.metadata);
+                                const target = log.session_id || log.location_id || log.client_id || log.phone_number || 'global';
+                                return (
+                                    <div key={`${log.source}-${log.id}`} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-950/70 transition">
+                                        <div className="flex flex-col lg:flex-row lg:items-start gap-3 lg:gap-4">
+                                            <div className="lg:w-32 shrink-0">
+                                                <div className="text-xs font-bold text-gray-500 tabular-nums">{formatAdminLogDate(log.created_at)}</div>
+                                                <div className="mt-2 text-[11px] font-bold uppercase text-gray-400">{getAdminLogSourceLabel(log.source)}</div>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                                    <span className={`inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border ${getAdminLogSeverityStyle(log.severity)}`}>{log.severity || log.level || 'info'}</span>
+                                                    {log.type && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700">{log.type}</span>}
+                                                    {log.code && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-900">Código {log.code}</span>}
+                                                    {log.notification_status && <span className="text-[11px] text-gray-400">alerta: {log.notification_status}</span>}
+                                                </div>
+                                                <p className="text-sm font-semibold text-gray-900 dark:text-white break-words">{log.message || log.reason || 'Evento sin mensaje'}</p>
+                                                <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">target: {target}</span>
+                                                    {log.worker_id && <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">worker: {log.worker_id}</span>}
+                                                    {log.category && <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">cat: {log.category}</span>}
+                                                </div>
+                                                {metadata && metadata !== '{}' && (
+                                                    <details className="mt-3">
+                                                        <summary className="cursor-pointer text-xs font-bold text-indigo-600 dark:text-indigo-300">Ver contexto</summary>
+                                                        <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-gray-950 text-gray-100 p-3 text-xs whitespace-pre-wrap">{metadata}</pre>
+                                                    </details>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
         );
     };
 
@@ -916,7 +1182,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                             </button>
                         )}
                         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-indigo-500/20">CA</div>
-                        <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'standaloneBranding' ? 'Configuración Standalone' : view === 'users' ? 'Gestión de Usuarios' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} cuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}</div>
+                        <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'standaloneBranding' ? 'Configuración Standalone' : view === 'users' ? 'Gestión de Usuarios' : view === 'logs' ? 'Logs Operacionales' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} cuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}{view === 'logs' && <p className="text-xs text-gray-500 dark:text-gray-400">{adminLogSummary.total || adminLogs.length} eventos recientes</p>}</div>
                         {masterOtp && (
                             <div className="hidden lg:flex items-center gap-2 bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1.5 rounded-lg text-xs font-bold">
                                 <span>Master OTP:</span>
@@ -929,11 +1195,12 @@ const handleDeleteUser = (user, type = 'soft') => {
                         <div className="hidden md:flex items-center gap-1 ml-6 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700">
                             <button onClick={() => { setView('agencies'); setSubaccounts([]); setSelectedAgency(null); }} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'agencies' || view === 'subaccounts' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Building2 size={16} /> Agencias</button>
                             <button onClick={() => setView('users')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'users' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Users size={16} /> Usuarios</button>
+                            <button onClick={() => setView('logs')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'logs' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Activity size={16} /> Logs</button>
                             <button onClick={() => setView('branding')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'branding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Settings size={16} /> Marca Global</button>
                             <button onClick={() => setView('standaloneBranding')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'standaloneBranding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Smartphone size={16} /> Marca Standalone</button>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3"><ThemeToggle /><button onClick={() => view === 'agencies' ? fetchAgencies() : view === 'users' ? fetchUsers() : (selectedAgency ? fetchSubaccounts(selectedAgency.agency_id) : null)} className="p-2.5 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-800 rounded-lg transition hover:scale-105" title="Recargar datos"><RefreshCw size={20} className={loading ? "animate-spin" : ""} /></button><div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div><button onClick={onLogout} className="p-2.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30 transition font-medium text-sm flex items-center gap-2"><LogOut size={18} /><span className="hidden sm:inline">Salir</span></button></div>
+                    <div className="flex items-center gap-3"><ThemeToggle /><button onClick={() => view === 'agencies' ? fetchAgencies() : view === 'users' ? fetchUsers() : view === 'logs' ? fetchAdminLogs() : (selectedAgency ? fetchSubaccounts(selectedAgency.agency_id) : null)} className="p-2.5 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-800 rounded-lg transition hover:scale-105" title="Recargar datos"><RefreshCw size={20} className={(loading || adminLogsLoading) ? "animate-spin" : ""} /></button><div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div><button onClick={onLogout} className="p-2.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30 transition font-medium text-sm flex items-center gap-2"><LogOut size={18} /><span className="hidden sm:inline">Salir</span></button></div>
                 </div>
             </header>
 
@@ -942,6 +1209,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                 {/* VISTA: BRANDING */}
                 {view === 'branding' && <BrandingSettings mode="global" />}
                 {view === 'standaloneBranding' && <BrandingSettings mode="standalone" />}
+                {view === 'logs' && <LogsPanel />}
 
                 {/* VISTA: USUARIOS */}
                 {view === 'users' && (
