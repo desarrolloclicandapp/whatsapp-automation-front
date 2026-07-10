@@ -13,9 +13,22 @@ const emptyForm = {
     language: "es",
     category: "UTILITY",
     bodyText: "",
-    bodyExamples: "",
+    bodyExamples: {},
+    headerFormat: "NONE",
+    headerText: "",
+    headerExamples: {},
+    headerMediaHandle: "",
     footerText: "",
-    buttons: ""
+    buttons: [],
+    authentication: {
+        addSecurityRecommendation: true,
+        codeExpirationMinutes: "10",
+        otpType: "COPY_CODE",
+        buttonText: "Copiar codigo",
+        autofillText: "Autocompletar",
+        packageName: "",
+        signatureHash: ""
+    }
 };
 
 const GHL_VARIABLE_OPTIONS = [
@@ -60,31 +73,39 @@ function normalizeTemplateName(value = "") {
         .replace(/^_+|_+$/g, "");
 }
 
-function parseExamples(value = "") {
-    return String(value || "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-}
+function analyzeTemplateVariables(text = "") {
+    const source = String(text || "");
+    const matches = [...source.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)];
+    if (!matches.length) return { metaText: source, variables: [] };
 
-function parseButtons(value = "") {
-    return String(value || "")
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean)
-        .slice(0, 3)
-        .map((text) => ({ type: "QUICK_REPLY", text }));
-}
-
-function extractVariableIndexes(text = "") {
-    const indexes = new Set();
-    const matcher = /\{\{\s*(\d+)\s*\}\}/g;
-    let match;
-    while ((match = matcher.exec(String(text || ""))) !== null) {
-        const index = Number.parseInt(match[1], 10);
-        if (Number.isFinite(index) && index > 0) indexes.add(index);
+    const tokens = matches.map((match) => String(match[1] || "").trim()).filter(Boolean);
+    const numericOnly = tokens.length === matches.length && tokens.every((token) => /^\d+$/.test(token));
+    if (numericOnly) {
+        const indexes = [...new Set(tokens.map((token) => Number.parseInt(token, 10)))].sort((a, b) => a - b);
+        return {
+            metaText: source,
+            variables: indexes.map((index) => ({ index, key: String(index), label: `{{${index}}}` }))
+        };
     }
-    return [...indexes].sort((a, b) => a - b);
+
+    const indexByKey = new Map();
+    const variables = [];
+    let nextIndex = 1;
+    const metaText = source.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_, token) => {
+        const label = String(token || "").trim();
+        const key = label.toLocaleLowerCase();
+        if (!indexByKey.has(key)) {
+            indexByKey.set(key, nextIndex);
+            variables.push({ index: nextIndex, key, label: `{{${label}}}` });
+            nextIndex += 1;
+        }
+        return `{{${indexByKey.get(key)}}}`;
+    });
+    return { metaText, variables };
+}
+
+function resolveVariableExamples(values = {}, variables = []) {
+    return variables.map((variable) => String(values?.[variable.key] || "").trim());
 }
 
 function extractTemplatePlaceholders(text = "") {
@@ -360,9 +381,25 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         return templatesBySlot[`${selectedSlot.locationId}:${selectedSlot.slotId}`]?.templates || [];
     }, [selectedSlot, templatesBySlot]);
     const groupedTemplates = useMemo(() => groupTemplates(currentTemplates), [currentTemplates]);
-    const variableIndexes = useMemo(() => extractVariableIndexes(form.bodyText), [form.bodyText]);
-    const bodyExamples = useMemo(() => parseExamples(form.bodyExamples), [form.bodyExamples]);
-    const buttons = useMemo(() => parseButtons(form.buttons), [form.buttons]);
+    const bodyVariableAnalysis = useMemo(() => analyzeTemplateVariables(form.bodyText), [form.bodyText]);
+    const headerVariableAnalysis = useMemo(() => analyzeTemplateVariables(form.headerText), [form.headerText]);
+    const variableIndexes = useMemo(
+        () => bodyVariableAnalysis.variables.map((variable) => variable.index),
+        [bodyVariableAnalysis]
+    );
+    const bodyExamples = useMemo(
+        () => resolveVariableExamples(form.bodyExamples, bodyVariableAnalysis.variables),
+        [bodyVariableAnalysis, form.bodyExamples]
+    );
+    const headerExamples = useMemo(
+        () => resolveVariableExamples(form.headerExamples, headerVariableAnalysis.variables),
+        [form.headerExamples, headerVariableAnalysis]
+    );
+    const buttons = useMemo(
+        () => (Array.isArray(form.buttons) ? form.buttons.filter((button) => String(button?.text || "").trim()) : []),
+        [form.buttons]
+    );
+    const isAuthenticationTemplate = form.category === "AUTHENTICATION";
     const normalizedName = normalizeTemplateName(form.name);
     const locationsSignature = useMemo(() => {
         return (Array.isArray(locations) ? locations : [])
@@ -375,8 +412,13 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     const previewText = useMemo(() => {
         const raw = String(form.bodyText || "").trim();
         if (!raw) return t("templates.builder.preview_empty") || "Escribe el mensaje para ver la vista previa.";
-        return raw.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, index) => bodyExamples[Number(index) - 1] || `{{${index}}}`);
-    }, [bodyExamples, form.bodyText, t]);
+        return bodyVariableAnalysis.metaText.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, index) => bodyExamples[Number(index) - 1] || `{{${index}}}`);
+    }, [bodyExamples, bodyVariableAnalysis.metaText, t]);
+
+    const previewHeaderText = useMemo(() => {
+        if (form.headerFormat !== "TEXT") return "";
+        return headerVariableAnalysis.metaText.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, index) => headerExamples[Number(index) - 1] || `{{${index}}}`);
+    }, [form.headerFormat, headerExamples, headerVariableAnalysis.metaText]);
 
     const draftCommand = useMemo(() => {
         const name = normalizedName || "recordatorio_cita";
@@ -386,6 +428,49 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
 
     const setFormField = (key, value) => {
         setForm((prev) => ({ ...prev, [key]: key === "name" ? normalizeTemplateName(value) : value }));
+    };
+
+    const setVariableExample = (field, key, value) => {
+        setForm((prev) => ({
+            ...prev,
+            [field]: {
+                ...(prev[field] && typeof prev[field] === "object" ? prev[field] : {}),
+                [key]: value
+            }
+        }));
+    };
+
+    const addButton = () => {
+        setForm((prev) => ({
+            ...prev,
+            buttons: [...(Array.isArray(prev.buttons) ? prev.buttons : []), { type: "QUICK_REPLY", text: "", url: "", urlExample: "", phoneNumber: "", flowId: "", navigateScreen: "" }]
+        }));
+    };
+
+    const updateButton = (index, key, value) => {
+        setForm((prev) => ({
+            ...prev,
+            buttons: (Array.isArray(prev.buttons) ? prev.buttons : []).map((button, buttonIndex) => (
+                buttonIndex === index ? { ...button, [key]: value } : button
+            ))
+        }));
+    };
+
+    const removeButton = (index) => {
+        setForm((prev) => ({
+            ...prev,
+            buttons: (Array.isArray(prev.buttons) ? prev.buttons : []).filter((_, buttonIndex) => buttonIndex !== index)
+        }));
+    };
+
+    const setAuthenticationField = (key, value) => {
+        setForm((prev) => ({
+            ...prev,
+            authentication: {
+                ...(prev.authentication || {}),
+                [key]: value
+            }
+        }));
     };
 
     const loadOfficialSlots = async () => {
@@ -548,10 +633,16 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
             name: "recordatorio_cita",
             language: "es",
             category: "UTILITY",
-            bodyText: "Hola {{1}}, recuerda tu cita para el {{2}}.",
-            bodyExamples: "Luis, viernes 10:00",
+            headerFormat: "TEXT",
+            headerText: "Recordatorio para {{cliente}}",
+            headerExamples: { cliente: "Luis" },
+            bodyText: "Hola {{cliente}}, recuerda tu cita para el {{fecha}}.",
+            bodyExamples: { cliente: "Luis", fecha: "viernes 10:00" },
             footerText: "Responde para confirmar.",
-            buttons: "Confirmar\nReprogramar"
+            buttons: [
+                { type: "QUICK_REPLY", text: "Confirmar" },
+                { type: "QUICK_REPLY", text: "Reprogramar" }
+            ]
         }));
     };
 
@@ -631,13 +722,21 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
             toast.error(t("templates.builder.no_official_slots") || "No hay numeros Meta oficiales conectados");
             return;
         }
-        if (!normalizedName || !form.bodyText.trim()) {
+        if (!normalizedName || (!isAuthenticationTemplate && !form.bodyText.trim())) {
             toast.error(t("templates.builder.required_error") || "Nombre y mensaje son requeridos");
             return;
         }
-        const missingExample = variableIndexes.some((index) => !bodyExamples[index - 1]);
+        const missingExample = !isAuthenticationTemplate && variableIndexes.some((index) => !bodyExamples[index - 1]);
         if (missingExample) {
-            toast.error(t("templates.builder.examples_error") || "Agrega un ejemplo por cada variable");
+            toast.error(t("templates.builder.examples_error") || "Agrega un ejemplo por cada variable detectada");
+            return;
+        }
+        if (!isAuthenticationTemplate && form.headerFormat === "TEXT" && headerVariableAnalysis.variables.length > 1) {
+            toast.error("El encabezado de texto de Meta admite una sola variable.");
+            return;
+        }
+        if (!isAuthenticationTemplate && form.headerFormat === "TEXT" && headerVariableAnalysis.variables.length && !headerExamples[0]) {
+            toast.error("Agrega el ejemplo de la variable del encabezado.");
             return;
         }
 
@@ -657,8 +756,13 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                     category: form.category,
                     bodyText: form.bodyText,
                     bodyExamples,
+                    headerFormat: form.headerFormat,
+                    headerText: form.headerText,
+                    headerExamples,
+                    headerMediaHandle: form.headerMediaHandle,
                     footerText: form.footerText,
-                    buttons
+                    buttons,
+                    authentication: form.authentication
                 })
             });
             const data = await res.json().catch(() => ({}));
@@ -1057,14 +1161,24 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
                                 {t("templates.builder.language") || "Idioma"}
                             </label>
-                            <select
+                            <input
+                                list="official-template-languages"
                                 value={form.language}
                                 onChange={(event) => setFormField("language", event.target.value)}
+                                placeholder="es"
                                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                            >
-                                <option value="es">es</option>
-                                <option value="en">en</option>
-                            </select>
+                            />
+                            <datalist id="official-template-languages">
+                                <option value="es" />
+                                <option value="es_ES" />
+                                <option value="es_MX" />
+                                <option value="en" />
+                                <option value="en_US" />
+                                <option value="pt_BR" />
+                                <option value="fr" />
+                                <option value="it" />
+                                <option value="de" />
+                            </datalist>
                         </div>
                     </div>
 
@@ -1096,61 +1210,140 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                         </div>
                     </div>
 
-                    <div>
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                {t("templates.builder.body") || "Mensaje"}
+                    {isAuthenticationTemplate ? (
+                        <div className="space-y-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
+                            <div>
+                                <p className="text-sm font-extrabold text-amber-900 dark:text-amber-200">Plantilla de autenticacion</p>
+                                <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">Meta genera el cuerpo del codigo OTP. Esta categoria no admite el mensaje, encabezado ni botones normales.</p>
+                            </div>
+                            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                <input type="checkbox" checked={form.authentication?.addSecurityRecommendation !== false} onChange={(event) => setAuthenticationField("addSecurityRecommendation", event.target.checked)} className="h-4 w-4 accent-indigo-600" />
+                                Incluir recomendacion de seguridad
                             </label>
-                            <button type="button" onClick={applyExample} className="text-xs font-bold text-indigo-600 hover:text-indigo-500">
-                                {t("templates.builder.use_example") || "Usar ejemplo"}
-                            </button>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Expiracion del codigo (minutos)
+                                    <input type="number" min="1" value={form.authentication?.codeExpirationMinutes || ""} onChange={(event) => setAuthenticationField("codeExpirationMinutes", event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" />
+                                </label>
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Tipo de boton OTP
+                                    <select value={form.authentication?.otpType || "COPY_CODE"} onChange={(event) => setAuthenticationField("otpType", event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
+                                        <option value="COPY_CODE">Copiar codigo</option>
+                                        <option value="ONE_TAP">Autocompletar en Android</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Texto del boton
+                                <input value={form.authentication?.buttonText || ""} onChange={(event) => setAuthenticationField("buttonText", event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" />
+                            </label>
+                            {form.authentication?.otpType === "ONE_TAP" ? (
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Texto autocompletar
+                                        <input value={form.authentication?.autofillText || ""} onChange={(event) => setAuthenticationField("autofillText", event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" />
+                                    </label>
+                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Paquete Android
+                                        <input value={form.authentication?.packageName || ""} onChange={(event) => setAuthenticationField("packageName", event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" />
+                                    </label>
+                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Signature hash
+                                        <input value={form.authentication?.signatureHash || ""} onChange={(event) => setAuthenticationField("signatureHash", event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" />
+                                    </label>
+                                </div>
+                            ) : null}
                         </div>
-                        <textarea
-                            value={form.bodyText}
-                            onChange={(event) => setFormField("bodyText", event.target.value)}
-                            rows={5}
-                            placeholder="Hola {{1}}, recuerda tu cita para el {{2}}."
-                            className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                        />
-                    </div>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Encabezado
+                                    <select value={form.headerFormat} onChange={(event) => setFormField("headerFormat", event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                        <option value="NONE">Sin encabezado</option>
+                                        <option value="TEXT">Texto</option>
+                                        <option value="IMAGE">Imagen</option>
+                                        <option value="VIDEO">Video</option>
+                                        <option value="DOCUMENT">Documento</option>
+                                        <option value="LOCATION">Ubicacion</option>
+                                    </select>
+                                </label>
+                                {form.headerFormat === "TEXT" ? (
+                                    <label className="md:col-span-2 text-sm font-bold text-gray-700 dark:text-gray-300">Texto del encabezado
+                                        <input value={form.headerText} onChange={(event) => setFormField("headerText", event.target.value)} placeholder="Tu cita, {{cliente}}" className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+                                    </label>
+                                ) : null}
+                                {["IMAGE", "VIDEO", "DOCUMENT"].includes(form.headerFormat) ? (
+                                    <label className="md:col-span-2 text-sm font-bold text-gray-700 dark:text-gray-300">Handle de muestra de Meta
+                                        <input value={form.headerMediaHandle} onChange={(event) => setFormField("headerMediaHandle", event.target.value)} placeholder="4::..." className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+                                        <span className="mt-1 block text-xs font-normal text-gray-500">Meta requiere un header_handle cargado previamente; una URL publica no sirve como muestra de plantilla.</span>
+                                    </label>
+                                ) : null}
+                            </div>
 
-                    <div>
-                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                            {t("templates.builder.examples") || "Ejemplos de variables, separados por coma"}
-                        </label>
-                        <input
-                            value={form.bodyExamples}
-                            onChange={(event) => setFormField("bodyExamples", event.target.value)}
-                            placeholder="Luis, viernes 10:00"
-                            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                        />
-                    </div>
+                            {form.headerFormat === "TEXT" && headerVariableAnalysis.variables.length ? (
+                                <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                                    <p className="text-xs font-bold text-indigo-800 dark:text-indigo-200">Variable del encabezado (Meta admite una)</p>
+                                    {headerVariableAnalysis.variables.map((variable) => (
+                                        <label key={`header-${variable.key}`} className="mt-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">{variable.label} se enviara a Meta como {`{{${variable.index}}}`}
+                                            <input value={form.headerExamples?.[variable.key] || ""} onChange={(event) => setVariableExample("headerExamples", variable.key, event.target.value)} placeholder="Ejemplo para revision" className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm dark:border-indigo-900 dark:bg-gray-900" />
+                                        </label>
+                                    ))}
+                                </div>
+                            ) : null}
 
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div>
-                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                {t("templates.builder.footer") || "Pie opcional"}
-                            </label>
-                            <input
-                                value={form.footerText}
-                                onChange={(event) => setFormField("footerText", event.target.value)}
-                                placeholder="Responde para confirmar."
-                                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                            />
-                        </div>
-                        <div>
-                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                {t("templates.builder.buttons") || "Botones rapidos, uno por linea"}
-                            </label>
-                            <textarea
-                                value={form.buttons}
-                                onChange={(event) => setFormField("buttons", event.target.value)}
-                                rows={3}
-                                placeholder={"Confirmar\nReprogramar"}
-                                className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                            />
-                        </div>
-                    </div>
+                            <div>
+                                <div className="mb-2 flex items-center justify-between gap-3">
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">{t("templates.builder.body") || "Mensaje"}</label>
+                                    <button type="button" onClick={applyExample} className="text-xs font-bold text-indigo-600 hover:text-indigo-500">{t("templates.builder.use_example") || "Usar ejemplo"}</button>
+                                </div>
+                                <textarea value={form.bodyText} onChange={(event) => setFormField("bodyText", event.target.value)} rows={5} placeholder="Hola {{nombre}}, recuerda tu cita para {{servicio}}." className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+                                <p className="mt-2 text-xs text-gray-500">Puedes escribir variables legibles, por ejemplo <code>{"{{nombre}}"}</code>. Antes de enviar, se convierten en marcadores consecutivos que Meta exige.</p>
+                            </div>
+
+                            {bodyVariableAnalysis.variables.length ? (
+                                <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                                    <p className="text-xs font-bold text-indigo-800 dark:text-indigo-200">Variables y ejemplos requeridos por Meta</p>
+                                    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        {bodyVariableAnalysis.variables.map((variable) => (
+                                            <label key={`body-${variable.key}`} className="text-xs font-semibold text-gray-700 dark:text-gray-300">{variable.label} se enviara como {`{{${variable.index}}}`}
+                                                <input value={form.bodyExamples?.[variable.key] || ""} onChange={(event) => setVariableExample("bodyExamples", variable.key, event.target.value)} placeholder="Ejemplo para revision de Meta" className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm dark:border-indigo-900 dark:bg-gray-900" />
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <p className="mt-3 text-xs text-indigo-800 dark:text-indigo-200">Meta recibira: <code className="rounded bg-white px-1.5 py-0.5 dark:bg-gray-900">{bodyVariableAnalysis.metaText}</code></p>
+                                </div>
+                            ) : null}
+
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t("templates.builder.footer") || "Pie opcional"}
+                                    <input value={form.footerText} onChange={(event) => setFormField("footerText", event.target.value)} placeholder="Responde para confirmar." className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+                                </label>
+                            </div>
+
+                            <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Botones</p>
+                                        <p className="text-xs text-gray-500">Respuestas rapidas, URL, llamada telefonica o Flow.</p>
+                                    </div>
+                                    <button type="button" onClick={addButton} disabled={(form.buttons || []).length >= 10} className="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-bold text-indigo-700 disabled:opacity-50 dark:border-indigo-900 dark:text-indigo-300">Agregar boton</button>
+                                </div>
+                                <div className="mt-3 space-y-3">
+                                    {(form.buttons || []).map((button, index) => (
+                                        <div key={`button-${index}`} className="rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                                            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                                                <select value={button.type || "QUICK_REPLY"} onChange={(event) => updateButton(index, "type", event.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                                    <option value="QUICK_REPLY">Respuesta rapida</option>
+                                                    <option value="URL">Visitar sitio web</option>
+                                                    <option value="PHONE_NUMBER">Llamar por telefono</option>
+                                                    <option value="FLOW">Abrir Flow</option>
+                                                </select>
+                                                <input value={button.text || ""} onChange={(event) => updateButton(index, "text", event.target.value)} placeholder="Texto del boton" className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+                                                <button type="button" onClick={() => removeButton(index)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600 dark:border-red-900">Eliminar</button>
+                                            </div>
+                                            {button.type === "URL" ? <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2"><input value={button.url || ""} onChange={(event) => updateButton(index, "url", event.target.value)} placeholder="https://ejemplo.com/promo/{{codigo}}" className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /><input value={button.urlExample || ""} onChange={(event) => updateButton(index, "urlExample", event.target.value)} placeholder="Ejemplo si la URL tiene variable" className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></div> : null}
+                                            {button.type === "PHONE_NUMBER" ? <input value={button.phoneNumber || ""} onChange={(event) => updateButton(index, "phoneNumber", event.target.value)} placeholder="Numero con codigo de pais" className="mt-2 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /> : null}
+                                            {button.type === "FLOW" ? <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2"><input value={button.flowId || ""} onChange={(event) => updateButton(index, "flowId", event.target.value)} placeholder="Flow ID" className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /><input value={button.navigateScreen || ""} onChange={(event) => updateButton(index, "navigateScreen", event.target.value)} placeholder="ID de pantalla inicial" className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></div> : null}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
 
                     <button
                         type="submit"
@@ -1168,17 +1361,27 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             {t("templates.builder.preview") || "Vista previa"}
                         </h4>
                         <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/40">
-                            <p className="whitespace-pre-wrap text-sm font-semibold text-gray-900 dark:text-white">{previewText}</p>
-                            {form.footerText ? <p className="mt-3 border-t border-gray-200 pt-2 text-xs text-gray-500">{form.footerText}</p> : null}
-                            {buttons.length ? (
-                                <div className="mt-3 grid gap-2">
-                                    {buttons.map((button) => (
-                                        <div key={button.text} className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-center text-xs font-bold text-sky-700 dark:bg-gray-900">
-                                            {button.text}
+                            {isAuthenticationTemplate ? (
+                                <>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Tu codigo de verificacion es: 123456</p>
+                                    {form.authentication?.addSecurityRecommendation !== false ? <p className="mt-3 text-xs text-gray-500">No compartas este codigo con nadie.</p> : null}
+                                    <div className="mt-3 rounded-lg border border-sky-200 bg-white px-3 py-2 text-center text-xs font-bold text-sky-700 dark:bg-gray-900">{form.authentication?.buttonText || "Copiar codigo"}</div>
+                                </>
+                            ) : (
+                                <>
+                                    {previewHeaderText ? <p className="mb-3 text-sm font-extrabold text-gray-900 dark:text-white">{previewHeaderText}</p> : null}
+                                    {["IMAGE", "VIDEO", "DOCUMENT", "LOCATION"].includes(form.headerFormat) ? <p className="mb-3 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-xs font-semibold text-gray-500">Encabezado {form.headerFormat.toLocaleLowerCase()} de Meta</p> : null}
+                                    <p className="whitespace-pre-wrap text-sm font-semibold text-gray-900 dark:text-white">{previewText}</p>
+                                    {form.footerText ? <p className="mt-3 border-t border-gray-200 pt-2 text-xs text-gray-500">{form.footerText}</p> : null}
+                                    {buttons.length ? (
+                                        <div className="mt-3 grid gap-2">
+                                            {buttons.map((button, index) => (
+                                                <div key={`${button.text}-${index}`} className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-center text-xs font-bold text-sky-700 dark:bg-gray-900">{button.text}</div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
-                            ) : null}
+                                    ) : null}
+                                </>
+                            )}
                         </div>
                         <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
                             <div className="mb-2 flex items-center justify-between gap-3">
@@ -1195,13 +1398,14 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             <p className="mt-2 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
                                 {t("templates.builder.ghl_help") || "Cuando Meta apruebe la plantilla, envia solo este comando en GoHighLevel. Reemplaza valor_1, valor_2 por datos reales."}
                             </p>
+                            {bodyVariableAnalysis.variables.length ? <p className="mt-2 text-xs text-emerald-800 dark:text-emerald-200">{bodyVariableAnalysis.variables.map((variable) => `valor_${variable.index} = ${variable.label}`).join(" · ")}</p> : null}
                         </div>
                     </div>
 
                     <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                         <div className="mb-3 flex items-center justify-between gap-3">
                             <h4 className="text-sm font-extrabold text-gray-900 dark:text-white">
-                                {t("templates.builder.current_number_templates") || "Plantillas del numero seleccionado"}
+                                {selectedSlots.length > 1 ? "Plantillas del numero de referencia" : (t("templates.builder.current_number_templates") || "Plantillas del numero seleccionado")}
                             </h4>
                             <button
                                 type="button"
@@ -1217,9 +1421,10 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                 {t("templates.builder.loading_slots_short") || "Cargando numeros..."}
                             </p>
                         ) : selectedSlot ? (
-                            <p className="text-xs text-gray-500">
-                                {selectedSlot.locationName} / {selectedSlot.slotName} {selectedSlot.phone ? `- ${selectedSlot.phone}` : ""}
-                            </p>
+                            <div className="space-y-1 text-xs text-gray-500">
+                                <p>{selectedSlot.locationName} / {selectedSlot.slotName} {selectedSlot.phone ? `- ${selectedSlot.phone}` : ""}</p>
+                                {selectedSlots.length > 1 ? <p>La lista se consulta para este WABA; al enviar, Meta recibira la solicitud en los {selectedWabaGroups.length} WABA seleccionados.</p> : null}
+                            </div>
                         ) : (
                             <p className="text-xs text-gray-500">
                                 {t("templates.builder.no_ready_slots_short") || "Sin numeros listos para templates"}

@@ -73,6 +73,17 @@ assert.match(builder, /summary\?\.duplicates/);
 assert.match(builder, /function getTemplateContentPreview/);
 assert.match(builder, /<p className="text-\[10px\] font-extrabold uppercase tracking-wider text-gray-400">Mensaje<\/p>/);
 assert.match(builder, /contentPreview\.body/);
+assert.match(builder, /function analyzeTemplateVariables/);
+assert.match(builder, /Meta recibira:/);
+assert.match(builder, /headerFormat: form\.headerFormat/);
+assert.match(builder, /headerMediaHandle: form\.headerMediaHandle/);
+assert.match(builder, /headerExamples,/);
+assert.match(builder, /authentication: form\.authentication/);
+assert.match(builder, /option value="FLOW"/);
+assert.match(builder, /Visitar sitio web/);
+assert.match(builder, /Llamar por telefono/);
+assert.match(builder, /Plantilla de autenticacion/);
+assert.match(builder, /Variables y ejemplos requeridos por Meta/);
 
 assert.match(esLocale, /"dash\.nav\.templates": "Generar templates"/);
 assert.match(esLocale, /"templates\.builder\.title": "Constructor de templates"/);
