@@ -192,6 +192,24 @@ function getTemplateKey(template = {}) {
     ].join(":");
 }
 
+function getTemplateContentPreview(template = {}) {
+    const components = Array.isArray(template?.components) ? template.components : [];
+    const body = components.find((component) => String(component?.type || "").toUpperCase() === "BODY");
+    const header = components.find((component) => String(component?.type || "").toUpperCase() === "HEADER");
+    const footer = components.find((component) => String(component?.type || "").toUpperCase() === "FOOTER");
+    const buttonsComponent = components.find((component) => String(component?.type || "").toUpperCase() === "BUTTONS");
+    const buttons = Array.isArray(buttonsComponent?.buttons)
+        ? buttonsComponent.buttons.map((button) => String(button?.text || button?.url || "").trim()).filter(Boolean)
+        : [];
+
+    return {
+        header: String(header?.text || "").trim(),
+        body: String(body?.text || "").trim(),
+        footer: String(footer?.text || "").trim(),
+        buttons
+    };
+}
+
 function groupGhlVariableOptions(options = []) {
     return options.reduce((groups, option) => {
         const group = String(option?.group || "GHL").trim() || "GHL";
@@ -246,7 +264,9 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     const [loadingTemplates, setLoadingTemplates] = useState(false);
     const [templateLoadError, setTemplateLoadError] = useState(null);
     const [creating, setCreating] = useState(false);
+    const [creationResults, setCreationResults] = useState(null);
     const [form, setForm] = useState(emptyForm);
+    const [selectedSlotKeys, setSelectedSlotKeys] = useState([]);
     const [templateVariableMappings, setTemplateVariableMappings] = useState(() => {
         try {
             const stored = localStorage.getItem(TEMPLATE_VARIABLE_MAPPINGS_STORAGE_KEY);
@@ -274,10 +294,45 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         return res;
     };
 
-    const selectedSlot = useMemo(
-        () => officialSlots.find((slot) => slot.locationId === form.locationId && String(slot.slotId) === String(form.slotId)) || null,
-        [officialSlots, form.locationId, form.slotId]
+    const accountOptions = useMemo(() => {
+        const accounts = new Map();
+        officialSlots.forEach((slot) => {
+            if (!accounts.has(slot.locationId)) {
+                accounts.set(slot.locationId, {
+                    locationId: slot.locationId,
+                    locationName: slot.locationName || slot.locationId,
+                    count: 0
+                });
+            }
+            accounts.get(slot.locationId).count += 1;
+        });
+        return [...accounts.values()].sort((a, b) => a.locationName.localeCompare(b.locationName));
+    }, [officialSlots]);
+
+    const availableSlotsForAccount = useMemo(
+        () => officialSlots.filter((slot) => slot.locationId === form.locationId),
+        [officialSlots, form.locationId]
     );
+
+    const selectedSlots = useMemo(() => {
+        const selected = new Set(selectedSlotKeys);
+        return officialSlots.filter((slot) => selected.has(`${slot.locationId}:${slot.slotId}`));
+    }, [officialSlots, selectedSlotKeys]);
+
+    const selectedSlot = useMemo(
+        () => selectedSlots[0] || officialSlots.find((slot) => slot.locationId === form.locationId && String(slot.slotId) === String(form.slotId)) || null,
+        [officialSlots, form.locationId, form.slotId, selectedSlots]
+    );
+
+    const selectedWabaGroups = useMemo(() => {
+        const groups = new Map();
+        selectedSlots.forEach((slot) => {
+            const key = slot.businessAccountId || `slot:${slot.locationId}:${slot.slotId}`;
+            if (!groups.has(key)) groups.set(key, { businessAccountId: slot.businessAccountId, slots: [] });
+            groups.get(key).slots.push(slot);
+        });
+        return [...groups.values()];
+    }, [selectedSlots]);
 
     const currentTemplates = useMemo(() => {
         if (!selectedSlot) return [];
@@ -357,6 +412,13 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 }
                 const first = nextSlots[0];
                 return first ? { ...prev, locationId: first.locationId, slotId: String(first.slotId) } : prev;
+            });
+            setSelectedSlotKeys((prev) => {
+                const validKeys = new Set(nextSlots.map((slot) => `${slot.locationId}:${slot.slotId}`));
+                const retained = prev.filter((key) => validKeys.has(key));
+                if (retained.length > 0) return retained;
+                const first = nextSlots[0];
+                return first ? [`${first.locationId}:${first.slotId}`] : [];
             });
         } catch (error) {
             if (!mountedRef.current || slotsLoadRequestRef.current !== requestId) return;
@@ -478,9 +540,35 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         return templateVariableMappings[getTemplateKey(template)] || {};
     };
 
+    const selectAccount = (locationId) => {
+        const firstSlot = officialSlots.find((slot) => slot.locationId === locationId);
+        setForm((prev) => ({
+            ...prev,
+            locationId,
+            slotId: firstSlot ? String(firstSlot.slotId) : ""
+        }));
+        setSelectedSlotKeys(firstSlot ? [`${firstSlot.locationId}:${firstSlot.slotId}`] : []);
+        setCreationResults(null);
+    };
+
+    const toggleSlotSelection = (slot) => {
+        const key = `${slot.locationId}:${slot.slotId}`;
+        setSelectedSlotKeys((prev) => {
+            if (prev.includes(key)) {
+                const next = prev.filter((item) => item !== key);
+                const nextPrimary = next[0]?.split(":")[1] || "";
+                setForm((current) => ({ ...current, slotId: nextPrimary }));
+                return next;
+            }
+            setForm((current) => ({ ...current, locationId: slot.locationId, slotId: current.slotId || String(slot.slotId) }));
+            return [...prev, key];
+        });
+        setCreationResults(null);
+    };
+
     const createTemplate = async (event) => {
         event.preventDefault();
-        if (!selectedSlot) {
+        if (!selectedSlot || selectedSlots.length === 0) {
             toast.error(t("templates.builder.no_official_slots") || "No hay numeros Meta oficiales conectados");
             return;
         }
@@ -501,6 +589,10 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 body: JSON.stringify({
                     locationId: selectedSlot.locationId,
                     slotId: selectedSlot.slotId,
+                    targets: selectedSlots.map((slot) => ({
+                        locationId: slot.locationId,
+                        slotId: slot.slotId
+                    })),
                     name: normalizedName,
                     language: form.language,
                     category: form.category,
@@ -512,7 +604,17 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || (t("templates.builder.create_error") || "No se pudo crear la plantilla"));
-            toast.success(t("templates.builder.created") || "Plantilla enviada a revision de Meta");
+            setCreationResults(data);
+            const createdCount = Number(data?.summary?.created || 0);
+            const duplicateCount = Number(data?.summary?.duplicates || 0);
+            const failedCount = Number(data?.summary?.failed || 0);
+            toast.success(
+                failedCount > 0
+                    ? `Template procesado en ${createdCount + duplicateCount} WABA; ${failedCount} operación(es) requieren revisión.`
+                    : duplicateCount > 0 && createdCount === 0
+                        ? `El template ya existía en ${duplicateCount} WABA.`
+                        : t("templates.builder.created") || "Plantilla enviada a revision de Meta"
+            );
             await loadTemplates(selectedSlot);
         } catch (error) {
             toast.error(t("templates.builder.create_error") || "No se pudo crear la plantilla", {
@@ -543,6 +645,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                         const mapping = getTemplateMapping(template);
                         const command = buildTemplateCommand(template, form.language, mapping);
                         const placeholders = getTemplateCommandPlaceholders(template);
+                        const contentPreview = getTemplateContentPreview(template);
                         return (
                             <div key={`${template.name}-${template.language}-${template.status}`} className="rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
                                 <div className="flex items-start justify-between gap-3">
@@ -581,6 +684,19 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                         ) : null}
                                     </div>
                                 </div>
+                                {contentPreview.body || contentPreview.header || contentPreview.footer || contentPreview.buttons.length ? (
+                                    <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900">
+                                        <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">Mensaje</p>
+                                        {contentPreview.header ? <p className="mt-1 text-xs font-bold text-gray-700 dark:text-gray-200">{contentPreview.header}</p> : null}
+                                        {contentPreview.body ? <p className="mt-1 max-h-28 overflow-y-auto whitespace-pre-wrap text-sm font-semibold leading-relaxed text-gray-800 dark:text-gray-100">{contentPreview.body}</p> : null}
+                                        {contentPreview.footer ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{contentPreview.footer}</p> : null}
+                                        {contentPreview.buttons.length ? (
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                {contentPreview.buttons.map((button, index) => <span key={`${button}-${index}`} className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300">{button}</span>)}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                ) : null}
                                 {command ? <code className="mt-2 block break-all rounded-lg bg-white px-2 py-1.5 text-xs text-emerald-700 dark:bg-gray-900 dark:text-emerald-300">{command}</code> : null}
                             </div>
                         );
@@ -809,34 +925,74 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 </div>
             ) : null}
 
+            {creationResults?.results?.length > 0 ? (
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5 text-indigo-950 shadow-sm dark:border-indigo-900/60 dark:bg-indigo-950/25 dark:text-indigo-100">
+                    <p className="font-extrabold">Resultado de creación por WABA</p>
+                    <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                        {creationResults.results.map((result, index) => (
+                            <div key={`${result.businessAccountId || "waba"}-${index}`} className="rounded-xl border border-indigo-100 bg-white/70 px-3 py-2 text-sm dark:border-indigo-900/50 dark:bg-gray-900/50">
+                                <div className="flex items-center gap-2 font-bold">
+                                    {result.status === "created" || result.status === "duplicate" ? <CheckCircle2 size={16} className="text-emerald-600" /> : <AlertTriangle size={16} className="text-amber-600" />}
+                                    <span>{result.status === "created" ? "Creado" : result.status === "duplicate" ? "Ya existía" : "Revisar"}</span>
+                                </div>
+                                <p className="mt-1 text-xs">WABA: {result.businessAccountId || "no disponible"} · Números: {(result.slotIds || []).join(", ") || "-"}</p>
+                                {result.error ? <p className="mt-1 text-xs font-semibold text-red-600 dark:text-red-300">{result.error}</p> : null}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
+
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
                 <form onSubmit={createTemplate} className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div>
+                        <div className="md:col-span-2">
                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                {t("templates.builder.number") || "Numero Meta oficial"}
+                                Cuenta y numeros Meta oficiales
                             </label>
                             <select
-                                value={`${form.locationId}:${form.slotId}`}
-                                onChange={(event) => {
-                                    const [locationId, slotId] = event.target.value.split(":");
-                                    setForm((prev) => ({ ...prev, locationId, slotId }));
-                                }}
-                                disabled={loadingSlots || officialSlots.length === 0}
+                                value={form.locationId}
+                                onChange={(event) => selectAccount(event.target.value)}
+                                disabled={loadingSlots || accountOptions.length === 0}
                                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                             >
                                 {loadingSlots ? (
-                                    <option value="">{t("templates.builder.loading_slots_short") || "Cargando numeros..."}</option>
+                                    <option value="">Cargando cuentas...</option>
                                 ) : null}
-                                {!loadingSlots && officialSlots.length === 0 ? (
+                                {!loadingSlots && accountOptions.length === 0 ? (
                                     <option value="">{t("templates.builder.no_ready_slots_short") || "Sin numeros listos para templates"}</option>
                                 ) : null}
-                                {officialSlots.map((slot) => (
-                                    <option key={`${slot.locationId}:${slot.slotId}`} value={`${slot.locationId}:${slot.slotId}`}>
-                                        {slot.locationName} - {slot.slotName} {slot.phone ? `(${slot.phone})` : ""}
+                                {accountOptions.map((account) => (
+                                    <option key={account.locationId} value={account.locationId}>
+                                        {account.locationName} ({account.count} numero{account.count === 1 ? "" : "s"})
                                     </option>
                                 ))}
                             </select>
+                            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                {availableSlotsForAccount.map((slot) => {
+                                    const key = `${slot.locationId}:${slot.slotId}`;
+                                    const checked = selectedSlotKeys.includes(key);
+                                    return (
+                                        <label key={key} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 transition ${checked ? "border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-950/30" : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60"}`}>
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() => toggleSlotSelection(slot)}
+                                                className="h-4 w-4 accent-indigo-600"
+                                            />
+                                            <span className="min-w-0 text-sm">
+                                                <span className="block truncate font-bold text-gray-900 dark:text-white">{slot.slotName}</span>
+                                                <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{slot.phone || slot.phoneNumberId}{slot.businessAccountId ? ` · WABA ${slot.businessAccountId}` : ""}</span>
+                                            </span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                            {selectedSlots.length > 0 ? (
+                                <p className="mt-2 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                    {selectedSlots.length} numero{selectedSlots.length === 1 ? "" : "s"} seleccionado{selectedSlots.length === 1 ? "" : "s"} · {selectedWabaGroups.length} WABA{selectedWabaGroups.length === 1 ? "" : "s"} a procesar
+                                </p>
+                            ) : null}
                         </div>
                         <div>
                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">

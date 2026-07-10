@@ -58,6 +58,15 @@ assert.match(builder, /groupGhlVariableOptions/);
 assert.match(builder, /<optgroup/);
 assert.match(builder, /templates\.builder\.selected_ghl_variable/);
 assert.match(builder, /<Pencil size=\{14\}/);
+assert.match(builder, /selectedSlotKeys/);
+assert.match(builder, /toggleSlotSelection/);
+assert.match(builder, /selectedWabaGroups/);
+assert.match(builder, /targets: selectedSlots\.map/);
+assert.match(builder, /Resultado de creación por WABA/);
+assert.match(builder, /summary\?\.duplicates/);
+assert.match(builder, /function getTemplateContentPreview/);
+assert.match(builder, /<p className="text-\[10px\] font-extrabold uppercase tracking-wider text-gray-400">Mensaje<\/p>/);
+assert.match(builder, /contentPreview\.body/);
 
 assert.match(esLocale, /"dash\.nav\.templates": "Generar templates"/);
 assert.match(esLocale, /"templates\.builder\.title": "Constructor de templates"/);
