@@ -179,6 +179,10 @@ function isTemplateReadyOfficialSlot(slot = {}) {
     );
 }
 
+function getOfficialPortfolioKey(slot = {}) {
+    return String(slot?.businessAccountId || `slot:${slot?.locationId || ""}:${slot?.slotId || ""}`).trim();
+}
+
 function getDefaultTemplateValue(placeholder = "", index = 0) {
     const safePlaceholder = String(placeholder || "").trim();
     return /^\d+$/.test(safePlaceholder) ? `valor_${index + 1}` : `valor_${safePlaceholder}`;
@@ -267,6 +271,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     const [creationResults, setCreationResults] = useState(null);
     const [form, setForm] = useState(emptyForm);
     const [selectedSlotKeys, setSelectedSlotKeys] = useState([]);
+    const [selectedPortfolioId, setSelectedPortfolioId] = useState("");
     const [templateVariableMappings, setTemplateVariableMappings] = useState(() => {
         try {
             const stored = localStorage.getItem(TEMPLATE_VARIABLE_MAPPINGS_STORAGE_KEY);
@@ -294,24 +299,35 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         return res;
     };
 
-    const accountOptions = useMemo(() => {
-        const accounts = new Map();
+    const portfolioOptions = useMemo(() => {
+        const portfolios = new Map();
         officialSlots.forEach((slot) => {
-            if (!accounts.has(slot.locationId)) {
-                accounts.set(slot.locationId, {
-                    locationId: slot.locationId,
-                    locationName: slot.locationName || slot.locationId,
-                    count: 0
+            const portfolioId = getOfficialPortfolioKey(slot);
+            if (!portfolios.has(portfolioId)) {
+                portfolios.set(portfolioId, {
+                    portfolioId,
+                    businessAccountId: slot.businessAccountId || "",
+                    locationNames: new Set(),
+                    slots: []
                 });
             }
-            accounts.get(slot.locationId).count += 1;
+            const portfolio = portfolios.get(portfolioId);
+            portfolio.locationNames.add(slot.locationName || slot.locationId);
+            portfolio.slots.push(slot);
         });
-        return [...accounts.values()].sort((a, b) => a.locationName.localeCompare(b.locationName));
+        return [...portfolios.values()]
+            .map((portfolio) => ({
+                ...portfolio,
+                locationLabel: [...portfolio.locationNames].sort().join(" · "),
+                locationCount: portfolio.locationNames.size,
+                count: portfolio.slots.length
+            }))
+            .sort((a, b) => a.locationLabel.localeCompare(b.locationLabel));
     }, [officialSlots]);
 
-    const availableSlotsForAccount = useMemo(
-        () => officialSlots.filter((slot) => slot.locationId === form.locationId),
-        [officialSlots, form.locationId]
+    const availableSlotsForPortfolio = useMemo(
+        () => officialSlots.filter((slot) => getOfficialPortfolioKey(slot) === selectedPortfolioId),
+        [officialSlots, selectedPortfolioId]
     );
 
     const selectedSlots = useMemo(() => {
@@ -419,6 +435,11 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 if (retained.length > 0) return retained;
                 const first = nextSlots[0];
                 return first ? [`${first.locationId}:${first.slotId}`] : [];
+            });
+            setSelectedPortfolioId((prev) => {
+                const availablePortfolioIds = new Set(nextSlots.map(getOfficialPortfolioKey));
+                if (prev && availablePortfolioIds.has(prev)) return prev;
+                return nextSlots[0] ? getOfficialPortfolioKey(nextSlots[0]) : "";
             });
         } catch (error) {
             if (!mountedRef.current || slotsLoadRequestRef.current !== requestId) return;
@@ -540,14 +561,17 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         return templateVariableMappings[getTemplateKey(template)] || {};
     };
 
-    const selectAccount = (locationId) => {
-        const firstSlot = officialSlots.find((slot) => slot.locationId === locationId);
+    const selectPortfolio = (portfolioId) => {
+        const portfolio = portfolioOptions.find((item) => item.portfolioId === portfolioId);
+        const firstSlot = portfolio?.slots?.[0] || null;
+        const portfolioSlotKeys = (portfolio?.slots || []).map((slot) => `${slot.locationId}:${slot.slotId}`);
+        setSelectedPortfolioId(portfolioId);
         setForm((prev) => ({
             ...prev,
-            locationId,
+            locationId: firstSlot?.locationId || "",
             slotId: firstSlot ? String(firstSlot.slotId) : ""
         }));
-        setSelectedSlotKeys(firstSlot ? [`${firstSlot.locationId}:${firstSlot.slotId}`] : []);
+        setSelectedSlotKeys(portfolioSlotKeys);
         setCreationResults(null);
     };
 
@@ -556,11 +580,19 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         setSelectedSlotKeys((prev) => {
             if (prev.includes(key)) {
                 const next = prev.filter((item) => item !== key);
-                const nextPrimary = next[0]?.split(":")[1] || "";
-                setForm((current) => ({ ...current, slotId: nextPrimary }));
+                const nextPrimary = officialSlots.find((item) => `${item.locationId}:${item.slotId}` === next[0]);
+                setForm((current) => ({
+                    ...current,
+                    locationId: nextPrimary?.locationId || current.locationId,
+                    slotId: nextPrimary ? String(nextPrimary.slotId) : ""
+                }));
                 return next;
             }
-            setForm((current) => ({ ...current, locationId: slot.locationId, slotId: current.slotId || String(slot.slotId) }));
+            setForm((current) => ({
+                ...current,
+                locationId: current.locationId || slot.locationId,
+                slotId: current.slotId || String(slot.slotId)
+            }));
             return [...prev, key];
         });
         setCreationResults(null);
@@ -948,28 +980,28 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div className="md:col-span-2">
                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                Cuenta y numeros Meta oficiales
+                                Portafolio Meta y numeros oficiales
                             </label>
                             <select
-                                value={form.locationId}
-                                onChange={(event) => selectAccount(event.target.value)}
-                                disabled={loadingSlots || accountOptions.length === 0}
+                                value={selectedPortfolioId}
+                                onChange={(event) => selectPortfolio(event.target.value)}
+                                disabled={loadingSlots || portfolioOptions.length === 0}
                                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                             >
                                 {loadingSlots ? (
-                                    <option value="">Cargando cuentas...</option>
+                                    <option value="">Cargando portafolios...</option>
                                 ) : null}
-                                {!loadingSlots && accountOptions.length === 0 ? (
+                                {!loadingSlots && portfolioOptions.length === 0 ? (
                                     <option value="">{t("templates.builder.no_ready_slots_short") || "Sin numeros listos para templates"}</option>
                                 ) : null}
-                                {accountOptions.map((account) => (
-                                    <option key={account.locationId} value={account.locationId}>
-                                        {account.locationName} ({account.count} numero{account.count === 1 ? "" : "s"})
+                                {portfolioOptions.map((portfolio) => (
+                                    <option key={portfolio.portfolioId} value={portfolio.portfolioId}>
+                                        {portfolio.locationLabel} · {portfolio.count} numero{portfolio.count === 1 ? "" : "s"} · WABA {portfolio.businessAccountId || "local"}
                                     </option>
                                 ))}
                             </select>
                             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                {availableSlotsForAccount.map((slot) => {
+                                {availableSlotsForPortfolio.map((slot) => {
                                     const key = `${slot.locationId}:${slot.slotId}`;
                                     const checked = selectedSlotKeys.includes(key);
                                     return (
@@ -981,7 +1013,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                                 className="h-4 w-4 accent-indigo-600"
                                             />
                                             <span className="min-w-0 text-sm">
-                                                <span className="block truncate font-bold text-gray-900 dark:text-white">{slot.slotName}</span>
+                                                <span className="block truncate font-bold text-gray-900 dark:text-white">{slot.locationName} · {slot.slotName}</span>
                                                 <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{slot.phone || slot.phoneNumberId}{slot.businessAccountId ? ` · WABA ${slot.businessAccountId}` : ""}</span>
                                             </span>
                                         </label>
@@ -990,7 +1022,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             </div>
                             {selectedSlots.length > 0 ? (
                                 <p className="mt-2 text-xs font-semibold text-gray-500 dark:text-gray-400">
-                                    {selectedSlots.length} numero{selectedSlots.length === 1 ? "" : "s"} seleccionado{selectedSlots.length === 1 ? "" : "s"} · {selectedWabaGroups.length} WABA{selectedWabaGroups.length === 1 ? "" : "s"} a procesar
+                                    {selectedSlots.length} numero{selectedSlots.length === 1 ? "" : "s"} seleccionado{selectedSlots.length === 1 ? "" : "s"} · {selectedWabaGroups.length} WABA{selectedWabaGroups.length === 1 ? "" : "s"} a procesar en {new Set(selectedSlots.map((slot) => slot.locationId)).size} cuenta{new Set(selectedSlots.map((slot) => slot.locationId)).size === 1 ? "" : "s"}
                                 </p>
                             ) : null}
                         </div>
