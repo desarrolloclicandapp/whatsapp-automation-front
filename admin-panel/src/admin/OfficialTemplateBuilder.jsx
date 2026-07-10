@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Copy, FileText, Loader2, Pencil, RefreshCw, Search, Send, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Copy, FileText, Loader2, Pencil, RefreshCw, Search, Send, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 const TEMPLATE_VARIABLE_MAPPINGS_STORAGE_KEY = "waflow:official-template-variable-mappings";
 const MANUAL_GHL_MAPPING_PREFIX = "__manual__:";
+const LITERAL_TEMPLATE_VALUE_PREFIX = "__literal__:";
 
 const emptyForm = {
     locationId: "",
@@ -33,35 +34,73 @@ const emptyForm = {
 };
 
 const GHL_VARIABLE_OPTIONS = [
-    { value: "{{contact.first_name}}", label: "name", group: "Contacto" },
-    { value: "{{contact.last_name}}", label: "last_name", group: "Contacto" },
-    { value: "{{contact.name}}", label: "full_name", group: "Contacto" },
-    { value: "{{contact.email}}", label: "email", group: "Contacto" },
-    { value: "{{contact.phone}}", label: "phone", group: "Contacto" },
-    { value: "{{contact.id}}", label: "contact_id", group: "Contacto" },
-    { value: "{{contact.source}}", label: "source", group: "Contacto" },
-    { value: "{{contact.tags}}", label: "tags", group: "Contacto" },
-    { value: "{{contact.address1}}", label: "address", group: "Contacto" },
-    { value: "{{contact.city}}", label: "city", group: "Contacto" },
-    { value: "{{contact.state}}", label: "state", group: "Contacto" },
-    { value: "{{contact.country}}", label: "country", group: "Contacto" },
-    { value: "{{contact.postal_code}}", label: "postal_code", group: "Contacto" },
-    { value: "{{contact.date_of_birth}}", label: "date_of_birth", group: "Contacto" },
-    { value: "{{contact.timezone}}", label: "timezone", group: "Contacto" },
-    { value: "{{user.first_name}}", label: "assigned_user_name", group: "Usuario" },
-    { value: "{{user.last_name}}", label: "assigned_user_last_name", group: "Usuario" },
-    { value: "{{user.email}}", label: "assigned_user_email", group: "Usuario" },
-    { value: "{{user.phone}}", label: "assigned_user_phone", group: "Usuario" },
-    { value: "{{location.name}}", label: "location_name", group: "Cuenta" },
-    { value: "{{location.phone}}", label: "location_phone", group: "Cuenta" },
-    { value: "{{location.email}}", label: "location_email", group: "Cuenta" },
-    { value: "{{appointment.start_time}}", label: "appointment_start_time", group: "Citas" },
-    { value: "{{appointment.end_time}}", label: "appointment_end_time", group: "Citas" },
-    { value: "{{appointment.title}}", label: "appointment_title", group: "Citas" },
-    { value: "{{appointment.calendar_name}}", label: "appointment_calendar", group: "Citas" },
-    { value: "{{opportunity.name}}", label: "opportunity_name", group: "Oportunidad" },
-    { value: "{{opportunity.status}}", label: "opportunity_status", group: "Oportunidad" },
-    { value: "{{opportunity.monetary_value}}", label: "opportunity_value", group: "Oportunidad" }
+    { value: "{{contact.first_name}}", label: "Nombre", group: "Contacto" },
+    { value: "{{contact.last_name}}", label: "Apellido", group: "Contacto" },
+    { value: "{{contact.name}}", label: "Nombre completo", group: "Contacto" },
+    { value: "{{contact.email}}", label: "Email", group: "Contacto" },
+    { value: "{{contact.phone}}", label: "Teléfono", group: "Contacto" },
+    { value: "{{contact.phone_raw}}", label: "Teléfono sin formato", group: "Contacto" },
+    { value: "{{contact.id}}", label: "ID del contacto", group: "Contacto" },
+    { value: "{{contact.company_name}}", label: "Empresa", group: "Contacto" },
+    { value: "{{contact.source}}", label: "Origen", group: "Contacto" },
+    { value: "{{contact.tags}}", label: "Etiquetas", group: "Contacto" },
+    { value: "{{contact.website}}", label: "Sitio web", group: "Contacto" },
+    { value: "{{contact.full_address}}", label: "Dirección completa", group: "Contacto" },
+    { value: "{{contact.address1}}", label: "Dirección", group: "Contacto" },
+    { value: "{{contact.city}}", label: "Ciudad", group: "Contacto" },
+    { value: "{{contact.state}}", label: "Estado / provincia", group: "Contacto" },
+    { value: "{{contact.country}}", label: "País", group: "Contacto" },
+    { value: "{{contact.postal_code}}", label: "Código postal", group: "Contacto" },
+    { value: "{{contact.date_of_birth}}", label: "Fecha de nacimiento", group: "Contacto" },
+    { value: "{{contact.timezone}}", label: "Zona horaria", group: "Contacto" },
+
+    { value: "{{user.name}}", label: "Nombre completo", group: "Usuario asignado" },
+    { value: "{{user.first_name}}", label: "Nombre", group: "Usuario asignado" },
+    { value: "{{user.last_name}}", label: "Apellido", group: "Usuario asignado" },
+    { value: "{{user.email}}", label: "Email", group: "Usuario asignado" },
+    { value: "{{user.phone}}", label: "Teléfono", group: "Usuario asignado" },
+    { value: "{{user.phone_raw}}", label: "Teléfono sin formato", group: "Usuario asignado" },
+    { value: "{{user.email_signature}}", label: "Firma de email", group: "Usuario asignado" },
+    { value: "{{user.calendar_link}}", label: "Enlace de calendario", group: "Usuario asignado" },
+    { value: "{{user.call_provider_phone_number}}", label: "Teléfono del proveedor de llamadas", group: "Usuario asignado" },
+    { value: "{{user.call_provider_phone_number_raw}}", label: "Teléfono del proveedor sin formato", group: "Usuario asignado" },
+
+    { value: "{{appointment.title}}", label: "Título", group: "Cita" },
+    { value: "{{appointment.start_time}}", label: "Inicio (fecha y hora)", group: "Cita" },
+    { value: "{{appointment.only_start_date}}", label: "Fecha de inicio", group: "Cita" },
+    { value: "{{appointment.only_start_time}}", label: "Hora de inicio", group: "Cita" },
+    { value: "{{appointment.end_time}}", label: "Fin (fecha y hora)", group: "Cita" },
+    { value: "{{appointment.only_end_date}}", label: "Fecha de fin", group: "Cita" },
+    { value: "{{appointment.only_end_time}}", label: "Hora de fin", group: "Cita" },
+    { value: "{{appointment.day_of_week}}", label: "Día de la semana", group: "Cita" },
+    { value: "{{appointment.calendar_name}}", label: "Nombre del calendario", group: "Cita" },
+    { value: "{{appointment.user.phone_raw}}", label: "Teléfono del usuario de la cita", group: "Cita" },
+
+    { value: "{{opportunity.name}}", label: "Nombre", group: "Oportunidad" },
+    { value: "{{opportunity.status}}", label: "Estado", group: "Oportunidad" },
+    { value: "{{opportunity.monetary_value}}", label: "Valor monetario", group: "Oportunidad" },
+    { value: "{{opportunity.pipeline}}", label: "Pipeline", group: "Oportunidad" },
+    { value: "{{opportunity.pipeline_stage}}", label: "Etapa del pipeline", group: "Oportunidad" },
+    { value: "{{opportunity.id}}", label: "ID de oportunidad", group: "Oportunidad" },
+
+    { value: "{{location.name}}", label: "Nombre", group: "Cuenta / ubicación" },
+    { value: "{{location.email}}", label: "Email", group: "Cuenta / ubicación" },
+    { value: "{{location.phone}}", label: "Teléfono", group: "Cuenta / ubicación" },
+    { value: "{{location.website}}", label: "Sitio web", group: "Cuenta / ubicación" },
+    { value: "{{location.address}}", label: "Dirección", group: "Cuenta / ubicación" },
+    { value: "{{location.city}}", label: "Ciudad", group: "Cuenta / ubicación" },
+    { value: "{{location.state}}", label: "Estado / provincia", group: "Cuenta / ubicación" },
+    { value: "{{location.country}}", label: "País", group: "Cuenta / ubicación" },
+    { value: "{{location.postal_code}}", label: "Código postal", group: "Cuenta / ubicación" },
+    { value: "{{location.timezone}}", label: "Zona horaria", group: "Cuenta / ubicación" },
+
+    { value: "{{calendar.name}}", label: "Nombre", group: "Calendario" },
+    { value: "{{calendar.description}}", label: "Descripción", group: "Calendario" },
+    { value: "{{calendar.url}}", label: "Enlace", group: "Calendario" },
+    { value: "{{campaign.name}}", label: "Nombre", group: "Campaña" },
+    { value: "{{invoice.number}}", label: "Número", group: "Factura" },
+    { value: "{{invoice.amount_due}}", label: "Importe pendiente", group: "Factura" },
+    { value: "{{invoice.due_date}}", label: "Fecha de vencimiento", group: "Factura" }
 ];
 
 function normalizeTemplateName(value = "") {
@@ -236,6 +275,18 @@ function getTemplateContentPreview(template = {}) {
     };
 }
 
+function renderTemplatePreviewWithMappings(text = "", variableMappings = {}) {
+    let fallbackIndex = 0;
+    return String(text || "").replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_, placeholder) => {
+        const safePlaceholder = String(placeholder || "").trim();
+        const numericIndex = /^\d+$/.test(safePlaceholder)
+            ? Math.max(0, Number.parseInt(safePlaceholder, 10) - 1)
+            : fallbackIndex;
+        fallbackIndex += 1;
+        return resolveTemplateMappingValue(variableMappings[safePlaceholder]) || getDefaultTemplateValue(safePlaceholder, numericIndex);
+    });
+}
+
 function groupGhlVariableOptions(options = []) {
     return options.reduce((groups, option) => {
         const group = String(option?.group || "GHL").trim() || "GHL";
@@ -256,6 +307,7 @@ function normalizeManualGhlVariable(value = "") {
 function resolveTemplateMappingValue(value = "") {
     const raw = String(value || "").trim();
     if (!raw) return "";
+    if (raw.startsWith(LITERAL_TEMPLATE_VALUE_PREFIX)) return raw.slice(LITERAL_TEMPLATE_VALUE_PREFIX.length).trim();
     if (!raw.startsWith(MANUAL_GHL_MAPPING_PREFIX)) return raw;
     return normalizeManualGhlVariable(raw.slice(MANUAL_GHL_MAPPING_PREFIX.length));
 }
@@ -264,6 +316,13 @@ function getManualMappingInput(value = "") {
     const raw = String(value || "").trim();
     return raw.startsWith(MANUAL_GHL_MAPPING_PREFIX)
         ? raw.slice(MANUAL_GHL_MAPPING_PREFIX.length)
+        : "";
+}
+
+function getLiteralTemplateValue(value = "") {
+    const raw = String(value || "").trim();
+    return raw.startsWith(LITERAL_TEMPLATE_VALUE_PREFIX)
+        ? raw.slice(LITERAL_TEMPLATE_VALUE_PREFIX.length)
         : "";
 }
 
@@ -301,7 +360,7 @@ function friendlyTemplateError(payload = {}, t) {
     };
 }
 
-export default function OfficialTemplateBuilder({ locations = [], token, onUnauthorized }) {
+export default function OfficialTemplateBuilder({ locations = [], token, onUnauthorized, view = "builder" }) {
     const { t } = useLanguage();
     const mountedRef = useRef(true);
     const slotsLoadRequestRef = useRef(0);
@@ -316,6 +375,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     const [form, setForm] = useState(emptyForm);
     const [selectedSlotKeys, setSelectedSlotKeys] = useState([]);
     const [selectedPortfolioId, setSelectedPortfolioId] = useState("");
+    const [expandedTemplateSections, setExpandedTemplateSections] = useState({ pending: false, rejected: false });
     const [templateVariableMappings, setTemplateVariableMappings] = useState(() => {
         try {
             const stored = localStorage.getItem(TEMPLATE_VARIABLE_MAPPINGS_STORAGE_KEY);
@@ -722,6 +782,18 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         setCreationResults(null);
     };
 
+    const selectReferenceSlot = (slot) => {
+        if (!slot) return;
+        setSelectedPortfolioId(getOfficialPortfolioKey(slot));
+        setSelectedSlotKeys([`${slot.locationId}:${slot.slotId}`]);
+        setForm((prev) => ({
+            ...prev,
+            locationId: slot.locationId,
+            slotId: String(slot.slotId)
+        }));
+        setCreationResults(null);
+    };
+
     const toggleSlotSelection = (slot) => {
         const key = `${slot.locationId}:${slot.slotId}`;
         setSelectedSlotKeys((prev) => {
@@ -828,20 +900,45 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         }
     };
 
-    const renderTemplateList = (title, items, tone, icon) => {
+    const renderTemplateList = (title, items, tone, icon, {
+        containerClassName = "",
+        listClassName = "",
+        collapsible = false,
+        expanded = true,
+        onToggle = null
+    } = {}) => {
         const StatusIcon = icon;
+        const canToggle = collapsible && items.length > 0;
+        const showContent = !collapsible || expanded;
         return (
-            <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                        <StatusIcon size={16} className={tone} />
-                        <h4 className="text-sm font-extrabold text-gray-900 dark:text-white">{title}</h4>
-                    </div>
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-500 dark:bg-gray-800">
-                        {items.length}
-                    </span>
+            <section className={`rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 ${containerClassName}`}>
+                <div className={`flex items-center justify-between gap-3 ${showContent ? "mb-3" : ""}`}>
+                    {canToggle ? (
+                        <button type="button" onClick={onToggle} className="flex items-center gap-2 text-left">
+                            <StatusIcon size={16} className={tone} />
+                            <h4 className="text-sm font-extrabold text-gray-900 dark:text-white">{title}</h4>
+                        </button>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <StatusIcon size={16} className={tone} />
+                            <h4 className="text-sm font-extrabold text-gray-900 dark:text-white">{title}</h4>
+                        </div>
+                    )}
+                    {canToggle ? (
+                        <button
+                            type="button"
+                            onClick={onToggle}
+                            aria-expanded={expanded}
+                            className="inline-flex items-center gap-2 rounded-lg px-1 py-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        >
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-500 dark:bg-gray-800">{items.length}</span>
+                            <ChevronDown size={16} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
+                        </button>
+                    ) : (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-500 dark:bg-gray-800">{items.length}</span>
+                    )}
                 </div>
-                <div className="space-y-2">
+                {showContent ? <div className={`space-y-2 ${listClassName}`}>
                     {items.length === 0 ? (
                         <p className="text-sm text-gray-500">{t("templates.builder.empty_status") || "Sin plantillas en este estado."}</p>
                     ) : items.map((template) => {
@@ -904,7 +1001,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             </div>
                         );
                     })}
-                </div>
+                </div> : null}
             </section>
         );
     };
@@ -916,6 +1013,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         const placeholders = getTemplateCommandPlaceholders(template);
         const mapping = getTemplateMapping(template);
         const mappedCommand = buildTemplateCommand(template, form.language, mapping);
+        const contentPreview = getTemplateContentPreview(template);
 
         return (
             <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -923,7 +1021,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                     <div className="flex items-start justify-between gap-4 border-b border-gray-100 p-5 dark:border-gray-800">
                         <div>
                             <p className="text-xs font-extrabold uppercase tracking-widest text-indigo-500">
-                                {t("templates.builder.variable_mapper") || "Mapeador de variables GHL"}
+                                {t("templates.builder.variable_mapper") || "Mapeador de variables"}
                             </p>
                             <h3 className="mt-1 text-xl font-extrabold text-gray-900 dark:text-white">{template.name}</h3>
                             <p className="mt-1 text-sm text-gray-500">
@@ -960,7 +1058,27 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             </code>
                         </div>
 
+                        {contentPreview.header || contentPreview.body || contentPreview.footer || contentPreview.buttons.length ? (
+                            <div className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-950/40">
+                                <p className="text-xs font-extrabold uppercase tracking-widest text-gray-500 dark:text-gray-400">Vista previa del mensaje</p>
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Las variables se muestran con la equivalencia GHL seleccionada abajo.</p>
+                                <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                                    {contentPreview.header ? <p className="whitespace-pre-wrap text-sm font-extrabold text-gray-900 dark:text-white">{renderTemplatePreviewWithMappings(contentPreview.header, mapping)}</p> : null}
+                                    {contentPreview.body ? <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-relaxed text-gray-800 dark:text-gray-100">{renderTemplatePreviewWithMappings(contentPreview.body, mapping)}</p> : null}
+                                    {contentPreview.footer ? <p className="mt-3 border-t border-gray-100 pt-2 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">{renderTemplatePreviewWithMappings(contentPreview.footer, mapping)}</p> : null}
+                                    {contentPreview.buttons.length ? (
+                                        <div className="mt-3 grid gap-2">
+                                            {contentPreview.buttons.map((button, index) => <div key={`${button}-${index}`} className="rounded-lg border border-sky-200 px-3 py-2 text-center text-xs font-bold text-sky-700 dark:border-sky-900/60 dark:text-sky-300">{renderTemplatePreviewWithMappings(button, mapping)}</div>)}
+                                        </div>
+                                    ) : null}
+                                </div>
+                            </div>
+                        ) : null}
+
                         <div className="space-y-3">
+                            <p className="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-800 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-200">
+                                Incluye campos estándar de contacto, usuario, cita, oportunidad, cuenta, calendario, campaña y factura. Para campos personalizados, objetos o valores propios de tu cuenta, usa la opción manual: las llaves se agregan automáticamente.
+                            </p>
                             {placeholders.map((placeholder, index) => {
                                 const selectedValue = String(mapping[placeholder] || "").trim();
                                 const search = String(mappingModal.searchByPlaceholder?.[placeholder] || "").trim().toLowerCase();
@@ -968,7 +1086,9 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                     if (!search) return true;
                                     return `${option.label} ${option.value} ${option.group}`.toLowerCase().includes(search);
                                 });
-                                const selectedInFilter = selectedValue.startsWith(MANUAL_GHL_MAPPING_PREFIX) || !selectedValue || filteredOptions.some((option) => option.value === selectedValue);
+                                const isLiteralValue = selectedValue.startsWith(LITERAL_TEMPLATE_VALUE_PREFIX);
+                                const mappingMode = isLiteralValue ? "literal" : "ghl";
+                                const selectedInFilter = selectedValue.startsWith(MANUAL_GHL_MAPPING_PREFIX) || isLiteralValue || !selectedValue || filteredOptions.some((option) => option.value === selectedValue);
                                 const selectedOption = GHL_VARIABLE_OPTIONS.find((option) => option.value === selectedValue);
                                 const groupedSelectOptions = selectedInFilter
                                     ? groupGhlVariableOptions(filteredOptions)
@@ -979,7 +1099,10 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                 const isSelectorOpen = mappingModal.openSelector === placeholder;
                                 const isManualMode = mappingModal.manualPlaceholder === placeholder;
                                 const manualValue = getManualMappingInput(selectedValue);
-                                const selectedLabel = selectedValue.startsWith(MANUAL_GHL_MAPPING_PREFIX)
+                                const literalValue = getLiteralTemplateValue(selectedValue);
+                                const selectedLabel = isLiteralValue
+                                    ? `Valor: ${literalValue || "sin valor"}`
+                                    : selectedValue.startsWith(MANUAL_GHL_MAPPING_PREFIX)
                                     ? `Manual: ${normalizeManualGhlVariable(manualValue) || "sin valor"}`
                                     : (selectedOption?.label || getDefaultTemplateValue(placeholder, index));
 
@@ -995,8 +1118,32 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                         </div>
                                         <div>
                                             <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                                                {t("templates.builder.ghl_equivalence") || "Equivalencia GHL"}
+                                                {t("templates.builder.ghl_equivalence") || "Equivalencia"}
                                             </p>
+                                            <select
+                                                value={mappingMode}
+                                                onChange={(event) => {
+                                                    const nextMode = event.target.value;
+                                                    updateTemplateMapping(template, placeholder, nextMode === "literal" ? LITERAL_TEMPLATE_VALUE_PREFIX : "");
+                                                    setMappingModal((prev) => ({ ...prev, openSelector: "", manualPlaceholder: "" }));
+                                                }}
+                                                className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                            >
+                                                <option value="ghl">Elegir variable de GHL</option>
+                                                <option value="literal">Escribir el valor</option>
+                                            </select>
+                                            {mappingMode === "literal" ? (
+                                                <div className="mt-2">
+                                                    <input
+                                                        autoFocus
+                                                        value={literalValue}
+                                                        onChange={(event) => updateTemplateMapping(template, placeholder, `${LITERAL_TEMPLATE_VALUE_PREFIX}${event.target.value}`)}
+                                                        placeholder="Escribe el valor que irá en el comando"
+                                                        className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-indigo-800 dark:bg-gray-950 dark:text-white"
+                                                    />
+                                                    <p className="mt-1.5 text-xs text-gray-500">Se copiará como texto real, sin llaves de variable.</p>
+                                                </div>
+                                            ) : (
                                             <div className="relative mt-2">
                                                 <button
                                                     type="button"
@@ -1076,10 +1223,11 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                                     </div>
                                                 ) : null}
                                             </div>
+                                            )}
                                             {selectedValue ? (
                                                 <div className="mt-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 dark:border-indigo-900/40 dark:bg-indigo-950/20">
                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">
-                                                        {t("templates.builder.selected_ghl_variable") || "Variable GHL seleccionada"}
+                                                        {isLiteralValue ? "Valor que se copiará" : (t("templates.builder.selected_ghl_variable") || "Variable GHL seleccionada")}
                                                     </p>
                                                     <code className="mt-1 block break-all text-xs font-bold text-indigo-700 dark:text-indigo-200">
                                                         {resolveTemplateMappingValue(selectedValue)}
@@ -1114,6 +1262,112 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
             </div>
         );
     };
+
+    if (view === "library") {
+        const selectedReferenceKey = selectedSlot ? `${selectedSlot.locationId}:${selectedSlot.slotId}` : "";
+        return (
+            <div className="mx-auto max-w-7xl space-y-6 animate-in fade-in slide-in-from-bottom-4" translate="no">
+                {renderVariableMappingModal()}
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">
+                            {t("templates.library.title") || "Mis templates"}
+                        </h3>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            {t("templates.library.subtitle") || "Consulta las plantillas oficiales, copia el comando de GoHighLevel y mapea sus variables."}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={loadOfficialSlots}
+                        disabled={loadingSlots}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200"
+                    >
+                        <RefreshCw size={16} className={loadingSlots ? "animate-spin" : ""} />
+                        {t("common.reload") || "Recargar"}
+                    </button>
+                </div>
+
+                {loadingSlots ? (
+                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-6 text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-100">
+                        <div className="flex items-center gap-3"><Loader2 size={20} className="animate-spin" /> {t("templates.builder.loading_slots") || "Buscando numeros Meta oficiales..."}</div>
+                    </div>
+                ) : officialSlots.length === 0 ? (
+                    <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-900">
+                        {t("templates.builder.no_ready_slots_short") || "Sin numeros listos para templates"}
+                    </div>
+                ) : (
+                    <>
+                        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+                            <div className="grid gap-4 lg:grid-cols-2">
+                                <label className="block text-sm font-extrabold text-gray-800 dark:text-gray-100">
+                                    {t("templates.library.portfolio") || "Portafolio Meta"}
+                                    <select
+                                        value={selectedPortfolioId}
+                                        onChange={(event) => {
+                                            const portfolio = portfolioOptions.find((item) => item.portfolioId === event.target.value);
+                                            selectReferenceSlot(portfolio?.slots?.[0]);
+                                        }}
+                                        className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-gray-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    >
+                                        {portfolioOptions.map((portfolio) => (
+                                            <option key={portfolio.portfolioId} value={portfolio.portfolioId}>
+                                                {(portfolio.metaBusinessName || portfolio.locationLabel || "Portafolio Meta")} · {portfolio.count} {portfolio.count === 1 ? "número" : "números"}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <label className="block text-sm font-extrabold text-gray-800 dark:text-gray-100">
+                                    {t("templates.library.reference_number") || "Número de referencia"}
+                                    <select
+                                        value={selectedReferenceKey}
+                                        onChange={(event) => selectReferenceSlot(officialSlots.find((slot) => `${slot.locationId}:${slot.slotId}` === event.target.value))}
+                                        className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-gray-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    >
+                                        {availableSlotsForPortfolio.map((slot) => (
+                                            <option key={`${slot.locationId}:${slot.slotId}`} value={`${slot.locationId}:${slot.slotId}`}>
+                                                {slot.locationName} · {slot.slotName}{slot.phone ? ` · ${slot.phone}` : ""}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                            </div>
+                            {selectedSlot ? <p className="mt-3 text-xs text-gray-500">{selectedSlot.locationName} / {selectedSlot.slotName}{selectedSlot.phone ? ` - ${selectedSlot.phone}` : ""}. Las plantillas se consultan para este WABA.</p> : null}
+                        </section>
+
+                        {templateLoadError ? (
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-100">
+                                <div className="flex items-start gap-3"><AlertTriangle size={20} className="mt-0.5 shrink-0 text-amber-600" /><div><p className="font-extrabold">{templateLoadError.title}</p><p className="mt-1 text-sm font-semibold">{templateLoadError.message}</p></div></div>
+                            </div>
+                        ) : null}
+
+                        {selectedSlot ? (
+                            <>
+                                {renderTemplateList(t("templates.builder.approved") || "Aprobadas", groupedTemplates.approved, "text-emerald-500", CheckCircle2, {
+                                    containerClassName: "min-h-[32rem] flex flex-col",
+                                    listClassName: "min-h-0 flex-1 overflow-y-auto pr-1"
+                                })}
+                                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                    {renderTemplateList(t("templates.builder.pending") || "Pendientes", groupedTemplates.pending, "text-amber-500", FileText, {
+                                        collapsible: true,
+                                        expanded: expandedTemplateSections.pending,
+                                        onToggle: () => setExpandedTemplateSections((prev) => ({ ...prev, pending: !prev.pending })),
+                                        listClassName: "max-h-80 overflow-y-auto pr-1"
+                                    })}
+                                    {renderTemplateList(t("templates.builder.rejected") || "Rechazadas", groupedTemplates.rejected, "text-red-500", XCircle, {
+                                        collapsible: true,
+                                        expanded: expandedTemplateSections.rejected,
+                                        onToggle: () => setExpandedTemplateSections((prev) => ({ ...prev, rejected: !prev.rejected })),
+                                        listClassName: "max-h-80 overflow-y-auto pr-1"
+                                    })}
+                                </div>
+                            </>
+                        ) : null}
+                    </>
+                )}
+            </div>
+        );
+    }
 
     return (
         <div className="mx-auto max-w-7xl space-y-6 animate-in fade-in slide-in-from-bottom-4" translate="no">
@@ -1199,7 +1453,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 </div>
             ) : null}
 
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="grid grid-cols-1 items-stretch gap-6 xl:grid-cols-[1.05fr_0.95fr]">
                 <form onSubmit={createTemplate} className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div className="md:col-span-2">
@@ -1447,7 +1701,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                     </button>
                 </form>
 
-                <aside className="space-y-5">
+                <aside className="flex min-h-0 flex-col gap-5 xl:self-stretch">
                     <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <h4 className="text-sm font-extrabold uppercase tracking-widest text-gray-400">
                             {t("templates.builder.preview") || "Vista previa"}
@@ -1494,7 +1748,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                         </div>
                     </div>
 
-                    <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                    <div className="shrink-0 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                         <div className="mb-3 flex items-center justify-between gap-3">
                             <h4 className="text-sm font-extrabold text-gray-900 dark:text-white">
                                 {selectedSlots.length > 1 ? "Plantillas del numero de referencia" : (t("templates.builder.current_number_templates") || "Plantillas del numero seleccionado")}
@@ -1523,14 +1777,33 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             </p>
                         )}
                     </div>
+                    {!selectedSlot || loadingSlots ? null : renderTemplateList(
+                        t("templates.builder.approved") || "Aprobadas",
+                        groupedTemplates.approved,
+                        "text-emerald-500",
+                        CheckCircle2,
+                        {
+                            containerClassName: "min-h-[20rem] flex-1 xl:min-h-0 xl:flex xl:flex-col",
+                            listClassName: "min-h-0 flex-1 overflow-y-auto pr-1",
+                        }
+                    )}
                 </aside>
             </div>
 
             {!selectedSlot || loadingSlots ? null : (
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                    {renderTemplateList(t("templates.builder.approved") || "Aprobadas", groupedTemplates.approved, "text-emerald-500", CheckCircle2)}
-                    {renderTemplateList(t("templates.builder.pending") || "Pendientes", groupedTemplates.pending, "text-amber-500", FileText)}
-                    {renderTemplateList(t("templates.builder.rejected") || "Rechazadas", groupedTemplates.rejected, "text-red-500", XCircle)}
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    {renderTemplateList(t("templates.builder.pending") || "Pendientes", groupedTemplates.pending, "text-amber-500", FileText, {
+                        collapsible: true,
+                        expanded: expandedTemplateSections.pending,
+                        onToggle: () => setExpandedTemplateSections((prev) => ({ ...prev, pending: !prev.pending })),
+                        listClassName: "max-h-80 overflow-y-auto pr-1"
+                    })}
+                    {renderTemplateList(t("templates.builder.rejected") || "Rechazadas", groupedTemplates.rejected, "text-red-500", XCircle, {
+                        collapsible: true,
+                        expanded: expandedTemplateSections.rejected,
+                        onToggle: () => setExpandedTemplateSections((prev) => ({ ...prev, rejected: !prev.rejected })),
+                        listClassName: "max-h-80 overflow-y-auto pr-1"
+                    })}
                 </div>
             )}
         </div>
