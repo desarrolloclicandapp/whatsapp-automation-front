@@ -61,6 +61,7 @@ export default function AdminDashboard({ token, onLogout }) {
     const [adminLogSummary, setAdminLogSummary] = useState({ total: 0, critical: 0, warning: 0, info: 0, bySource: {}, byType: {}, byCode: {} });
     const [adminLogOptions, setAdminLogOptions] = useState({ types: [] });
     const [adminLogsLoading, setAdminLogsLoading] = useState(false);
+    const [showReviewedLogs, setShowReviewedLogs] = useState(false);
     const [numberHealth, setNumberHealth] = useState([]);
     const [numberHealthSummary, setNumberHealthSummary] = useState({ total: 0, stable: 0, attention: 0, unstable: 0, restricted: 0 });
     const [numberHealthLoading, setNumberHealthLoading] = useState(false);
@@ -210,6 +211,7 @@ export default function AdminDashboard({ token, onLogout }) {
             if (adminLogFilters.type) params.set('type', adminLogFilters.type);
             if (adminLogFilters.code) params.set('code', adminLogFilters.code);
             if (adminLogFilters.query) params.set('query', adminLogFilters.query);
+            if (showReviewedLogs) params.set('includeReviewed', 'true');
 
             const res = await authFetch(`/admin/logs?${params.toString()}`);
             const data = await res.json();
@@ -223,6 +225,22 @@ export default function AdminDashboard({ token, onLogout }) {
             toast.error(error.message || "Error cargando logs");
         } finally {
             setAdminLogsLoading(false);
+        }
+    };
+
+    const updateLogReview = async (log, status) => {
+        try {
+            const res = await authFetch(`/admin/logs/${encodeURIComponent(log.source)}/${encodeURIComponent(log.id)}/review`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'No se pudo actualizar el incidente');
+            toast.success(status === 'resolved' ? 'Incidente marcado como resuelto.' : status === 'reviewed' ? 'Incidente marcado como revisado.' : 'Incidente reabierto.');
+            fetchAdminLogs();
+        } catch (error) {
+            toast.error(error.message || 'No se pudo actualizar el incidente');
         }
     };
 
@@ -704,7 +722,7 @@ const handleDeleteUser = (user, type = 'soft') => {
         if (view !== 'logs') return;
         const timer = setTimeout(() => fetchAdminLogs(), 250);
         return () => clearTimeout(timer);
-    }, [view, adminLogFilters]);
+    }, [view, adminLogFilters, showReviewedLogs]);
 
     const handleAgencyClick = (agency) => {
         setSelectedAgency(agency);
@@ -886,18 +904,58 @@ const handleDeleteUser = (user, type = 'soft') => {
         return source || 'Log';
     };
 
-    const getAdminLogImpact = (log = {}) => {
+    const getHumanizedLog = (log = {}) => {
         const code = String(log.code || '').toUpperCase();
-        const type = String(log.type || '').toLowerCase();
-        if (code === 'WHATSAPP_ACCOUNT_RESTRICTED' || ['401', '403', '440', '463'].includes(code)) return 'Impacto: el número no puede seguir enviando hasta revisión o reconexión manual.';
-        if (code === 'OFFICIAL_TEMPLATE_REQUIRED') return 'Impacto: el mensaje no se envió porque fuera de la ventana de 24 horas requiere una plantilla aprobada.';
-        if (code === 'WHATSAPP_TARGET_NOT_FOUND') return 'Impacto: ese destinatario no recibió el mensaje; no afecta al resto de envíos.';
-        if (code === 'GHL_LOCATION_FORBIDDEN') return 'Impacto: la integración no puede completar esa operación para la subcuenta indicada.';
-        if (code === 'CONVERSATIONS_MSG_PROVIDER_ID_REQUIRED') return 'Impacto: no se creó la nota interna en GHL; el envío principal no se reintenta por este motivo.';
-        if (['408', '428', '479', '515'].includes(code) || type.includes('reconnect') || type.includes('disconnect')) return `Impacto: la sesión se interrumpió${Number(log.occurrence_count || 1) > 1 ? ` ${log.occurrence_count} veces` : ''}, pero el sistema intentó recuperarla automáticamente.`;
-        return log.severity === 'critical'
-            ? 'Impacto: hay una operación afectada que requiere revisión técnica.'
-            : 'Impacto: señal operativa a vigilar; revisar si se repite o afecta al cliente.';
+        const text = `${code} ${log.message || ''} ${log.reason || ''}`.toLowerCase();
+        const repeats = Number(log.occurrence_count || 1);
+        if (code === 'WHATSAPP_ACCOUNT_RESTRICTED' || text.includes('account has been restricted') || text.includes('| 463 |')) return {
+            title: 'Cuenta de WhatsApp restringida por Meta',
+            cause: 'Meta restringió este número por sus políticas. El slot fue detenido para evitar más intentos fallidos.',
+            impact: 'Impacto: los mensajes salientes de este número quedan bloqueados hasta que se revise y reconecte manualmente.',
+            action: 'Acción: revisar la restricción en Meta, reconectar o reemplazar el número y reactivar el slot manualmente.'
+        };
+        if (code === 'WHATSAPP_REACHOUT_TIMELOCK' || text.includes('reachout_timelock')) return {
+            title: 'Envíos pausados temporalmente por WhatsApp',
+            cause: 'WhatsApp aplicó un límite temporal de contacto a este número.',
+            impact: 'Impacto: los nuevos mensajes salientes se pausan; no se deben forzar reintentos.',
+            action: 'Acción: esperar el fin del bloqueo, reducir cadencia y revisar la calidad de los contactos antes de reanudar.'
+        };
+        if (code === 'OFFICIAL_TEMPLATE_REQUIRED' || text.includes('plantilla aprobada') || text.includes('inicio conversacion')) return {
+            title: 'Se requiere una plantilla aprobada de WhatsApp',
+            cause: 'El contacto no tiene una conversación activa dentro de la ventana de 24 horas.',
+            impact: 'Impacto: este mensaje no se envió; el resto de los números y conversaciones no se ven afectados.',
+            action: 'Acción: enviar una plantilla aprobada de Meta o esperar una respuesta del contacto. No requiere reintentos.'
+        };
+        if (code === 'WHATSAPP_TARGET_NOT_FOUND' || text.includes('no esta disponible en whatsapp')) return {
+            title: 'El destinatario no está disponible en WhatsApp',
+            cause: 'El número de destino no tiene una cuenta activa de WhatsApp o fue informado de forma incorrecta.',
+            impact: 'Impacto: solo ese destinatario no recibió el mensaje.',
+            action: 'Acción: verificar y corregir el número del contacto. No requiere reintentos.'
+        };
+        if (code === 'GHL_LOCATION_FORBIDDEN' || text.includes('status code 403')) return {
+            title: 'GoHighLevel rechazó el acceso de esta subcuenta',
+            cause: 'Las credenciales o permisos de la ubicación no autorizan la operación solicitada.',
+            impact: 'Impacto: la operación de GHL para esta subcuenta no se completó; WhatsApp no debe reintentarlo automáticamente.',
+            action: 'Acción: reconectar GHL y revisar los permisos de la ubicación.'
+        };
+        if (code === 'SUPPORT_WHATSAPP_UNCONFIGURED' || text.includes('bot de soporte desconectado')) return {
+            title: 'El bot de soporte no tiene un canal de WhatsApp disponible',
+            cause: 'No hay un número conectado para enviar la alerta por WhatsApp.',
+            impact: 'Impacto: esta alerta no pudo enviarse por WhatsApp; el servicio principal no queda detenido.',
+            action: 'Acción: configurar el número del bot de soporte o confirmar el canal SMS alternativo.'
+        };
+        if (['408', '428', '479', '515'].includes(code) || text.includes('connection terminated') || text.includes('connection was lost')) return {
+            title: 'Conexión de WhatsApp interrumpida',
+            cause: 'La sesión perdió la conexión con WhatsApp.',
+            impact: `Impacto: la sesión se interrumpió${repeats > 1 ? ` ${repeats} veces` : ''}, aunque el sistema intentó recuperarla automáticamente.`,
+            action: 'Acción: vigilar la estabilidad; si se repite, revisar red, sesión y reconectar el número.'
+        };
+        return {
+            title: log.message || log.reason || 'Incidente operativo sin detalle',
+            cause: 'No hay una clasificación específica disponible para este evento.',
+            impact: log.severity === 'critical' ? 'Impacto: hay una operación afectada que requiere revisión técnica.' : 'Impacto: señal operativa a vigilar.',
+            action: 'Acción: abrir el contexto técnico y revisar la cuenta o servicio indicado.'
+        };
     };
 
     const formatMetadataPreview = (metadata) => {
@@ -1008,6 +1066,9 @@ const handleDeleteUser = (user, type = 'soft') => {
                             <button onClick={clearAdminLogFilters} className="p-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-indigo-600 rounded-lg transition" title="Limpiar filtros">
                                 <Filter size={18} />
                             </button>
+                            <button onClick={() => setShowReviewedLogs((current) => !current)} className={`px-3 py-3 rounded-lg text-xs font-bold border transition ${showReviewedLogs ? 'bg-slate-700 text-white border-slate-700' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
+                                {showReviewedLogs ? 'Ocultar cerrados' : 'Ver revisados'}
+                            </button>
                         </div>
                     </div>
 
@@ -1049,20 +1110,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                     log.phone_number && `Número: ${log.phone_number}`,
                                     log.location_id && `Cuenta: ${log.location_id}`
                                 ].filter(Boolean);
-                                const impact = getAdminLogImpact(log);
-                                const recommendedAction = log.code === 'WHATSAPP_ACCOUNT_RESTRICTED'
-                                    ? 'Acción: revisar Meta, reconectar o reemplazar el número; reactivar el slot manualmente.'
-                                    : log.code === 'GHL_LOCATION_FORBIDDEN'
-                                        ? 'Acción: reconectar GHL o revisar permisos de la ubicación.'
-                                        : log.code === 'CONVERSATIONS_MSG_PROVIDER_ID_REQUIRED'
-                                            ? 'Acción: configurar conversationProviderId para las notas internas.'
-                                            : log.code === 'OFFICIAL_TEMPLATE_REQUIRED'
-                                                ? 'Acción: enviar una plantilla aprobada o esperar respuesta del contacto.'
-                                                : log.code === 'WHATSAPP_TARGET_NOT_FOUND'
-                                                    ? 'Acción: verificar el número del destinatario; no requiere reintento.'
-                                                    : log.code === 'SUPPORT_WHATSAPP_UNCONFIGURED'
-                                                        ? 'Acción: configurar el número del bot de soporte o usar SMS.'
-                                                        : null;
+                                const human = getHumanizedLog(log);
                                 return (
                                     <div key={`${log.source}-${log.id}`} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-950/70 transition">
                                         <div className="flex flex-col lg:flex-row lg:items-start gap-3 lg:gap-4">
@@ -1078,14 +1126,29 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                     {log.notification_status && <span className="text-[11px] text-gray-400">alerta: {log.notification_status}</span>}
                                                     {Number(log.occurrence_count || 1) > 1 && <span className="text-[11px] text-gray-400">repeticiones: {log.occurrence_count}</span>}
                                                 </div>
-                                                <p className="text-sm font-semibold text-gray-900 dark:text-white break-words">{log.message || log.reason || 'Evento sin mensaje'}</p>
+                                                <p className="text-sm font-semibold text-gray-900 dark:text-white break-words">{human.title}</p>
+                                                <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">Causa: {human.cause}</p>
                                                 <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-500 dark:text-gray-400">
                                                     {identity.length > 0 ? identity.map((item) => <span key={item} className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{item}</span>) : <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">target: {target}</span>}
                                                     {log.worker_id && <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">worker: {log.worker_id}</span>}
                                                     {log.category && <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">cat: {log.category}</span>}
                                                 </div>
-                                                <p className="mt-2 text-xs font-medium text-slate-700 dark:text-slate-300">{impact}</p>
-                                                {recommendedAction && <p className="mt-2 text-xs font-medium text-indigo-700 dark:text-indigo-300">{recommendedAction}</p>}
+                                                <p className="mt-2 text-xs font-medium text-slate-700 dark:text-slate-300">{human.impact}</p>
+                                                <p className="mt-2 text-xs font-medium text-indigo-700 dark:text-indigo-300">{human.action}</p>
+                                                {human.title !== (log.message || log.reason || '') && <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">Detalle técnico: {log.message || log.reason}</p>}
+                                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                    {log.review_status ? (
+                                                        <>
+                                                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">{log.review_status === 'resolved' ? 'Resuelto' : 'Revisado'}</span>
+                                                            <button type="button" onClick={() => updateLogReview(log, 'open')} className="text-xs font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-300">Reabrir</button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <button type="button" onClick={() => updateLogReview(log, 'reviewed')} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-gray-900 dark:text-slate-200">Marcar revisado</button>
+                                                            <button type="button" onClick={() => updateLogReview(log, 'resolved')} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">Resolver y quitar de la cola</button>
+                                                        </>
+                                                    )}
+                                                </div>
                                                 {Number(log.occurrence_count || 1) > 1 && log.first_seen_at && log.last_seen_at && (
                                                     <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">Resumen: desde {formatAdminLogDate(log.first_seen_at)} hasta {formatAdminLogDate(log.last_seen_at)}</p>
                                                 )}
