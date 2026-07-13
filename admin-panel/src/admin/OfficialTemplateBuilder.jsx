@@ -417,7 +417,14 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     };
 
     const getMappingScope = (template = {}) => String(
-        selectedSlot?.locationId || template?.locationId || form.locationId || ""
+        selectedSlot?.metaBusinessId ||
+        template?.metaBusinessId ||
+        selectedSlot?.businessAccountId ||
+        template?.businessAccountId ||
+        selectedSlot?.locationId ||
+        template?.locationId ||
+        form.locationId ||
+        ""
     ).trim();
 
     const getMappingForTemplate = (template = {}) => {
@@ -430,32 +437,34 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         return legacy?.[key] || legacy?.[legacyStatusKey] || {};
     };
 
-    const persistMappings = async (locationId, mappings) => {
+    const persistMappings = async (portfolioId, locationId, mappings) => {
+        const safePortfolioId = String(portfolioId || "").trim();
         const safeLocationId = String(locationId || "").trim();
-        if (!safeLocationId) return;
+        if (!safePortfolioId || !safeLocationId) return;
         try {
             await authFetch("/agency/whatsapp-official/template-mappings", {
                 method: "PUT",
-                body: JSON.stringify({ locationId: safeLocationId, mappings })
+                body: JSON.stringify({ locationId: safeLocationId, portfolioId: safePortfolioId, mappings })
             });
         } catch (error) {
             toast.error("No se pudieron guardar las variables GHL", { description: error.message });
         }
     };
 
-    const loadMappings = async (locationId) => {
+    const loadMappings = async (portfolioId, locationId) => {
+        const safePortfolioId = String(portfolioId || "").trim();
         const safeLocationId = String(locationId || "").trim();
-        if (!safeLocationId) return;
+        if (!safePortfolioId || !safeLocationId) return;
         try {
-            const res = await authFetch(`/agency/whatsapp-official/template-mappings?locationId=${encodeURIComponent(safeLocationId)}`);
+            const res = await authFetch(`/agency/whatsapp-official/template-mappings?locationId=${encodeURIComponent(safeLocationId)}&portfolioId=${encodeURIComponent(safePortfolioId)}`);
             const data = await res.json().catch(() => ({}));
             if (!res.ok) return;
             const mappings = data?.mappings && typeof data.mappings === "object" ? data.mappings : {};
             const hasBackendMappings = Object.keys(mappings).length > 0;
-            setTemplateVariableMappings((prev) => ({ ...prev, [safeLocationId]: mappings }));
+            setTemplateVariableMappings((prev) => ({ ...prev, [safePortfolioId]: mappings }));
             if (!hasBackendMappings && Object.keys(prevLegacyMappings.current || {}).length > 0) {
-                await persistMappings(safeLocationId, prevLegacyMappings.current);
-                setTemplateVariableMappings((prev) => ({ ...prev, [safeLocationId]: prevLegacyMappings.current }));
+                await persistMappings(safePortfolioId, safeLocationId, prevLegacyMappings.current);
+                setTemplateVariableMappings((prev) => ({ ...prev, [safePortfolioId]: prevLegacyMappings.current }));
             }
         } catch {
             // The local fallback remains available if the backend is temporarily unavailable.
@@ -766,11 +775,13 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     }, [locationsSignature]);
 
     useEffect(() => {
-        const locationIds = [...new Set((locations || [])
-            .map((location) => String(location?.location_id || "").trim())
-            .filter(Boolean))];
-        locationIds.forEach((locationId) => loadMappings(locationId));
-    }, [locationsSignature]);
+        const scopes = new Map();
+        officialSlots.forEach((slot) => {
+            const portfolioId = getOfficialPortfolioKey(slot);
+            if (portfolioId && !scopes.has(portfolioId)) scopes.set(portfolioId, slot.locationId);
+        });
+        scopes.forEach((locationId, portfolioId) => loadMappings(portfolioId, locationId));
+    }, [officialSlots]);
 
     useEffect(() => {
         if (selectedSlot?.hasAccessToken) loadTemplates(selectedSlot);
@@ -814,10 +825,11 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
 
     const updateTemplateMapping = (template, placeholder, value) => {
         const key = getTemplateKey(template);
-        const locationId = getMappingScope(template);
+        const portfolioId = getMappingScope(template);
+        const locationId = String(selectedSlot?.locationId || template?.locationId || form.locationId || "").trim();
         const safePlaceholder = String(placeholder || "").trim();
-        const currentScope = templateVariableMappings[locationId] && typeof templateVariableMappings[locationId] === "object"
-            ? templateVariableMappings[locationId]
+        const currentScope = templateVariableMappings[portfolioId] && typeof templateVariableMappings[portfolioId] === "object"
+            ? templateVariableMappings[portfolioId]
             : {};
         const nextScope = {
             ...currentScope,
@@ -826,8 +838,8 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 [safePlaceholder]: value
             }
         };
-        setTemplateVariableMappings((prev) => ({ ...prev, [locationId]: nextScope }));
-        persistMappings(locationId, nextScope);
+        setTemplateVariableMappings((prev) => ({ ...prev, [portfolioId]: nextScope }));
+        persistMappings(portfolioId, locationId, nextScope);
     };
 
     const getTemplateMapping = (template) => {
