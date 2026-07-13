@@ -369,6 +369,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     const prevLegacyMappings = useRef({});
     const [loadingSlots, setLoadingSlots] = useState(false);
     const [loadingTemplates, setLoadingTemplates] = useState(false);
+    const [savingMapping, setSavingMapping] = useState(false);
     const [templateLoadError, setTemplateLoadError] = useState(null);
     const [creating, setCreating] = useState(false);
     const [creationResults, setCreationResults] = useState(null);
@@ -397,7 +398,8 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         template: null,
         openSelector: "",
         manualPlaceholder: "",
-        searchByPlaceholder: {}
+        searchByPlaceholder: {},
+        draftMapping: {}
     });
 
     const authFetch = async (endpoint, options = {}) => {
@@ -440,14 +442,21 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     const persistMappings = async (portfolioId, locationId, mappings) => {
         const safePortfolioId = String(portfolioId || "").trim();
         const safeLocationId = String(locationId || "").trim();
-        if (!safePortfolioId || !safeLocationId) return;
+        if (!safePortfolioId || !safeLocationId) {
+            toast.error("No se pudieron identificar el portfolio de Meta y la subcuenta.");
+            return false;
+        }
         try {
-            await authFetch("/agency/whatsapp-official/template-mappings", {
+            const response = await authFetch("/agency/whatsapp-official/template-mappings", {
                 method: "PUT",
                 body: JSON.stringify({ locationId: safeLocationId, portfolioId: safePortfolioId, mappings })
             });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data?.error || "La API no aceptó las variables GHL.");
+            return true;
         } catch (error) {
             toast.error("No se pudieron guardar las variables GHL", { description: error.message });
+            return false;
         }
     };
 
@@ -816,30 +825,57 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     };
 
     const openMappingModal = (template) => {
-        setMappingModal({ open: true, template, openSelector: "", manualPlaceholder: "", searchByPlaceholder: {} });
+        setMappingModal({
+            open: true,
+            template,
+            openSelector: "",
+            manualPlaceholder: "",
+            searchByPlaceholder: {},
+            draftMapping: { ...getTemplateMapping(template) }
+        });
     };
 
     const closeMappingModal = () => {
-        setMappingModal({ open: false, template: null, openSelector: "", manualPlaceholder: "", searchByPlaceholder: {} });
+        setMappingModal({ open: false, template: null, openSelector: "", manualPlaceholder: "", searchByPlaceholder: {}, draftMapping: {} });
     };
 
-    const updateTemplateMapping = (template, placeholder, value) => {
+    const updateTemplateMapping = (_template, placeholder, value) => {
+        const safePlaceholder = String(placeholder || "").trim();
+        setMappingModal((prev) => ({
+            ...prev,
+            draftMapping: {
+                ...(prev.draftMapping || {}),
+                [safePlaceholder]: value
+            }
+        }));
+    };
+
+    const saveTemplateMapping = async () => {
+        const template = mappingModal.template;
+        if (!template) return;
+        if (savingMapping) return;
         const key = getTemplateKey(template);
         const portfolioId = getMappingScope(template);
         const locationId = String(selectedSlot?.locationId || template?.locationId || form.locationId || "").trim();
-        const safePlaceholder = String(placeholder || "").trim();
         const currentScope = templateVariableMappings[portfolioId] && typeof templateVariableMappings[portfolioId] === "object"
             ? templateVariableMappings[portfolioId]
             : {};
         const nextScope = {
             ...currentScope,
             [key]: {
-                ...(currentScope[key] || getMappingForTemplate(template)),
-                [safePlaceholder]: value
+                ...(mappingModal.draftMapping || {})
             }
         };
-        setTemplateVariableMappings((prev) => ({ ...prev, [portfolioId]: nextScope }));
-        persistMappings(portfolioId, locationId, nextScope);
+        setSavingMapping(true);
+        try {
+            const saved = await persistMappings(portfolioId, locationId, nextScope);
+            if (!saved) return;
+            setTemplateVariableMappings((prev) => ({ ...prev, [portfolioId]: nextScope }));
+            toast.success("Variables GHL guardadas");
+            closeMappingModal();
+        } finally {
+            setSavingMapping(false);
+        }
     };
 
     const getTemplateMapping = (template) => {
@@ -1143,7 +1179,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
 
         const template = mappingModal.template;
         const placeholders = getTemplateCommandPlaceholders(template);
-        const mapping = getTemplateMapping(template);
+        const mapping = mappingModal.draftMapping || {};
         const mappedCommand = buildTemplateCommand(template, form.language, mapping);
         const contentPreview = getTemplateContentPreview(template);
 
@@ -1379,15 +1415,16 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             onClick={closeMappingModal}
                             className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
                         >
-                            {t("common.close") || "Cerrar"}
+                            {t("common.cancel") || "Cancelar"}
                         </button>
                         <button
                             type="button"
-                            onClick={() => copyText(mappedCommand)}
-                            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700"
+                            onClick={saveTemplateMapping}
+                            disabled={savingMapping}
+                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60"
                         >
-                            <Copy size={16} />
-                            {t("templates.builder.copy_mapped_command") || "Copiar comando"}
+                            {savingMapping ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                            {savingMapping ? "Guardando..." : (t("common.save") || "Guardar")}
                         </button>
                     </div>
                 </div>
