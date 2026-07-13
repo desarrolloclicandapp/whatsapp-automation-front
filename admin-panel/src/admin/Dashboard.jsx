@@ -61,9 +61,14 @@ export default function AdminDashboard({ token, onLogout }) {
     const [adminLogSummary, setAdminLogSummary] = useState({ total: 0, critical: 0, warning: 0, info: 0, bySource: {}, byType: {}, byCode: {} });
     const [adminLogOptions, setAdminLogOptions] = useState({ types: [] });
     const [adminLogsLoading, setAdminLogsLoading] = useState(false);
+    const [numberHealth, setNumberHealth] = useState([]);
+    const [numberHealthSummary, setNumberHealthSummary] = useState({ total: 0, stable: 0, attention: 0, unstable: 0, restricted: 0 });
+    const [numberHealthLoading, setNumberHealthLoading] = useState(false);
+    const [numberHealthQuery, setNumberHealthQuery] = useState('');
+    const [numberHealthStatus, setNumberHealthStatus] = useState('all');
     const [adminLogFilters, setAdminLogFilters] = useState({
         source: 'all',
-        severity: 'all',
+        severity: 'actionable',
         type: '',
         code: '',
         query: '',
@@ -218,6 +223,22 @@ export default function AdminDashboard({ token, onLogout }) {
             toast.error(error.message || "Error cargando logs");
         } finally {
             setAdminLogsLoading(false);
+        }
+    };
+
+    const fetchNumberHealth = async (refresh = false) => {
+        setNumberHealthLoading(true);
+        try {
+            const res = await authFetch(`/admin/number-health${refresh ? '?refresh=true' : ''}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'No se pudo cargar la salud de los números');
+            setNumberHealth(Array.isArray(data.numbers) ? data.numbers : []);
+            setNumberHealthSummary(data.summary || { total: 0, stable: 0, attention: 0, unstable: 0, restricted: 0 });
+        } catch (error) {
+            console.error('Error salud de números:', error);
+            toast.error(error.message || 'Error cargando la salud de números');
+        } finally {
+            setNumberHealthLoading(false);
         }
     };
 
@@ -676,6 +697,7 @@ const handleDeleteUser = (user, type = 'soft') => {
         if (view === 'agencies') fetchAgencies();
         if (view === 'users') fetchUsers();
         if (view === 'logs') fetchAdminLogs();
+        if (view === 'numberHealth') fetchNumberHealth();
     }, [view]);
 
     useEffect(() => {
@@ -828,7 +850,7 @@ const handleDeleteUser = (user, type = 'soft') => {
     const clearAdminLogFilters = () => {
         setAdminLogFilters({
             source: 'all',
-            severity: 'all',
+            severity: 'actionable',
             type: '',
             code: '',
             query: '',
@@ -881,10 +903,11 @@ const handleDeleteUser = (user, type = 'soft') => {
             { value: 'error_logs', label: 'Aplicación' }
         ];
         const severityOptions = [
-            { value: 'all', label: 'Todo' },
+            { value: 'actionable', label: 'Accionables' },
             { value: 'critical', label: 'Críticos' },
             { value: 'warning', label: 'Warnings' },
-            { value: 'info', label: 'Info' }
+            { value: 'info', label: 'Solo info' },
+            { value: 'all', label: 'Todo (auditoría)' }
         ];
         const topTypes = Array.isArray(adminLogOptions.types) ? adminLogOptions.types.slice(0, 8) : [];
 
@@ -919,6 +942,10 @@ const handleDeleteUser = (user, type = 'soft') => {
                         </div>
                         <p className="text-2xl font-black mt-2 text-gray-900 dark:text-white">{Object.keys(adminLogSummary.bySource || {}).length}</p>
                     </div>
+                </div>
+
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-sm text-indigo-900 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-200">
+                    La vista prioriza incidentes que requieren decisión. Los eventos <strong>info</strong> quedan ocultos por defecto y las reconexiones repetidas se consolidan en un solo resumen.
                 </div>
 
                 <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 space-y-4">
@@ -1002,6 +1029,19 @@ const handleDeleteUser = (user, type = 'soft') => {
                             {adminLogs.map((log) => {
                                 const metadata = formatMetadataPreview(log.metadata);
                                 const target = log.session_id || log.location_id || log.client_id || log.phone_number || 'global';
+                                const recommendedAction = log.code === 'WHATSAPP_ACCOUNT_RESTRICTED'
+                                    ? 'Acción: revisar Meta, reconectar o reemplazar el número; reactivar el slot manualmente.'
+                                    : log.code === 'GHL_LOCATION_FORBIDDEN'
+                                        ? 'Acción: reconectar GHL o revisar permisos de la ubicación.'
+                                        : log.code === 'CONVERSATIONS_MSG_PROVIDER_ID_REQUIRED'
+                                            ? 'Acción: configurar conversationProviderId para las notas internas.'
+                                            : log.code === 'OFFICIAL_TEMPLATE_REQUIRED'
+                                                ? 'Acción: enviar una plantilla aprobada o esperar respuesta del contacto.'
+                                                : log.code === 'WHATSAPP_TARGET_NOT_FOUND'
+                                                    ? 'Acción: verificar el número del destinatario; no requiere reintento.'
+                                                    : log.code === 'SUPPORT_WHATSAPP_UNCONFIGURED'
+                                                        ? 'Acción: configurar el número del bot de soporte o usar SMS.'
+                                                        : null;
                                 return (
                                     <div key={`${log.source}-${log.id}`} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-950/70 transition">
                                         <div className="flex flex-col lg:flex-row lg:items-start gap-3 lg:gap-4">
@@ -1015,6 +1055,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                     {log.type && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700">{log.type}</span>}
                                                     {log.code && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-900">Código {log.code}</span>}
                                                     {log.notification_status && <span className="text-[11px] text-gray-400">alerta: {log.notification_status}</span>}
+                                                    {Number(log.occurrence_count || 1) > 1 && <span className="text-[11px] text-gray-400">repeticiones: {log.occurrence_count}</span>}
                                                 </div>
                                                 <p className="text-sm font-semibold text-gray-900 dark:text-white break-words">{log.message || log.reason || 'Evento sin mensaje'}</p>
                                                 <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-500 dark:text-gray-400">
@@ -1022,6 +1063,10 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                     {log.worker_id && <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">worker: {log.worker_id}</span>}
                                                     {log.category && <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">cat: {log.category}</span>}
                                                 </div>
+                                                {recommendedAction && <p className="mt-2 text-xs font-medium text-indigo-700 dark:text-indigo-300">{recommendedAction}</p>}
+                                                {Number(log.occurrence_count || 1) > 1 && log.first_seen_at && log.last_seen_at && (
+                                                    <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">Resumen: desde {formatAdminLogDate(log.first_seen_at)} hasta {formatAdminLogDate(log.last_seen_at)}</p>
+                                                )}
                                                 {metadata && metadata !== '{}' && (
                                                     <details className="mt-3">
                                                         <summary className="cursor-pointer text-xs font-bold text-indigo-600 dark:text-indigo-300">Ver contexto</summary>
@@ -1035,6 +1080,69 @@ const handleDeleteUser = (user, type = 'soft') => {
                             })}
                         </div>
                     )}
+                </div>
+            </div>
+        );
+    };
+
+    const getNumberHealthStatusLabel = (status) => ({
+        stable: 'Estable',
+        attention: 'Atención',
+        unstable: 'Inestable',
+        restricted: 'Restringido',
+        blocked: 'Bloqueado',
+        paused: 'Pausado'
+    }[String(status || '').toLowerCase()] || 'Sin datos');
+
+    const getNumberHealthStatusStyle = (status) => {
+        const value = String(status || '').toLowerCase();
+        if (value === 'stable') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900';
+        if (value === 'attention') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900';
+        if (value === 'unstable') return 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-900';
+        return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900';
+    };
+
+    const getNumberQualityLabel = (level) => ({
+        good: 'Buena', care: 'A cuidar', sensitive: 'Sensible', delicate: 'Delicada'
+    }[String(level || '').toLowerCase()] || 'Sin historial');
+
+    const NumberHealthPanel = () => {
+        const normalizedQuery = numberHealthQuery.trim().toLowerCase();
+        const rows = numberHealth.filter((item) => {
+            const matchesStatus = numberHealthStatus === 'all' || item.connection_status === numberHealthStatus;
+            const searchable = [item.phone_number, item.client_name, item.location_id, item.slot_name, item.slot_id].join(' ').toLowerCase();
+            return matchesStatus && (!normalizedQuery || searchable.includes(normalizedQuery));
+        }).sort((left, right) => {
+            const priority = { restricted: 0, blocked: 0, unstable: 1, attention: 2, paused: 3, stable: 4 };
+            return (priority[left.connection_status] ?? 9) - (priority[right.connection_status] ?? 9)
+                || Number(right.reconnects_72h || 0) - Number(left.reconnects_72h || 0);
+        });
+        return (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                    <div>
+                        <h2 className="text-xl font-black text-gray-900 dark:text-white">Salud de números</h2>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Actividad de 28 días y estabilidad de conexión. Se consulta solo al abrir esta vista y se cachea brevemente.</p>
+                    </div>
+                    <button onClick={() => fetchNumberHealth(true)} className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm transition">
+                        <RefreshCw size={17} className={numberHealthLoading ? 'animate-spin' : ''} /> Actualizar
+                    </button>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                    {[
+                        ['Números', numberHealthSummary.total, 'text-gray-900 dark:text-white'],
+                        ['Estables', numberHealthSummary.stable, 'text-emerald-600 dark:text-emerald-300'],
+                        ['Atención', numberHealthSummary.attention, 'text-amber-600 dark:text-amber-300'],
+                        ['Inestables', numberHealthSummary.unstable, 'text-orange-600 dark:text-orange-300'],
+                        ['Restringidos', numberHealthSummary.restricted, 'text-red-600 dark:text-red-300']
+                    ].map(([label, value, color]) => <div key={label} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">{label}</p><p className={`mt-2 text-2xl font-black ${color}`}>{value || 0}</p></div>)}
+                </div>
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 flex flex-col md:flex-row gap-3">
+                    <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} /><input value={numberHealthQuery} onChange={(event) => setNumberHealthQuery(event.target.value)} placeholder="Buscar número, cliente, location o slot..." className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" /></div>
+                    <select value={numberHealthStatus} onChange={(event) => setNumberHealthStatus(event.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold"><option value="all">Todos los estados</option><option value="unstable">Inestables</option><option value="attention">Atención</option><option value="stable">Estables</option><option value="restricted">Restringidos</option><option value="blocked">Bloqueados</option></select>
+                </div>
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
+                    {numberHealthLoading ? <div className="py-20 text-center text-gray-500"><RefreshCw className="animate-spin mx-auto mb-3 text-indigo-600" size={32} />Cargando salud de números...</div> : rows.length === 0 ? <div className="py-20 text-center text-gray-500"><Activity className="mx-auto mb-3 text-gray-300" size={40} />No hay números para los filtros seleccionados.</div> : <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-950 text-[11px] uppercase tracking-wide text-gray-500"><tr><th className="text-left px-4 py-3">Número / cliente</th><th className="text-left px-4 py-3">Conexión</th><th className="text-left px-4 py-3">Calidad</th><th className="text-right px-4 py-3">Envíos 28d</th><th className="text-right px-4 py-3">Días activos</th><th className="text-right px-4 py-3">Reconexiones 72h</th></tr></thead><tbody className="divide-y divide-gray-100 dark:divide-gray-800">{rows.map((item) => <tr key={`${item.location_id}-${item.slot_id}`} className="hover:bg-gray-50 dark:hover:bg-gray-950/60"><td className="px-4 py-4"><p className="font-bold text-gray-900 dark:text-white">{item.phone_number}</p><p className="mt-1 text-xs text-gray-500">{item.client_name || item.location_id} · {item.slot_name || `Slot ${item.slot_id}`}</p></td><td className="px-4 py-4"><span className={`inline-flex px-2 py-1 rounded-full border text-xs font-bold ${getNumberHealthStatusStyle(item.connection_status)}`}>{getNumberHealthStatusLabel(item.connection_status)}</span>{item.last_error_code && <p className="mt-1 text-[11px] text-gray-500">último código: {item.last_error_code}</p>}</td><td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{getNumberQualityLabel(item.number_quality_level)}</p><p className="mt-1 text-[11px] text-gray-500">{item.number_quality_source === 'internal_history' ? 'Historial interno' : item.number_quality_source === 'hybrid_official_meta' ? 'Meta + historial' : 'Aún sin historial'}</p></td><td className="px-4 py-4 text-right font-bold text-gray-900 dark:text-white">{Number(item.sent_messages_28d || 0).toLocaleString()}</td><td className="px-4 py-4 text-right font-bold text-gray-900 dark:text-white">{item.active_days_28d || 0}</td><td className="px-4 py-4 text-right"><span className={Number(item.reconnects_72h || 0) >= 5 ? 'font-black text-orange-600 dark:text-orange-300' : 'font-bold text-gray-900 dark:text-white'}>{item.reconnects_72h || 0}</span></td></tr>)}</tbody></table></div>}
                 </div>
             </div>
         );
@@ -1182,7 +1290,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                             </button>
                         )}
                         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-indigo-500/20">CA</div>
-                        <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'standaloneBranding' ? 'Configuración Standalone' : view === 'users' ? 'Gestión de Usuarios' : view === 'logs' ? 'Logs Operacionales' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} cuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}{view === 'logs' && <p className="text-xs text-gray-500 dark:text-gray-400">{adminLogSummary.total || adminLogs.length} eventos recientes</p>}</div>
+                        <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'standaloneBranding' ? 'Configuración Standalone' : view === 'users' ? 'Gestión de Usuarios' : view === 'logs' ? 'Logs Operacionales' : view === 'numberHealth' ? 'Salud de números' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} cuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}{view === 'logs' && <p className="text-xs text-gray-500 dark:text-gray-400">{adminLogSummary.total || adminLogs.length} eventos recientes</p>}{view === 'numberHealth' && <p className="text-xs text-gray-500 dark:text-gray-400">{numberHealthSummary.total || numberHealth.length} números analizados</p>}</div>
                         {masterOtp && (
                             <div className="hidden lg:flex items-center gap-2 bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1.5 rounded-lg text-xs font-bold">
                                 <span>Master OTP:</span>
@@ -1196,11 +1304,12 @@ const handleDeleteUser = (user, type = 'soft') => {
                             <button onClick={() => { setView('agencies'); setSubaccounts([]); setSelectedAgency(null); }} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'agencies' || view === 'subaccounts' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Building2 size={16} /> Agencias</button>
                             <button onClick={() => setView('users')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'users' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Users size={16} /> Usuarios</button>
                             <button onClick={() => setView('logs')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'logs' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Activity size={16} /> Logs</button>
+                            <button onClick={() => setView('numberHealth')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'numberHealth' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><ShieldAlert size={16} /> Salud</button>
                             <button onClick={() => setView('branding')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'branding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Settings size={16} /> Marca Global</button>
                             <button onClick={() => setView('standaloneBranding')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'standaloneBranding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Smartphone size={16} /> Marca Standalone</button>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3"><ThemeToggle /><button onClick={() => view === 'agencies' ? fetchAgencies() : view === 'users' ? fetchUsers() : view === 'logs' ? fetchAdminLogs() : (selectedAgency ? fetchSubaccounts(selectedAgency.agency_id) : null)} className="p-2.5 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-800 rounded-lg transition hover:scale-105" title="Recargar datos"><RefreshCw size={20} className={(loading || adminLogsLoading) ? "animate-spin" : ""} /></button><div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div><button onClick={onLogout} className="p-2.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30 transition font-medium text-sm flex items-center gap-2"><LogOut size={18} /><span className="hidden sm:inline">Salir</span></button></div>
+                    <div className="flex items-center gap-3"><ThemeToggle /><button onClick={() => view === 'agencies' ? fetchAgencies() : view === 'users' ? fetchUsers() : view === 'logs' ? fetchAdminLogs() : view === 'numberHealth' ? fetchNumberHealth(true) : (selectedAgency ? fetchSubaccounts(selectedAgency.agency_id) : null)} className="p-2.5 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-800 rounded-lg transition hover:scale-105" title="Recargar datos"><RefreshCw size={20} className={(loading || adminLogsLoading || numberHealthLoading) ? "animate-spin" : ""} /></button><div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div><button onClick={onLogout} className="p-2.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30 transition font-medium text-sm flex items-center gap-2"><LogOut size={18} /><span className="hidden sm:inline">Salir</span></button></div>
                 </div>
             </header>
 
@@ -1210,6 +1319,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                 {view === 'branding' && <BrandingSettings mode="global" />}
                 {view === 'standaloneBranding' && <BrandingSettings mode="standalone" />}
                 {view === 'logs' && <LogsPanel />}
+                {view === 'numberHealth' && <NumberHealthPanel />}
 
                 {/* VISTA: USUARIOS */}
                 {view === 'users' && (
