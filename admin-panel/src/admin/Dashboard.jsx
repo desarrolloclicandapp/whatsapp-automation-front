@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import SupportManager from './SupportManager';
 import LocationDetailsModal from './LocationDetailsModal';
+import AdminTemplateVisibility from './AdminTemplateVisibility';
 import ThemeToggle from '../components/ThemeToggle';
 import { useBranding } from '../context/BrandingContext';
 import { useLanguage } from '../context/LanguageContext'; // Added import
@@ -9,7 +10,7 @@ import {
     Settings, Search, Palette, Upload,
     RefreshCw, Building2, Smartphone, CheckCircle2,
     ArrowLeft, LogOut, RotateCcw, Image as ImageIcon, Link, Users, Trash2,
-    Clock, CalendarDays, Plus, AlertCircle, Save, X, AlertTriangle,
+    Clock, CalendarDays, Plus, AlertCircle, Save, X, AlertTriangle, FileText,
     ArrowUpDown, ChevronDown, Pin, Activity, Database, Filter, ShieldAlert
 } from 'lucide-react';
 
@@ -1375,7 +1376,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                             </button>
                         )}
                         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-indigo-500/20">CA</div>
-                        <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'standaloneBranding' ? 'Configuración Standalone' : view === 'users' ? 'Gestión de Usuarios' : view === 'logs' ? 'Logs Operacionales' : view === 'numberHealth' ? 'Salud de números' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} cuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}{view === 'logs' && <p className="text-xs text-gray-500 dark:text-gray-400">{adminLogSummary.total || adminLogs.length} eventos recientes</p>}{view === 'numberHealth' && <p className="text-xs text-gray-500 dark:text-gray-400">{numberHealthSummary.total || numberHealth.length} números analizados</p>}</div>
+                        <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'standaloneBranding' ? 'Configuración Standalone' : view === 'users' ? 'Gestión de Usuarios' : view === 'logs' ? 'Logs Operacionales' : view === 'numberHealth' ? 'Salud de números' : view === 'templateVisibility' ? 'Visibilidad de templates' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} cuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}{view === 'logs' && <p className="text-xs text-gray-500 dark:text-gray-400">{adminLogSummary.total || adminLogs.length} eventos recientes</p>}{view === 'numberHealth' && <p className="text-xs text-gray-500 dark:text-gray-400">{numberHealthSummary.total || numberHealth.length} números analizados</p>}</div>
                         {masterOtp && (
                             <div className="hidden lg:flex items-center gap-2 bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1.5 rounded-lg text-xs font-bold">
                                 <span>Master OTP:</span>
@@ -1390,6 +1391,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                             <button onClick={() => setView('users')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'users' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Users size={16} /> Usuarios</button>
                             <button onClick={() => setView('logs')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'logs' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Activity size={16} /> Logs</button>
                             <button onClick={() => setView('numberHealth')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'numberHealth' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><ShieldAlert size={16} /> Salud</button>
+                            <button onClick={() => setView('templateVisibility')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'templateVisibility' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><FileText size={16} /> Templates</button>
                             <button onClick={() => setView('branding')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'branding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Settings size={16} /> Marca Global</button>
                             <button onClick={() => setView('standaloneBranding')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'standaloneBranding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Smartphone size={16} /> Marca Standalone</button>
                         </div>
@@ -1405,6 +1407,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                 {view === 'standaloneBranding' && <BrandingSettings mode="standalone" />}
                 {view === 'logs' && <LogsPanel />}
                 {view === 'numberHealth' && <NumberHealthPanel />}
+                {view === 'templateVisibility' && <AdminTemplateVisibility token={token} agencies={agencies} onUnauthorized={onLogout} />}
 
                 {/* VISTA: USUARIOS */}
                 {view === 'users' && (
