@@ -252,8 +252,7 @@ function getDefaultTemplateValue(placeholder = "", index = 0) {
 function getTemplateKey(template = {}) {
     return [
         String(template?.name || "").trim(),
-        String(template?.language || "").trim(),
-        String(template?.status || "").trim()
+        String(template?.language || "").trim()
     ].join(":");
 }
 
@@ -367,6 +366,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     const templatesLoadRequestRef = useRef(0);
     const [officialSlots, setOfficialSlots] = useState([]);
     const [templatesBySlot, setTemplatesBySlot] = useState({});
+    const prevLegacyMappings = useRef({});
     const [loadingSlots, setLoadingSlots] = useState(false);
     const [loadingTemplates, setLoadingTemplates] = useState(false);
     const [templateLoadError, setTemplateLoadError] = useState(null);
@@ -381,7 +381,13 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         try {
             const stored = localStorage.getItem(TEMPLATE_VARIABLE_MAPPINGS_STORAGE_KEY);
             const parsed = stored ? JSON.parse(stored) : {};
-            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+            const isScoped = parsed && typeof parsed === "object" && !Array.isArray(parsed) && Object.values(parsed).some((scope) => (
+                scope && typeof scope === "object" && !Array.isArray(scope) && Object.values(scope).some((mapping) => (
+                    mapping && typeof mapping === "object" && !Array.isArray(mapping)
+                ))
+            ));
+            prevLegacyMappings.current = !isScoped && parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+            return isScoped ? parsed : (parsed && typeof parsed === "object" && !Array.isArray(parsed) ? { __legacy__: parsed } : {});
         } catch {
             return {};
         }
@@ -408,6 +414,52 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
             throw new Error(t("agency.session_expired") || "Sesion expirada");
         }
         return res;
+    };
+
+    const getMappingScope = (template = {}) => String(
+        selectedSlot?.locationId || template?.locationId || form.locationId || ""
+    ).trim();
+
+    const getMappingForTemplate = (template = {}) => {
+        const scope = getMappingScope(template);
+        const key = getTemplateKey(template);
+        const scoped = scope ? templateVariableMappings[scope] : null;
+        if (scoped && typeof scoped === "object" && scoped[key]) return scoped[key];
+        const legacy = templateVariableMappings.__legacy__ || templateVariableMappings;
+        const legacyStatusKey = `${key}:${String(template?.status || "").trim()}`;
+        return legacy?.[key] || legacy?.[legacyStatusKey] || {};
+    };
+
+    const persistMappings = async (locationId, mappings) => {
+        const safeLocationId = String(locationId || "").trim();
+        if (!safeLocationId) return;
+        try {
+            await authFetch("/agency/whatsapp-official/template-mappings", {
+                method: "PUT",
+                body: JSON.stringify({ locationId: safeLocationId, mappings })
+            });
+        } catch (error) {
+            toast.error("No se pudieron guardar las variables GHL", { description: error.message });
+        }
+    };
+
+    const loadMappings = async (locationId) => {
+        const safeLocationId = String(locationId || "").trim();
+        if (!safeLocationId) return;
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/template-mappings?locationId=${encodeURIComponent(safeLocationId)}`);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) return;
+            const mappings = data?.mappings && typeof data.mappings === "object" ? data.mappings : {};
+            const hasBackendMappings = Object.keys(mappings).length > 0;
+            setTemplateVariableMappings((prev) => ({ ...prev, [safeLocationId]: mappings }));
+            if (!hasBackendMappings && Object.keys(prevLegacyMappings.current || {}).length > 0) {
+                await persistMappings(safeLocationId, prevLegacyMappings.current);
+                setTemplateVariableMappings((prev) => ({ ...prev, [safeLocationId]: prevLegacyMappings.current }));
+            }
+        } catch {
+            // The local fallback remains available if the backend is temporarily unavailable.
+        }
     };
 
     const portfolioOptions = useMemo(() => {
@@ -714,6 +766,13 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     }, [locationsSignature]);
 
     useEffect(() => {
+        const locationIds = [...new Set((locations || [])
+            .map((location) => String(location?.location_id || "").trim())
+            .filter(Boolean))];
+        locationIds.forEach((locationId) => loadMappings(locationId));
+    }, [locationsSignature]);
+
+    useEffect(() => {
         if (selectedSlot?.hasAccessToken) loadTemplates(selectedSlot);
     }, [selectedSlot?.locationId, selectedSlot?.slotId]);
 
@@ -755,18 +814,24 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
 
     const updateTemplateMapping = (template, placeholder, value) => {
         const key = getTemplateKey(template);
+        const locationId = getMappingScope(template);
         const safePlaceholder = String(placeholder || "").trim();
-        setTemplateVariableMappings((prev) => ({
-            ...prev,
+        const currentScope = templateVariableMappings[locationId] && typeof templateVariableMappings[locationId] === "object"
+            ? templateVariableMappings[locationId]
+            : {};
+        const nextScope = {
+            ...currentScope,
             [key]: {
-                ...(prev[key] || {}),
+                ...(currentScope[key] || getMappingForTemplate(template)),
                 [safePlaceholder]: value
             }
-        }));
+        };
+        setTemplateVariableMappings((prev) => ({ ...prev, [locationId]: nextScope }));
+        persistMappings(locationId, nextScope);
     };
 
     const getTemplateMapping = (template) => {
-        return templateVariableMappings[getTemplateKey(template)] || {};
+        return getMappingForTemplate(template);
     };
 
     const selectPortfolio = (portfolioId) => {
