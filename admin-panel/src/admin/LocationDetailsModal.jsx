@@ -61,9 +61,9 @@ function getNumberQualitySourceLabel(source = '', t) {
         return translateOr(t, 'agency.reliability.number_quality_source_meta', 'Calidad Meta');
     }
     if (normalized === 'internal_history') {
-        return translateOr(t, 'agency.reliability.number_quality_source_internal', 'Salud QR');
+        return translateOr(t, 'agency.reliability.number_quality_source_internal', 'Calidad del número');
     }
-    return translateOr(t, 'agency.reliability.number_quality_source_unknown', 'Salud QR');
+    return translateOr(t, 'agency.reliability.number_quality_source_unknown', 'Calidad del número');
 }
 
 function getNumberQualityTooltip({ source = '', activeDays = 0, sentMessages28d = 0 } = {}, t) {

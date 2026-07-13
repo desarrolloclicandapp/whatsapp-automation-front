@@ -886,6 +886,20 @@ const handleDeleteUser = (user, type = 'soft') => {
         return source || 'Log';
     };
 
+    const getAdminLogImpact = (log = {}) => {
+        const code = String(log.code || '').toUpperCase();
+        const type = String(log.type || '').toLowerCase();
+        if (code === 'WHATSAPP_ACCOUNT_RESTRICTED' || ['401', '403', '440', '463'].includes(code)) return 'Impacto: el número no puede seguir enviando hasta revisión o reconexión manual.';
+        if (code === 'OFFICIAL_TEMPLATE_REQUIRED') return 'Impacto: el mensaje no se envió porque fuera de la ventana de 24 horas requiere una plantilla aprobada.';
+        if (code === 'WHATSAPP_TARGET_NOT_FOUND') return 'Impacto: ese destinatario no recibió el mensaje; no afecta al resto de envíos.';
+        if (code === 'GHL_LOCATION_FORBIDDEN') return 'Impacto: la integración no puede completar esa operación para la subcuenta indicada.';
+        if (code === 'CONVERSATIONS_MSG_PROVIDER_ID_REQUIRED') return 'Impacto: no se creó la nota interna en GHL; el envío principal no se reintenta por este motivo.';
+        if (['408', '428', '479', '515'].includes(code) || type.includes('reconnect') || type.includes('disconnect')) return `Impacto: la sesión se interrumpió${Number(log.occurrence_count || 1) > 1 ? ` ${log.occurrence_count} veces` : ''}, pero el sistema intentó recuperarla automáticamente.`;
+        return log.severity === 'critical'
+            ? 'Impacto: hay una operación afectada que requiere revisión técnica.'
+            : 'Impacto: señal operativa a vigilar; revisar si se repite o afecta al cliente.';
+    };
+
     const formatMetadataPreview = (metadata) => {
         if (!metadata || typeof metadata !== 'object') return '';
         try {
@@ -1029,6 +1043,13 @@ const handleDeleteUser = (user, type = 'soft') => {
                             {adminLogs.map((log) => {
                                 const metadata = formatMetadataPreview(log.metadata);
                                 const target = log.session_id || log.location_id || log.client_id || log.phone_number || 'global';
+                                const identity = [
+                                    log.client_name && `Cliente: ${log.client_name}`,
+                                    log.slot_name && `Slot: ${log.slot_name}`,
+                                    log.phone_number && `Número: ${log.phone_number}`,
+                                    log.location_id && `Cuenta: ${log.location_id}`
+                                ].filter(Boolean);
+                                const impact = getAdminLogImpact(log);
                                 const recommendedAction = log.code === 'WHATSAPP_ACCOUNT_RESTRICTED'
                                     ? 'Acción: revisar Meta, reconectar o reemplazar el número; reactivar el slot manualmente.'
                                     : log.code === 'GHL_LOCATION_FORBIDDEN'
@@ -1059,10 +1080,11 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                 </div>
                                                 <p className="text-sm font-semibold text-gray-900 dark:text-white break-words">{log.message || log.reason || 'Evento sin mensaje'}</p>
                                                 <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                                                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">target: {target}</span>
+                                                    {identity.length > 0 ? identity.map((item) => <span key={item} className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{item}</span>) : <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">target: {target}</span>}
                                                     {log.worker_id && <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">worker: {log.worker_id}</span>}
                                                     {log.category && <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">cat: {log.category}</span>}
                                                 </div>
+                                                <p className="mt-2 text-xs font-medium text-slate-700 dark:text-slate-300">{impact}</p>
                                                 {recommendedAction && <p className="mt-2 text-xs font-medium text-indigo-700 dark:text-indigo-300">{recommendedAction}</p>}
                                                 {Number(log.occurrence_count || 1) > 1 && log.first_seen_at && log.last_seen_at && (
                                                     <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">Resumen: desde {formatAdminLogDate(log.first_seen_at)} hasta {formatAdminLogDate(log.last_seen_at)}</p>
