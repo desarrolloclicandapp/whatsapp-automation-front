@@ -7,7 +7,7 @@ import { useBranding } from '../context/BrandingContext';
 import { useLanguage } from '../context/LanguageContext'; // Added import
 import { toast } from 'sonner'; 
 import {
-    Settings, Search, Palette, Upload,
+    Settings, Search, Palette,
     RefreshCw, Building2, Smartphone, CheckCircle2,
     ArrowLeft, LogOut, RotateCcw, Image as ImageIcon, Link, Users, Trash2,
     Clock, CalendarDays, Plus, AlertCircle, Save, X, AlertTriangle, FileText,
@@ -242,6 +242,47 @@ export default function AdminDashboard({ token, onLogout }) {
             fetchAdminLogs();
         } catch (error) {
             toast.error(error.message || 'No se pudo actualizar el incidente');
+        }
+    };
+
+    const downloadAdminLogsCsv = async () => {
+        try {
+            const params = new URLSearchParams({ limit: '5000', export: 'true', hoursBack: adminLogFilters.hoursBack || '24' });
+            if (adminLogFilters.source && adminLogFilters.source !== 'all') params.set('source', adminLogFilters.source);
+            if (adminLogFilters.severity && adminLogFilters.severity !== 'all') params.set('severity', adminLogFilters.severity);
+            if (adminLogFilters.type) params.set('type', adminLogFilters.type);
+            if (adminLogFilters.code) params.set('code', adminLogFilters.code);
+            if (adminLogFilters.query) params.set('query', adminLogFilters.query);
+            if (showReviewedLogs) params.set('includeReviewed', 'true');
+
+            const res = await authFetch(`/admin/logs?${params.toString()}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'No se pudieron preparar los logs');
+            const logs = Array.isArray(data.logs) ? data.logs : [];
+            if (logs.length === 0) throw new Error('No hay logs para los filtros seleccionados');
+
+            const quote = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+            const formatParts = (value) => {
+                const date = new Date(value);
+                if (Number.isNaN(date.getTime())) return { date: '', time: '' };
+                return { date: date.toLocaleDateString('sv-SE'), time: date.toLocaleTimeString('es-ES', { hour12: false }) };
+            };
+            const headers = ['fecha', 'hora', 'fuente', 'tipo', 'severidad', 'codigo', 'titulo', 'causa', 'target', 'sub_cuenta', 'numero', 'conexion', 'cat', 'servicio', 'impacto', 'accion', 'detalle', 'contexto', 'repeticiones', 'primera_vez', 'ultima_vez'];
+            const rows = logs.map((log) => {
+                const human = getHumanizedLog(log);
+                const date = formatParts(log.created_at);
+                const target = log.session_id || log.location_id || log.client_id || log.phone_number || 'global';
+                return [date.date, date.time, getAdminLogSourceLabel(log.source), log.type, log.severity || log.level, log.code, human.title, human.cause, target, log.client_name || log.location_id || log.client_id, log.phone_number, log.session_id, log.category, log.service, human.impact, human.action, log.message || log.reason, formatMetadataPreview(log.metadata), log.occurrence_count || 1, log.first_seen_at, log.last_seen_at].map(quote).join(',');
+            });
+            const url = URL.createObjectURL(new Blob([`\uFEFF${[headers.join(','), ...rows].join('\n')}`], { type: 'text/csv;charset=utf-8' }));
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = `waflow-logs-${adminLogFilters.severity || 'all'}-${adminLogFilters.hoursBack || '24'}h.csv`;
+            anchor.click();
+            URL.revokeObjectURL(url);
+            toast.success(`${logs.length} logs descargados en CSV.`);
+        } catch (error) {
+            toast.error(error.message || 'No se pudo descargar el CSV');
         }
     };
 
@@ -1070,6 +1111,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                             <button onClick={() => setShowReviewedLogs((current) => !current)} className={`px-3 py-3 rounded-lg text-xs font-bold border transition ${showReviewedLogs ? 'bg-slate-700 text-white border-slate-700' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
                                 {showReviewedLogs ? 'Ocultar cerrados' : 'Ver revisados'}
                             </button>
+                            <button type="button" onClick={downloadAdminLogsCsv} className="px-3 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition" title="Descargar todos los logs que coinciden con los filtros actuales">Descargar CSV</button>
                         </div>
                     </div>
 
