@@ -5757,20 +5757,42 @@ function SlotConnectionManager({
         setQr(null);
         setQrUpdatedAt(null);
         try {
-            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, { method: 'POST' });
+            let res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/reconnect`, { method: 'POST' });
             const accessError = await readAccessError(res);
             if (applyAccessError(accessError)) return;
 
             if (!res.ok) {
-                throw new Error(await readResponseError(res, 'Fallo al iniciar'));
+                throw new Error(await readResponseError(res, 'Fallo al reconectar'));
+            }
+
+            let responseBody = await res.json().catch(() => ({}));
+            let relinkStarted = false;
+            if (responseBody.action === 'qr_required' || responseBody.requiresQr === true) {
+                res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, {
+                    method: 'POST',
+                    body: JSON.stringify({ confirmRelink: true })
+                });
+                if (!res.ok) throw new Error(await readResponseError(res, 'No se pudo preparar el QR'));
+                responseBody = await res.json().catch(() => ({}));
+                relinkStarted = true;
             }
 
             setAccountSuspensionState(null);
             stopPolling();
             let sawFreshQr = false;
             let qrMissingSince = null;
+            const attemptStartedAt = Date.now();
 
             const pollStep = async () => {
+                const attemptTimeoutMs = relinkStarted ? 120000 : 90000;
+                if (Date.now() - attemptStartedAt >= attemptTimeoutMs) {
+                    setLoading(false);
+                    stopPolling();
+                    toast.error(relinkStarted
+                        ? 'No se pudo obtener el QR. El estado anterior quedó archivado para revisión.'
+                        : 'La reconexión no respondió. No se borraron credenciales ni se generó un QR automático.');
+                    return;
+                }
                 try {
                     const qrRes = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr`);
                     const qrError = await readAccessError(qrRes);
@@ -5781,6 +5803,19 @@ function SlotConnectionManager({
                     }
 
                     const data = await qrRes.json();
+                    if (
+                        !relinkStarted &&
+                        (data.authHealth?.requiresQr === true || data.reconnectPolicy?.action === 'qr_required')
+                    ) {
+                        const startRes = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, {
+                            method: 'POST',
+                            body: JSON.stringify({ confirmRelink: true })
+                        });
+                        if (!startRes.ok) {
+                            throw new Error(await readResponseError(startRes, 'No se pudo preparar el QR'));
+                        }
+                        relinkStarted = true;
+                    }
                     const nextQrUpdatedAt = data.qrUpdatedAt || null;
                     const nextQr = data.qr || null;
                     const stillWaitingForQr = data.waitingForQr === true;
@@ -5815,6 +5850,13 @@ function SlotConnectionManager({
                         setQrExpired(true);
                         setQrPostScanGrace(false);
                         stopPolling();
+                        return;
+                    }
+
+                    if (!relinkStarted && !nextQr && Date.now() - attemptStartedAt >= 90000) {
+                        setLoading(false);
+                        stopPolling();
+                        toast.error('La reconexión no respondió. No se borraron credenciales ni se generó un QR automático.');
                         return;
                     }
                 } catch (e) {
@@ -5894,6 +5936,13 @@ function SlotConnectionManager({
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
                 throw new Error(err.error || 'No se pudo reconectar');
+            }
+
+            const reconnectBody = await res.json().catch(() => ({}));
+            if (reconnectBody.action === 'qr_required' || reconnectBody.requiresQr === true) {
+                setLoading(false);
+                await handleConnect();
+                return;
             }
 
             setSlotSuspendedBy(null);

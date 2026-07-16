@@ -803,6 +803,7 @@ export default function StandaloneSlotManager({
     try {
       const response = await authFetch(`/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slotId)}/start`, {
         method: 'POST',
+        body: JSON.stringify({ confirmRelink: true }),
       });
       const body = await parseResponseBody(response);
       if (!response.ok) {
@@ -849,6 +850,11 @@ export default function StandaloneSlotManager({
       const body = await parseResponseBody(response);
       if (!response.ok) {
         throw new Error(body?.error || 'No se pudo reconectar el WhatsApp');
+      }
+
+      if (body?.action === 'qr_required' || body?.requiresQr === true) {
+        await handleStartQr(slotId);
+        return;
       }
 
       await fetchSlotRealtime(slotId);
@@ -2019,24 +2025,57 @@ function StandaloneSlotConnectionManager({
     socketConnectedRef.current = false;
 
     try {
-      const response = await authFetch(
-        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/start`,
+      let response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/reconnect`,
         { method: 'POST' },
       );
       const accessError = await readAccessError(response);
       if (applyAccessError(accessError)) return;
 
-      if (!response.ok) throw new Error('Fallo al iniciar');
+      if (!response.ok) throw new Error('Fallo al reconectar');
+
+      let responseBody = await response.json().catch(() => ({}));
+      let relinkStarted = false;
+      if (responseBody.action === 'qr_required' || responseBody.requiresQr === true) {
+        response = await authFetch(
+          `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/start`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ confirmRelink: true }),
+          },
+        );
+        if (!response.ok) throw new Error('No se pudo preparar el QR');
+        responseBody = await response.json().catch(() => ({}));
+        relinkStarted = true;
+      }
 
       setAccountSuspensionState(null);
       stopPolling();
       let sawFreshQr = false;
       const attemptId = Date.now();
+      const attemptStartedAt = Date.now();
       connectAttemptRef.current = attemptId;
 
       const pollStep = async () => {
         if (connectAttemptRef.current !== attemptId || socketConnectedRef.current) {
           stopPolling();
+          return;
+        }
+        const attemptTimeoutMs = relinkStarted ? 120000 : 90000;
+        if (Date.now() - attemptStartedAt >= attemptTimeoutMs) {
+          setLoading(false);
+          stopPolling();
+          toast.error(relinkStarted
+            ? translateOr(
+              t,
+              'standalone.slots.qr_generation_timeout_safe',
+              'No se pudo obtener el QR. El estado anterior quedó archivado para revisión.',
+            )
+            : translateOr(
+              t,
+              'standalone.slots.reconnect_timeout_safe',
+              'La reconexión no respondió. Las credenciales se conservaron y no se generó un QR automático.',
+            ));
           return;
         }
         try {
@@ -2051,6 +2090,20 @@ function StandaloneSlotConnectionManager({
             if (connectAttemptRef.current !== attemptId || socketConnectedRef.current) {
               stopPolling();
               return;
+            }
+            if (
+              !relinkStarted &&
+              (data.authHealth?.requiresQr === true || data.reconnectPolicy?.action === 'qr_required')
+            ) {
+              const startResponse = await authFetch(
+                `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/start`,
+                {
+                  method: 'POST',
+                  body: JSON.stringify({ confirmRelink: true }),
+                },
+              );
+              if (!startResponse.ok) throw new Error('No se pudo preparar el QR');
+              relinkStarted = true;
             }
             const nextQrUpdatedAt = data.qrUpdatedAt || null;
             const nextQr = data.qr || null;
@@ -2069,6 +2122,17 @@ function StandaloneSlotConnectionManager({
 
             if (data.connected) {
               await checkStatus();
+              return;
+            }
+
+            if (!relinkStarted && !nextQr && Date.now() - attemptStartedAt >= 90000) {
+              setLoading(false);
+              stopPolling();
+              toast.error(translateOr(
+                t,
+                'standalone.slots.reconnect_timeout_safe',
+                'La reconexión no respondió. Las credenciales se conservaron y no se generó un QR automático.',
+              ));
               return;
             }
           }
@@ -2152,6 +2216,13 @@ function StandaloneSlotConnectionManager({
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
         throw new Error(errorBody.error || 'No se pudo reconectar');
+      }
+
+      const reconnectBody = await response.json().catch(() => ({}));
+      if (reconnectBody.action === 'qr_required' || reconnectBody.requiresQr === true) {
+        setLoading(false);
+        await handleConnect();
+        return;
       }
 
       setSlotSuspendedBy(null);
