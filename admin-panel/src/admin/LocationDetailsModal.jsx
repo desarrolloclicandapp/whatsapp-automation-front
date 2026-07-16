@@ -6109,7 +6109,7 @@ function SlotConnectionManager({
                             )}
                             <div className="flex flex-col sm:flex-row gap-3 justify-center">
                                 <button onClick={handleConnect} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2">
-                                    <QrCode size={20} /> Generar Código QR
+                                    <QrCode size={20} /> Reconectar o generar QR
                                 </button>
                                 <button
                                     onClick={handleGenerateShareUrl}
@@ -6148,7 +6148,7 @@ function SlotConnectionManager({
                             <p className={`text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4 ${qrPostScanGrace && !qr ? 'hidden' : ''}`}>
                                 {qr
                                     ? '📷 Escanea con WhatsApp (Expira pronto)'
-                                    : (slotSuspendedBy ? '🔄 Reconectando automáticamente...' : '⏳ Consiguiendo QR seguro...')
+                                    : '🔄 Intentando reconectar; si hace falta, generaremos un QR...'
                                 }
                             </p>
                             <button onClick={() => { setQr(null); setQrUpdatedAt(null); setQrPostScanGrace(false); setLoading(false); stopPolling(); }} className="text-gray-400 hover:text-red-500 underline text-sm transition">Cancelar</button>
