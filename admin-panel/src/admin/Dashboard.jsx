@@ -64,7 +64,7 @@ export default function AdminDashboard({ token, onLogout }) {
     const [adminLogsLoading, setAdminLogsLoading] = useState(false);
     const [showReviewedLogs, setShowReviewedLogs] = useState(false);
     const [numberHealth, setNumberHealth] = useState([]);
-    const [numberHealthSummary, setNumberHealthSummary] = useState({ total: 0, stable: 0, attention: 0, unstable: 0, restricted: 0 });
+    const [numberHealthSummary, setNumberHealthSummary] = useState({ total: 0, stable: 0, attention: 0, unstable: 0, restricted: 0, connected: 0, recovering: 0, requiresQr: 0, offline: 0, historicalRestrictions: 0 });
     const [numberHealthLoading, setNumberHealthLoading] = useState(false);
     const [numberHealthQuery, setNumberHealthQuery] = useState('');
     const [numberHealthStatus, setNumberHealthStatus] = useState('all');
@@ -238,7 +238,7 @@ export default function AdminDashboard({ token, onLogout }) {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'No se pudo actualizar el incidente');
-            toast.success(status === 'resolved' ? 'Incidente marcado como resuelto.' : status === 'reviewed' ? 'Incidente marcado como revisado.' : 'Incidente reabierto.');
+            toast.success(status === 'resolved' ? 'Incidente cerrado manualmente.' : status === 'reviewed' ? 'Incidente marcado como revisado.' : 'Incidente reabierto.');
             fetchAdminLogs();
         } catch (error) {
             toast.error(error.message || 'No se pudo actualizar el incidente');
@@ -950,6 +950,12 @@ const handleDeleteUser = (user, type = 'soft') => {
         const code = String(log.code || '').toUpperCase();
         const text = `${code} ${log.message || ''} ${log.reason || ''}`.toLowerCase();
         const repeats = Number(log.occurrence_count || 1);
+        if (log.incident_status === 'recovered') return {
+            title: 'Incidente de conexión recuperado automáticamente',
+            cause: `La sesión presentó ${code || 'una interrupción'}, pero existe una conexión exitosa posterior.`,
+            impact: `Impacto: la interrupción quedó cerrada${repeats > 1 ? ` después de ${repeats} eventos relacionados` : ''}.`,
+            action: 'Acción: no requiere intervención. Vigilar únicamente si vuelve a repetirse.'
+        };
         if (code === 'WHATSAPP_ACCOUNT_RESTRICTED' || text.includes('account has been restricted') || text.includes('| 463 |')) return {
             title: 'Cuenta de WhatsApp restringida por Meta',
             cause: 'Meta restringió este número por sus políticas. El slot fue detenido para evitar más intentos fallidos.',
@@ -1168,6 +1174,8 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                     {log.code && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-900">Código {log.code}</span>}
                                                     {log.notification_status && <span className="text-[11px] text-gray-400">alerta: {log.notification_status}</span>}
                                                     {Number(log.occurrence_count || 1) > 1 && <span className="text-[11px] text-gray-400">repeticiones: {log.occurrence_count}</span>}
+                                                    {log.incident_status === 'recovered' && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900">Recuperado automáticamente</span>}
+                                                    {log.incident_status === 'open' && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900">Incidente abierto</span>}
                                                 </div>
                                                 <p className="text-sm font-semibold text-gray-900 dark:text-white break-words">{human.title}</p>
                                                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">Causa: {human.cause}</p>
@@ -1188,7 +1196,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                     ) : (
                                                         <>
                                                             <button type="button" onClick={() => updateLogReview(log, 'reviewed')} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-gray-900 dark:text-slate-200">Marcar revisado</button>
-                                                            <button type="button" onClick={() => updateLogReview(log, 'resolved')} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">Resolver y quitar de la cola</button>
+                                                            <button type="button" onClick={() => updateLogReview(log, 'resolved')} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">Cerrar manualmente</button>
                                                         </>
                                                     )}
                                                 </div>
@@ -1217,18 +1225,35 @@ const handleDeleteUser = (user, type = 'soft') => {
         stable: 'Estable',
         attention: 'Atención',
         unstable: 'Inestable',
-        restricted: 'Restringido',
+        connected: 'Conectado',
+        recovering: 'Reconectando',
+        offline: 'Desconectado',
+        restricted: 'Restringido ahora',
+        requires_qr: 'Requiere QR',
+        review_required: 'Revisión necesaria',
+        business_disabled: 'Negocio inactivo',
         blocked: 'Bloqueado',
-        paused: 'Pausado'
+        paused: 'Pausado',
+        unknown: 'Sin evidencia reciente'
     }[String(status || '').toLowerCase()] || 'Sin datos');
 
     const getNumberHealthStatusStyle = (status) => {
         const value = String(status || '').toLowerCase();
-        if (value === 'stable') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900';
+        if (value === 'stable' || value === 'connected') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900';
         if (value === 'attention') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900';
-        if (value === 'unstable') return 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-900';
+        if (value === 'unstable' || value === 'recovering') return 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-900';
+        if (value === 'paused' || value === 'unknown' || value === 'business_disabled') return 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
         return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900';
     };
+
+    const getAuthHealthLabel = (state) => ({
+        valid: 'Credencial válida',
+        unpaired: 'Sin vincular',
+        requires_qr: 'Requiere QR',
+        review_required: 'Revisión necesaria',
+        disabled_business: 'Negocio inactivo',
+        unknown: 'Sin inventario'
+    }[String(state || '').toLowerCase()] || 'Sin inventario');
 
     const getNumberQualityLabel = (level) => ({
         good: 'Buena', care: 'A cuidar', sensitive: 'Sensible', delicate: 'Delicada'
@@ -1237,13 +1262,18 @@ const handleDeleteUser = (user, type = 'soft') => {
     const NumberHealthPanel = () => {
         const normalizedQuery = numberHealthQuery.trim().toLowerCase();
         const rows = numberHealth.filter((item) => {
-            const matchesStatus = numberHealthStatus === 'all' || item.connection_status === numberHealthStatus;
+            const matchesStatus = numberHealthStatus === 'all'
+                || item.connection_status === numberHealthStatus
+                || item.current_connection_state === numberHealthStatus
+                || (numberHealthStatus === 'historical_restriction' && item.restriction_recovered);
             const searchable = [item.phone_number, item.client_name, item.location_id, item.slot_name, item.slot_id].join(' ').toLowerCase();
             return matchesStatus && (!normalizedQuery || searchable.includes(normalizedQuery));
         }).sort((left, right) => {
-            const priority = { restricted: 0, blocked: 0, unstable: 1, attention: 2, paused: 3, stable: 4 };
-            return (priority[left.connection_status] ?? 9) - (priority[right.connection_status] ?? 9)
-                || Number(right.reconnects_72h || 0) - Number(left.reconnects_72h || 0);
+            const priority = { restricted: 0, requires_qr: 0, blocked: 0, offline: 1, review_required: 1, recovering: 2, unstable: 3, attention: 4, paused: 5, stable: 6 };
+            const leftState = left.current_connection_state === 'connected' ? left.connection_status : left.current_connection_state;
+            const rightState = right.current_connection_state === 'connected' ? right.connection_status : right.current_connection_state;
+            return (priority[leftState] ?? 9) - (priority[rightState] ?? 9)
+                || Number(right.reconnect_incidents_72h || 0) - Number(left.reconnect_incidents_72h || 0);
         });
         return (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
@@ -1256,21 +1286,38 @@ const handleDeleteUser = (user, type = 'soft') => {
                         <RefreshCw size={17} className={numberHealthLoading ? 'animate-spin' : ''} /> Actualizar
                     </button>
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
                     {[
                         ['Números', numberHealthSummary.total, 'text-gray-900 dark:text-white'],
-                        ['Estables', numberHealthSummary.stable, 'text-emerald-600 dark:text-emerald-300'],
-                        ['Atención', numberHealthSummary.attention, 'text-amber-600 dark:text-amber-300'],
-                        ['Inestables', numberHealthSummary.unstable, 'text-orange-600 dark:text-orange-300'],
-                        ['Restringidos', numberHealthSummary.restricted, 'text-red-600 dark:text-red-300']
+                        ['Conectados', numberHealthSummary.connected, 'text-emerald-600 dark:text-emerald-300'],
+                        ['Reconectando', numberHealthSummary.recovering, 'text-orange-600 dark:text-orange-300'],
+                        ['Requieren QR', numberHealthSummary.requiresQr, 'text-red-600 dark:text-red-300'],
+                        ['Restringidos ahora', numberHealthSummary.restricted, 'text-red-600 dark:text-red-300'],
+                        ['Restricción superada', numberHealthSummary.historicalRestrictions, 'text-sky-600 dark:text-sky-300']
                     ].map(([label, value, color]) => <div key={label} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">{label}</p><p className={`mt-2 text-2xl font-black ${color}`}>{value || 0}</p></div>)}
                 </div>
                 <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 flex flex-col md:flex-row gap-3">
                     <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} /><input value={numberHealthQuery} onChange={(event) => setNumberHealthQuery(event.target.value)} placeholder="Buscar número, cliente, location o slot..." className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" /></div>
-                    <select value={numberHealthStatus} onChange={(event) => setNumberHealthStatus(event.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold"><option value="all">Todos los estados</option><option value="unstable">Inestables</option><option value="attention">Atención</option><option value="stable">Estables</option><option value="restricted">Restringidos</option><option value="blocked">Bloqueados</option></select>
+                    <select value={numberHealthStatus} onChange={(event) => setNumberHealthStatus(event.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold"><option value="all">Todos los estados</option><option value="connected">Conectados</option><option value="recovering">Reconectando</option><option value="offline">Desconectados</option><option value="requires_qr">Requieren QR</option><option value="restricted">Restringidos ahora</option><option value="historical_restriction">Restricción superada</option><option value="unstable">Conectados inestables</option><option value="attention">Conectados en atención</option><option value="blocked">Bloqueados</option><option value="paused">Pausados</option></select>
                 </div>
                 <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
-                    {numberHealthLoading ? <div className="py-20 text-center text-gray-500"><RefreshCw className="animate-spin mx-auto mb-3 text-indigo-600" size={32} />Cargando salud de números...</div> : rows.length === 0 ? <div className="py-20 text-center text-gray-500"><Activity className="mx-auto mb-3 text-gray-300" size={40} />No hay números para los filtros seleccionados.</div> : <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-950 text-[11px] uppercase tracking-wide text-gray-500"><tr><th className="text-left px-4 py-3">Número / cliente</th><th className="text-left px-4 py-3">Conexión</th><th className="text-left px-4 py-3">Calidad</th><th className="text-right px-4 py-3">Envíos 28d</th><th className="text-right px-4 py-3">Días activos</th><th className="text-right px-4 py-3">Reconexiones 72h</th></tr></thead><tbody className="divide-y divide-gray-100 dark:divide-gray-800">{rows.map((item) => <tr key={`${item.location_id}-${item.slot_id}`} className="hover:bg-gray-50 dark:hover:bg-gray-950/60"><td className="px-4 py-4"><p className="font-bold text-gray-900 dark:text-white">{item.phone_number}</p><p className="mt-1 text-xs text-gray-500">{item.client_name || item.location_id} · {item.slot_name || `Slot ${item.slot_id}`}</p></td><td className="px-4 py-4"><span className={`inline-flex px-2 py-1 rounded-full border text-xs font-bold ${getNumberHealthStatusStyle(item.connection_status)}`}>{getNumberHealthStatusLabel(item.connection_status)}</span>{item.last_error_code && <p className="mt-1 text-[11px] text-gray-500">último código: {item.last_error_code}</p>}</td><td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{getNumberQualityLabel(item.number_quality_level)}</p><p className="mt-1 text-[11px] text-gray-500">{item.number_quality_source === 'internal_history' ? 'Historial interno' : item.number_quality_source === 'hybrid_official_meta' ? 'Meta + historial' : 'Aún sin historial'}</p></td><td className="px-4 py-4 text-right font-bold text-gray-900 dark:text-white">{Number(item.sent_messages_28d || 0).toLocaleString()}</td><td className="px-4 py-4 text-right font-bold text-gray-900 dark:text-white">{item.active_days_28d || 0}</td><td className="px-4 py-4 text-right"><span className={Number(item.reconnects_72h || 0) >= 5 ? 'font-black text-orange-600 dark:text-orange-300' : 'font-bold text-gray-900 dark:text-white'}>{item.reconnects_72h || 0}</span></td></tr>)}</tbody></table></div>}
+                    {numberHealthLoading ? <div className="py-20 text-center text-gray-500"><RefreshCw className="animate-spin mx-auto mb-3 text-indigo-600" size={32} />Cargando salud de números...</div> : rows.length === 0 ? <div className="py-20 text-center text-gray-500"><Activity className="mx-auto mb-3 text-gray-300" size={40} />No hay números para los filtros seleccionados.</div> : <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-950 text-[11px] uppercase tracking-wide text-gray-500"><tr><th className="text-left px-4 py-3">Número / cliente</th><th className="text-left px-4 py-3">Estado actual</th><th className="text-left px-4 py-3">Credencial e historial</th><th className="text-left px-4 py-3">Calidad</th><th className="text-right px-4 py-3">Actividad 28d</th><th className="text-right px-4 py-3">Incidentes 72h</th></tr></thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">{rows.map((item) => {
+                                const currentState = item.current_connection_state || item.connection_status || 'unknown';
+                                const stabilityState = currentState === 'connected' ? item.connection_status : null;
+                                return <tr key={`${item.location_id}-${item.slot_id}`} className="hover:bg-gray-50 dark:hover:bg-gray-950/60">
+                                    <td className="px-4 py-4"><p className="font-bold text-gray-900 dark:text-white">{item.phone_number}</p><p className="mt-1 text-xs text-gray-500">{item.client_name || item.location_id} · {item.slot_name || `Slot ${item.slot_id}`}</p></td>
+                                    <td className="px-4 py-4"><span className={`inline-flex px-2 py-1 rounded-full border text-xs font-bold ${getNumberHealthStatusStyle(currentState)}`}>{getNumberHealthStatusLabel(currentState)}</span>{stabilityState && <p className="mt-1 text-[11px] text-gray-500">Estabilidad: {getNumberHealthStatusLabel(stabilityState)}</p>}{item.last_error_code && currentState !== 'connected' && <p className="mt-1 text-[11px] text-gray-500">Último código: {item.last_error_code}</p>}</td>
+                                    <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{getAuthHealthLabel(item.auth_health_state)}</p>{item.auth_reason_code && <p className="mt-1 text-[11px] text-gray-500">Motivo: {item.auth_reason_code}</p>}{item.restriction_recovered && <p className="mt-1 text-[11px] font-semibold text-sky-600 dark:text-sky-300">Restricción histórica superada</p>}</td>
+                                    <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{getNumberQualityLabel(item.number_quality_level)}</p><p className="mt-1 text-[11px] text-gray-500">{item.number_quality_source === 'internal_history' ? 'Historial interno' : item.number_quality_source === 'hybrid_official_meta' ? 'Meta + historial' : 'Aún sin historial'}</p></td>
+                                    <td className="px-4 py-4 text-right"><p className="font-bold text-gray-900 dark:text-white">{Number(item.sent_messages_28d || 0).toLocaleString()} envíos</p><p className="mt-1 text-[11px] text-gray-500">{item.active_days_28d || 0} días activos</p></td>
+                                    <td className="px-4 py-4 text-right"><p className={Number(item.reconnect_incidents_72h || 0) >= 5 ? 'font-black text-orange-600 dark:text-orange-300' : 'font-bold text-gray-900 dark:text-white'}>{item.reconnect_incidents_72h || 0} incidentes</p><p className="mt-1 text-[11px] text-gray-500">{item.reconnects_72h || 0} intentos técnicos</p></td>
+                                </tr>;
+                            })}</tbody>
+                        </table>
+                    </div>}
                 </div>
             </div>
         );
