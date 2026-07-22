@@ -974,17 +974,17 @@ const handleDeleteUser = (user, type = 'soft') => {
             impact: `Impacto: la interrupción quedó cerrada${repeats > 1 ? ` después de ${repeats} eventos relacionados` : ''}.`,
             action: 'Acción: no requiere intervención. Vigilar únicamente si vuelve a repetirse.'
         };
-        if (code === 'WHATSAPP_ACCOUNT_RESTRICTED' || text.includes('account has been restricted') || text.includes('| 463 |')) return {
-            title: 'Cuenta de WhatsApp restringida por Meta',
-            cause: 'Meta restringió este número por sus políticas. El slot fue detenido para evitar más intentos fallidos.',
-            impact: 'Impacto: los mensajes salientes de este número quedan bloqueados hasta que se revise y reconecte manualmente.',
-            action: 'Acción: revisar la restricción en Meta, reconectar o reemplazar el número y reactivar el slot manualmente.'
+        if (code === 'META_RESTRICTION_SUSPECTED' || code === 'WHATSAPP_ACCOUNT_RESTRICTED' || text.includes('account has been restricted') || text.includes('| 463 |')) return {
+            title: 'Meta informó una posible limitación de envío',
+            cause: 'Se recibió una señal 463 que debe verificarse con el timelock, su vencimiento y los ACK posteriores.',
+            impact: 'Impacto: la conexión y las credenciales permanecen activas. Esta señal no requiere QR ni suspensión del slot.',
+            action: 'Acción: comprobar la capacidad de envío. Permitir recepción y respuestas elegibles mientras se verifica.'
         };
         if (code === 'WHATSAPP_REACHOUT_TIMELOCK' || text.includes('reachout_timelock')) return {
-            title: 'Envíos pausados temporalmente por WhatsApp',
-            cause: 'WhatsApp aplicó un límite temporal de contacto a este número.',
-            impact: 'Impacto: los nuevos mensajes salientes se pausan; no se deben forzar reintentos.',
-            action: 'Acción: esperar el fin del bloqueo, reducir cadencia y revisar la calidad de los contactos antes de reanudar.'
+            title: 'Meta limita temporalmente conversaciones nuevas',
+            cause: 'WhatsApp comunicó un reachout timelock con una fecha de vencimiento.',
+            impact: 'Impacto: el número sigue conectado, recibe mensajes y puede responder conversaciones recientes elegibles.',
+            action: 'Acción: diferir contactos nuevos hasta el vencimiento. No pedir QR ni suspender la conexión.'
         };
         if (code === 'OFFICIAL_TEMPLATE_REQUIRED' || text.includes('plantilla aprobada') || text.includes('inicio conversacion')) return {
             title: 'Se requiere una plantilla aprobada de WhatsApp',
@@ -1273,6 +1273,15 @@ const handleDeleteUser = (user, type = 'soft') => {
         unknown: 'Sin inventario'
     }[String(state || '').toLowerCase()] || 'Sin inventario');
 
+    const getSendCapabilityLabel = (state) => ({
+        allowed: 'Envíos permitidos',
+        verification_pending: 'Limitación en verificación',
+        reachout_limited: 'Nuevas conversaciones limitadas',
+        recipient_unavailable: 'Destinatario no disponible',
+        review_required: 'Revisión necesaria',
+        unknown: 'Capacidad no confirmada'
+    }[String(state || '').toLowerCase()] || 'Capacidad no confirmada');
+
     const getNumberQualityLabel = (level) => ({
         good: 'Buena', care: 'A cuidar', sensitive: 'Sensible', delicate: 'Delicada'
     }[String(level || '').toLowerCase()] || 'Sin historial');
@@ -1283,6 +1292,7 @@ const handleDeleteUser = (user, type = 'soft') => {
             const matchesStatus = numberHealthStatus === 'all'
                 || item.connection_status === numberHealthStatus
                 || item.current_connection_state === numberHealthStatus
+                || item.sendCapability?.state === numberHealthStatus
                 || (numberHealthStatus === 'historical_restriction' && item.restriction_recovered)
                 || (numberHealthStatus === 'delivery_pending' && Number(item.delivery?.pending || 0) > 0)
                 || (numberHealthStatus === 'delivery_failed' && Number(item.delivery?.terminalFailures24h || 0) > 0)
@@ -1314,7 +1324,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                         ['Conectados', numberHealthSummary.connected, 'text-emerald-600 dark:text-emerald-300'],
                         ['Reconectando', numberHealthSummary.recovering, 'text-orange-600 dark:text-orange-300'],
                         ['Requieren QR', numberHealthSummary.requiresQr, 'text-red-600 dark:text-red-300'],
-                        ['Permisos / revinculación', numberHealthSummary.restricted, 'text-red-600 dark:text-red-300'],
+                        ['Limitación Meta', numberHealthSummary.reachoutLimited, 'text-amber-600 dark:text-amber-300'],
                         ['Restricción superada', numberHealthSummary.historicalRestrictions, 'text-sky-600 dark:text-sky-300'],
                         ['Entregas pendientes', numberHealthSummary.deliveryPending, 'text-amber-600 dark:text-amber-300'],
                         ['Multimedia fallida 24h', numberHealthSummary.mediaFinalFailures24h, 'text-red-600 dark:text-red-300']
@@ -1322,7 +1332,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                 </div>
                 <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 flex flex-col md:flex-row gap-3">
                     <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} /><input value={numberHealthQuery} onChange={(event) => setNumberHealthQuery(event.target.value)} placeholder="Buscar número, cliente, location o slot..." className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" /></div>
-                    <select value={numberHealthStatus} onChange={(event) => setNumberHealthStatus(event.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold"><option value="all">Todos los estados</option><option value="connected">Conectados</option><option value="recovering">Reconectando</option><option value="offline">Desconectados</option><option value="requires_qr">Requieren QR</option><option value="restricted">Permisos perdidos / revincular</option><option value="historical_restriction">Restricción superada</option><option value="delivery_pending">Entregas pendientes</option><option value="delivery_failed">Fallos reales de entrega</option><option value="media_recovered">Multimedia recuperada</option><option value="media_failed">Multimedia fallida</option><option value="unstable">Conectados inestables</option><option value="attention">Conectados en atención</option><option value="blocked">Bloqueados</option><option value="paused">Pausados</option></select>
+                    <select value={numberHealthStatus} onChange={(event) => setNumberHealthStatus(event.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold"><option value="all">Todos los estados</option><option value="connected">Conectados</option><option value="recovering">Reconectando</option><option value="offline">Desconectados</option><option value="requires_qr">Requieren QR</option><option value="reachout_limited">Nuevas conversaciones limitadas</option><option value="verification_pending">Limitación en verificación</option><option value="restricted">Permisos perdidos / revincular</option><option value="historical_restriction">Restricción superada</option><option value="delivery_pending">Entregas pendientes</option><option value="delivery_failed">Fallos reales de entrega</option><option value="media_recovered">Multimedia recuperada</option><option value="media_failed">Multimedia fallida</option><option value="unstable">Conectados inestables</option><option value="attention">Conectados en atención</option><option value="blocked">Bloqueados</option><option value="paused">Pausados</option></select>
                 </div>
                 <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
                     {numberHealthLoading ? <div className="py-20 text-center text-gray-500"><RefreshCw className="animate-spin mx-auto mb-3 text-indigo-600" size={32} />Cargando salud de números...</div> : rows.length === 0 ? <div className="py-20 text-center text-gray-500"><Activity className="mx-auto mb-3 text-gray-300" size={40} />No hay números para los filtros seleccionados.</div> : <div className="overflow-x-auto">
@@ -1333,7 +1343,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                 const stabilityState = currentState === 'connected' ? item.connection_status : null;
                                 return <tr key={`${item.location_id}-${item.slot_id}`} className="hover:bg-gray-50 dark:hover:bg-gray-950/60">
                                     <td className="px-4 py-4"><p className="font-bold text-gray-900 dark:text-white">{item.phone_number}</p><p className="mt-1 text-xs text-gray-500">{item.client_name || item.location_id} · {item.slot_name || `Slot ${item.slot_id}`}</p></td>
-                                    <td className="px-4 py-4"><span className={`inline-flex px-2 py-1 rounded-full border text-xs font-bold ${getNumberHealthStatusStyle(currentState)}`}>{getNumberHealthStatusLabel(currentState)}</span>{stabilityState && <p className="mt-1 text-[11px] text-gray-500">Estabilidad: {getNumberHealthStatusLabel(stabilityState)}</p>}{item.last_error_code && currentState !== 'connected' && <p className="mt-1 text-[11px] text-gray-500">Último código: {item.last_error_code}</p>}</td>
+                                    <td className="px-4 py-4"><span className={`inline-flex px-2 py-1 rounded-full border text-xs font-bold ${getNumberHealthStatusStyle(currentState)}`}>{getNumberHealthStatusLabel(currentState)}</span><p className="mt-1 text-[11px] font-semibold text-gray-600 dark:text-gray-300">{getSendCapabilityLabel(item.sendCapability?.state)}</p>{item.sendCapability?.state === 'reachout_limited' && <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">Recibe y responde contactos recientes · nuevos contactos hasta {formatAdminLogDate(item.sendCapability?.expiresAt)}</p>}{stabilityState && <p className="mt-1 text-[11px] text-gray-500">Estabilidad: {getNumberHealthStatusLabel(stabilityState)}</p>}{item.last_error_code && currentState !== 'connected' && <p className="mt-1 text-[11px] text-gray-500">Último código: {item.last_error_code}</p>}</td>
                                     <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{getAuthHealthLabel(item.auth_health_state)}</p>{item.auth_reason_code && <p className="mt-1 text-[11px] text-gray-500">Motivo: {item.auth_reason_code}</p>}{item.restriction_recovered && <p className="mt-1 text-[11px] font-semibold text-sky-600 dark:text-sky-300">Restricción histórica superada</p>}</td>
                                     <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{getNumberQualityLabel(item.number_quality_level)}</p><p className="mt-1 text-[11px] text-gray-500">{item.number_quality_source === 'internal_history' ? 'Historial interno' : item.number_quality_source === 'hybrid_official_meta' ? 'Meta + historial' : 'Aún sin historial'}</p></td>
                                     <td className="px-4 py-4 text-right"><p className="font-bold text-gray-900 dark:text-white">{Number(item.sent_messages_28d || 0).toLocaleString()} envíos</p><p className="mt-1 text-[11px] text-gray-500">{item.active_days_28d || 0} días activos</p></td>
