@@ -1,7 +1,12 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Copy, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
+import {
+    buildInteractiveCommand,
+    getBrowserPreviewImageUrl,
+    getInteractiveBuilderValidationCode
+} from "../utils/interactiveMessageBuilder";
 
 const BUTTON_TYPES = [
     { value: "reply", labelKey: "builder.type.reply" },
@@ -17,18 +22,6 @@ const PLACEHOLDER_KEY_BY_TYPE = {
     copy: "builder.placeholder.copy"
 };
 
-const TYPE_MAP = {
-    reply: "quick_reply",
-    url: "cta_url",
-    call: "cta_call",
-    copy: "cta_copy"
-};
-
-const sanitizePart = (value) =>
-    (value || "")
-        .replace(/[|*]/g, " ")
-        .trim();
-
 export default function InteractiveMessageBuilder() {
     const { t } = useLanguage();
     const [title, setTitle] = useState("");
@@ -38,42 +31,28 @@ export default function InteractiveMessageBuilder() {
     const [buttons, setButtons] = useState([]);
     const [draft, setDraft] = useState({ type: "reply", label: "", value: "" });
     const [editingId, setEditingId] = useState(null);
+    const [previewFailed, setPreviewFailed] = useState(false);
 
     const isEditing = editingId !== null;
 
-    const commandString = useMemo(() => {
-        const segments = [
-            "#btn",
-            sanitizePart(title),
-            sanitizePart(body)
-        ];
-
-        if (imageUrl) {
-            segments.push(`image*${sanitizePart(imageUrl)}`);
-        }
-
-        if (footer) {
-            segments.push(`footer*${sanitizePart(footer)}`);
-        }
-
-        buttons.forEach((btn) => {
-            const mappedType = TYPE_MAP[btn.type] || btn.type;
-            segments.push(
-                `${mappedType}*${sanitizePart(btn.label)}*${sanitizePart(btn.value)}`
-            );
-        });
-
-        return segments.join("|");
-    }, [title, body, footer, imageUrl, buttons]);
+    const commandString = useMemo(
+        () => buildInteractiveCommand({ title, body, footer, imageUrl, buttons }),
+        [title, body, footer, imageUrl, buttons]
+    );
 
     const previewImage = useMemo(() => {
         if (!imageUrl) return null;
-        try {
-            return new URL(imageUrl).toString();
-        } catch (e) {
-            return null;
-        }
+        return getBrowserPreviewImageUrl(imageUrl);
     }, [imageUrl]);
+    const validationCode = useMemo(
+        () => getInteractiveBuilderValidationCode({ body, buttons }),
+        [body, buttons]
+    );
+    const hasAuthoredText = Boolean(title.trim() || body.trim() || footer.trim());
+
+    useEffect(() => {
+        setPreviewFailed(false);
+    }, [previewImage]);
 
     const resetDraft = () => {
         setDraft({ type: "reply", label: "", value: "" });
@@ -123,6 +102,10 @@ export default function InteractiveMessageBuilder() {
     };
 
     const handleCopy = async () => {
+        if (validationCode === "INTERACTIVE_BODY_REQUIRED") {
+            toast.error(t("builder.toast.body_required"));
+            return;
+        }
         try {
             await navigator.clipboard.writeText(commandString);
             toast.success(t("builder.toast.command_copied"));
@@ -337,22 +320,33 @@ export default function InteractiveMessageBuilder() {
                             <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top,_#ffffff_0,_transparent_60%)]"></div>
                             <div className="relative max-w-sm">
                                 <div className="bg-white dark:bg-[#1f2c34] text-gray-900 dark:text-gray-100 rounded-2xl rounded-tl-md p-4 shadow">
-                                    {previewImage && (
+                                    {previewImage && !previewFailed && (
                                         <img
                                             src={previewImage}
                                             alt={t("builder.preview.title")}
                                             className="w-full h-40 object-cover rounded-xl mb-3"
+                                            onError={() => setPreviewFailed(true)}
                                         />
                                     )}
-                                    <div className="text-sm font-bold mb-1">
-                                        {title || t("builder.preview.default_title")}
-                                    </div>
-                                    <div className="text-sm whitespace-pre-wrap">
-                                        {body || t("builder.preview.default_body")}
-                                    </div>
+                                    {previewFailed && (
+                                        <div className="text-xs text-amber-600 dark:text-amber-400 mb-3">
+                                            {t("builder.preview.image_unavailable")}
+                                        </div>
+                                    )}
+                                    {title && (
+                                        <div className="text-sm font-bold mb-1">{title}</div>
+                                    )}
+                                    {body && (
+                                        <div className="text-sm whitespace-pre-wrap">{body}</div>
+                                    )}
                                     {footer && (
                                         <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-3">
                                             {footer}
+                                        </div>
+                                    )}
+                                    {!previewImage && !hasAuthoredText && (
+                                        <div className="text-xs text-gray-400">
+                                            {t("builder.preview.empty_content")}
                                         </div>
                                     )}
                                 </div>
@@ -383,7 +377,8 @@ export default function InteractiveMessageBuilder() {
                             </h4>
                             <button
                                 onClick={handleCopy}
-                                className="px-3 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg flex items-center gap-2"
+                                disabled={Boolean(validationCode)}
+                                className="px-3 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg flex items-center gap-2"
                             >
                                 <Copy size={14} /> {t("builder.generator.copy")}
                             </button>
@@ -391,6 +386,11 @@ export default function InteractiveMessageBuilder() {
                         <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 font-mono text-xs text-gray-700 dark:text-gray-200 break-all">
                             {commandString}
                         </div>
+                        {validationCode === "INTERACTIVE_BODY_REQUIRED" && (
+                            <p className="text-xs text-red-500 mt-3">
+                                {t("builder.validation.body_required")}
+                            </p>
+                        )}
                         <p className="text-xs text-gray-400 mt-3">
                             {t("builder.generator.format")}{" "}
                             <span className="font-mono">#btn|Title|Body|image*URL|footer*Text|quick_reply*Text*ID</span>

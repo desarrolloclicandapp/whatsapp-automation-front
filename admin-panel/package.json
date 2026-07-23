@@ -12,7 +12,8 @@
     "test:location-keywords": "node scripts/testLocationDetailsKeywords.js",
     "test:official-connection-gate": "node scripts/testOfficialConnectionGate.js",
     "test:official-template-builder": "node scripts/testOfficialTemplateBuilder.js",
-    "test:standalone-meta-iframe-connect": "node scripts/testStandaloneMetaIframeConnect.js"
+    "test:standalone-meta-iframe-connect": "node scripts/testStandaloneMetaIframeConnect.js",
+    "test:interactive-message-builder": "node scripts/testInteractiveMessageBuilder.js"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.6.1",
