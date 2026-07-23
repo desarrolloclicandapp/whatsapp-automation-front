@@ -25,7 +25,7 @@ import {
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
     Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Hammer, FileText,
     Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare, Loader2, X, Info,
-    Activity, AlertTriangle, Send // ✅ Iconos
+    Activity, AlertTriangle, Send, ChevronDown // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -309,6 +309,8 @@ export default function AgencyDashboard({ token, onLogout }) {
     });
     const [reliabilityLoading, setReliabilityLoading] = useState(false);
     const [reliabilityLastUpdated, setReliabilityLastUpdated] = useState(null);
+    const [healthCenterOpen, setHealthCenterOpen] = useState(false);
+    const [reachoutChecking, setReachoutChecking] = useState(null);
 
     const [accountInfo, setAccountInfo] = useState(null);
     const isRestricted = (accountInfo?.plan || '').toLowerCase().includes('starter');
@@ -2773,6 +2775,45 @@ export default function AgencyDashboard({ token, onLogout }) {
     const reliabilityRangeEnd = reliabilityAccountRows.length === 0
         ? 0
         : Math.min(reliabilityAccountRows.length, safeReliabilityPage * RELIABILITY_PAGE_SIZE);
+    const operationalSlots = locations.flatMap((location) =>
+        (Array.isArray(location?.slot_health) ? location.slot_health : []).map((slot) => ({
+            ...slot,
+            locationName: location?.name || location?.location_id,
+            locationId: location?.location_id
+        }))
+    );
+    const operationalAlerts = operationalSlots.filter((slot) => (
+        slot?.capabilities?.requiresQr
+        || slot?.reachout?.state === 'restricted'
+        || slot?.reachout?.state === 'suspected'
+        || (!slot?.is_connected && !slot?.suspended_by)
+    ));
+    const confirmedReachoutCount = operationalSlots.filter((slot) => (
+        slot?.reachout?.state === 'restricted' && slot?.reachout?.confirmedByMeta === true
+    )).length;
+    const verifyReachoutState = async (slot) => {
+        const key = `${slot.locationId}_slot${slot.slot_id}`;
+        if (reachoutChecking) return;
+        setReachoutChecking(key);
+        try {
+            const response = await authFetch(
+                `/agency/slots/${encodeURIComponent(slot.locationId)}/${slot.slot_id}/reachout/verify`,
+                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
+            );
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(body?.error || body?.code || `HTTP ${response.status}`);
+            toast.success(body?.reachout?.state === 'restricted'
+                ? (isSpanish ? 'Meta confirmó una limitación temporal.' : 'Meta confirmed a temporary limitation.')
+                : (isSpanish ? 'Meta no informa una limitación activa.' : 'Meta reports no active limitation.'));
+            await refreshData();
+        } catch (error) {
+            toast.error(isSpanish
+                ? `No se pudo verificar ahora: ${error.message}`
+                : `Could not verify now: ${error.message}`);
+        } finally {
+            setReachoutChecking(null);
+        }
+    };
     useEffect(() => {
         if (reliabilityPage > reliabilityTotalPages) {
             setReliabilityPage(reliabilityTotalPages);
@@ -3195,6 +3236,96 @@ export default function AgencyDashboard({ token, onLogout }) {
                     <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : activeTab === 'reliability' ? (t('dash.header.reliability') || 'Confiabilidad operativa') : activeTab === 'agents' ? (t('dash.header.agents') || "Agentes") : activeTab === 'builder' ? (t('dash.header.builder') || "Constructor") : activeTab === 'templates' ? (t('dash.header.templates') || "Generar templates") : activeTab === 'my-templates' ? (t('dash.header.my_templates') || "Mis templates") : t('dash.header.settings')}</h2></div>
                     <div className="flex items-center gap-4"><LanguageSelector /><ThemeToggle /><div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div></div>
                 </header>
+
+                <section className="border-b border-gray-200/70 dark:border-gray-800 bg-white dark:bg-gray-900 z-10">
+                    <button
+                        type="button"
+                        onClick={() => setHealthCenterOpen((current) => !current)}
+                        className="w-full px-6 py-3 flex items-center justify-between gap-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition"
+                    >
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                                operationalAlerts.length
+                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                            }`}>
+                                {operationalAlerts.length ? <AlertTriangle size={18} /> : <ShieldCheck size={18} />}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                    {isSpanish ? 'Centro de salud operativo' : 'Operational health center'}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                    {operationalAlerts.length
+                                        ? (isSpanish
+                                            ? `${operationalAlerts.length} número(s) requieren atención; ${confirmedReachoutCount} limitación(es) confirmada(s) por Meta.`
+                                            : `${operationalAlerts.length} number(s) need attention; ${confirmedReachoutCount} limitation(s) confirmed by Meta.`)
+                                        : (isSpanish
+                                            ? `${operationalSlots.length} número(s) sin incidentes abiertos.`
+                                            : `${operationalSlots.length} number(s) with no open incidents.`)}
+                                </p>
+                            </div>
+                        </div>
+                        <ChevronDown
+                            size={18}
+                            className={`text-gray-400 shrink-0 transition-transform ${healthCenterOpen ? 'rotate-180' : ''}`}
+                        />
+                    </button>
+                    {healthCenterOpen && (
+                        <div className="px-6 pb-4 max-h-72 overflow-y-auto">
+                            {operationalAlerts.length === 0 ? (
+                                <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/20 p-3 text-sm text-emerald-800 dark:text-emerald-200">
+                                    {isSpanish
+                                        ? 'No hay incidentes abiertos. Los eventos transitorios ya recuperados permanecen sólo en el historial.'
+                                        : 'There are no open incidents. Recovered transient events remain available only in history.'}
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {operationalAlerts.map((slot) => {
+                                        const key = `${slot.locationId}_slot${slot.slot_id}`;
+                                        const requiresQr = slot?.capabilities?.requiresQr;
+                                        const confirmed = slot?.reachout?.state === 'restricted' && slot?.reachout?.confirmedByMeta;
+                                        const suspected = slot?.reachout?.state === 'suspected';
+                                        const label = requiresQr
+                                            ? (isSpanish ? 'Requiere QR' : 'QR required')
+                                            : confirmed
+                                                ? (isSpanish ? 'Limitación temporal confirmada por Meta' : 'Temporary limitation confirmed by Meta')
+                                                : suspected
+                                                    ? (isSpanish ? 'Señal 463 pendiente de verificar' : '463 signal awaiting verification')
+                                                    : (isSpanish ? 'Desconectado temporalmente' : 'Temporarily disconnected');
+                                        return (
+                                            <div key={key} className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                                        {slot.locationName} · {slot.slot_name || `Slot ${slot.slot_id}`}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                        {label}
+                                                        {slot?.reachout?.restrictedUntil
+                                                            ? ` · ${isSpanish ? 'hasta' : 'until'} ${formatOperationalTimestamp(slot.reachout.restrictedUntil)}`
+                                                            : ''}
+                                                    </p>
+                                                </div>
+                                                {(confirmed || suspected) && slot?.capabilities?.verifyNow && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => verifyReachoutState(slot)}
+                                                        disabled={Boolean(reachoutChecking)}
+                                                        className="shrink-0 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold transition"
+                                                    >
+                                                        {reachoutChecking === key
+                                                            ? (isSpanish ? 'Consultando Meta…' : 'Checking Meta…')
+                                                            : (isSpanish ? 'Verificar ahora' : 'Verify now')}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </section>
 
                 <main className="flex-1 overflow-y-auto p-6 md:p-8">
                     {activeTab === 'overview' && (
