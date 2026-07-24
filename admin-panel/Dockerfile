@@ -9,6 +9,7 @@ COPY package*.json ./
 
 # 4. Instalamos las dependencias
 RUN npm install
+RUN npm install --global serve@14.2.6
 
 # 5. Copiamos el resto del código fuente
 COPY . .
@@ -41,4 +42,4 @@ EXPOSE 3000
 
 # 9. Comando de inicio
 # Genera runtime-config.js desde el .env del servicio y sirve la carpeta dist.
-CMD ["sh", "-c", "node scripts/writeRuntimeConfig.cjs && npx serve -s dist -p 3000"]
+CMD ["sh", "-c", "node scripts/writeRuntimeConfig.cjs && serve -s dist -l 3000"]
