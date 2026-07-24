@@ -3233,12 +3233,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                         />
                     </div>
                     {sidebarOpen && <span className="ml-3 font-bold text-gray-900 dark:text-white tracking-tight truncate">{branding.name}</span>}
+                    {isNextAgencyUi && (
+                        <button
+                            type="button"
+                            onClick={() => setSidebarOpen(!sidebarOpen)}
+                            aria-label={sidebarOpen ? 'Contraer barra lateral' : 'Expandir barra lateral'}
+                            title={sidebarOpen ? 'Contraer barra lateral' : 'Expandir barra lateral'}
+                            className="ml-auto shrink-0 rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-indigo-600 dark:hover:bg-gray-800"
+                        >
+                            <Menu size={19} />
+                        </button>
+                    )}
                 </div>
                 <div className={isNextAgencyUi
                     ? "wf-sidebar-nav wf-sidebar-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2 py-2 md:block md:overflow-x-hidden md:overflow-y-auto md:p-4"
                     : "flex-1 p-4 overflow-y-auto"
                 }>
-                    <p className={`${isNextAgencyUi ? 'hidden md:block' : ''} text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>{t('dash.nav.management')}</p>
+                    <p className={`${isNextAgencyUi ? 'hidden' : ''} text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>{t('dash.nav.management')}</p>
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="overview" icon={LayoutGrid} label={t('dash.nav.overview')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="billing" icon={CreditCard} label={t('dash.nav.billing')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="reliability" icon={Activity} label={t('dash.nav.reliability') || 'Confiabilidad'} branding={branding} sidebarOpen={sidebarOpen} />
@@ -3250,13 +3261,16 @@ export default function AgencyDashboard({ token, onLogout }) {
                     <div className="my-6 border-t border-gray-100 dark:border-gray-800"></div>
                     <a href="https://docs.waflow.ai" target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}><BookOpen size={20} />{sidebarOpen && <span>{t('dash.nav.docs')}</span>}</a>
                     <a href={`https://wa.me/${SUPPORT_PHONE}`} target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}><LifeBuoy size={20} />{sidebarOpen && <span>{t('dash.nav.support')}</span>}</a>
+                    {isNextAgencyUi && (
+                        <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all font-medium text-sm"><LogOut size={20} />{sidebarOpen && <span>{t('dash.nav.logout')}</span>}</button>
+                    )}
                 </div>
-                <div className={isNextAgencyUi
+                {!isNextAgencyUi && <div className={isNextAgencyUi
                     ? "wf-sidebar-footer flex shrink-0 items-center border-l border-gray-200 px-2 dark:border-gray-800 md:block md:border-l-0 md:border-t md:p-4"
                     : "p-4 border-t border-gray-200 dark:border-gray-800"
                 }>
                     <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all font-medium text-sm"><LogOut size={20} />{sidebarOpen && <span>{t('dash.nav.logout')}</span>}</button>
-                </div>
+                </div>}
             </aside>
 
             <div className={`flex-1 flex flex-col h-screen overflow-hidden relative ${isNextAgencyUi ? 'bg-white' : 'bg-[#F8FAFC]'} dark:bg-[#0f1117]`}>
@@ -3265,7 +3279,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     : "h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 z-20"
                 }>
                     <div className="flex min-w-0 items-center gap-4">
-                        <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`${isNextAgencyUi ? 'hidden md:block' : ''} p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500`}><Menu size={20} /></button>
+                        {!isNextAgencyUi && <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button>}
                         <h2 className={`${isNextAgencyUi ? 'text-base' : 'text-lg capitalize'} min-w-0 truncate font-bold text-gray-900 dark:text-white`}>{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : activeTab === 'reliability' ? (t('dash.header.reliability') || 'Confiabilidad operativa') : activeTab === 'agents' ? (t('dash.header.agents') || "Agentes") : activeTab === 'builder' ? (t('dash.header.builder') || "Constructor") : activeTab === 'templates' ? (t('dash.header.templates') || "Generar templates") : activeTab === 'my-templates' ? (t('dash.header.my_templates') || "Mis templates") : t('dash.header.settings')}</h2>
                     </div>
                     <div className={`flex shrink-0 items-center ${isNextAgencyUi ? 'gap-2' : 'gap-4'}`}>
@@ -3434,49 +3448,69 @@ export default function AgencyDashboard({ token, onLogout }) {
 
 
                                 <>
-                                    {/* ESTADÍSTICAS - Diseño Minimalista */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                                                    <Building2 size={20} className="text-indigo-600 dark:text-indigo-400" />
+                                    {isNextAgencyUi ? (
+                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                            <div className="flex min-h-[92px] items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                                                <div className="flex min-w-0 items-center gap-3">
+                                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/60 dark:text-indigo-300">
+                                                        <Building2 size={18} />
+                                                    </div>
+                                                    <p className="truncate text-xs font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                                                        {isChatwootAgency ? t('dash.stats.cw_accounts') : (t('dash.stats.subaccounts') || "Subcuentas")}
+                                                    </p>
                                                 </div>
-                                                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{isChatwootAgency ? t('dash.stats.cw_accounts') : (t('dash.stats.subaccounts') || "Subcuentas")}</span>
+                                                <div className="shrink-0 text-3xl font-bold tracking-tight text-indigo-950 dark:text-white">
+                                                    {accountInfo.limits?.used_subagencies || 0}<span className="text-xl font-normal text-indigo-400 dark:text-indigo-300">/{accountInfo.limits?.max_subagencies || 0}</span>
+                                                </div>
                                             </div>
-                                            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                                                {accountInfo.limits?.used_subagencies || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span>
+                                            <div className="flex min-h-[92px] items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                                                <div className="flex min-w-0 items-center gap-3">
+                                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-300">
+                                                        <Smartphone size={18} />
+                                                    </div>
+                                                    <p className="truncate text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{t('dash.stats.connections')}</p>
+                                                </div>
+                                                <div className="shrink-0 text-3xl font-bold tracking-tight text-emerald-950 dark:text-white">
+                                                    {accountInfo.limits?.used_slots || 0}<span className="text-xl font-normal text-emerald-400 dark:text-emerald-300">/{accountInfo.limits?.max_slots || 0}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex min-h-[92px] items-center justify-between gap-4 rounded-2xl border border-indigo-700 bg-indigo-600 px-5 py-4 text-white shadow-sm">
+                                                <div className="flex min-w-0 items-center gap-3">
+                                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/20 text-white">
+                                                        <ShieldCheck size={18} />
+                                                    </div>
+                                                    <p className="truncate text-xs font-bold uppercase tracking-wide text-indigo-100">{t('dash.stats.plan')}</p>
+                                                </div>
+                                                <div className="shrink-0 text-xl font-bold">
+                                                    {accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')}
+                                                </div>
                                             </div>
                                         </div>
-
-                                        <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                                                    <Smartphone size={20} className="text-emerald-600 dark:text-emerald-400" />
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center"><Building2 size={20} className="text-indigo-600 dark:text-indigo-400" /></div>
+                                                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{isChatwootAgency ? t('dash.stats.cw_accounts') : (t('dash.stats.subaccounts') || "Subcuentas")}</span>
                                                 </div>
-                                                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t('dash.stats.connections')}</span>
+                                                <div className="text-2xl font-bold text-gray-900 dark:text-white">{accountInfo.limits?.used_subagencies || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_subagencies || 0}</span></div>
                                             </div>
-                                            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                                                {accountInfo.limits?.used_slots || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_slots || 0}</span>
+                                            <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center"><Smartphone size={20} className="text-emerald-600 dark:text-emerald-400" /></div>
+                                                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t('dash.stats.connections')}</span>
+                                                </div>
+                                                <div className="text-2xl font-bold text-gray-900 dark:text-white">{accountInfo.limits?.used_slots || 0}<span className="text-gray-400 font-normal text-lg">/{accountInfo.limits?.max_slots || 0}</span></div>
+                                            </div>
+                                            <div className={`rounded-2xl p-5 border shadow-sm hover:shadow-md transition-shadow ${accountInfo.plan === 'active' ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-transparent' : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800'}`}>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${accountInfo.plan === 'active' ? 'bg-white/20' : 'bg-amber-100 dark:bg-amber-900/30'}`}><ShieldCheck size={20} className={accountInfo.plan === 'active' ? 'text-white' : 'text-amber-600 dark:text-amber-400'} /></div>
+                                                    <span className={`text-xs font-medium uppercase tracking-wide ${accountInfo.plan === 'active' ? 'text-blue-200' : 'text-gray-400'}`}>{t('dash.stats.plan')}</span>
+                                                </div>
+                                                <div className={`text-xl font-bold ${accountInfo.plan === 'active' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')}</div>
                                             </div>
                                         </div>
-
-                                        <div className={`rounded-2xl p-5 border shadow-sm hover:shadow-md transition-shadow ${accountInfo.plan === 'active' ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-transparent' : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800'}`}>
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${accountInfo.plan === 'active' ? 'bg-white/20' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
-                                                    <ShieldCheck size={20} className={accountInfo.plan === 'active' ? 'text-white' : 'text-amber-600 dark:text-amber-400'} />
-                                                </div>
-                                                <span className={`text-xs font-medium uppercase tracking-wide ${accountInfo.plan === 'active' ? 'text-blue-200' : 'text-gray-400'}`}>{t('dash.stats.plan')}</span>
-                                            </div>
-                                            <div className={`text-xl font-bold ${accountInfo.plan === 'active' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
-                                                {accountInfo.plan === 'active' ? t('dash.stats.active') : t('dash.stats.trial')}
-                                            </div>
-                                            {accountInfo.trial_ends && (
-                                                <div className={`text-xs mt-1 ${accountInfo.plan === 'active' ? 'text-blue-200' : 'text-amber-600 dark:text-amber-400'}`}>
-                                                    Fin: {new Date(accountInfo.trial_ends).toLocaleDateString()}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                                    )}
 
                                     {suspensionStatus?.status === 'grace' && (
                                         <div className="mt-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/40 p-4 rounded-xl">
@@ -3601,23 +3635,23 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </div>
                                         )}
 
-                                        <div className="flex items-center justify-between gap-3 mb-4">
-                                            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                                        <div className={isNextAgencyUi ? "mb-5 flex flex-col gap-2 xl:flex-row xl:items-center" : "flex items-center justify-between gap-3 mb-4"}>
+                                            {!isNextAgencyUi && <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                                                 {t('agency.onboarding.accounts_title') || 'Cuentas Activas'}
-                                            </h3>
-                                            <div className="flex flex-wrap items-center justify-end gap-2">
-                                                <div className="flex items-center gap-2">
+                                            </h3>}
+                                            <div className={isNextAgencyUi ? "flex flex-col gap-2 xl:flex-1 xl:flex-row xl:items-center" : "flex flex-wrap items-center justify-end gap-2"}>
+                                                <div className={isNextAgencyUi ? "wf-account-filters flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto pb-1 xl:flex-1 xl:flex-wrap xl:gap-2 xl:overflow-visible xl:pb-0" : "flex items-center gap-2"}>
                                                     {accountFilterOptions.map(tab => (
                                                         <button
                                                             key={tab.id}
                                                             onClick={() => setAccountsFilter(tab.id)}
-                                                            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                                                            className={`inline-flex shrink-0 items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
                                                                 accountsFilter === tab.id
                                                                     ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800 shadow-sm'
                                                                     : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800 dark:hover:border-gray-700'
                                                             }`}
                                                         >
-                                                            {tab.icon && <tab.icon size={13} />}
+                                                            {!isNextAgencyUi && tab.icon && <tab.icon size={13} />}
                                                             {tab.label}
                                                             <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
                                                                 accountsFilter === tab.id
@@ -3627,27 +3661,32 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         </button>
                                                     ))}
                                                 </div>
-                                                <div className="relative">
-                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                                                    <input
-                                                        type="text"
-                                                        autoComplete="off"
-                                                        placeholder={t('agency.onboarding.search_accounts') || 'Buscar cuentas...'}
-                                                        className="pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white w-40 focus:w-52 transition-all"
-                                                        value={searchTerm}
-                                                        onChange={e => setSearchTerm(e.target.value)}
-                                                    />
+                                                <div className={isNextAgencyUi ? "flex flex-col gap-2 sm:flex-row sm:items-center xl:shrink-0" : "contents"}>
+                                                    <div className={isNextAgencyUi ? "relative min-w-0 sm:w-64 xl:w-80" : "relative"}>
+                                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                                        <input
+                                                            type="text"
+                                                            autoComplete="off"
+                                                            placeholder={t('agency.onboarding.search_accounts') || 'Buscar cuentas...'}
+                                                            className={isNextAgencyUi
+                                                                ? "w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900/30 transition"
+                                                                : "pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white w-40 focus:w-52 transition-all"
+                                                            }
+                                                            value={searchTerm}
+                                                            onChange={e => setSearchTerm(e.target.value)}
+                                                        />
+                                                    </div>
+                                                    {!isNextAgencyUi && <button onClick={refreshData} disabled={isAutoSyncing} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 hover:text-indigo-600 transition disabled:opacity-50">
+                                                        <RefreshCw size={16} className={loading || isAutoSyncing ? "animate-spin" : ""} />
+                                                    </button>}
+                                                    <button
+                                                        onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setOnboardingHoveredCard(null); setShowOnboarding(true); }}
+                                                        className="px-4 py-2 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-1.5 transition"
+                                                        style={{ backgroundColor: branding.primaryColor }}
+                                                    >
+                                                        <Plus size={16} /> {t('agency.onboarding.new_account') || 'Nueva Cuenta'}
+                                                    </button>
                                                 </div>
-                                                <button onClick={refreshData} disabled={isAutoSyncing} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 hover:text-indigo-600 transition disabled:opacity-50">
-                                                    <RefreshCw size={16} className={loading || isAutoSyncing ? "animate-spin" : ""} />
-                                                </button>
-                                                <button
-                                                    onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setOnboardingHoveredCard(null); setShowOnboarding(true); }}
-                                                    className="px-4 py-2 text-white rounded-lg font-medium text-sm flex items-center gap-1.5 transition"
-                                                    style={{ backgroundColor: branding.primaryColor }}
-                                                >
-                                                    <Plus size={16} /> {t('agency.onboarding.new_account') || 'Nueva Cuenta'}
-                                                </button>
                                             </div>
                                         </div>
 
@@ -3658,6 +3697,40 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 {filteredLocationCards.map(({ loc, totalSlots, connectedSlotCount, connectedNumbers, hasConnectedSlots, connectedPreview, remainingConnected }) => {
                                                     const productMeta = getTenantProductMeta(loc);
                                                     const ProductIcon = productMeta.icon;
+                                                    if (isNextAgencyUi) {
+                                                        const accountProductLabel = productMeta.type === 'ghl' ? 'GoHighLevel' : 'Waflow Inbox';
+                                                        const accountProductClassName = productMeta.type === 'ghl'
+                                                            ? 'text-blue-600 dark:text-blue-300'
+                                                            : 'text-emerald-600 dark:text-emerald-300';
+                                                        const onlineLabel = `${connectedSlotCount}/${totalSlots || connectedSlotCount} en línea`;
+                                                        const numbersLabel = connectedNumbers.length > 0
+                                                            ? `${connectedPreview.join(' · ')}${remainingConnected > 0 ? ` +${remainingConnected} más` : ''}`
+                                                            : 'Sin números en línea';
+                                                        return (
+                                                            <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className={`group relative rounded-xl border border-gray-200 bg-white transition-all hover:border-indigo-500 hover:shadow-md dark:border-gray-800 dark:bg-gray-900 ${accountsView === 'expanded' ? 'p-5 pt-6 pb-4' : 'flex min-h-[72px] items-center p-3.5'} cursor-pointer`}>
+                                                                <div className={accountsView === 'expanded' ? 'flex flex-col items-start gap-4' : 'flex w-full items-center'}>
+                                                                    <div className={accountsView === 'expanded' ? 'flex w-full items-center justify-between gap-3 pr-10' : 'min-w-0 flex w-full items-center gap-2 pr-10'}>
+                                                                        <Building2 size={16} className="shrink-0 text-gray-400 dark:text-gray-500" />
+                                                                        <h4 className={`${accountsView === 'expanded' ? 'text-base' : 'text-sm'} min-w-0 flex-1 truncate font-semibold text-gray-900 dark:text-white`}>{loc.name || t('agency.location.no_name')}</h4>
+                                                                        <span className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide ${accountProductClassName}`}>{accountProductLabel}</span>
+                                                                    </div>
+                                                                    {accountsView === 'expanded' && <span className={`text-sm font-semibold ${connectedSlotCount > 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-gray-400 dark:text-gray-500'}`}>{onlineLabel}</span>}
+                                                                    {accountsView === 'expanded' && (
+                                                                        <div className="flex w-full min-w-0 items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
+                                                                            <div className="flex min-w-0 items-center gap-2">
+                                                                                <Smartphone size={14} className="shrink-0 text-gray-400 dark:text-gray-500" />
+                                                                                <span className="min-w-0 truncate" title={numbersLabel}>{numbersLabel}</span>
+                                                                            </div>
+                                                                            <ArrowRight size={16} className="shrink-0 text-gray-300 dark:text-gray-600" />
+                                                                        </div>
+                                                                    )}
+                                                                    <button onClick={(e) => handleDeleteTenant(e, loc.location_id, loc.name)} className="absolute right-3 top-3 p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100">
+                                                                        <Trash2 size={13} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
 
                                                     return (
                                                         <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className={`group bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer ${isNextAgencyUi && accountsView === 'compact' ? 'min-h-[76px] p-3.5' : 'p-4'}`}>
