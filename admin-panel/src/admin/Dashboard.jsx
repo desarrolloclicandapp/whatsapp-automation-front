@@ -994,6 +994,24 @@ const handleDeleteUser = (user, type = 'soft') => {
             impact: 'Impacto: todavía no existe evidencia de fallo; no se debe reenviar.',
             action: 'Acción: esperar la reconciliación automática. Intervenir sólo si queda pendiente por más de 24 horas.'
         };
+        if (code === 'GHL_ORPHAN_LOCATION_IGNORED') return {
+            title: 'Webhook ignorado de una subcuenta inexistente',
+            cause: 'La location ya no existe en WaFloW y tampoco conserva slots o credenciales asociadas.',
+            impact: 'Impacto: el evento se conserva para auditoría, pero no representa un cliente activo ni requiere recuperar tokens.',
+            action: 'Acción: no requiere intervención. El sistema no volverá a tratarlo como incidente accionable.'
+        };
+        if (code === 'GHL_DELIVERY_CORRELATED' || log.incident_status === 'correlated') return {
+            title: 'Detalle correlacionado con el resultado de entrega',
+            cause: 'Este registro describe la misma operación que ya tiene una causa terminal identificada.',
+            impact: 'Impacto: no es un segundo fallo ni una operación adicional.',
+            action: 'Acción: revisar únicamente el incidente terminal relacionado.'
+        };
+        if (log.incident_status === 'ignored' && ['408', '428', '503', '515'].includes(code)) return {
+            title: 'Evento QR no aplicable al canal oficial',
+            cause: 'El slot utiliza la API oficial de Meta y no depende de un socket QR activo.',
+            impact: 'Impacto: este evento técnico no demuestra una caída del canal oficial.',
+            action: 'Acción: no requiere reconexión QR. Revisar sólo el estado y los permisos de Meta.'
+        };
         if (log.incident_status === 'recovered') return {
             title: 'Incidente de conexión recuperado automáticamente',
             cause: `La sesión presentó ${code || 'una interrupción'}, pero existe una conexión exitosa posterior.`,
@@ -1242,6 +1260,8 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                     {log.notification_status && <span className="text-[11px] text-gray-400">alerta: {log.notification_status}</span>}
                                                     {Number(log.occurrence_count || 1) > 1 && <span className="text-[11px] text-gray-400">repeticiones: {log.occurrence_count}</span>}
                                                     {log.incident_status === 'recovered' && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900">Recuperado automáticamente</span>}
+                                                    {log.incident_status === 'ignored' && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">Informativo · ignorado</span>}
+                                                    {log.incident_status === 'correlated' && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-900">Correlacionado</span>}
                                                     {log.incident_status === 'open' && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900">Incidente abierto</span>}
                                                 </div>
                                                 <p className="text-sm font-semibold text-gray-900 dark:text-white break-words">{human.title}</p>
