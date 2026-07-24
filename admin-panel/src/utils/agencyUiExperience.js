@@ -24,7 +24,9 @@ function resolveAgencyUiExperience({ agencyId, runtimeConfig = {} } = {}) {
   if (!authenticatedAgencyId) return LEGACY_AGENCY_UI;
 
   const allowlist = parseAgencyAllowlist(runtimeConfig.VITE_AGENCY_UI_V2_ALLOWLIST);
-  return allowlist.has(authenticatedAgencyId) ? NEXT_AGENCY_UI : LEGACY_AGENCY_UI;
+  return allowlist.has("*") || allowlist.has(authenticatedAgencyId)
+    ? NEXT_AGENCY_UI
+    : LEGACY_AGENCY_UI;
 }
 
 function getAgencyUiRuntimeConfig(
