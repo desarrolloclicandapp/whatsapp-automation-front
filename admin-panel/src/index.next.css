@@ -1,0 +1,403 @@
+.agency-dashboard-ui--redesign {
+  --wf-scroll-thumb: rgba(148, 163, 184, 0.52);
+  --wf-scroll-thumb-hover: rgba(129, 140, 248, 0.72);
+  --wf-scroll-track: rgba(15, 23, 42, 0.32);
+  --wf-scroll-track-strong: rgba(15, 23, 42, 0.58);
+}
+
+html.light .agency-dashboard-ui--redesign {
+  --wf-scroll-thumb: rgba(148, 163, 184, 0.78);
+  --wf-scroll-thumb-hover: rgba(99, 102, 241, 0.82);
+  --wf-scroll-track: rgba(226, 232, 240, 0.92);
+  --wf-scroll-track-strong: rgba(203, 213, 225, 0.96);
+}
+
+.agency-dashboard-ui--redesign * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--wf-scroll-thumb) var(--wf-scroll-track);
+}
+
+.agency-dashboard-ui--redesign *::-webkit-scrollbar,
+.agency-dashboard-ui--redesign .wf-soft-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: var(--wf-scroll-track);
+}
+
+.agency-dashboard-ui--redesign *::-webkit-scrollbar-track,
+.agency-dashboard-ui--redesign .wf-soft-scrollbar::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, var(--wf-scroll-track) 0%, var(--wf-scroll-track-strong) 100%);
+  border-radius: 999px;
+}
+
+.agency-dashboard-ui--redesign *::-webkit-scrollbar-thumb,
+.agency-dashboard-ui--redesign .wf-soft-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--wf-scroll-thumb);
+  border-radius: 999px;
+  border: 2px solid var(--wf-scroll-track);
+  background-clip: padding-box;
+}
+
+.agency-dashboard-ui--redesign *::-webkit-scrollbar-thumb:hover,
+.agency-dashboard-ui--redesign .wf-soft-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--wf-scroll-thumb-hover);
+  border: 2px solid var(--wf-scroll-track);
+  background-clip: padding-box;
+}
+
+.agency-dashboard-ui--redesign *::-webkit-scrollbar-button,
+.agency-dashboard-ui--redesign .wf-soft-scrollbar::-webkit-scrollbar-button {
+  display: block;
+  height: 8px;
+  background: var(--wf-scroll-track-strong);
+}
+
+/* Sidebar scroll: hidden at rest, softly available while navigating. */
+.agency-dashboard-ui--redesign .wf-sidebar-scroll {
+  scrollbar-color: transparent transparent;
+}
+
+.agency-dashboard-ui--redesign .wf-sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+  background: transparent;
+}
+
+.agency-dashboard-ui--redesign .wf-sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.agency-dashboard-ui--redesign .wf-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.agency-dashboard-ui--redesign .wf-sidebar-scroll:hover,
+.agency-dashboard-ui--redesign .wf-sidebar-scroll:focus-within {
+  scrollbar-color: rgba(148, 163, 184, 0.42) transparent;
+}
+
+.agency-dashboard-ui--redesign .wf-sidebar-scroll:hover::-webkit-scrollbar-thumb,
+.agency-dashboard-ui--redesign .wf-sidebar-scroll:focus-within::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.42);
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Horizontal modal tabs: preserve touch scrolling without showing browser chrome. */
+.agency-dashboard-ui--redesign .wf-tab-scroll,
+.agency-dashboard-ui--redesign .wf-slot-modal-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.agency-dashboard-ui--redesign .wf-tab-scroll::-webkit-scrollbar,
+.agency-dashboard-ui--redesign .wf-slot-modal-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .agency-dashboard-ui--redesign .wf-sidebar-scroll {
+    scrollbar-width: none;
+  }
+
+  .agency-dashboard-ui--redesign .wf-sidebar-scroll::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .agency-dashboard-ui--redesign .wf-account-filters {
+    scrollbar-width: none;
+  }
+
+  .agency-dashboard-ui--redesign .wf-account-filters::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
+
+/* Agency dashboard visual tuning (light mode only):
+   - Stronger borders
+   - More obvious hover/focus states */
+html.light .agency-dashboard-ui--redesign {
+  --ag-border: #b8c3d6;
+  --ag-border-strong: #94a3b8;
+  --ag-hover-ring: rgba(37, 99, 235, 0.2);
+  --ag-hover-shadow: rgba(15, 23, 42, 0.12);
+}
+
+html.light .agency-dashboard-ui--redesign :where(
+  .border,
+  .border-x,
+  .border-y,
+  .border-t,
+  .border-r,
+  .border-b,
+  .border-l
+) {
+  border-color: var(--ag-border) !important;
+}
+
+html.light .agency-dashboard-ui--redesign :where(.border) {
+  border-width: 1px;
+}
+
+html.light .agency-dashboard-ui--redesign :where(.border-2) {
+  border-width: 2px;
+}
+
+html.light .agency-dashboard-ui--redesign :where(.cursor-pointer, button, a):not(:disabled):hover {
+  border-color: var(--ag-border-strong) !important;
+  box-shadow: 0 0 0 2px var(--ag-hover-ring), 0 10px 24px -14px var(--ag-hover-shadow);
+}
+
+html.light .agency-dashboard-ui--redesign :where(button, a, .cursor-pointer):focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+html.light .agency-dashboard-ui--redesign :where(input, select, textarea):hover {
+  border-color: var(--ag-border-strong) !important;
+}
+
+/* Account details remain structured as a grid, but without decorative cards. */
+.agency-dashboard-ui--redesign .wf-account-details > div {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0.25rem 0 !important;
+}
+
+/*
+ * WaFloW compact density layer.
+ * Operational screens should feel calm and readable, not oversized.
+ * Keep touch targets intact while reducing decorative scale, empty space,
+ * and the visual weight of shared surfaces across the agency workspace.
+ */
+.agency-dashboard-ui--redesign :where(.text-4xl) {
+  font-size: 1.875rem !important;
+  line-height: 2.25rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.text-3xl) {
+  font-size: 1.625rem !important;
+  line-height: 2rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.text-2xl) {
+  font-size: 1.375rem !important;
+  line-height: 1.75rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.text-xl) {
+  font-size: 1.125rem !important;
+  line-height: 1.5rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.p-10):not(button):not(input):not(select):not(textarea) {
+  padding: 1.5rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.p-8):not(button):not(input):not(select):not(textarea) {
+  padding: 1.5rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.p-6):not(button):not(input):not(select):not(textarea) {
+  padding: 1.25rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.p-5):not(button):not(input):not(select):not(textarea) {
+  padding: 1rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.py-14):not(button):not(input):not(select):not(textarea) {
+  padding-top: 2.5rem !important;
+  padding-bottom: 2.5rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.gap-10) {
+  gap: 1.5rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.gap-8) {
+  gap: 1.5rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.gap-7) {
+  gap: 1.25rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.space-y-8 > :not([hidden]) ~ :not([hidden])) {
+  margin-top: 1.25rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.space-y-6 > :not([hidden]) ~ :not([hidden])) {
+  margin-top: 1.25rem !important;
+}
+
+/*
+ * Agent workspace density.
+ * Keep forms calm and scannable without reducing mobile touch targets.
+ */
+.agency-dashboard-ui--redesign .wf-agents-ui :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select) {
+  min-height: 2.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.agency-dashboard-ui--redesign .wf-agents-ui :where(textarea) {
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.agency-dashboard-ui--redesign .wf-agents-ui :where(button) {
+  font-size: 0.8125rem;
+}
+
+.agency-dashboard-ui--redesign .wf-agents-ui :where(label.text-sm, p.text-sm) {
+  font-size: 0.8125rem !important;
+}
+
+.agency-dashboard-ui--redesign .wf-agents-ui :where(.p-6) {
+  padding: 1rem !important;
+}
+
+.agency-dashboard-ui--redesign .wf-agents-ui :where(.p-5) {
+  padding: 0.875rem !important;
+}
+
+.agency-dashboard-ui--redesign .wf-agents-ui :where(.px-6) {
+  padding-inline: 1rem !important;
+}
+
+.agency-dashboard-ui--redesign .wf-agents-ui :where(.py-6) {
+  padding-block: 1rem !important;
+}
+
+.agency-dashboard-ui--redesign .wf-agents-ui :where(.px-5) {
+  padding-inline: 0.875rem !important;
+}
+
+.agency-dashboard-ui--redesign .wf-agents-ui :where(.py-5) {
+  padding-block: 0.875rem !important;
+}
+
+.agency-dashboard-ui--redesign .wf-agents-ui :where(.gap-5) {
+  gap: 1rem !important;
+}
+
+.agency-dashboard-ui--redesign .wf-agents-ui :where(.space-y-5 > :not([hidden]) ~ :not([hidden])) {
+  margin-top: 1rem !important;
+}
+
+/*
+ * Shared operational density.
+ * Applies the same calmer scale to every agency view: monitoring, agents,
+ * button builder, Meta templates, subscription, settings and their modals.
+ * Icon controls and binary inputs remain intentionally untouched.
+ */
+.agency-dashboard-ui--redesign :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select) {
+  height: 2.75rem !important;
+  min-height: 2.75rem !important;
+  padding-block: 0.625rem !important;
+  padding-inline: 0.875rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.25rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(textarea) {
+  padding-block: 0.625rem !important;
+  padding-inline: 0.875rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.45 !important;
+}
+
+.agency-dashboard-ui--redesign :where(.text-lg) {
+  font-size: 1rem !important;
+  line-height: 1.5rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(button.rounded-2xl:not([aria-label]):not([class~="p-1"]):not([class~="p-1.5"]):not([class~="p-2"]):not([class~="p-2.5"]), button.rounded-3xl:not([aria-label]):not([class~="p-1"]):not([class~="p-1.5"]):not([class~="p-2"]):not([class~="p-2.5"])) {
+  min-height: 2.5rem;
+  height: auto !important;
+  padding-block: 0.5rem !important;
+  padding-inline: 0.875rem !important;
+  font-size: 0.8125rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(button:not([aria-label]):not([title]):not([class~="p-1"]):not([class~="p-1.5"]):not([class~="p-2"]):not([class~="p-2.5"])) {
+  min-height: 2.5rem;
+  height: auto !important;
+  padding-block: 0.5rem !important;
+  padding-inline: 0.875rem !important;
+  font-size: 0.8125rem !important;
+}
+
+.agency-dashboard-ui--redesign :where([class~="h-[50px]"], [class~="h-[48px]"]) {
+  height: 2.75rem !important;
+}
+
+.agency-dashboard-ui--redesign :where(.gap-6) {
+  gap: 1.25rem !important;
+}
+
+@media (max-width: 639px) {
+  .agency-dashboard-ui--redesign :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select) {
+    min-height: 2.75rem !important;
+  }
+
+  .agency-dashboard-ui--redesign :where(button.rounded-2xl:not([aria-label]):not([class~="p-1"]):not([class~="p-1.5"]):not([class~="p-2"]):not([class~="p-2.5"]), button.rounded-3xl:not([aria-label]):not([class~="p-1"]):not([class~="p-1.5"]):not([class~="p-2"]):not([class~="p-2.5"])) {
+    min-height: 2.75rem;
+  }
+}
+
+html.light .agency-dashboard-ui--redesign {
+  --ag-border: #d5dce8;
+  --ag-border-strong: #b7c2d4;
+  --ag-hover-ring: rgba(79, 70, 229, 0.08);
+  --ag-hover-shadow: rgba(15, 23, 42, 0.08);
+}
+
+html.light .agency-dashboard-ui--redesign :where(.cursor-pointer, button, a):not(:disabled):hover {
+  box-shadow: 0 2px 10px -8px var(--ag-hover-shadow);
+}
+
+/* Compact single-screen builder controls. */
+.agency-dashboard-ui--redesign .interactive-builder-ui :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select) {
+  height: 2.5rem !important;
+  min-height: 2.5rem !important;
+  padding-block: 0.5rem !important;
+  padding-inline: 0.75rem !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.25rem !important;
+}
+
+.agency-dashboard-ui--redesign .interactive-builder-ui :where(textarea) {
+  padding-block: 0.5rem !important;
+  padding-inline: 0.75rem !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.4 !important;
+}
+
+/* Compact two-column layout for Meta template creation. */
+.agency-dashboard-ui--redesign .official-template-builder-ui :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select) {
+  height: 2.5rem !important;
+  min-height: 2.5rem !important;
+  padding-block: 0.5rem !important;
+  padding-inline: 0.75rem !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.25rem !important;
+}
+
+.agency-dashboard-ui--redesign .official-template-builder-ui :where(textarea) {
+  padding-block: 0.625rem !important;
+  padding-inline: 0.75rem !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.4 !important;
+}
+
+.agency-dashboard-ui--redesign .official-template-builder-ui :where(label.text-sm, p.text-sm) {
+  font-size: 0.8125rem !important;
+  line-height: 1.25rem !important;
+}

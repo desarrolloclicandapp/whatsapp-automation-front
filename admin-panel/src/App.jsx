@@ -3,10 +3,16 @@ import { Toaster } from 'sonner';
 import ReactGA from 'react-ga4';
 import AdminDashboard from './admin/Dashboard';
 import AgencyDashboard from './admin/AgencyDashboard';
+import AgencyDashboardNext from './admin/AgencyDashboardNext';
 import WelcomeAuth from './admin/WelcomeAuth';
 import StandaloneLogin from './standalone-app/StandaloneLogin';
 import StandaloneLayout from './standalone-app/StandaloneLayout';
 import './index.css';
+import {
+    NEXT_AGENCY_UI,
+    getAgencyUiRuntimeConfig,
+    resolveAgencyUiExperience,
+} from './utils/agencyUiExperience';
 
 const STANDALONE_HOME = '/';
 const STANDALONE_INTERNAL_PATHS = ['/crm', '/standalone'];
@@ -147,6 +153,13 @@ function App() {
         () => buildAccountInfoFromStorage(),
         [token, role, userInterface, accountRefreshKey],
     );
+    const agencyUiExperience = resolveAgencyUiExperience({
+        agencyId: localStorage.getItem('agencyId'),
+        runtimeConfig: getAgencyUiRuntimeConfig(typeof window !== 'undefined' ? window : globalThis),
+    });
+    const AgencyWorkspace = agencyUiExperience === NEXT_AGENCY_UI
+        ? AgencyDashboardNext
+        : AgencyDashboard;
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -504,7 +517,7 @@ function App() {
             ) : role === 'admin' ? (
                 <AdminDashboard token={token} onLogout={logout} />
             ) : role === 'agency' ? (
-                <AgencyDashboard token={token} onLogout={logout} />
+                <AgencyWorkspace token={token} onLogout={logout} />
             ) : (
                 <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
                     <button onClick={logout} className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Salir</button>

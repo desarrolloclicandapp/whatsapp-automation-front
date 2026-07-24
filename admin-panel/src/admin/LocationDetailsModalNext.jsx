@@ -1,0 +1,6375 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
+import QRCode from "react-qr-code";
+import {
+    X, Smartphone, Plus, Trash2, Settings, Tag,
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy, CreditCard, ExternalLink, PauseCircle, PlayCircle
+} from 'lucide-react';
+import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
+import { useLanguage } from '../context/LanguageContext';
+import { resolveSlotQrPollTransition } from '../utils/slotQrTransition';
+
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const QR_POST_SCAN_GRACE_MS = 15000;
+
+function translateOr(t, key, fallback) {
+    const translated = typeof t === 'function' ? t(key) : null;
+    if (!translated || translated === key) return fallback;
+    return translated;
+}
+
+function getRuntimeConfigValue(key, fallback) {
+    const runtimeValue = typeof window !== "undefined"
+        ? window.__WAFLOW_ADMIN_CONFIG__?.[key]
+        : undefined;
+    return runtimeValue ?? fallback;
+}
+
+function getNumberQualityLabel(level = '', t) {
+    switch (String(level || '').toLowerCase()) {
+        case 'delicate':
+            return translateOr(t, 'agency.reliability.number_quality_delicate', 'Delicada');
+        case 'sensitive':
+            return translateOr(t, 'agency.reliability.number_quality_sensitive', 'Sensible');
+        case 'care':
+            return translateOr(t, 'agency.reliability.number_quality_care', 'A cuidar');
+        case 'good':
+            return translateOr(t, 'agency.reliability.number_quality_good', 'Buena');
+        default:
+            return translateOr(t, 'agency.reliability.number_quality_unknown', 'Sin datos recientes');
+    }
+}
+
+function getNumberQualitySourceLabel(source = '', t) {
+    const normalized = String(source || '').toLowerCase();
+    if (normalized.includes('official')) {
+        return translateOr(t, 'agency.reliability.number_quality_source_meta', 'Calidad Meta');
+    }
+    if (normalized === 'internal_history') {
+        return translateOr(t, 'agency.reliability.number_quality_source_internal', 'Calidad del número');
+    }
+    return translateOr(t, 'agency.reliability.number_quality_source_unknown', 'Calidad del número');
+}
+
+function getNumberQualityTooltip({ source = '', activeDays = 0, sentMessages28d = 0 } = {}, t) {
+    const normalized = String(source || '').toLowerCase();
+    const base = normalized.includes('official')
+        ? translateOr(t, 'agency.reliability.number_quality_tooltip_meta', 'Rating oficial de Meta combinado con senales internas recientes.')
+        : normalized === 'internal_history'
+            ? translateOr(t, 'agency.reliability.number_quality_tooltip_internal', 'Estimacion interna de WaFloW basada en actividad reciente, respuestas, volumen y repeticion.')
+            : translateOr(t, 'agency.reliability.number_quality_tooltip_unknown', 'No hay suficientes datos recientes asociados a este slot. No significa que el numero sea nuevo ni malo.');
+    return `${base} ${translateOr(t, 'agency.reliability.active_days', 'Dias activos')}: ${Number(activeDays) || 0}. ${translateOr(t, 'agency.reliability.sent_28d', 'Enviados 28d')}: ${Number(sentMessages28d) || 0}.`;
+}
+
+function buildMetaBusinessPaymentUrl(official = {}) {
+    const providedUrl = String(official.metaBusinessPaymentUrl || "").trim();
+    if (providedUrl) return providedUrl;
+
+    const businessId = String(official.embeddedSignupBusinessId || "").trim();
+    const businessAccountId = String(official.businessAccountId || "").trim();
+    const url = new URL("https://business.facebook.com/latest/settings/whatsapp_account");
+    if (businessId) url.searchParams.set("business_id", businessId);
+    if (businessAccountId) url.searchParams.set("waba_id", businessAccountId);
+    url.searchParams.set("nav_ref", "waflow_official_billing");
+    return url.toString();
+}
+
+function officialBillingNeedsAction(official = {}) {
+    const status = String(official.billingStatus || "").trim().toLowerCase();
+    const lastBillingError = String(official.lastBillingError || "").trim().toLowerCase();
+    const connectionStatus = String(official.status || "").trim().toLowerCase();
+    return Boolean(
+        status === "billing_check_required" ||
+        status === "billing_input_missing" ||
+        connectionStatus === "billing_pending" ||
+        lastBillingError.includes("metodo de pago pendiente") ||
+        lastBillingError.includes("método de pago pendiente") ||
+        lastBillingError.includes("payment method")
+    );
+}
+
+function buildOfficialAccessLostDiagnostic(payload = {}, t) {
+    const code = String(payload?.code || "").trim();
+    const message = String(payload?.error || payload?.message || "").trim();
+    const normalized = `${code} ${message}`.toLowerCase();
+    const isAccessLost = code === "OFFICIAL_WABA_ACCESS_LOST" ||
+        (
+            normalized.includes("ya no tenemos acceso") ||
+            normalized.includes("no longer have access") ||
+            normalized.includes("perdio permisos") ||
+            normalized.includes("lost permissions")
+        );
+
+    if (!isAccessLost) return null;
+
+    return {
+        isAccessLost: true,
+        title: payload.title || translateOr(t, 'slots.official.access_lost_title', 'Meta perdio permisos'),
+        message: message || translateOr(t, 'slots.official.access_lost_message', 'Ya no tenemos acceso a la cuenta de WhatsApp Business vinculada a este numero.'),
+        reason: payload.reason || translateOr(t, 'slots.official.access_lost_reason', 'Esto suele pasar cuando WaFloW fue eliminado como socio/partner del portfolio comercial del cliente o se revocaron permisos en Meta.'),
+        actions: Array.isArray(payload.actions) && payload.actions.length > 0 ? payload.actions : [
+            translateOr(t, 'slots.official.access_lost_action_clear', 'Pulsa Limpiar vinculacion para quitar los datos oficiales anteriores.'),
+            translateOr(t, 'slots.official.access_lost_action_reconnect', 'Vuelve a conectar el numero con Meta Cloud API y acepta nuevamente los permisos.'),
+            translateOr(t, 'slots.official.access_lost_action_partner', 'Si el cliente administra Meta, confirma que WaFloW/Clic&App figure como socio con acceso al WABA y al numero.')
+        ]
+    };
+}
+
+function normalizeSlotId(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const parsed = Number.parseInt(String(value), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange, isAdminMode = false }) {
+    const { t } = useLanguage();
+    const [slots, setSlots] = useState([]);
+    const [healthSummary, setHealthSummary] = useState(null);
+    const [keywords, setKeywords] = useState([]);
+    const [crmUsers, setCrmUsers] = useState([]);
+    const [locationName, setLocationName] = useState(location.name || "");
+    const [whiteLabelEnabled, setWhiteLabelEnabled] = useState(true);
+    const [tenantSettings, setTenantSettings] = useState(location.settings || {});
+    const [locationOpenAiKeyDraft, setLocationOpenAiKeyDraft] = useState("");
+    const [locationOpenAiKeyConfigured, setLocationOpenAiKeyConfigured] = useState(false);
+    const [savingLocationOpenAiKey, setSavingLocationOpenAiKey] = useState(false);
+    const [maxSubagencies, setMaxSubagencies] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const rawFeatures = localStorage.getItem("agencyFeatures");
+    const storedRole = localStorage.getItem("userRole");
+    const hasAdminImpersonationSession = Boolean(localStorage.getItem("admin_restore_token"))
+        || localStorage.getItem("admin_restore_role") === 'admin';
+    let canWhiteLabel = false;
+    try {
+        const features = rawFeatures ? JSON.parse(rawFeatures) : {};
+        canWhiteLabel = (features?.whitelabel ?? features?.white_label) === true || storedRole === 'admin' || maxSubagencies === 50;
+    } catch (e) {
+        canWhiteLabel = storedRole === 'admin' || maxSubagencies === 50;
+    }
+
+    // Control de UI
+    const [expandedSlotId, setExpandedSlotId] = useState(null);
+    const [activeSlotTab, setActiveSlotTab] = useState('general');
+    const [activeIntegrationSection, setActiveIntegrationSection] = useState('openai');
+    const [groups, setGroups] = useState([]);
+    const [loadingGroups, setLoadingGroups] = useState(false);
+    const [deletingSlotId, setDeletingSlotId] = useState(null);
+    const [editingSlotId, setEditingSlotId] = useState(null);
+    const [editingSlotName, setEditingSlotName] = useState("");
+    const [savingSlotName, setSavingSlotName] = useState(false);
+    const [elevenVoicesBySlot, setElevenVoicesBySlot] = useState({});
+    const [loadingElevenVoices, setLoadingElevenVoices] = useState({});
+    const previewAudioRef = useRef(null);
+    const [previewTextBySlot, setPreviewTextBySlot] = useState({});
+    const [twilioConfigBySlot, setTwilioConfigBySlot] = useState({});
+    const [loadingTwilioBySlot, setLoadingTwilioBySlot] = useState({});
+    const [savingTwilioBySlot, setSavingTwilioBySlot] = useState({});
+    const [chatwootConfigBySlot, setChatwootConfigBySlot] = useState({});
+    const [loadingChatwootBySlot, setLoadingChatwootBySlot] = useState({});
+    const [savingChatwootBySlot, setSavingChatwootBySlot] = useState({});
+    const [officialConfigBySlot, setOfficialConfigBySlot] = useState({});
+    const [loadingOfficialBySlot, setLoadingOfficialBySlot] = useState({});
+    const [savingOfficialBySlot, setSavingOfficialBySlot] = useState({});
+    const [officialLinkMethodBySlot, setOfficialLinkMethodBySlot] = useState({});
+    const [startingOfficialEmbeddedBySlot, setStartingOfficialEmbeddedBySlot] = useState({});
+    const [completingOfficialEmbeddedBySlot, setCompletingOfficialEmbeddedBySlot] = useState({});
+    const [embeddedSignupSelectionBySlot, setEmbeddedSignupSelectionBySlot] = useState({});
+    const [officialTemplatesBySlot, setOfficialTemplatesBySlot] = useState({});
+    const [loadingOfficialTemplatesBySlot, setLoadingOfficialTemplatesBySlot] = useState({});
+    const [sendingOfficialTemplateBySlot, setSendingOfficialTemplateBySlot] = useState({});
+    const [facebookSdkState, setFacebookSdkState] = useState({
+        ready: false,
+        loading: false,
+        appId: "",
+        sdkVersion: "",
+        error: ""
+    });
+    const [chatwootInboxes, setChatwootInboxes] = useState([]);
+    const [loadingChatwootInboxes, setLoadingChatwootInboxes] = useState(false);
+    const [chatwootInboxesLoaded, setChatwootInboxesLoaded] = useState(false);
+    const [ghlAccessInfo, setGhlAccessInfo] = useState(null);
+    const [loadingGhlAccess, setLoadingGhlAccess] = useState(false);
+    const [showGhlAccessModal, setShowGhlAccessModal] = useState(false);
+    const [showAccountSettingsModal, setShowAccountSettingsModal] = useState(false);
+    const [chatwootAccessInfo, setChatwootAccessInfo] = useState(null);
+    const [loadingChatwootAccess, setLoadingChatwootAccess] = useState(false);
+    const [showChatwootAccessModal, setShowChatwootAccessModal] = useState(false);
+    const [customProxyBySlot, setCustomProxyBySlot] = useState({});
+    const [loadingCustomProxyBySlot, setLoadingCustomProxyBySlot] = useState({});
+    const [savingCustomProxyBySlot, setSavingCustomProxyBySlot] = useState({});
+    const facebookSdkPromiseRef = useRef(null);
+    const embeddedSignupFlowRef = useRef({
+        slotId: null,
+        completionSent: false,
+        missingPhoneNumberWarned: false,
+        authCode: "",
+        accessToken: "",
+        businessAccountId: "",
+        phoneNumberId: "",
+        businessId: "",
+        displayPhoneNumber: "",
+        oauthState: "",
+        oauthRedirectUri: ""
+    });
+    const crmType = String(tenantSettings?.crm_type || location?.crm_type || "ghl").toLowerCase();
+    const isGhlMode = crmType === "ghl";
+    const isChatwootMode = crmType === "chatwoot";
+    const isEnabledTenantFlag = (value) => {
+        if (value === true || value === 1) return true;
+        const normalized = String(value ?? "").trim().toLowerCase();
+        return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
+    };
+    const isHostedWaflowMode = isChatwootMode
+        && isEnabledTenantFlag(tenantSettings?.is_auto_provisioned)
+        && !isEnabledTenantFlag(tenantSettings?.is_byoc);
+    const managedInboxBrandName = isHostedWaflowMode ? "WaFloW" : "Chatwoot";
+    const getManagedInboxText = (translatedText, fallbackText = "") => {
+        const baseText = translatedText || fallbackText;
+        if (!isHostedWaflowMode || !baseText) return baseText;
+        return String(baseText).replace(/Chatwoot/g, "WaFloW");
+    };
+    const supportsSmsTab = isGhlMode || isChatwootMode;
+    const supportsKeywordsTab = isGhlMode;
+    const OFFICIAL_WHATSAPP_API_UI_ENABLED = isEnabledTenantFlag(
+        getRuntimeConfigValue("VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED", import.meta.env.VITE_OFFICIAL_WHATSAPP_API_UI_ENABLED ?? true)
+    );
+    const OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED = isEnabledTenantFlag(
+        getRuntimeConfigValue("VITE_OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED", import.meta.env.VITE_OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED ?? false)
+    );
+    const officialWhatsappAdminBypassAvailable = OFFICIAL_WHATSAPP_API_ADMIN_BYPASS_ENABLED
+        && (storedRole === 'admin' || hasAdminImpersonationSession);
+    const SLOT_CONNECTION_MODE_CHANGE_ENABLED = false;
+    const SHOW_OFFICIAL_WEBHOOK_DEBUG = !!isAdminMode;
+    const getEffectiveSlotConnectionMode = (slot) => {
+        if (!slot) return null;
+        if (!OFFICIAL_WHATSAPP_API_UI_ENABLED) return 'qr';
+        const explicitMode = String(slot?.settings?.connection_mode || "").trim().toLowerCase();
+        if (explicitMode === 'official_api' || explicitMode === 'qr') return explicitMode;
+
+        const officialSettings = slot?.settings?.official_api || {};
+        const hasOfficialData = Boolean(
+            String(officialSettings?.businessAccountId || "").trim() ||
+            String(officialSettings?.phoneNumberId || "").trim() ||
+            String(officialSettings?.status || "").trim()
+        );
+        if (hasOfficialData) return 'official_api';
+
+        if (slot?.is_connected === true || String(slot?.phone_number || "").trim()) {
+            return 'qr';
+        }
+
+        return null;
+    };
+    const hasOfficialWhatsappConfig = (slot) => {
+        const officialSettings = slot?.settings?.official_api || {};
+        return Boolean(
+            String(officialSettings?.businessAccountId || "").trim() ||
+            String(officialSettings?.phoneNumberId || "").trim() ||
+            String(officialSettings?.accessToken || "").trim() ||
+            String(officialSettings?.accessTokenEncrypted || "").trim() ||
+            String(officialSettings?.status || "").trim()
+        );
+    };
+    const hasAnyOfficialWhatsappConfig = () => slots.some((slot) => hasOfficialWhatsappConfig(slot));
+    const officialApiAvailable = OFFICIAL_WHATSAPP_API_UI_ENABLED
+        && (hasAnyOfficialWhatsappConfig() || officialWhatsappAdminBypassAvailable);
+    const expandedSlot = slots.find((slot) => slot.slot_id === expandedSlotId) || null;
+    const expandedConnectionMode = getEffectiveSlotConnectionMode(expandedSlot);
+    const isExpandedChatwootLoaded = Boolean(
+        expandedSlotId && chatwootConfigBySlot[expandedSlotId]?.loaded
+    );
+    const isExpandedOfficialLoaded = Boolean(
+        expandedSlotId && officialConfigBySlot[expandedSlotId]?.loaded
+    );
+
+    // ✅ Obtener instancia del socket
+    const socket = useSocket();
+
+    const authFetch = async (endpoint, options = {}) => {
+        const res = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                ...options.headers,
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (res.status === 401) {
+            onLogout();
+            onClose();
+            return null;
+        }
+
+        if (res.status === 403) {
+            const body = await res.clone().json().catch(() => null);
+            if (body?.error !== "account_suspended") {
+                onLogout();
+                onClose();
+                return null;
+            }
+        }
+        return res;
+    };
+
+    const confirmToast = (title, description, action, isDestructive = false) => {
+        toast(title, {
+            description,
+            icon: <AlertTriangle className={isDestructive ? "text-red-500" : "text-amber-500"} />,
+            action: {
+                label: isDestructive ? 'Confirmar' : 'Aceptar',
+                onClick: action
+            },
+            cancel: {
+                label: 'Cancelar'
+            }
+        });
+    };
+
+    // ✅ LÓGICA DE TIEMPO REAL + ROOMS
+    useEffect(() => {
+        loadData(); // Carga inicial
+
+        // 1. Unirse a la sala (Room) de esta ubicación
+        // Esto es CRÍTICO para recibir eventos ahora que el backend usa io.to()
+        if (socket && location.location_id) {
+            console.log(`🔌 Uniéndose a sala: ${location.location_id}`);
+            socket.emit('join_room', location.location_id);
+        }
+
+        // 2. Manejar eventos entrantes
+        const handleEvent = (payload) => {
+            // Doble verificación: aunque el backend filtre, aseguramos que sea para nosotros
+            if (payload.locationId === location.location_id) {
+                // 🔥 FIX: No recargar todo el modal por eventos de QR (lo maneja el componente hijo)
+                if (payload.type === 'connection' && payload.status === 'open') {
+                    loadData();
+                }
+            }
+        };
+
+        if (socket) {
+            socket.on('wa_event', handleEvent);
+        }
+
+        return () => {
+            if (socket) {
+                socket.off('wa_event', handleEvent);
+                // No es estrictamente necesario emitir 'leave_room' si el socket se desconecta,
+                // pero al desmontar el componente dejamos de escuchar.
+            }
+        };
+    }, [location, socket]);
+
+    useEffect(() => {
+        const loadAccountLimits = async () => {
+            try {
+                const res = await authFetch('/agency/info');
+                if (res && res.ok) {
+                    const data = await res.json();
+                    setMaxSubagencies(data?.limits?.max_subagencies ?? null);
+                }
+            } catch (e) { }
+        };
+        loadAccountLimits();
+    }, []);
+
+    useEffect(() => {
+        if (activeSlotTab !== 'integration' || !expandedSlotId) return;
+        const slot = slots.find(s => s.slot_id === expandedSlotId);
+        if (!slot?.elevenlabs_api_key) return;
+        if (elevenVoicesBySlot[slot.slot_id]) return;
+        loadElevenVoices(slot.slot_id);
+    }, [activeSlotTab, expandedSlotId, slots, elevenVoicesBySlot]);
+
+    useEffect(() => {
+        if (activeSlotTab !== 'sms' || !expandedSlotId) return;
+        if (twilioConfigBySlot[expandedSlotId]) return;
+        loadTwilioConfig(expandedSlotId);
+    }, [activeSlotTab, expandedSlotId, twilioConfigBySlot]);
+
+    useEffect(() => {
+        if (activeSlotTab !== 'integration' || !expandedSlotId || !isGhlMode) return;
+        if (customProxyBySlot[expandedSlotId]?.loaded) return;
+        loadCustomProxyConfig(expandedSlotId);
+    }, [activeSlotTab, expandedSlotId, customProxyBySlot, isGhlMode]);
+
+    useEffect(() => {
+        if (activeSlotTab !== 'integration' || !expandedSlotId || !isChatwootMode) return;
+        if (isExpandedChatwootLoaded) return;
+        loadChatwootConfig(expandedSlotId);
+    }, [activeSlotTab, expandedSlotId, isChatwootMode, isExpandedChatwootLoaded]);
+
+    useEffect(() => {
+        if (!expandedSlotId || expandedConnectionMode !== 'official_api') return;
+        if (isExpandedOfficialLoaded) return;
+        loadOfficialWhatsappConfig(expandedSlotId);
+    }, [expandedSlotId, expandedConnectionMode, isExpandedOfficialLoaded]);
+
+    useEffect(() => {
+        if (!expandedSlotId || expandedConnectionMode !== 'official_api') return;
+        const official = officialConfigBySlot[expandedSlotId];
+        if (!official?.loaded || !official?.businessAccountId || !official?.hasAccessToken) return;
+        if (officialTemplatesBySlot[expandedSlotId]?.loaded) return;
+        loadOfficialWhatsappTemplates(expandedSlotId);
+    }, [expandedSlotId, expandedConnectionMode, officialConfigBySlot, officialTemplatesBySlot]);
+
+    useEffect(() => {
+        const handleEmbeddedSignupMessage = (event) => {
+            const origin = String(event?.origin || '').toLowerCase();
+            const callbackPayload = event?.data;
+            if (callbackPayload?.type === "waflow_meta_embedded_signup_callback") {
+                const flow = embeddedSignupFlowRef.current;
+                if (!flow?.slotId || callbackPayload.state !== flow.oauthState) return;
+                setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                if (callbackPayload.error) {
+                    toast.error(t('slots.official.embedded.error') || 'Meta devolvio un error en el Embedded Signup', {
+                        description: callbackPayload.errorMessage || callbackPayload.error
+                    });
+                    resetEmbeddedSignupFlow();
+                    return;
+                }
+                flow.authCode = pickFirstNonEmptyString(callbackPayload.code, flow.authCode);
+                if (!flow.completionSent && flow.authCode) {
+                    const snapshot = { ...flow };
+                    flow.completionSent = true;
+                    logEmbeddedSignupDebug("completion requested from oauth callback", snapshot);
+                    completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch((error) => {
+                        logEmbeddedSignupDebug("completion failed from oauth callback", {
+                            message: error?.message || String(error || "Unknown error")
+                        }, "error");
+                    });
+                }
+                return;
+            }
+            if (!origin || (!origin.includes('facebook.com') && !origin.includes('fb.com'))) {
+                return;
+            }
+
+            const flow = embeddedSignupFlowRef.current;
+            if (!flow?.slotId) return;
+
+            logEmbeddedSignupDebug("window.message received", {
+                origin: event.origin,
+                data: event.data
+            });
+
+            const parsed = normalizeEmbeddedSignupMessage(event.data);
+            if (!parsed) {
+                logEmbeddedSignupDebug("window.message ignored: parser returned null", {
+                    origin: event.origin,
+                    data: event.data
+                }, "warn");
+                return;
+            }
+
+            logEmbeddedSignupDebug("window.message parsed", parsed);
+
+            if (parsed.status === 'cancel') {
+                setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                logEmbeddedSignupDebug("embedded signup cancelled", parsed, "warn");
+                toast.error(t('slots.official.embedded.cancelled') || 'El asistente de Meta fue cancelado');
+                resetEmbeddedSignupFlow();
+                return;
+            }
+
+            if (parsed.status === 'error') {
+                setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [flow.slotId]: false }));
+                logEmbeddedSignupDebug("embedded signup error", parsed, "error");
+                toast.error(t('slots.official.embedded.error') || 'Meta devolvió un error en el Embedded Signup', {
+                    description: parsed.errorMessage || undefined
+                });
+                resetEmbeddedSignupFlow();
+                return;
+            }
+
+            flow.authCode = pickFirstNonEmptyString(parsed.authCode, flow.authCode);
+            flow.accessToken = pickFirstNonEmptyString(parsed.accessToken, flow.accessToken);
+            flow.businessAccountId = pickFirstNonEmptyString(parsed.businessAccountId, flow.businessAccountId);
+            flow.phoneNumberId = pickFirstNonEmptyString(parsed.phoneNumberId, flow.phoneNumberId);
+            flow.businessId = pickFirstNonEmptyString(parsed.businessId, flow.businessId);
+            flow.displayPhoneNumber = pickFirstNonEmptyString(parsed.displayPhoneNumber, flow.displayPhoneNumber);
+
+            if (!flow.completionSent && flow.phoneNumberId && (flow.authCode || flow.accessToken)) {
+                const snapshot = { ...flow };
+                flow.completionSent = true;
+                logEmbeddedSignupDebug("completion requested from postMessage", snapshot);
+                completeOfficialEmbeddedSignup(snapshot.slotId, snapshot).catch((error) => {
+                    logEmbeddedSignupDebug("completion failed from postMessage", {
+                        message: error?.message || String(error || "Unknown error")
+                    }, "error");
+                });
+            }
+        };
+
+        window.addEventListener('message', handleEmbeddedSignupMessage);
+        return () => window.removeEventListener('message', handleEmbeddedSignupMessage);
+    }, [location.location_id, officialConfigBySlot, slots, t]);
+
+    useEffect(() => {
+        if (!supportsKeywordsTab && activeSlotTab === 'keywords') {
+            setActiveSlotTab('general');
+        }
+    }, [supportsKeywordsTab, activeSlotTab]);
+
+    useEffect(() => {
+        return () => {
+            if (previewAudioRef.current) {
+                previewAudioRef.current.pause();
+                previewAudioRef.current = null;
+            }
+        };
+    }, []);
+
+    const loadData = async () => {
+        if (slots.length === 0) setLoading(true);
+        try {
+            const [detailsRes, usersRes] = await Promise.all([
+                authFetch(`/agency/location-details/${location.location_id}`),
+                authFetch(`/agency/crm-users/${location.location_id}`)
+            ]);
+
+            if (detailsRes && detailsRes.ok) {
+                const data = await detailsRes.json();
+                const nextSlots = Array.isArray(data.slots) ? data.slots : [];
+                setSlots(nextSlots);
+                setHealthSummary(data.healthSummary || null);
+                const topLevelKeywords = Array.isArray(data.keywords) ? data.keywords : [];
+                const slotKeywords = nextSlots.flatMap((slot) => (
+                    Array.isArray(slot?.keywords)
+                        ? slot.keywords.map((keyword) => ({
+                            ...keyword,
+                            slot_id: keyword?.slot_id ?? slot.slot_id
+                        }))
+                        : []
+                ));
+                setKeywords(topLevelKeywords.length > 0 ? topLevelKeywords : slotKeywords);
+                setLocationOpenAiKeyConfigured(data.openai_key_configured === true);
+                setLocationOpenAiKeyDraft("");
+
+                if (data.name) setLocationName(data.name);
+                setWhiteLabelEnabled(data.settings?.white_label ?? true);
+                setTenantSettings(data.settings || {});
+                const nextCrmType = String(data.settings?.crm_type || data.crmType || location?.crm_type || "ghl").toLowerCase();
+                if (nextCrmType === "ghl") {
+                    setChatwootAccessInfo(null);
+                    loadGhlAccessInfo();
+                } else {
+                    setGhlAccessInfo(null);
+                    loadChatwootAccessInfo();
+                }
+            }
+
+            if (usersRes && usersRes.ok) {
+                const users = await usersRes.json();
+                setCrmUsers(users || []);
+            }
+        } catch (e) {
+            console.error("Error cargando datos:", e);
+            if (slots.length === 0) toast.error("Error cargando datos", { description: "Verifica tu conexión." });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadElevenVoices = async (slotId, forceRefresh = false) => {
+        if (!slotId) return;
+        setLoadingElevenVoices(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const refreshParam = forceRefresh ? "&refresh=1" : "";
+            const res = await authFetch(`/agency/elevenlabs/voices?locationId=${location.location_id}&slotId=${slotId}${refreshParam}`);
+            if (res && res.ok) {
+                const data = await res.json();
+                setElevenVoicesBySlot(prev => ({ ...prev, [slotId]: data.voices || [] }));
+            } else if (res) {
+                const errText = await res.text();
+                toast.error("Error cargando voces", { description: errText || "Respuesta inválida" });
+            }
+        } catch (e) {
+            toast.error("Error cargando voces");
+        } finally {
+            setLoadingElevenVoices(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const saveElevenApiKey = async (slotId, rawKey) => {
+        const apiKey = (rawKey || "").trim();
+        if (!apiKey) {
+            toast.error("Ingresa una Key válida");
+            return false;
+        }
+
+        const loadingId = toast.loading("Validando API Key...");
+        try {
+            const validateRes = await authFetch(`/agency/elevenlabs/validate`, {
+                method: 'POST',
+                body: JSON.stringify({ apiKey })
+            });
+
+            if (!validateRes) return false;
+
+            if (!validateRes.ok) {
+                const err = await validateRes.json().catch(() => ({}));
+                toast.error("API Key inválida", { description: err.error || "No se pudo validar" });
+                return false;
+            }
+
+            const validateData = await validateRes.json();
+            await authFetch(`/agency/update-slot-config`, {
+                method: 'POST',
+                body: JSON.stringify({ locationId: location.location_id, slotId, elevenlabs_api_key: apiKey })
+            });
+
+            toast.success("API Key guardada");
+            setElevenVoicesBySlot(prev => ({ ...prev, [slotId]: validateData.voices || [] }));
+            loadData();
+            return true;
+        } catch (e) {
+            toast.error("Error validando API Key");
+            return false;
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const playVoicePreview = async (slotId, voiceId) => {
+        try {
+            if (!voiceId) {
+                toast.error("Selecciona una voz para el preview");
+                return;
+            }
+            const previewText = (previewTextBySlot[slotId] || "").trim();
+            const res = await authFetch(`/agency/elevenlabs/preview`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    voiceId,
+                    text: previewText || undefined
+                })
+            });
+
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                toast.error("Preview falló", { description: err.error || "No se pudo generar" });
+                return;
+            }
+
+            const data = await res.json();
+            if (!data.url) {
+                toast.error("Preview inválido");
+                return;
+            }
+
+            if (previewAudioRef.current) {
+                previewAudioRef.current.pause();
+                previewAudioRef.current = null;
+            }
+
+            const audio = new Audio(data.url);
+            previewAudioRef.current = audio;
+            await audio.play();
+        } catch (e) {
+            toast.error("Error reproduciendo preview");
+        }
+    };
+
+    // --- ACCIONES PRINCIPALES ---
+
+    const handleAddSlot = async () => {
+        const loadingId = toast.loading(isChatwootMode ? (t('slots.chatwoot_inbox.creating') || "Creando inbox...") : "Creando dispositivo...");
+        try {
+            const res = await authFetch(`/agency/add-slot`, {
+                method: "POST",
+                body: JSON.stringify({ locationId: location.location_id })
+            });
+
+            // Si authFetch devuelve null es porque hizo logout automático (401/403 real), salimos.
+            if (!res) return;
+
+            const data = await res.json();
+            toast.dismiss(loadingId);
+
+            // 🔥 NUEVA LÓGICA: Verificar 'data.success' aunque el status sea 200
+            if (data.success) {
+                const successDescription = isChatwootMode
+                    ? (tenantSettings?.is_auto_provisioned
+                        ? getManagedInboxText(t('slots.chatwoot.auto_provisioned_ready'), "Configurado automaticamente en Chatwoot.")
+                        : "Listo para vincular.")
+                    : "Listo para vincular.";
+                toast.success(isChatwootMode ? (t('slots.chatwoot_inbox.added') || "Inbox agregado") : "Dispositivo agregado", { description: successDescription });
+                loadData();
+                if (onDataChange) onDataChange();
+            } else {
+                // Manejo de errores lógicos (Límites, etc.)
+                if (data.requiresUpgrade) {
+                    toast.error("Límite Alcanzado", {
+                        description: data.error,
+                        duration: 6000,
+                        icon: <AlertTriangle className="text-amber-500" />,
+                        action: {
+                            label: 'Ampliar Plan',
+                            onClick: () => {
+                                onClose();
+                                if (onUpgrade) onUpgrade(); // Abre el modal de suscripción
+                            }
+                        }
+                    });
+                } else {
+                    toast.error("Error", { description: data.error || (isChatwootMode ? "No se pudo agregar el inbox." : "No se pudo agregar el dispositivo.") });
+                }
+            }
+        } catch (e) {
+            toast.dismiss(loadingId);
+            toast.error("Error de conexión");
+            console.error(e);
+        }
+    };
+
+    const toggleWhiteLabel = async () => {
+        const nextValue = !whiteLabelEnabled;
+        setWhiteLabelEnabled(nextValue);
+        try {
+            const res = await authFetch(`/agency/settings/${location.location_id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ settings: { white_label: nextValue } })
+            });
+            if (!res || !res.ok) throw new Error("Error");
+            toast.success(nextValue ? "White Label activado" : "White Label desactivado");
+        } catch (e) {
+            toast.error("Error guardando White Label");
+            setWhiteLabelEnabled(!nextValue);
+        }
+    };
+
+    const saveLocationOpenAiKey = async (rawValue = locationOpenAiKeyDraft) => {
+        const nextValue = String(rawValue || "").trim();
+        setSavingLocationOpenAiKey(true);
+        try {
+            const res = await authFetch(`/agency/settings/${location.location_id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ openai_api_key: nextValue })
+            });
+            if (!res || !res.ok) {
+                const body = await res?.json?.().catch(() => null);
+                throw new Error(body?.error || "No se pudo guardar la OpenAI API key");
+            }
+
+            const body = await res.json();
+            setLocationOpenAiKeyConfigured(body?.openai_key_configured === true);
+            setLocationOpenAiKeyDraft("");
+            toast.success(nextValue ? "OpenAI key principal guardada" : "OpenAI key principal eliminada");
+            loadData();
+        } catch (error) {
+            toast.error(error.message || "No se pudo guardar la OpenAI key");
+        } finally {
+            setSavingLocationOpenAiKey(false);
+        }
+    };
+
+    const handleDeleteSlot = (slotId) => {
+        toast(isChatwootMode ? "¿Eliminar inbox?" : "¿Eliminar dispositivo?", {
+            description: "Esta acción desconectará el número y borrará su configuración.",
+            action: {
+                label: 'Eliminar',
+                onClick: async () => {
+                    setDeletingSlotId(slotId);
+                    const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}`, { method: "DELETE" });
+                    setDeletingSlotId(null);
+                    if (res && res.ok) {
+                        toast.success(isChatwootMode ? "Inbox eliminado" : "Dispositivo eliminado");
+                        loadData();
+                    } else {
+                        toast.error("No se pudo eliminar");
+                    }
+                }
+            },
+            cancel: { label: 'Cancelar' }
+        });
+    };
+
+    const toggleFavorite = async (slotId, currentState) => {
+        const newState = !currentState;
+        setSlots(prev => prev.map(s => {
+            if (s.slot_id === slotId) return { ...s, is_favorite: newState };
+            if (newState) return { ...s, is_favorite: false };
+            return s;
+        }));
+
+        try {
+            await authFetch(`/agency/update-slot-config`, {
+                method: 'POST',
+                body: JSON.stringify({ locationId: location.location_id, slotId, isFavorite: newState })
+            });
+            if (newState) toast.success("Marcado como Favorito ⭐");
+        } catch (e) {
+            loadData();
+            toast.error("Error al actualizar favorito");
+        }
+    };
+
+    const startSlotNameEdit = (event, slot) => {
+        event.stopPropagation();
+        setEditingSlotId(slot.slot_id);
+        setEditingSlotName(slot.slot_name || (isChatwootMode ? `Inbox ${slot.slot_id}` : `Dispositivo ${slot.slot_id}`));
+    };
+
+    const cancelSlotNameEdit = (event) => {
+        event?.stopPropagation();
+        if (savingSlotName) return;
+        setEditingSlotId(null);
+        setEditingSlotName("");
+    };
+
+    const saveSlotName = async (event, slot) => {
+        event?.stopPropagation();
+        const nextName = editingSlotName.trim();
+        const currentName = String(slot.slot_name || "").trim();
+        if (!nextName) {
+            toast.error("Escribe un nombre para continuar");
+            return;
+        }
+        if (nextName === currentName) {
+            cancelSlotNameEdit();
+            return;
+        }
+
+        setSavingSlotName(true);
+        try {
+            const response = await authFetch(`/config-slot`, {
+                method: "POST",
+                body: JSON.stringify({ locationId: location.location_id, slot: slot.slot_id, slotName: nextName })
+            });
+            if (!response || !response.ok) throw new Error("No se pudo actualizar el nombre");
+            toast.success("Nombre actualizado");
+            setSlots(prev => prev.map(item => item.slot_id === slot.slot_id ? { ...item, slot_name: nextName } : item));
+            setEditingSlotId(null);
+            setEditingSlotName("");
+        } catch (error) {
+            toast.error(error.message || "Error al renombrar");
+        } finally {
+            setSavingSlotName(false);
+        }
+    };
+
+    // --- CONFIGURACIÓN & TABS ---
+
+    const handleExpandSlot = (slotId) => {
+        if (expandedSlotId === slotId) {
+            setExpandedSlotId(null);
+        } else {
+            const nextSlot = slots.find((slot) => slot.slot_id === slotId);
+            setExpandedSlotId(slotId);
+            setActiveSlotTab(getEffectiveSlotConnectionMode(nextSlot) ? 'general' : 'qr');
+        }
+    };
+
+    const focusSlotConnectionSelector = (slotId) => {
+        setExpandedSlotId(slotId);
+        setActiveSlotTab('qr');
+        window.setTimeout(() => {
+            const target = document.getElementById(`slot-card-${slotId}`);
+            if (!target) return;
+            target.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }, 140);
+    };
+
+    const changePriority = async (slotId, newPriority) => {
+        try {
+            await authFetch(`/agency/update-slot-config`, {
+                method: 'POST',
+                body: JSON.stringify({ locationId: location.location_id, slotId, priority: parseInt(newPriority) })
+            });
+            toast.success("Prioridad actualizada");
+            loadData();
+        } catch (e) { toast.error("Error al cambiar prioridad"); }
+    };
+
+    const updateSettingsBackend = async (slotId, newSettings) => {
+        setSlots(prev => prev.map(s => s.slot_id === slotId ? { ...s, settings: newSettings } : s));
+        try {
+            await authFetch(`/agency/slots/${location.location_id}/${slotId}/settings`, {
+                method: 'PUT',
+                body: JSON.stringify({ settings: newSettings })
+            });
+        } catch (e) {
+            toast.error("Error guardando configuración");
+            loadData();
+        }
+    };
+
+    const toggleSlotSetting = (slotId, key, currentSettings) => {
+        const safeSettings = { ...currentSettings };
+        const newSettings = { ...safeSettings, [key]: !safeSettings[key] };
+        updateSettingsBackend(slotId, newSettings);
+    };
+
+    const changeSlotSetting = (slotId, key, value, currentSettings) => {
+        const safeSettings = { ...currentSettings };
+        const newSettings = { ...safeSettings, [key]: value };
+        updateSettingsBackend(slotId, newSettings);
+    };
+
+    // --- KEYWORDS ---
+    const handleAddKeyword = async (e, slotId) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const keyword = fd.get('keyword');
+        const tag = fd.get('tag');
+        if (!keyword || !tag) return;
+
+        const res = await authFetch(`/agency/keywords`, {
+            method: 'POST',
+            body: JSON.stringify({ locationId: location.location_id, slotId, keyword, tag })
+        });
+        if (res && res.ok) {
+            toast.success("Regla agregada");
+            e.target.reset();
+            loadData();
+        }
+    };
+
+    const deleteKeyword = async (id) => {
+        await authFetch(`/agency/keywords/${id}`, { method: 'DELETE' });
+        toast.success("Regla eliminada");
+        loadData();
+    };
+
+    // --- GRUPOS ---
+    const loadGroups = async (slotId) => {
+        setLoadingGroups(true);
+        setGroups([]);
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/groups`);
+            if (res.ok) {
+                const data = await res.json();
+                setGroups(Array.isArray(data) ? data : []);
+            } else {
+                const errorData = await res.json().catch(() => ({}));
+                toast.error(errorData?.error || t('agency.server_error'));
+            }
+        } catch (e) {
+            toast.error(t('agency.server_error'));
+        }
+        setLoadingGroups(false);
+    };
+
+    const toggleGroupActive = (slotId, groupJid, groupName, currentSettings) => {
+        const groupsConfig = currentSettings.groups || {};
+        const isActive = !(groupsConfig[groupJid]?.active);
+        const newGroupsConfig = {
+            ...groupsConfig,
+            [groupJid]: { active: isActive, name: groupName }
+        };
+        const newSettings = { ...currentSettings, groups: newGroupsConfig };
+        updateSettingsBackend(slotId, newSettings);
+        if (isActive) toast.success(`Grupo "${groupName}" activado`);
+    };
+
+    const handleSyncMembers = (slotId, groupJid) => {
+        toast.promise(
+            authFetch(`/agency/slots/${location.location_id}/${slotId}/groups/sync-members`, {
+                method: 'POST', body: JSON.stringify({ groupJid })
+            }),
+            {
+                loading: 'Sincronizando miembros...',
+                success: 'Sincronización iniciada en segundo plano.',
+                error: 'Error al iniciar sincronización.'
+            }
+        );
+    };
+
+
+
+    const createEmptyCustomProxyState = () => ({
+        loaded: false,
+        configured: false,
+        host: "",
+        port: "",
+        username: "",
+        password: "",
+        passwordMasked: "",
+        hasPassword: false,
+        protocol: "http",
+        invalidConfig: false
+    });
+
+    const loadCustomProxyConfig = async (slotId, forceRefresh = false) => {
+        if (!slotId || !location?.location_id) return;
+        if (!forceRefresh && customProxyBySlot[slotId]?.loaded) return;
+
+        setLoadingCustomProxyBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/proxy`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar proxy custom");
+            }
+
+            const data = await res.json();
+            const proxy = data.proxy || null;
+            setCustomProxyBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    loaded: true,
+                    configured: !!data.configured,
+                    host: proxy?.host || "",
+                    port: proxy?.port ? String(proxy.port) : "",
+                    username: proxy?.username || "",
+                    password: "",
+                    passwordMasked: proxy?.passwordMasked || "",
+                    hasPassword: !!proxy?.hasPassword,
+                    protocol: proxy?.protocol || "http",
+                    invalidConfig: !!data.invalidConfig
+                }
+            }));
+        } catch (e) {
+            toast.error("Error cargando proxy", { description: e.message });
+        } finally {
+            setLoadingCustomProxyBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateCustomProxyField = (slotId, key, value) => {
+        setCustomProxyBySlot(prev => {
+            const current = prev[slotId] || createEmptyCustomProxyState();
+            return {
+                ...prev,
+                [slotId]: {
+                    ...current,
+                    loaded: true,
+                    [key]: value
+                }
+            };
+        });
+    };
+
+    const saveCustomProxyConfig = async (slotId) => {
+        const current = customProxyBySlot[slotId] || createEmptyCustomProxyState();
+        const host = (current.host || "").trim();
+        const port = Number(current.port);
+        const username = (current.username || "").trim();
+        const password = (current.password || "").trim();
+        const protocol = String(current.protocol || "http").toLowerCase();
+
+        if (!host || !Number.isFinite(port) || port <= 0) {
+            toast.error("Completa host y puerto validos");
+            return;
+        }
+
+        const payload = {
+            host,
+            port,
+            username: username || null,
+            protocol
+        };
+        if (password) payload.password = password;
+
+        setSavingCustomProxyBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/proxy`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo guardar proxy custom");
+            }
+
+            toast.success("Proxy custom guardado");
+            await loadCustomProxyConfig(slotId, true);
+        } catch (e) {
+            toast.error("Error guardando proxy", { description: e.message });
+        } finally {
+            setSavingCustomProxyBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const clearCustomProxyConfig = async (slotId, { skipConfirm = false } = {}) => {
+        if (!confirm("¿Quitar proxy personalizado de este numero?")) return;
+
+        const loadingId = toast.loading("Quitando proxy custom...");
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/proxy`, {
+                method: 'DELETE',
+                body: JSON.stringify({})
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo limpiar proxy custom");
+            }
+
+            setCustomProxyBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    ...createEmptyCustomProxyState(),
+                    loaded: true
+                }
+            }));
+            toast.success("Proxy custom eliminado");
+        } catch (e) {
+            toast.error("Error limpiando proxy", { description: e.message });
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const chatwootWebhookBaseUrl = `${API_URL}/chatwoot/webhook`;
+
+    const buildChatwootWebhookUrl = (secretValue = "") => {
+        const safeSecret = String(secretValue || "").trim();
+        if (!safeSecret) return chatwootWebhookBaseUrl;
+        return `${chatwootWebhookBaseUrl}?secret=${encodeURIComponent(safeSecret)}`;
+    };
+
+    const generateRandomSecret = (length = 32) => {
+        const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let result = "";
+        if (window?.crypto?.getRandomValues) {
+            const bytes = new Uint8Array(length);
+            window.crypto.getRandomValues(bytes);
+            for (let i = 0; i < length; i++) {
+                result += alphabet[bytes[i] % alphabet.length];
+            }
+            return result;
+        }
+        for (let i = 0; i < length; i++) {
+            result += alphabet[Math.floor(Math.random() * alphabet.length)];
+        }
+        return result;
+    };
+
+    const copyToClipboard = async (value, successMessage) => {
+        const safeValue = String(value || "");
+        if (!safeValue.trim()) return;
+        try {
+            await navigator.clipboard.writeText(safeValue);
+            toast.success(successMessage || t('common.copied') || "Copiado");
+        } catch (_) {
+            toast.error(t('slots.chatwoot.copy_error') || "No se pudo copiar");
+        }
+    };
+
+    const loadChatwootAccessInfo = async () => {
+        if (!location?.location_id) return;
+        setLoadingChatwootAccess(true);
+        try {
+            const res = await authFetch(`/agency/chatwoot/access-info?locationId=${location.location_id}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || getManagedInboxText("", "No se pudo cargar el acceso Chatwoot"));
+            }
+            const data = await res.json();
+            setChatwootAccessInfo(data?.chatwoot || null);
+        } catch (e) {
+            setChatwootAccessInfo(null);
+        } finally {
+            setLoadingChatwootAccess(false);
+        }
+    };
+
+    const loadGhlAccessInfo = async () => {
+        if (!location?.location_id) return;
+        setLoadingGhlAccess(true);
+        try {
+            const res = await authFetch(`/agency/ghl/access-info?locationId=${location.location_id}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar el acceso GoHighLevel");
+            }
+            const data = await res.json();
+            setGhlAccessInfo(data?.ghl || null);
+        } catch (e) {
+            setGhlAccessInfo(null);
+        } finally {
+            setLoadingGhlAccess(false);
+        }
+    };
+
+    const generateChatwootSecret = (slotId) => {
+        const secret = generateRandomSecret(32);
+        updateChatwootField(slotId, "webhookSecret", secret);
+        toast.success(t('slots.chatwoot.secret_generated') || "Webhook secret generado");
+    };
+
+    const loadChatwootInboxes = async (forceRefresh = false) => {
+        if (!location?.location_id) return;
+        if (!forceRefresh && chatwootInboxesLoaded) return;
+
+        setLoadingChatwootInboxes(true);
+        try {
+            const res = await authFetch(`/agency/chatwoot/inboxes?locationId=${location.location_id}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudieron cargar inboxes");
+            }
+            const data = await res.json();
+            const inboxes = Array.isArray(data?.inboxes) ? data.inboxes : [];
+            setChatwootInboxes(inboxes);
+            setChatwootInboxesLoaded(true);
+        } catch (e) {
+            setChatwootInboxes([]);
+            setChatwootInboxesLoaded(false);
+            toast.error(t('slots.chatwoot.inboxes_error') || "Error cargando inboxes", {
+                description: e.message
+            });
+        } finally {
+            setLoadingChatwootInboxes(false);
+        }
+    };
+
+    const createEmptyChatwootState = () => ({
+        loaded: false,
+        configured: false,
+        hasGlobalConfig: false,
+        chatwootUrl: "",
+        apiToken: "",
+        accountId: "",
+        inboxId: "",
+        webhookSecret: "",
+        chatwootUrlMasked: "",
+        apiTokenMasked: "",
+        hasApiToken: false,
+        hasWebhookSecret: false,
+        showAdvancedDetails: false
+    });
+
+    const createEmptyOfficialWhatsappState = () => ({
+        loaded: false,
+        configured: false,
+        connectionMode: "official_api",
+        status: "draft",
+        businessAccountId: "",
+        phoneNumberId: "",
+        accessToken: "",
+        accessTokenMasked: "",
+        hasAccessToken: false,
+        webhookVerifyToken: "",
+        webhookUrl: "",
+        verifiedAt: null,
+        lastValidationAt: null,
+        lastValidationError: "",
+        billingStatus: "",
+        billingCheckedAt: null,
+        lastBillingCheckAt: null,
+        lastBillingError: "",
+        metaBusinessPaymentUrl: "",
+        lastWebhookAt: null,
+        displayPhoneNumber: "",
+        verifiedName: "",
+        qualityRating: "",
+        nameStatus: "",
+        setupSource: "",
+        embeddedSignupCompletedAt: null,
+        embeddedSignupBusinessId: "",
+        embeddedSignupPhone: "",
+        embeddedSignupError: "",
+        embeddedSignupEnabled: false,
+        embeddedSignupAppId: "",
+        embeddedSignupConfigurationId: "",
+        embeddedSignupSdkVersion: "",
+        embeddedSignupGraphVersion: "",
+        embeddedSignupSessionInfoVersion: 3,
+        embeddedSignupSolutionId: "",
+        embeddedSignupCoexistenceEnabled: false,
+        embeddedSignupRedirectUri: "",
+        embeddedSignupProviderTokenConfigured: false,
+        embeddedSignupMissing: []
+    });
+
+    const hydrateOfficialWhatsappState = (data = {}, previousState = null) => {
+        const previous = previousState || createEmptyOfficialWhatsappState();
+        const embeddedSignup = data?.embeddedSignup || {};
+        return {
+            ...previous,
+            loaded: true,
+            configured: !!data.configured,
+            connectionMode: data.connectionMode || 'official_api',
+            status: data.status || 'draft',
+            businessAccountId: data.businessAccountId ? String(data.businessAccountId) : "",
+            phoneNumberId: data.phoneNumberId ? String(data.phoneNumberId) : "",
+            accessToken: "",
+            accessTokenMasked: data.accessTokenMasked || "",
+            hasAccessToken: !!data.hasAccessToken,
+            webhookVerifyToken: data.webhookVerifyToken || "",
+            webhookUrl: data.webhookUrl || "",
+            verifiedAt: data.verifiedAt || null,
+            lastValidationAt: data.lastValidationAt || null,
+            lastValidationError: data.lastValidationError || "",
+            billingStatus: data.billingStatus || "",
+            billingCheckedAt: data.billingCheckedAt || null,
+            lastBillingCheckAt: data.lastBillingCheckAt || null,
+            lastBillingError: data.lastBillingError || "",
+            metaBusinessPaymentUrl: data.metaBusinessPaymentUrl || "",
+            lastWebhookAt: data.lastWebhookAt || null,
+            displayPhoneNumber: data.displayPhoneNumber || "",
+            verifiedName: data.verifiedName || "",
+            qualityRating: data.qualityRating || "",
+            nameStatus: data.nameStatus || "",
+            setupSource: data.setupSource || "",
+            embeddedSignupCompletedAt: data.embeddedSignupCompletedAt || null,
+            embeddedSignupBusinessId: data.embeddedSignupBusinessId || "",
+            embeddedSignupPhone: data.embeddedSignupPhone || "",
+            embeddedSignupError: data.embeddedSignupError || "",
+            embeddedSignupEnabled: !!embeddedSignup.enabled,
+            embeddedSignupAppId: embeddedSignup.appId ? String(embeddedSignup.appId) : "",
+            embeddedSignupConfigurationId: embeddedSignup.configurationId ? String(embeddedSignup.configurationId) : "",
+            embeddedSignupSdkVersion: embeddedSignup.sdkVersion ? String(embeddedSignup.sdkVersion) : "",
+            embeddedSignupGraphVersion: embeddedSignup.graphVersion ? String(embeddedSignup.graphVersion) : "",
+            embeddedSignupSessionInfoVersion: Number(embeddedSignup.sessionInfoVersion) || 3,
+            embeddedSignupSolutionId: embeddedSignup.solutionId ? String(embeddedSignup.solutionId) : "",
+            embeddedSignupCoexistenceEnabled: embeddedSignup.coexistenceEnabled !== false,
+            embeddedSignupRedirectUri: embeddedSignup.redirectUri ? String(embeddedSignup.redirectUri) : "",
+            embeddedSignupProviderTokenConfigured: embeddedSignup.providerTokenConfigured === true,
+            embeddedSignupMissing: Array.isArray(embeddedSignup.missing) ? embeddedSignup.missing : []
+        };
+    };
+
+    const resolveOfficialLinkMethod = (official = createEmptyOfficialWhatsappState()) => {
+        const setupSource = String(official.setupSource || '').trim();
+        if (setupSource === 'embedded_signup') return 'embedded';
+        if (setupSource === 'manual') return 'manual';
+        if (
+            String(official.phoneNumberId || '').trim() ||
+            String(official.accessToken || '').trim() ||
+            String(official.accessTokenMasked || '').trim()
+        ) {
+            return 'manual';
+        }
+        return 'embedded';
+    };
+
+    const createEmptyOfficialTemplateState = () => ({
+        loaded: false,
+        templates: [],
+        fetchedAt: null,
+        targetPhone: "",
+        selectedTemplateKey: "",
+        componentsJson: "",
+        parameterValues: {}
+    });
+
+    const resetEmbeddedSignupFlow = () => {
+        embeddedSignupFlowRef.current = {
+            slotId: null,
+            completionSent: false,
+            missingPhoneNumberWarned: false,
+            authCode: "",
+            accessToken: "",
+            businessAccountId: "",
+            phoneNumberId: "",
+            businessId: "",
+            displayPhoneNumber: "",
+            oauthState: "",
+            oauthRedirectUri: ""
+        };
+    };
+
+    const pickFirstNonEmptyString = (...values) => {
+        for (const value of values) {
+            const normalized = String(value ?? "").trim();
+            if (normalized) return normalized;
+        }
+        return "";
+    };
+
+    const safeParseJson = (value) => {
+        if (typeof value !== "string") return null;
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        try {
+            return JSON.parse(trimmed);
+        } catch (_) {
+            return null;
+        }
+    };
+
+    const maskEmbeddedSignupDebugValue = (value) => {
+        if (value === undefined || value === null) return value;
+        const normalized = String(value);
+        if (!normalized) return normalized;
+        if (normalized.length <= 8) return "***";
+        return `${normalized.slice(0, 4)}***${normalized.slice(-4)}`;
+    };
+
+    const sanitizeEmbeddedSignupDebugPayload = (value, depth = 0) => {
+        if (depth > 5) return "[max-depth]";
+        if (value === null || value === undefined) return value;
+        if (typeof value === "string") {
+            const parsed = safeParseJson(value);
+            return parsed ? sanitizeEmbeddedSignupDebugPayload(parsed, depth + 1) : value;
+        }
+        if (typeof value !== "object") return value;
+        if (Array.isArray(value)) {
+            return value.map(item => sanitizeEmbeddedSignupDebugPayload(item, depth + 1));
+        }
+
+        const sensitiveKeys = new Set([
+            "accessToken",
+            "access_token",
+            "code",
+            "authCode",
+            "signedRequest",
+            "signed_request"
+        ]);
+
+        return Object.entries(value).reduce((acc, [key, item]) => {
+            acc[key] = sensitiveKeys.has(key)
+                ? maskEmbeddedSignupDebugValue(item)
+                : sanitizeEmbeddedSignupDebugPayload(item, depth + 1);
+            return acc;
+        }, {});
+    };
+
+    const logEmbeddedSignupDebug = (label, payload, level = "info") => {
+        const logger = typeof console[level] === "function" ? console[level] : console.info;
+        logger(`[Meta Embedded Signup] ${label}`, sanitizeEmbeddedSignupDebugPayload(payload));
+    };
+
+    const deepFindFirstString = (input, keys, depth = 0) => {
+        if (!input || depth > 6) return "";
+        if (Array.isArray(input)) {
+            for (const item of input) {
+                const fromItem = deepFindFirstString(item, keys, depth + 1);
+                if (fromItem) return fromItem;
+            }
+            return "";
+        }
+
+        if (typeof input !== "object") return "";
+
+        for (const key of keys) {
+            const value = input[key];
+            if (value === undefined || value === null) continue;
+            const normalized = String(value).trim();
+            if (normalized && normalized !== "[object Object]") {
+                return normalized;
+            }
+        }
+
+        for (const value of Object.values(input)) {
+            const fromNested = deepFindFirstString(value, keys, depth + 1);
+            if (fromNested) return fromNested;
+        }
+
+        return "";
+    };
+
+    const normalizeEmbeddedSignupMessage = (rawPayload) => {
+        const payload = typeof rawPayload === "string"
+            ? (safeParseJson(rawPayload) || null)
+            : rawPayload;
+        if (!payload || typeof payload !== "object") return null;
+
+        const eventName = pickFirstNonEmptyString(
+            payload?.event,
+            payload?.eventType,
+            payload?.type,
+            payload?.data?.event,
+            payload?.data?.eventType,
+            payload?.data?.type
+        ).toUpperCase();
+
+        const phoneNumberId = deepFindFirstString(payload, ["phone_number_id", "phoneNumberId"]);
+        const businessAccountId = deepFindFirstString(payload, ["waba_id", "wabaId", "business_account_id", "businessAccountId"]);
+        const businessId = deepFindFirstString(payload, ["business_id", "businessId", "business_manager_id", "businessManagerId"]);
+        const displayPhoneNumber = deepFindFirstString(payload, ["display_phone_number", "displayPhoneNumber", "phone_number", "phoneNumber"]);
+        const authCode = deepFindFirstString(payload, ["code", "authCode"]);
+        const accessToken = deepFindFirstString(payload, ["access_token", "accessToken"]);
+        const errorMessage = deepFindFirstString(payload, ["error_message", "errorMessage", "message", "error"]);
+
+        let status = "";
+        if (eventName.includes("FINISH") || eventName.includes("COMPLETE")) {
+            status = "finish";
+        } else if (eventName.includes("CANCEL")) {
+            status = "cancel";
+        } else if (eventName.includes("ERROR") || eventName.includes("FAIL")) {
+            status = "error";
+        } else if (phoneNumberId || businessAccountId || authCode || accessToken) {
+            status = "finish";
+        }
+
+        if (!status) return null;
+
+        return {
+            status,
+            authCode,
+            accessToken,
+            phoneNumberId,
+            businessAccountId,
+            businessId,
+            displayPhoneNumber,
+            errorMessage
+        };
+    };
+
+    const ensureFacebookSdk = async (officialConfig = {}) => {
+        const appId = String(officialConfig?.embeddedSignupAppId || "").trim();
+        const sdkVersion = String(officialConfig?.embeddedSignupSdkVersion || "v24.0").trim() || "v24.0";
+        if (!appId) {
+            throw new Error("Falta el App ID de Meta para el Embedded Signup.");
+        }
+
+        if (
+            window.FB &&
+            facebookSdkState.ready &&
+            facebookSdkState.appId === appId &&
+            facebookSdkState.sdkVersion === sdkVersion
+        ) {
+            return window.FB;
+        }
+
+        if (facebookSdkPromiseRef.current) {
+            return facebookSdkPromiseRef.current;
+        }
+
+        setFacebookSdkState({
+            ready: false,
+            loading: true,
+            appId,
+            sdkVersion,
+            error: ""
+        });
+
+        facebookSdkPromiseRef.current = new Promise((resolve, reject) => {
+            const finishInit = () => {
+                if (!window.FB) {
+                    const err = new Error("No se pudo inicializar el SDK de Facebook.");
+                    setFacebookSdkState({
+                        ready: false,
+                        loading: false,
+                        appId,
+                        sdkVersion,
+                        error: err.message
+                    });
+                    reject(err);
+                    return;
+                }
+
+                try {
+                    window.FB.init({
+                        appId,
+                        autoLogAppEvents: true,
+                        xfbml: false,
+                        version: sdkVersion
+                    });
+                    setFacebookSdkState({
+                        ready: true,
+                        loading: false,
+                        appId,
+                        sdkVersion,
+                        error: ""
+                    });
+                    resolve(window.FB);
+                } catch (err) {
+                    setFacebookSdkState({
+                        ready: false,
+                        loading: false,
+                        appId,
+                        sdkVersion,
+                        error: err.message
+                    });
+                    reject(err);
+                }
+            };
+
+            if (window.FB) {
+                finishInit();
+                return;
+            }
+
+            window.fbAsyncInit = finishInit;
+
+            const existingScript = document.getElementById("waflow-facebook-sdk");
+            if (existingScript) {
+                return;
+            }
+
+            const script = document.createElement("script");
+            script.id = "waflow-facebook-sdk";
+            script.async = true;
+            script.defer = true;
+            script.crossOrigin = "anonymous";
+            script.src = "https://connect.facebook.net/en_US/sdk.js";
+            script.onerror = () => {
+                const err = new Error("No se pudo cargar el SDK de Facebook.");
+                setFacebookSdkState({
+                    ready: false,
+                    loading: false,
+                    appId,
+                    sdkVersion,
+                    error: err.message
+                });
+                reject(err);
+            };
+            document.body.appendChild(script);
+        }).finally(() => {
+            facebookSdkPromiseRef.current = null;
+        });
+
+        return facebookSdkPromiseRef.current;
+    };
+
+    const getOfficialTemplateKey = (template) => {
+        const safeName = String(template?.name || "").trim();
+        const safeLanguage = String(template?.language || "").trim();
+        return `${safeName}::${safeLanguage}`;
+    };
+
+    const extractTemplatePlaceholderIndexes = (text = "") => {
+        const safeText = String(text || "");
+        const indexes = new Set();
+        const regex = /\{\{\s*(\d+)\s*\}\}/g;
+        let match = regex.exec(safeText);
+        while (match) {
+            indexes.add(Number.parseInt(match[1], 10));
+            match = regex.exec(safeText);
+        }
+        return Array.from(indexes).filter(Number.isFinite).sort((a, b) => a - b);
+    };
+
+    const getOfficialTemplateParameterFields = (template = {}) => {
+        const components = Array.isArray(template?.components) ? template.components : [];
+        const fields = [];
+
+        components.forEach((component, componentIndex) => {
+            const componentType = String(component?.type || "").trim().toUpperCase();
+            const componentFormat = String(component?.format || "").trim().toUpperCase();
+            const componentText = String(component?.text || "").trim();
+
+            if (componentType === 'HEADER' && componentFormat === 'TEXT') {
+                extractTemplatePlaceholderIndexes(componentText).forEach((placeholderIndex) => {
+                    fields.push({
+                        key: `header_text_${placeholderIndex}`,
+                        label: `${t('slots.official.templates.header_var') || 'Header'} {{${placeholderIndex}}}`,
+                        componentType: 'header',
+                        valueType: 'text',
+                        placeholderIndex
+                    });
+                });
+            }
+
+            if (componentType === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(componentFormat)) {
+                fields.push({
+                    key: 'header_media_url',
+                    label: `${t('slots.official.templates.header_media_url') || 'URL del header'} (${componentFormat})`,
+                    componentType: 'header',
+                    valueType: componentFormat.toLowerCase()
+                });
+            }
+
+            if (componentType === 'BODY') {
+                extractTemplatePlaceholderIndexes(componentText).forEach((placeholderIndex) => {
+                    fields.push({
+                        key: `body_text_${placeholderIndex}`,
+                        label: `${t('slots.official.templates.body_var') || 'Body'} {{${placeholderIndex}}}`,
+                        componentType: 'body',
+                        valueType: 'text',
+                        placeholderIndex
+                    });
+                });
+            }
+
+            if (componentType === 'BUTTONS') {
+                const buttons = Array.isArray(component?.buttons) ? component.buttons : [];
+                buttons.forEach((button, buttonIndex) => {
+                    const buttonType = String(button?.type || "").trim().toUpperCase();
+                    const buttonUrl = String(button?.url || "").trim();
+                    if (buttonType !== 'URL' || !buttonUrl.includes('{{')) return;
+
+                    extractTemplatePlaceholderIndexes(buttonUrl).forEach((placeholderIndex) => {
+                        fields.push({
+                            key: `button_${componentIndex}_${buttonIndex}_${placeholderIndex}`,
+                            label: `${t('slots.official.templates.button_var') || 'Botón'} ${buttonIndex + 1} {{${placeholderIndex}}}`,
+                            componentType: 'button',
+                            buttonIndex,
+                            valueType: 'text',
+                            placeholderIndex
+                        });
+                    });
+                });
+            }
+        });
+
+        return fields;
+    };
+
+    const buildOfficialTemplateComponents = (template = {}, parameterValues = {}) => {
+        const components = [];
+        const rawComponents = Array.isArray(template?.components) ? template.components : [];
+
+        rawComponents.forEach((component, componentIndex) => {
+            const componentType = String(component?.type || "").trim().toUpperCase();
+            const componentFormat = String(component?.format || "").trim().toUpperCase();
+            const componentText = String(component?.text || "").trim();
+
+            if (componentType === 'HEADER' && componentFormat === 'TEXT') {
+                const indexes = extractTemplatePlaceholderIndexes(componentText);
+                if (indexes.length > 0) {
+                    components.push({
+                        type: 'header',
+                        parameters: indexes.map((placeholderIndex) => ({
+                            type: 'text',
+                            text: String(parameterValues[`header_text_${placeholderIndex}`] || '').trim()
+                        }))
+                    });
+                }
+                return;
+            }
+
+            if (componentType === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(componentFormat)) {
+                const link = String(parameterValues.header_media_url || '').trim();
+                if (link) {
+                    const mediaType = componentFormat.toLowerCase();
+                    components.push({
+                        type: 'header',
+                        parameters: [{
+                            type: mediaType,
+                            [mediaType]: { link }
+                        }]
+                    });
+                }
+                return;
+            }
+
+            if (componentType === 'BODY') {
+                const indexes = extractTemplatePlaceholderIndexes(componentText);
+                if (indexes.length > 0) {
+                    components.push({
+                        type: 'body',
+                        parameters: indexes.map((placeholderIndex) => ({
+                            type: 'text',
+                            text: String(parameterValues[`body_text_${placeholderIndex}`] || '').trim()
+                        }))
+                    });
+                }
+                return;
+            }
+
+            if (componentType === 'BUTTONS') {
+                const buttons = Array.isArray(component?.buttons) ? component.buttons : [];
+                buttons.forEach((button, buttonIndex) => {
+                    const buttonType = String(button?.type || "").trim().toUpperCase();
+                    const buttonUrl = String(button?.url || "").trim();
+                    if (buttonType !== 'URL' || !buttonUrl.includes('{{')) return;
+
+                    const indexes = extractTemplatePlaceholderIndexes(buttonUrl);
+                    if (indexes.length === 0) return;
+
+                    components.push({
+                        type: 'button',
+                        sub_type: 'url',
+                        index: String(buttonIndex),
+                        parameters: indexes.map((placeholderIndex) => ({
+                            type: 'text',
+                            text: String(parameterValues[`button_${componentIndex}_${buttonIndex}_${placeholderIndex}`] || '').trim()
+                        }))
+                    });
+                });
+            }
+        });
+
+        return components;
+    };
+
+    const templateRequiresHeaderMedia = (template = {}) => {
+        const rawComponents = Array.isArray(template?.components) ? template.components : [];
+        return rawComponents.some((component) => {
+            const componentType = String(component?.type || "").trim().toUpperCase();
+            const componentFormat = String(component?.format || "").trim().toUpperCase();
+            return componentType === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(componentFormat);
+        });
+    };
+
+    const buildOfficialTemplateDemoValues = (template = {}) => {
+        const values = {};
+        getOfficialTemplateParameterFields(template).forEach((field, index) => {
+            if (field.valueType === 'media') return;
+            values[field.key] = `demo ${index + 1}`;
+        });
+        return values;
+    };
+
+    const syncSlotConnectionMode = (slotId, nextMode, officialConfig = undefined) => {
+        setSlots(prev => prev.map(slot => {
+            if (slot.slot_id !== slotId) return slot;
+            const nextSettings = { ...(slot.settings || {}) };
+            if (nextMode) nextSettings.connection_mode = nextMode;
+            else delete nextSettings.connection_mode;
+
+            if (officialConfig === null) {
+                delete nextSettings.official_api;
+            } else if (officialConfig && typeof officialConfig === "object") {
+                nextSettings.official_api = officialConfig;
+            }
+
+            return { ...slot, settings: nextSettings };
+        }));
+    };
+
+    const markOfficialSlotAccessLost = (slotId, diagnostic) => {
+        const safeDiagnostic = diagnostic || buildOfficialAccessLostDiagnostic({ code: "OFFICIAL_WABA_ACCESS_LOST" }, t);
+        const lastValidationError = safeDiagnostic?.message || translateOr(t, 'slots.official.access_lost_message', 'Ya no tenemos acceso a la cuenta de WhatsApp Business vinculada a este numero.');
+
+        setOfficialConfigBySlot(prev => {
+            const current = prev[slotId] || createEmptyOfficialWhatsappState();
+            return {
+                ...prev,
+                [slotId]: {
+                    ...current,
+                    loaded: true,
+                    configured: true,
+                    status: "access_lost",
+                    lastValidationError,
+                    accessLostDiagnostic: safeDiagnostic
+                }
+            };
+        });
+
+        setSlots(prev => prev.map(slot => {
+            if (slot.slot_id !== slotId) return slot;
+            const nextSettings = { ...(slot.settings || {}) };
+            nextSettings.connection_mode = "official_api";
+            nextSettings.official_api = {
+                ...(nextSettings.official_api && typeof nextSettings.official_api === "object" ? nextSettings.official_api : {}),
+                status: "access_lost",
+                lastValidationError
+            };
+            return { ...slot, settings: nextSettings };
+        }));
+    };
+
+    const syncSlotSuspendedState = (slotId, suspendedBy) => {
+        setSlots(prev => prev.map(slot => {
+            if (slot.slot_id !== slotId) return slot;
+            return { ...slot, suspended_by: suspendedBy || null };
+        }));
+    };
+
+    const selectSlotConnectionMode = async (slot, nextMode) => {
+        const nextSettings = { ...(slot.settings || {}) };
+        if (nextMode) nextSettings.connection_mode = nextMode;
+        else delete nextSettings.connection_mode;
+        await updateSettingsBackend(slot.slot_id, nextSettings);
+        if (nextMode === 'qr' || nextMode === 'official_api') {
+            setActiveSlotTab(nextMode);
+        }
+        if (nextMode === 'official_api') {
+            setOfficialConfigBySlot(prev => ({
+                ...prev,
+                [slot.slot_id]: {
+                    ...(prev[slot.slot_id] || createEmptyOfficialWhatsappState()),
+                    loaded: true,
+                    connectionMode: 'official_api'
+                }
+            }));
+        }
+    };
+
+    const loadOfficialWhatsappConfig = async (slotId, forceRefresh = false) => {
+        if (!slotId || !location?.location_id) return null;
+        if (!forceRefresh && officialConfigBySlot[slotId]?.loaded) return officialConfigBySlot[slotId];
+
+        const previousOfficial = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        setLoadingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/config?locationId=${location.location_id}&slotId=${slotId}`);
+            if (!res) return null;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar la configuración oficial");
+            }
+            const data = await res.json();
+            const nextBusinessAccountId = data.businessAccountId ? String(data.businessAccountId) : "";
+            const nextHasAccessToken = !!data.hasAccessToken;
+            const nextOfficial = hydrateOfficialWhatsappState(data, previousOfficial);
+            setOfficialConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: hydrateOfficialWhatsappState(data, prev[slotId] || previousOfficial)
+            }));
+            if (
+                String(previousOfficial.businessAccountId || "").trim() !== nextBusinessAccountId ||
+                !!previousOfficial.hasAccessToken !== nextHasAccessToken
+            ) {
+                setOfficialTemplatesBySlot(prev => ({
+                    ...prev,
+                    [slotId]: createEmptyOfficialTemplateState()
+                }));
+            }
+            return nextOfficial;
+        } catch (e) {
+            toast.error(t('slots.official.load_error') || "Error cargando WhatsApp API oficial", {
+                description: e.message
+            });
+            return null;
+        } finally {
+            setLoadingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateOfficialTemplateState = (slotId, updater) => {
+        setOfficialTemplatesBySlot(prev => {
+            const current = prev[slotId] || createEmptyOfficialTemplateState();
+            const nextState = typeof updater === 'function'
+                ? updater(current)
+                : { ...current, ...(updater || {}) };
+            return {
+                ...prev,
+                [slotId]: nextState
+            };
+        });
+    };
+
+    const loadOfficialWhatsappTemplates = async (slotId, forceRefresh = false) => {
+        const official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        if (!location?.location_id) return;
+        if (!official.businessAccountId) {
+            updateOfficialTemplateState(slotId, {
+                ...createEmptyOfficialTemplateState(),
+                loaded: false
+            });
+            return;
+        }
+        if (!forceRefresh && officialTemplatesBySlot[slotId]?.loaded) return;
+
+        setLoadingOfficialTemplatesBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/templates?locationId=${location.location_id}&slotId=${slotId}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                const diagnostic = buildOfficialAccessLostDiagnostic(err, t);
+                if (diagnostic?.isAccessLost) {
+                    markOfficialSlotAccessLost(slotId, diagnostic);
+                    updateOfficialTemplateState(slotId, (current) => ({
+                        ...current,
+                        loaded: false,
+                        templates: [],
+                        accessLostDiagnostic: diagnostic
+                    }));
+                    toast.error(diagnostic.title, {
+                        description: diagnostic.message,
+                        duration: 10000
+                    });
+                    return;
+                }
+                throw new Error(err.error || (t('slots.official.templates.load_error') || 'No se pudieron cargar los templates'));
+            }
+            const data = await res.json();
+            const templates = Array.isArray(data?.templates) ? data.templates : [];
+            updateOfficialTemplateState(slotId, (current) => {
+                const approvedTemplates = templates.filter((template) => String(template?.status || '').trim().toUpperCase() === 'APPROVED');
+                const validTemplatePool = approvedTemplates.length > 0 ? approvedTemplates : templates;
+                const nextSelectedTemplateKey = current.selectedTemplateKey && validTemplatePool.some((template) => getOfficialTemplateKey(template) === current.selectedTemplateKey)
+                    ? current.selectedTemplateKey
+                    : (validTemplatePool[0] ? getOfficialTemplateKey(validTemplatePool[0]) : "");
+                return {
+                    ...current,
+                    loaded: true,
+                    templates,
+                    fetchedAt: data?.fetchedAt || new Date().toISOString(),
+                    selectedTemplateKey: nextSelectedTemplateKey
+                };
+            });
+        } catch (e) {
+            toast.error(t('slots.official.templates.load_error') || 'Error cargando templates', {
+                description: e.message
+            });
+        } finally {
+            setLoadingOfficialTemplatesBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateOfficialTemplateField = (slotId, key, value) => {
+        updateOfficialTemplateState(slotId, (current) => ({
+            ...current,
+            [key]: value,
+            ...(key === 'selectedTemplateKey'
+                ? {
+                    componentsJson: "",
+                    parameterValues: {}
+                }
+                : {})
+        }));
+    };
+
+    const updateOfficialTemplateParameter = (slotId, key, value) => {
+        updateOfficialTemplateState(slotId, (current) => ({
+            ...current,
+            parameterValues: {
+                ...(current.parameterValues || {}),
+                [key]: value
+            }
+        }));
+    };
+
+    const sendOfficialTemplateTest = async (slotId) => {
+        const official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        const templateState = officialTemplatesBySlot[slotId] || createEmptyOfficialTemplateState();
+        const selectedTemplate = (templateState.templates || []).find((template) => getOfficialTemplateKey(template) === templateState.selectedTemplateKey);
+
+        if (!official.businessAccountId) {
+            toast.error(t('slots.official.templates.missing_waba') || 'Completa el WABA ID antes de usar templates');
+            return;
+        }
+        if (!selectedTemplate) {
+            toast.error(t('slots.official.templates.select_template') || 'Selecciona un template');
+            return;
+        }
+        if (String(selectedTemplate.status || '').trim().toUpperCase() !== 'APPROVED') {
+            toast.error(t('slots.official.templates.not_approved') || 'El template seleccionado no está aprobado');
+            return;
+        }
+
+        const safeTargetPhone = String(templateState.targetPhone || '').trim();
+        if (!safeTargetPhone) {
+            toast.error(t('slots.official.templates.target_required') || 'Ingresa un número destino');
+            return;
+        }
+
+        if (templateRequiresHeaderMedia(selectedTemplate)) {
+            toast.error(t('slots.official.templates.media_not_supported') || 'Este template requiere media');
+            return;
+        }
+
+        const demoValues = buildOfficialTemplateDemoValues(selectedTemplate);
+        let components = buildOfficialTemplateComponents(selectedTemplate, demoValues);
+        if (true) {
+            setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: true }));
+            try {
+                const response = await authFetch(`/agency/whatsapp-official/send-template`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        locationId: location.location_id,
+                        slotId,
+                        targetPhone: safeTargetPhone,
+                        templateName: selectedTemplate.name,
+                        languageCode: selectedTemplate.language,
+                        components
+                    })
+                });
+                if (!response) return;
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.error || (t('slots.official.templates.send_error') || 'No se pudo enviar el template'));
+                }
+                toast.success(t('slots.official.templates.send_success') || 'Template enviado');
+            } catch (e) {
+                toast.error(t('slots.official.templates.send_error') || 'Error enviando template', {
+                    description: e.message
+                });
+            } finally {
+                setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: false }));
+            }
+            return;
+        }
+        const safeComponentsJson = String(templateState.componentsJson || '').trim();
+        if (safeComponentsJson) {
+            try {
+                const parsed = JSON.parse(safeComponentsJson);
+                if (!Array.isArray(parsed)) {
+                    throw new Error(t('slots.official.templates.components_json_invalid') || 'El JSON de components debe ser un arreglo');
+                }
+                components = parsed;
+            } catch (e) {
+                toast.error(t('slots.official.templates.components_json_invalid') || 'Components JSON inválido', {
+                    description: e.message
+                });
+                return;
+            }
+        } else {
+            const fields = getOfficialTemplateParameterFields(selectedTemplate);
+            const missingFields = fields.filter((field) => !String(templateState.parameterValues?.[field.key] || '').trim());
+            if (missingFields.length > 0) {
+                toast.error(t('slots.official.templates.missing_params') || 'Completa las variables requeridas del template');
+                return;
+            }
+            components = buildOfficialTemplateComponents(selectedTemplate, templateState.parameterValues || {});
+        }
+
+        setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/send-template`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    targetPhone: safeTargetPhone,
+                    templateName: selectedTemplate.name,
+                    languageCode: selectedTemplate.language,
+                    components
+                })
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || (t('slots.official.templates.send_error') || 'No se pudo enviar el template'));
+            }
+            toast.success(t('slots.official.templates.send_success') || 'Template enviado');
+        } catch (e) {
+            toast.error(t('slots.official.templates.send_error') || 'Error enviando template', {
+                description: e.message
+            });
+        } finally {
+            setSendingOfficialTemplateBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateOfficialWhatsappField = (slotId, key, value) => {
+        setOfficialConfigBySlot(prev => {
+            const current = prev[slotId] || createEmptyOfficialWhatsappState();
+            return {
+                ...prev,
+                [slotId]: {
+                    ...current,
+                    loaded: true,
+                    [key]: value
+                }
+            };
+        });
+        if (key === 'businessAccountId' || key === 'accessToken') {
+            setOfficialTemplatesBySlot(prev => {
+                const current = prev[slotId] || createEmptyOfficialTemplateState();
+                return {
+                    ...prev,
+                    [slotId]: {
+                        ...createEmptyOfficialTemplateState(),
+                        targetPhone: current.targetPhone || ""
+                    }
+                };
+            });
+        }
+    };
+
+    const saveOfficialWhatsappConfig = async (slotId) => {
+        const current = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        const payload = {
+            locationId: location.location_id,
+            slotId
+        };
+
+        if ((current.businessAccountId || "").trim()) payload.businessAccountId = current.businessAccountId.trim();
+        if ((current.phoneNumberId || "").trim()) payload.phoneNumberId = current.phoneNumberId.trim();
+        if ((current.accessToken || "").trim()) payload.accessToken = current.accessToken.trim();
+
+        setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/config`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo guardar la configuración oficial");
+            }
+            toast.success(t('slots.official.saved') || "Configuración oficial guardada");
+            await loadOfficialWhatsappConfig(slotId, true);
+            syncSlotConnectionMode(slotId, 'official_api');
+        } catch (e) {
+            toast.error(t('slots.official.save_error') || "Error guardando WhatsApp API oficial", {
+                description: e.message
+            });
+        } finally {
+            setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const validateOfficialWhatsappConfigSlot = async (slotId) => {
+        const current = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        const payload = {
+            locationId: location.location_id,
+            slotId
+        };
+
+        if ((current.businessAccountId || "").trim()) payload.businessAccountId = current.businessAccountId.trim();
+        if ((current.phoneNumberId || "").trim()) payload.phoneNumberId = current.phoneNumberId.trim();
+        if ((current.accessToken || "").trim()) payload.accessToken = current.accessToken.trim();
+
+        const loadingId = toast.loading(t('slots.official.validating') || "Validando WhatsApp API oficial...");
+        setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/validate`, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return false;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo validar la configuración oficial");
+            }
+            const data = await res.json();
+            if (String(data.warning || '').trim()) {
+                toast.warning(t('slots.official.valid') || "WhatsApp API oficial validada", {
+                    description: data.warning
+                });
+            } else {
+                toast.success(t('slots.official.valid') || "WhatsApp API oficial validada");
+            }
+            await loadOfficialWhatsappConfig(slotId, true);
+            syncSlotConnectionMode(slotId, 'official_api', {
+                ...(slots.find((slot) => slot.slot_id === slotId)?.settings?.official_api || {}),
+                businessAccountId: data.businessAccountId || "",
+                phoneNumberId: data.phoneNumberId || "",
+                status: data.status || "verified",
+                verifiedAt: data.verifiedAt || null,
+                displayPhoneNumber: data.displayPhoneNumber || "",
+                verifiedName: data.verifiedName || "",
+                qualityRating: data.qualityRating || "",
+                nameStatus: data.nameStatus || ""
+            });
+            return true;
+        } catch (e) {
+            toast.error(t('slots.official.invalid') || "Validación oficial falló", {
+                description: e.message
+            });
+            return false;
+        } finally {
+            setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const clearOfficialWhatsappConfig = async (slotId) => {
+        const loadingId = toast.loading(t('slots.official.clearing') || "Limpiando configuración oficial...");
+        setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/config`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    clear: true,
+                    preserveConnectionMode: true
+                })
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo limpiar la configuración oficial");
+            }
+            toast.success(t('slots.official.cleared') || "Configuración oficial eliminada");
+            setOfficialConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: createEmptyOfficialWhatsappState()
+            }));
+            setOfficialTemplatesBySlot(prev => ({
+                ...prev,
+                [slotId]: createEmptyOfficialTemplateState()
+            }));
+            syncSlotConnectionMode(slotId, null, null);
+        } catch (e) {
+            toast.error(t('slots.official.clear_error') || "Error limpiando WhatsApp API oficial", {
+                description: e.message
+            });
+        } finally {
+            setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const clearOfficialWhatsappConfigKeepMode = async (slotId) => {
+        const loadingId = toast.loading(t('slots.official.clearing') || "Limpiando configuracion oficial...");
+        setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/whatsapp-official/config`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    clear: true,
+                    preserveConnectionMode: true
+                })
+            });
+            if (!res) return;
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || "No se pudo limpiar la configuracion oficial");
+            }
+            toast.success(t('slots.official.cleared') || "Configuracion oficial eliminada");
+            setOfficialConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: hydrateOfficialWhatsappState(data, prev[slotId])
+            }));
+            setOfficialTemplatesBySlot(prev => ({
+                ...prev,
+                [slotId]: createEmptyOfficialTemplateState()
+            }));
+            syncSlotConnectionMode(slotId, 'official_api', {
+                ...(slots.find((slot) => slot.slot_id === slotId)?.settings?.official_api || {}),
+                businessAccountId: data.businessAccountId || "",
+                phoneNumberId: data.phoneNumberId || "",
+                accessToken: "",
+                webhookVerifyToken: data.webhookVerifyToken || "",
+                status: data.status || 'draft',
+                verifiedAt: data.verifiedAt || null,
+                displayPhoneNumber: data.displayPhoneNumber || "",
+                verifiedName: data.verifiedName || "",
+                qualityRating: data.qualityRating || "",
+                nameStatus: data.nameStatus || "",
+                setupSource: data.setupSource || ""
+            });
+        } catch (e) {
+            toast.error(t('slots.official.clear_error') || "Error limpiando WhatsApp API oficial", {
+                description: e.message
+            });
+        } finally {
+            setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const pauseOfficialWhatsappSlot = async (slotId) => {
+        const loadingId = toast.loading(t('slots.official.pausing') || "Pausando envios oficiales...");
+        setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/soft-disconnect`, {
+                method: 'POST'
+            });
+            if (!res) return;
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.message || data.error || "No se pudo pausar la vinculacion Meta");
+            }
+            const suspendedBy = data.suspended_by || (isAdminMode ? 'admin' : 'agency');
+            syncSlotSuspendedState(slotId, suspendedBy);
+            toast.success(t('slots.official.paused') || "Envios oficiales pausados");
+        } catch (e) {
+            toast.error(t('slots.official.pause_error') || "No se pudo pausar la vinculacion Meta", {
+                description: e.message
+            });
+        } finally {
+            setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const resumeOfficialWhatsappSlot = async (slotId) => {
+        const loadingId = toast.loading(t('slots.official.resuming') || "Reanudando envios oficiales...");
+        setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/reconnect`, {
+                method: 'POST'
+            });
+            if (!res) return;
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.message || data.error || "No se pudo reanudar la vinculacion Meta");
+            }
+            syncSlotSuspendedState(slotId, null);
+            if (data.connection_mode === 'official_api') {
+                syncSlotConnectionMode(slotId, 'official_api', slots.find((slot) => slot.slot_id === slotId)?.settings?.official_api || {});
+            }
+            toast.success(t('slots.official.resumed') || "Envios oficiales reanudados");
+        } catch (e) {
+            toast.error(t('slots.official.resume_error') || "No se pudo reanudar la vinculacion Meta", {
+                description: e.message
+            });
+        } finally {
+            setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: false }));
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const formatOfficialDatetime = (value) => {
+        if (!value) return "";
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return "";
+        return parsed.toLocaleString();
+    };
+
+    const clearEmbeddedSignupSelection = (slotId) => {
+        setEmbeddedSignupSelectionBySlot(prev => {
+            if (!prev[slotId]) return prev;
+            const next = { ...prev };
+            delete next[slotId];
+            return next;
+        });
+    };
+
+    const chooseEmbeddedSignupPhoneCandidate = async (slotId, candidate) => {
+        const pending = embeddedSignupSelectionBySlot[slotId] || {};
+        const flowSnapshot = pending.flowSnapshot || {};
+        clearEmbeddedSignupSelection(slotId);
+        await completeOfficialEmbeddedSignup(slotId, {
+            ...flowSnapshot,
+            businessAccountId: candidate?.businessAccountId || flowSnapshot.businessAccountId || "",
+            phoneNumberId: candidate?.phoneNumberId || "",
+            displayPhoneNumber: candidate?.displayPhoneNumber || flowSnapshot.displayPhoneNumber || ""
+        });
+    };
+
+    const completeOfficialEmbeddedSignup = async (slotId, flowSnapshot) => {
+        const loadingId = toast.loading(t('slots.official.embedded.completing') || 'Completando vinculación con Meta...');
+        setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: true }));
+        setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
+        try {
+            const oauthRedirectUri = flowSnapshot?.oauthRedirectUri || "";
+            const res = await authFetch(`/agency/whatsapp-official/embedded-signup/complete`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    authCode: flowSnapshot?.authCode || "",
+                    accessToken: flowSnapshot?.accessToken || "",
+                    businessAccountId: flowSnapshot?.businessAccountId || "",
+                    phoneNumberId: flowSnapshot?.phoneNumberId || "",
+                    businessId: flowSnapshot?.businessId || "",
+                    displayPhoneNumber: flowSnapshot?.displayPhoneNumber || "",
+                    oauthRedirectUri
+                })
+            });
+            if (!res) return;
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const error = new Error(data.error || (t('slots.official.embedded.complete_error') || 'No se pudo completar la vinculación con Meta'));
+                error.code = data.code || "";
+                error.phoneCandidates = Array.isArray(data.phoneCandidates) ? data.phoneCandidates : [];
+                throw error;
+            }
+
+            clearEmbeddedSignupSelection(slotId);
+            setOfficialLinkMethodBySlot(prev => ({ ...prev, [slotId]: 'embedded' }));
+            await loadData();
+            await loadOfficialWhatsappConfig(slotId, true);
+            syncSlotConnectionMode(slotId, 'official_api', {
+                ...(slots.find((slot) => slot.slot_id === slotId)?.settings?.official_api || {}),
+                businessAccountId: data.businessAccountId || "",
+                phoneNumberId: data.phoneNumberId || "",
+                status: data.status || "verified",
+                verifiedAt: data.verifiedAt || null,
+                displayPhoneNumber: data.displayPhoneNumber || "",
+                verifiedName: data.verifiedName || "",
+                qualityRating: data.qualityRating || "",
+                nameStatus: data.nameStatus || "",
+                setupSource: data.setupSource || "embedded_signup",
+                embeddedSignupCompletedAt: data.embeddedSignupCompletedAt || null,
+                embeddedSignupBusinessId: data.embeddedSignupBusinessId || "",
+                embeddedSignupPhone: data.embeddedSignupPhone || ""
+            });
+            if (String(data.warning || '').trim()) {
+                toast.warning(t('slots.official.embedded.completed') || 'WhatsApp oficial conectado desde Meta', {
+                    description: data.warning
+                });
+            } else {
+                toast.success(t('slots.official.embedded.completed') || 'WhatsApp oficial conectado desde Meta');
+            }
+        } catch (e) {
+            if (Array.isArray(e.phoneCandidates) && e.phoneCandidates.length > 0) {
+                setEmbeddedSignupSelectionBySlot(prev => ({
+                    ...prev,
+                    [slotId]: {
+                        flowSnapshot: { ...(flowSnapshot || {}) },
+                        phoneCandidates: e.phoneCandidates,
+                        error: e.message || ""
+                    }
+                }));
+                toast.info('Selecciona el numero de WhatsApp Business que quieres vincular');
+                return;
+            }
+
+            if (e.code === "OFFICIAL_EMBEDDED_SIGNUP_PHONE_NOT_FOUND") {
+                setEmbeddedSignupSelectionBySlot(prev => ({
+                    ...prev,
+                    [slotId]: {
+                        flowSnapshot: { ...(flowSnapshot || {}) },
+                        phoneCandidates: [],
+                        error: e.message || "",
+                        needsSetupGuide: true
+                    }
+                }));
+            }
+
+            toast.error(t('slots.official.embedded.complete_error') || 'Error completando la vinculación con Meta', {
+                description: e.message
+            });
+            throw e;
+        } finally {
+            toast.dismiss(loadingId);
+            setCompletingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
+            resetEmbeddedSignupFlow();
+        }
+    };
+
+    const startOfficialEmbeddedSignup = async (slotId) => {
+        let official = officialConfigBySlot[slotId] || createEmptyOfficialWhatsappState();
+        if (!official.loaded) {
+            const loadedOfficial = await loadOfficialWhatsappConfig(slotId, true);
+            official = loadedOfficial || official;
+        }
+        const missing = Array.isArray(official.embeddedSignupMissing) ? official.embeddedSignupMissing : [];
+
+        if (!official.embeddedSignupEnabled) {
+            toast.error(t('slots.official.embedded.unavailable') || 'El Embedded Signup de Meta no está configurado en este entorno', {
+                description: missing.length > 0
+                    ? `${t('slots.official.embedded.missing') || 'Faltan'}: ${missing.join(', ')}`
+                    : undefined
+            });
+            return;
+        }
+
+        setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            clearEmbeddedSignupSelection(slotId);
+            resetEmbeddedSignupFlow();
+
+            const extras = {
+                version: "v3",
+                sessionInfoVersion: Number(official.embeddedSignupSessionInfoVersion) || 3
+            };
+            if (official.embeddedSignupCoexistenceEnabled !== false) {
+                extras.featureType = "whatsapp_business_app_onboarding";
+            }
+            if (String(official.embeddedSignupSolutionId || '').trim()) {
+                extras.setup = {
+                    solutionID: String(official.embeddedSignupSolutionId || '').trim()
+                };
+            }
+
+            const redirectUri = String(official.embeddedSignupRedirectUri || "").trim();
+            if (!redirectUri) {
+                throw new Error("Falta redirect_uri para Meta Embedded Signup.");
+            }
+
+            const oauthState = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+            embeddedSignupFlowRef.current = {
+                ...embeddedSignupFlowRef.current,
+                slotId,
+                oauthState,
+                oauthRedirectUri: redirectUri
+            };
+
+            const graphVersion = String(official.embeddedSignupGraphVersion || official.embeddedSignupSdkVersion || "v21.0").trim() || "v21.0";
+            const oauthUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
+            oauthUrl.searchParams.set("client_id", official.embeddedSignupAppId);
+            oauthUrl.searchParams.set("app_id", official.embeddedSignupAppId);
+            oauthUrl.searchParams.set("config_id", official.embeddedSignupConfigurationId);
+            oauthUrl.searchParams.set("redirect_uri", redirectUri);
+            oauthUrl.searchParams.set("response_type", "code");
+            oauthUrl.searchParams.set("override_default_response_type", "true");
+            oauthUrl.searchParams.set("display", "popup");
+            oauthUrl.searchParams.set("state", oauthState);
+            oauthUrl.searchParams.set("extras", JSON.stringify(extras));
+
+            logEmbeddedSignupDebug("starting manual oauth", {
+                slotId,
+                configId: official.embeddedSignupConfigurationId,
+                redirectUri,
+                extras,
+                coexistenceEnabled: official.embeddedSignupCoexistenceEnabled !== false
+            });
+
+            const popup = window.open(
+                oauthUrl.toString(),
+                "meta_embedded_signup",
+                "width=720,height=760,menubar=no,toolbar=no,location=yes,status=no"
+            );
+            if (!popup) {
+                throw new Error("El navegador bloqueo la ventana de Meta.");
+            }
+        } catch (e) {
+            setStartingOfficialEmbeddedBySlot(prev => ({ ...prev, [slotId]: false }));
+            toast.error(t('slots.official.embedded.start_error') || 'No se pudo abrir el Embedded Signup de Meta', {
+                description: e.message
+            });
+            resetEmbeddedSignupFlow();
+        }
+    };
+
+    const resetSlotConnectionMode = async (slot) => {
+        const currentMode = getEffectiveSlotConnectionMode(slot);
+        if (!currentMode) return;
+
+        const loadingId = toast.loading(t('slots.connection_mode.resetting') || 'Cambiando tipo de conexión...');
+        try {
+            if (currentMode === 'qr') {
+                const hasLinkedQr = slot?.is_connected === true || String(slot?.phone_number || "").trim();
+                if (hasLinkedQr) {
+                    const disconnectRes = await authFetch(`/agency/slots/${location.location_id}/${slot.slot_id}/disconnect`, {
+                        method: 'DELETE'
+                    });
+                    if (!disconnectRes) return;
+                    if (!disconnectRes.ok) {
+                        const err = await disconnectRes.json().catch(() => ({}));
+                        throw new Error(err.error || 'No se pudo cerrar la conexión QR');
+                    }
+                }
+
+                const nextSettings = { ...(slot.settings || {}) };
+                delete nextSettings.connection_mode;
+                delete nextSettings.official_api;
+                await updateSettingsBackend(slot.slot_id, nextSettings);
+                setOfficialConfigBySlot(prev => ({
+                    ...prev,
+                    [slot.slot_id]: createEmptyOfficialWhatsappState()
+                }));
+            } else {
+                const res = await authFetch(`/agency/whatsapp-official/config`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        locationId: location.location_id,
+                        slotId: slot.slot_id,
+                        clear: true
+                    })
+                });
+                if (!res) return;
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || 'No se pudo limpiar la configuración oficial');
+                }
+                setOfficialConfigBySlot(prev => ({
+                    ...prev,
+                    [slot.slot_id]: createEmptyOfficialWhatsappState()
+                }));
+                syncSlotConnectionMode(slot.slot_id, null, null);
+            }
+
+            await loadData();
+            focusSlotConnectionSelector(slot.slot_id);
+            toast.success(t('slots.connection_mode.reset_done') || 'Elige el nuevo tipo de conexión');
+        } catch (e) {
+            toast.error(t('slots.connection_mode.reset_error') || 'No se pudo cambiar el tipo de conexión', {
+                description: e.message
+            });
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const requestSlotConnectionModeChange = (slot) => {
+        const currentMode = getEffectiveSlotConnectionMode(slot);
+        if (!currentMode) return;
+
+        const isQrMode = currentMode === 'qr';
+        const hasLinkedQr = isQrMode && (slot?.is_connected === true || String(slot?.phone_number || "").trim());
+        const hasOfficialConfig = !isQrMode && hasOfficialWhatsappConfig(slot);
+        const requiresWarning = hasLinkedQr || hasOfficialConfig;
+
+        if (!requiresWarning) {
+            resetSlotConnectionMode(slot);
+            return;
+        }
+
+        const title = t('slots.connection_mode.confirm_title') || 'Cambiar tipo de conexión';
+        const description = hasLinkedQr
+            ? (t('slots.connection_mode.confirm_qr_desc') || 'Si cambias el tipo de conexión, este slot se desconectará, se borrará la sesión QR actual y tendrás que volver a configurarlo desde cero.')
+            : (t('slots.connection_mode.confirm_official_desc') || 'Si cambias el tipo de conexión, se eliminará la configuración oficial guardada para este slot y tendrás que volver a cargarla.');
+
+        confirmToast(title, description, () => {
+            resetSlotConnectionMode(slot);
+        }, true);
+    };
+
+    const loadChatwootConfig = async (slotId, forceRefresh = false) => {
+        if (!slotId || !location?.location_id) return;
+        if (!forceRefresh && chatwootConfigBySlot[slotId]?.loaded) return;
+
+        setLoadingChatwootBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/chatwoot/config?locationId=${location.location_id}&slotId=${slotId}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar Chatwoot");
+            }
+            const data = await res.json();
+            setChatwootConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    loaded: true,
+                    configured: !!data.configured,
+                    hasGlobalConfig: !!data.hasGlobalConfig,
+                    chatwootUrl: "",
+                    apiToken: "",
+                    accountId: data.accountId ? String(data.accountId) : "",
+                    inboxId: data.inboxId ? String(data.inboxId) : "",
+                    webhookSecret: "",
+                    chatwootUrlMasked: data.chatwootUrlMasked || "",
+                    apiTokenMasked: data.apiTokenMasked || "",
+                    hasApiToken: !!data.hasApiToken,
+                    hasWebhookSecret: !!data.hasWebhookSecret,
+                    showAdvancedDetails: !!prev[slotId]?.showAdvancedDetails
+                }
+            }));
+            if (data.hasGlobalConfig) {
+                await loadChatwootInboxes(forceRefresh);
+            }
+        } catch (e) {
+            toast.error(t('slots.chatwoot.load_error') || "Error cargando Chatwoot", { description: e.message });
+        } finally {
+            setLoadingChatwootBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateChatwootField = (slotId, key, value) => {
+        setChatwootConfigBySlot(prev => {
+            const current = prev[slotId] || createEmptyChatwootState();
+            return {
+                ...prev,
+                [slotId]: {
+                    ...current,
+                    loaded: true,
+                    [key]: value
+                }
+            };
+        });
+    };
+
+    const validateChatwootConfigSlot = async (slotId) => {
+        const current = chatwootConfigBySlot[slotId] || createEmptyChatwootState();
+        const payload = { locationId: location.location_id };
+
+        const chatwootUrl = (current.chatwootUrl || "").trim();
+        const apiToken = (current.apiToken || "").trim();
+        const accountIdRaw = String(current.accountId || "").trim();
+
+        if (chatwootUrl) payload.chatwootUrl = chatwootUrl;
+        if (apiToken) payload.apiToken = apiToken;
+        if (accountIdRaw) {
+            const parsedAccount = Number.parseInt(accountIdRaw, 10);
+            if (!Number.isFinite(parsedAccount) || parsedAccount <= 0) {
+                toast.error(t('slots.chatwoot.invalid_account') || "Account ID inválido");
+                return false;
+            }
+            payload.accountId = parsedAccount;
+        }
+
+        const loadingId = toast.loading(t('slots.chatwoot.validating') || "Validando Chatwoot...");
+        try {
+            const res = await authFetch(`/agency/chatwoot/test`, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return false;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo validar Chatwoot");
+            }
+            const data = await res.json().catch(() => ({}));
+            const description = Number.isFinite(data?.agentsCount)
+                ? `${t('slots.chatwoot.agents') || "Agentes encontrados"}: ${data.agentsCount}`
+                : undefined;
+            toast.success(t('slots.chatwoot.valid') || "Chatwoot validado", { description });
+            return true;
+        } catch (e) {
+            toast.error(t('slots.chatwoot.invalid') || "Validación Chatwoot falló", { description: e.message });
+            return false;
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const saveChatwootConfig = async (slotId) => {
+        const current = chatwootConfigBySlot[slotId] || createEmptyChatwootState();
+        const chatwootUrl = (current.chatwootUrl || "").trim();
+        const apiToken = (current.apiToken || "").trim();
+        const webhookSecret = (current.webhookSecret || "").trim();
+        const accountIdRaw = String(current.accountId || "").trim();
+        const inboxIdRaw = String(current.inboxId || "").trim();
+
+        const hasUrl = chatwootUrl || current.chatwootUrlMasked;
+        const hasToken = apiToken || current.apiTokenMasked || current.hasApiToken;
+        if (!hasUrl || !hasToken || !accountIdRaw || !inboxIdRaw) {
+            toast.error(t('slots.chatwoot.required') || "Completa URL, API Token, Account ID e Inbox ID");
+            return;
+        }
+
+        const parsedAccount = Number.parseInt(accountIdRaw, 10);
+        if (!Number.isFinite(parsedAccount) || parsedAccount <= 0) {
+            toast.error(t('slots.chatwoot.invalid_account') || "Account ID inválido");
+            return;
+        }
+
+        const parsedInbox = Number.parseInt(inboxIdRaw, 10);
+        if (!Number.isFinite(parsedInbox) || parsedInbox <= 0) {
+            toast.error(t('slots.chatwoot.invalid_inbox') || "Inbox ID inválido");
+            return;
+        }
+
+        const payload = {
+            locationId: location.location_id,
+            slotId,
+            accountId: parsedAccount,
+            inboxId: parsedInbox
+        };
+        if (chatwootUrl) payload.chatwootUrl = chatwootUrl;
+        if (apiToken) payload.apiToken = apiToken;
+        if (webhookSecret) payload.webhookSecret = webhookSecret;
+
+        setSavingChatwootBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/chatwoot/config`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo guardar Chatwoot");
+            }
+            toast.success(t('slots.chatwoot.saved') || "Configuración Chatwoot guardada");
+            await loadChatwootConfig(slotId, true);
+        } catch (e) {
+            toast.error(t('slots.chatwoot.save_error') || "Error guardando Chatwoot", { description: e.message });
+        } finally {
+            setSavingChatwootBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const clearChatwootSlotConfig = async (slotId) => {
+        if (!confirm(t('slots.chatwoot.confirm_clear_slot') || "¿Quitar el Inbox ID de este número?")) return;
+
+        const loadingId = toast.loading(t('slots.chatwoot.clearing') || "Limpiando Chatwoot...");
+        try {
+            const res = await authFetch(`/agency/chatwoot/config`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    clearSlot: true
+                })
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo limpiar Chatwoot");
+            }
+            toast.success(t('slots.chatwoot.cleared') || "Inbox de Chatwoot limpiado");
+            await loadChatwootConfig(slotId, true);
+        } catch (e) {
+            toast.error(t('slots.chatwoot.clear_error') || "Error limpiando Chatwoot", { description: e.message });
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const loadTwilioConfig = async (slotId, forceRefresh = false) => {
+        if (!slotId || !location?.location_id) return;
+        if (!forceRefresh && twilioConfigBySlot[slotId]) return;
+
+        setLoadingTwilioBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/twilio/config?locationId=${location.location_id}&slotId=${slotId}`);
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo cargar Twilio");
+            }
+            const data = await res.json();
+            setTwilioConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    accountSid: "",
+                    authToken: "",
+                    phoneNumber: data.phoneNumber || "",
+                    accountSidMasked: data.accountSidMasked || "",
+                    authTokenMasked: data.authTokenMasked || "",
+                    hasAuthToken: !!data.hasAuthToken,
+                    configured: !!data.configured
+                }
+            }));
+        } catch (e) {
+            toast.error("Error cargando Twilio", { description: e.message });
+        } finally {
+            setLoadingTwilioBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const updateTwilioField = (slotId, key, value) => {
+        setTwilioConfigBySlot(prev => {
+            const current = prev[slotId] || {
+                accountSid: "",
+                authToken: "",
+                phoneNumber: "",
+                accountSidMasked: "",
+                authTokenMasked: "",
+                hasAuthToken: false,
+                configured: false
+            };
+            return {
+                ...prev,
+                [slotId]: {
+                    ...current,
+                    [key]: value
+                }
+            };
+        });
+    };
+
+    const validateTwilioConfigSlot = async (slotId) => {
+        const current = twilioConfigBySlot[slotId] || {};
+        const payload = {
+            locationId: location.location_id,
+            slotId
+        };
+
+        if ((current.accountSid || "").trim()) payload.accountSid = current.accountSid.trim();
+        if ((current.authToken || "").trim()) payload.authToken = current.authToken.trim();
+        if ((current.phoneNumber || "").trim()) payload.fromNumber = current.phoneNumber.trim();
+
+        const loadingId = toast.loading("Validando Twilio...");
+        try {
+            const res = await authFetch(`/agency/twilio/validate`, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return false;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "Credenciales inv�lidas");
+            }
+            toast.success("Twilio validado correctamente");
+            return true;
+        } catch (e) {
+            toast.error("Validaci�n Twilio fall�", { description: e.message });
+            return false;
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+
+    const saveTwilioConfig = async (slotId) => {
+        const current = twilioConfigBySlot[slotId] || {};
+        const sidInput = (current.accountSid || "").trim();
+        const tokenInput = (current.authToken || "").trim();
+        const fromNumber = (current.phoneNumber || "").trim();
+
+        const sidReady = sidInput || current.accountSidMasked;
+        const tokenReady = tokenInput || current.authTokenMasked || current.hasAuthToken;
+
+        if (!sidReady || !tokenReady || !fromNumber) {
+            toast.error("Completa SID, Auth Token y n�mero Twilio");
+            return;
+        }
+
+        const payload = {
+            locationId: location.location_id,
+            slotId,
+            fromNumber
+        };
+        if (sidInput) payload.accountSid = sidInput;
+        if (tokenInput) payload.authToken = tokenInput;
+
+        setSavingTwilioBySlot(prev => ({ ...prev, [slotId]: true }));
+        try {
+            const res = await authFetch(`/agency/twilio/config`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo guardar");
+            }
+            toast.success("Configuraci�n Twilio guardada");
+            await loadTwilioConfig(slotId, true);
+        } catch (e) {
+            toast.error("Error guardando Twilio", { description: e.message });
+        } finally {
+            setSavingTwilioBySlot(prev => ({ ...prev, [slotId]: false }));
+        }
+    };
+
+    const clearTwilioConfig = async (slotId) => {
+        const loadingId = toast.loading("Limpiando Twilio...");
+        try {
+            const res = await authFetch(`/agency/twilio/config`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    clear: true
+                })
+            });
+            if (!res) return;
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo limpiar");
+            }
+            setTwilioConfigBySlot(prev => ({
+                ...prev,
+                [slotId]: {
+                    accountSid: "",
+                    authToken: "",
+                    phoneNumber: "",
+                    accountSidMasked: "",
+                    authTokenMasked: "",
+                    hasAuthToken: false,
+                    configured: false
+                }
+            }));
+            toast.success("Twilio limpiado");
+        } catch (e) {
+            toast.error("Error limpiando Twilio", { description: e.message });
+        } finally {
+            toast.dismiss(loadingId);
+        }
+    };
+    const chatwootHeaderLoginUrl = String(
+        chatwootAccessInfo?.directLoginUrl ||
+        chatwootAccessInfo?.loginUrl ||
+        chatwootAccessInfo?.baseLoginUrl ||
+        (tenantSettings?.chatwoot_url ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/login` : "")
+    ).trim();
+    const chatwootHeaderDashboardUrl = String(
+        chatwootAccessInfo?.dashboardUrl ||
+        (tenantSettings?.chatwoot_url && chatwootAccessInfo?.accountId
+            ? `${String(tenantSettings.chatwoot_url).replace(/\/$/, "")}/app/accounts/${chatwootAccessInfo.accountId}`
+            : "")
+    ).trim();
+    const chatwootHeaderEmail = String(
+        chatwootAccessInfo?.clientEmail ||
+        tenantSettings?.chatwoot_client_email ||
+        ""
+    ).trim();
+    const chatwootHeaderPassword = String(chatwootAccessInfo?.clientPassword || "").trim();
+    const openChatwootAccount = () => {
+        const targetUrl = String(chatwootHeaderLoginUrl || '').trim();
+        if (!targetUrl) {
+            toast.error('No se pudo abrir la cuenta de Chatwoot');
+            return;
+        }
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    };
+    const ghlHeaderOpenUrl = String(
+        ghlAccessInfo?.dashboardUrl ||
+        ghlAccessInfo?.loginUrl ||
+        "https://app.gohighlevel.com"
+    ).trim();
+    const ghlHeaderPortalUrl = String(
+        ghlAccessInfo?.loginUrl ||
+        "https://app.gohighlevel.com"
+    ).trim();
+    const ghlHeaderBusinessEmail = String(
+        ghlAccessInfo?.businessEmail ||
+        tenantSettings?.ghl_subaccount_email ||
+        ""
+    ).trim();
+    const ghlHeaderBusinessPhone = String(
+        ghlAccessInfo?.businessPhone ||
+        tenantSettings?.ghl_subaccount_phone ||
+        ""
+    ).trim();
+    const ghlHeaderLocationId = String(
+        ghlAccessInfo?.locationId ||
+        location?.location_id ||
+        ""
+    ).trim();
+    const ghlHeaderCompanyId = String(ghlAccessInfo?.companyId || "").trim();
+    const ghlHeaderDashboardUrl = String(ghlAccessInfo?.dashboardUrl || "").trim();
+    const ghlOAuthConnected = Boolean(ghlAccessInfo?.oauthConnected);
+
+    const renderConnectionModeSelector = (slot) => {
+        const officialApiAvailable = OFFICIAL_WHATSAPP_API_UI_ENABLED
+            && (hasAnyOfficialWhatsappConfig() || officialWhatsappAdminBypassAvailable);
+
+        return (
+        <div className="mx-auto max-w-4xl">
+            <div className="mb-5">
+                <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-1 sm:text-2xl">
+                    {t('slots.connection_mode.title') || '¿Cómo quieres vincular este número?'}
+                </h4>
+                <p className="max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">
+                    {t('slots.connection_mode.desc') || 'Elige si este slot operará con un dispositivo conectado por QR o con la API oficial de WhatsApp.'}
+                </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                    type="button"
+                    onClick={() => selectSlotConnectionMode(slot, 'qr')}
+                    className="rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:border-indigo-400 hover:bg-indigo-50/40 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-indigo-900/10"
+                >
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
+                        <QrCode size={18} />
+                    </div>
+                    <h5 className="text-sm font-bold text-gray-900 dark:text-white mb-1">
+                        {t('slots.connection_mode.qr_title') || 'Conexión QR'}
+                    </h5>
+                    <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
+                        {t('slots.connection_mode.qr_desc') || 'Vincula el número escaneando un QR y usa el panel actual de conexión, reconexión y grupos.'}
+                    </p>
+                </button>
+
+                <button
+                    type="button"
+                    disabled={!officialApiAvailable}
+                    aria-disabled={!officialApiAvailable}
+                    onClick={() => {
+                        if (!officialApiAvailable) return;
+                        selectSlotConnectionMode(slot, 'official_api');
+                    }}
+                    className={`relative rounded-xl border p-4 text-left transition ${
+                        officialApiAvailable
+                            ? 'border-emerald-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/40 dark:border-emerald-800 dark:bg-gray-800 dark:hover:bg-emerald-900/10'
+                            : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 opacity-65 cursor-not-allowed'
+                    }`}
+                >
+                    <span className={`absolute right-3 top-3 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] ${
+                        officialApiAvailable
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                            : 'bg-gray-300 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                    }`}>
+                        {t('slots.connection_mode.official_badge') || 'En desarrollo'}
+                    </span>
+                    <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-lg ${
+                        officialApiAvailable
+                            ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300'
+                            : 'bg-gray-200 text-gray-500 dark:bg-gray-800'
+                    }`}>
+                        <Link2 size={18} />
+                    </div>
+                    <h5 className={`min-w-0 pt-0.5 text-sm font-bold mb-1 ${
+                        officialApiAvailable ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'
+                    }`}>
+                        {t('slots.connection_mode.official_title') || 'API oficial de WhatsApp'}
+                    </h5>
+                    <p className="text-xs font-normal leading-5 text-gray-500 dark:text-gray-400">
+                        {t('slots.connection_mode.official_desc') || 'Configura WABA, Phone Number ID, token y webhook de Meta. Este modo solo opera mensajes desde Chatwoot o GoHighLevel y no usa el panel QR, grupos ni reglas de gestión de Waflow.'}
+                    </p>
+                </button>
+            </div>
+        </div>
+        );
+    };
+
+    const renderOfficialWhatsappPanel = (slot) => {
+        const official = officialConfigBySlot[slot.slot_id] || createEmptyOfficialWhatsappState();
+        const isLoadingOfficial = !!loadingOfficialBySlot[slot.slot_id];
+        const isSavingOfficial = !!savingOfficialBySlot[slot.slot_id];
+        const isStartingEmbedded = !!startingOfficialEmbeddedBySlot[slot.slot_id];
+        const isCompletingEmbedded = !!completingOfficialEmbeddedBySlot[slot.slot_id];
+        const isWorkingEmbedded = isStartingEmbedded || isCompletingEmbedded;
+        const templateState = officialTemplatesBySlot[slot.slot_id] || createEmptyOfficialTemplateState();
+        const isLoadingTemplates = !!loadingOfficialTemplatesBySlot[slot.slot_id];
+        const isSendingTemplate = !!sendingOfficialTemplateBySlot[slot.slot_id];
+        const approvedTemplates = (templateState.templates || []).filter((template) => String(template.status || '').trim().toUpperCase() === 'APPROVED');
+        const selectedTemplate = (templateState.templates || []).find((template) => getOfficialTemplateKey(template) === templateState.selectedTemplateKey) || null;
+        const selectedTemplateIsApproved = !!selectedTemplate && String(selectedTemplate.status || '').trim().toUpperCase() === 'APPROVED';
+        const templateFields = selectedTemplate ? getOfficialTemplateParameterFields(selectedTemplate) : [];
+        const canSyncTemplates = Boolean(String(official.businessAccountId || '').trim() && official.hasAccessToken);
+        const status = String(official.status || 'draft').toLowerCase();
+        const officialAccessLostDiagnostic = official.accessLostDiagnostic ||
+            templateState.accessLostDiagnostic ||
+            (status === 'access_lost'
+                ? buildOfficialAccessLostDiagnostic({ code: "OFFICIAL_WABA_ACCESS_LOST", error: official.lastValidationError }, t)
+                : null);
+        const isOfficialAccessLost = status === 'access_lost' || officialAccessLostDiagnostic?.isAccessLost === true;
+        const statusClassName = isOfficialAccessLost
+            ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+            : status === 'verified'
+            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+            : official.configured
+                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+        const statusLabel = isOfficialAccessLost
+            ? (t('slots.official.access_lost_status') || 'Requiere reconexion')
+            : status === 'verified'
+            ? (t('slots.official.verified') || 'Verificada')
+            : official.configured
+                ? (t('slots.official.pending') || 'Pendiente de validación')
+                : (t('slots.official.not_configured') || 'Sin configurar');
+
+        const effectiveStatusClassName = status === 'verified_warning'
+            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+            : statusClassName;
+        const effectiveStatusLabel = status === 'verified_warning'
+            ? (t('slots.official.verified_warning') || 'Vinculada con advertencia')
+            : statusLabel;
+
+        const embeddedMissingLabel = Array.isArray(official.embeddedSignupMissing) && official.embeddedSignupMissing.length > 0
+            ? official.embeddedSignupMissing.join(', ')
+            : '';
+        const embeddedSelection = embeddedSignupSelectionBySlot[slot.slot_id] || null;
+        const embeddedPhoneCandidates = Array.isArray(embeddedSelection?.phoneCandidates)
+            ? embeddedSelection.phoneCandidates
+            : [];
+        const showEmbeddedMethod = false;
+        const showManualMethod = false;
+        const canValidateOfficial = official.configured || Boolean(String(official.phoneNumberId || '').trim() && String(official.accessToken || '').trim());
+        const hasOfficialData = official.configured || Boolean(
+            String(official.phoneNumberId || '').trim() ||
+            String(official.businessAccountId || '').trim() ||
+            String(official.accessToken || '').trim() ||
+            String(official.accessTokenMasked || '').trim()
+        );
+        const slotSuspendedBy = String(slot.suspended_by || '').trim();
+        const isOfficialPaused = Boolean(slotSuspendedBy);
+        const isPauseLockedByAdmin = slotSuspendedBy === 'admin' && !isAdminMode;
+        const isOfficialConnected = !isOfficialAccessLost && ['verified', 'verified_warning'].includes(status) && Boolean(
+            String(official.displayPhoneNumber || '').trim() ||
+            String(official.phoneNumberId || '').trim()
+        );
+        const needsBillingAction = officialBillingNeedsAction(official);
+        const metaBusinessPaymentUrl = buildMetaBusinessPaymentUrl(official);
+        const embeddedCtaLabel = isOfficialConnected
+            ? (t('slots.official.embedded.reconnect_cta') || 'Cambiar o reconectar numero')
+            : (t('slots.official.embedded.cta') || 'Conectar con WhatsApp Business');
+
+        return (
+            <div className="max-w-4xl space-y-8 px-1 py-2">
+                <div className="space-y-8">
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
+                        <h4 className="text-base font-bold text-gray-900 dark:text-white">
+                            {t('slots.official.title') || 'WhatsApp API oficial'}
+                        </h4>
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${effectiveStatusClassName}`}>
+                            {effectiveStatusLabel}
+                        </span>
+                    </div>
+
+                    {isLoadingOfficial && !official.loaded ? (
+                        <div className="flex items-center justify-center py-10">
+                            <Loader2 className="animate-spin text-indigo-500" size={24} />
+                        </div>
+                    ) : (
+                        <div className="space-y-5">
+                            {false ? (
+                            <div className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/20 p-1.5">
+                                <div className="grid gap-2 md:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setOfficialLinkMethodBySlot((prev) => ({ ...prev, [slot.slot_id]: 'embedded' }))}
+                                        className={`rounded-[22px] px-4 py-4 text-left transition ${!showManualMethod ? 'bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm border border-emerald-200 dark:border-emerald-900/40' : 'text-gray-600 dark:text-gray-300 hover:bg-white/70 dark:hover:bg-gray-950/40'}`}
+                                    >
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600">
+                                                {t('slots.official.embedded.eyebrow') || 'Recomendado'}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm font-bold">
+                                            {t('slots.official.method.embedded') || 'Conectar con Meta'}
+                                        </p>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            {t('slots.official.embedded.desc') || 'Abre el flujo oficial de Meta dentro de Waflow para crear o vincular la cuenta, elegir el numero y dejar el slot listo sin copiar IDs ni tokens manualmente.'}
+                                        </p>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setOfficialLinkMethodBySlot((prev) => ({ ...prev, [slot.slot_id]: 'manual' }))}
+                                        className={`rounded-[22px] px-4 py-4 text-left transition ${showManualMethod ? 'bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm border border-indigo-200 dark:border-indigo-900/40' : 'text-gray-600 dark:text-gray-300 hover:bg-white/70 dark:hover:bg-gray-950/40'}`}
+                                    >
+                                        <p className="text-sm font-bold">
+                                            {t('slots.official.method.manual') || 'Cargar datos manualmente'}
+                                        </p>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            {t('slots.official.manual.helper') || 'Carga solo los datos mínimos del número. El webhook global queda del lado de WaFloW.'}
+                                        </p>
+                                    </button>
+                                </div>
+                            </div>
+                            ) : null}
+                            {showEmbeddedMethod && !showManualMethod ? (
+                            <div className="border-l-2 border-emerald-500 bg-emerald-50/70 px-4 py-4 dark:bg-emerald-900/20">
+                                <div className="flex flex-wrap items-start justify-between gap-4">
+                                    <div className="max-w-2xl">
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-600 mb-2">
+                                            {embeddedPanelEyebrow}
+                                        </p>
+                                        <h5 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2">
+                                            {embeddedPanelTitle}
+                                        </h5>
+                                        <p className="text-sm text-gray-600 dark:text-gray-300 leading-6">
+                                            {embeddedPanelDescription}
+                                        </p>
+                                        {isOfficialConnected ? (
+                                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                {official.displayPhoneNumber ? (
+                                                    <div className="border-t border-emerald-200/70 px-1 pt-3 dark:border-emerald-900/50">
+                                                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-300">
+                                                            {t('slots.official.display_phone') || 'Numero visible'}
+                                                        </p>
+                                                        <p className="mt-1 text-sm font-extrabold text-gray-900 dark:text-white">
+                                                            {official.displayPhoneNumber}
+                                                        </p>
+                                                    </div>
+                                                ) : null}
+                                                {official.verifiedName ? (
+                                                    <div className="border-t border-emerald-200/70 px-1 pt-3 dark:border-emerald-900/50">
+                                                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-300">
+                                                            {t('slots.official.verified_name') || 'Verified name'}
+                                                        </p>
+                                                        <p className="mt-1 text-sm font-extrabold text-gray-900 dark:text-white">
+                                                            {official.verifiedName}
+                                                        </p>
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        ) : null}
+                                        {official.setupSource === 'embedded_signup' && official.embeddedSignupCompletedAt ? (
+                                            <p className="mt-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                                                {t('slots.official.embedded.connected_at') || 'Conectado desde Meta'}: {formatOfficialDatetime(official.embeddedSignupCompletedAt)}
+                                            </p>
+                                        ) : null}
+                                        {!official.embeddedSignupEnabled ? (
+                                            <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+                                                {embeddedMissingLabel
+                                                    ? `${t('slots.official.embedded.missing') || 'Faltan'}: ${embeddedMissingLabel}`
+                                                    : (t('slots.official.embedded.unavailable') || 'Este entorno todavía no tiene configurado el Embedded Signup de Meta.')}
+                                            </p>
+                                        ) : null}
+                                        {facebookSdkState.error ? (
+                                            <p className="mt-3 text-xs text-rose-700 dark:text-rose-300">
+                                                {facebookSdkState.error}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => startOfficialEmbeddedSignup(slot.slot_id)}
+                                        disabled={!official.embeddedSignupEnabled || isWorkingEmbedded || isSavingOfficial}
+                                        className="min-h-11 w-full min-w-[240px] rounded-lg bg-emerald-600 px-5 py-2.5 text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto flex items-center justify-center gap-3 font-bold"
+                                    >
+                                        {isWorkingEmbedded ? <Loader2 className="animate-spin" size={18} /> : isOfficialConnected ? <RefreshCw size={18} /> : <Link2 size={18} />}
+                                        {isCompletingEmbedded
+                                            ? (t('slots.official.embedded.completing_cta') || 'Conectando...')
+                                            : isStartingEmbedded
+                                                ? (t('slots.official.embedded.starting') || 'Abriendo Meta...')
+                                                : embeddedCtaLabel}
+                                    </button>
+                                </div>
+                            </div>
+                            ) : null}
+                            <div className="flex">
+                                <button
+                                    type="button"
+                                    onClick={() => startOfficialEmbeddedSignup(slot.slot_id)}
+                                    disabled={!official.embeddedSignupEnabled || isWorkingEmbedded || isSavingOfficial}
+                                    className="min-h-11 w-full rounded-lg bg-emerald-600 px-5 py-2.5 text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto flex items-center justify-center gap-3 font-bold"
+                                >
+                                    {isWorkingEmbedded ? <Loader2 className="animate-spin" size={18} /> : isOfficialConnected ? <RefreshCw size={18} /> : <Link2 size={18} />}
+                                    {isCompletingEmbedded
+                                        ? (t('slots.official.embedded.completing_cta') || 'Conectando...')
+                                        : isStartingEmbedded
+                                            ? (t('slots.official.embedded.starting') || 'Abriendo Meta...')
+                                            : embeddedCtaLabel}
+                                </button>
+                            </div>
+
+                            {embeddedPhoneCandidates.length > 0 ? (
+                            <div className="border-t border-emerald-200 pt-5 dark:border-emerald-900/50">
+                                <p className="text-sm font-extrabold text-gray-900 dark:text-white">
+                                    Selecciona el numero que quieres vincular
+                                </p>
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Encontramos varios numeros en tu cuenta de Meta. Elige el que corresponde a este slot.
+                                </p>
+                                <div className="mt-4 space-y-2">
+                                    {embeddedPhoneCandidates.map((candidate) => {
+                                        const candidateKey = `${candidate.businessAccountId || 'waba'}:${candidate.phoneNumberId || candidate.displayPhoneNumber}`;
+                                        return (
+                                            <button
+                                                key={candidateKey}
+                                                type="button"
+                                                onClick={() => chooseEmbeddedSignupPhoneCandidate(slot.slot_id, candidate)}
+                                                disabled={isWorkingEmbedded || isSavingOfficial}
+                                                className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-left transition hover:border-emerald-400 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-emerald-500"
+                                            >
+                                                <span className="block text-sm font-bold text-gray-900 dark:text-white">
+                                                    {candidate.displayPhoneNumber || candidate.phoneNumberId || 'Numero de WhatsApp'}
+                                                </span>
+                                                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                                                    {candidate.verifiedName ? `${candidate.verifiedName} - ` : ''}
+                                                    {candidate.qualityRating ? `Calidad ${candidate.qualityRating} - ` : ''}
+                                                    WABA {candidate.businessAccountId || 'sin ID'}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            ) : null}
+
+                            {embeddedSelection?.needsSetupGuide ? (
+                            <div className="border-l-2 border-amber-400 bg-amber-50/80 px-4 py-3 dark:bg-amber-950/20">
+                                <p className="text-sm font-extrabold text-amber-900 dark:text-amber-100">
+                                    No encontramos numeros disponibles en Meta
+                                </p>
+                                <p className="mt-2 text-xs leading-5 text-amber-800 dark:text-amber-200">
+                                    Continua el flujo de Meta creando o seleccionando tu portfolio de negocio, agrega el numero de WhatsApp Business y completa la verificacion que Meta solicite. Cuando el numero quede disponible, vuelve a presionar Conectar con WhatsApp Business.
+                                </p>
+                            </div>
+                            ) : null}
+
+                            {needsBillingAction ? (
+                                <div className="border-l-2 border-amber-400 bg-amber-50/80 px-4 py-4 text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
+                                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                        <div className="flex min-w-0 gap-3">
+                                            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                                                <CreditCard size={18} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-extrabold">
+                                                    {t('slots.official.billing.title') || 'Falta revisar el metodo de pago en Meta'}
+                                                </p>
+                                                <p className="mt-1 text-sm leading-6 text-amber-900 dark:text-amber-100">
+                                                    {t('slots.official.billing.desc') || 'El numero puede recibir mensajes, pero Meta puede bloquear los envios si el WABA no tiene metodo de pago confirmado. Abre Meta Business, revisa el metodo de pago de la cuenta de WhatsApp y vuelve a validar.'}
+                                                </p>
+                                                {official.lastBillingError ? (
+                                                    <p className="mt-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                                        {official.lastBillingError}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                        <div className="flex shrink-0 flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => window.open(metaBusinessPaymentUrl, "_blank", "noopener,noreferrer")}
+                                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-700"
+                                            >
+                                                <ExternalLink size={15} />
+                                                {t('slots.official.billing.open_meta') || 'Abrir configuracion de pagos en Meta Business'}
+                                            </button>
+                                            {canValidateOfficial ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => validateOfficialWhatsappConfigSlot(slot.slot_id)}
+                                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
+                                                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-bold text-amber-800 transition hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100 dark:hover:bg-amber-950/40"
+                                                >
+                                                    <RefreshCw size={15} className={isLoadingOfficial ? "animate-spin" : ""} />
+                                                    {t('slots.official.billing.revalidate') || 'Ya cargue el metodo, revalidar'}
+                                                </button>
+                                            ) : null}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            {showManualMethod ? (
+                            <div className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/20 p-5">
+                                <div className="mb-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-indigo-500 mb-2">
+                                        {t('slots.official.manual.eyebrow') || 'Alternativa manual'}
+                                    </p>
+                                    <h5 className="text-base font-bold text-gray-900 dark:text-white">
+                                        {t('slots.official.manual.title') || 'Configuración manual avanzada'}
+                                    </h5>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        {t('slots.official.manual.desc') || 'Usa esta sección solo si prefieres cargar el WABA ID, el Phone Number ID y el token manualmente o si Meta exige un ajuste puntual.'}
+                                    </p>
+                                </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        {t('slots.official.phone_number_id') || 'Phone Number ID'}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={official.phoneNumberId || ""}
+                                        onChange={(e) => updateOfficialWhatsappField(slot.slot_id, "phoneNumberId", e.target.value)}
+                                        placeholder={t('slots.official.ph_phone_number_id') || 'Ej: 109876543210987'}
+                                        autoComplete="off"
+                                        className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        {t('slots.official.business_account_id') || 'Business Account ID / WABA ID'}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={official.businessAccountId || ""}
+                                        onChange={(e) => updateOfficialWhatsappField(slot.slot_id, "businessAccountId", e.target.value)}
+                                        placeholder={t('slots.official.ph_business_account_id') || 'Ej: 123456789012345'}
+                                        autoComplete="off"
+                                        className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                    />
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                        {t('slots.official.waba_hint') || 'Si Meta no lo detecta automáticamente, puedes completarlo manualmente para habilitar templates y la suscripción automática de la WABA.'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                    {t('slots.official.access_token') || 'Access Token'}
+                                </label>
+                                <input
+                                    type="password"
+                                    value={official.accessToken || ""}
+                                    onChange={(e) => updateOfficialWhatsappField(slot.slot_id, "accessToken", e.target.value)}
+                                    placeholder={official.accessTokenMasked || (t('slots.official.ph_access_token') || 'Pega aquí el token del system user o token permanente')}
+                                    autoComplete="new-password"
+                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                />
+                            </div>
+
+                            {SHOW_OFFICIAL_WEBHOOK_DEBUG ? (
+                                <>
+                            <div>
+                                <div className="flex items-center justify-between gap-3 mb-2">
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                        {t('slots.official.verify_token') || 'Webhook Verify Token'}
+                                    </label>
+                                    {official.webhookVerifyToken ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => copyToClipboard(official.webhookVerifyToken, t('slots.official.verify_token_copied') || 'Verify token copiado')}
+                                            className="text-xs font-bold uppercase tracking-wide text-indigo-600 hover:text-indigo-500"
+                                        >
+                                            {t('slots.official.copy_verify_token') || 'Copiar'}
+                                        </button>
+                                    ) : null}
+                                </div>
+                                <input
+                                    type="text"
+                                    value={official.webhookVerifyToken || ""}
+                                    placeholder={t('slots.official.ph_verify_token') || 'Se genera automáticamente al guardar si lo dejas vacío'}
+                                    autoComplete="off"
+                                    readOnly
+                                    className="w-full p-3 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 outline-none transition font-mono text-sm"
+                                />
+                            </div>
+
+                            <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/60 p-4">
+                                <div className="flex items-center justify-between gap-3 mb-2">
+                                    <div>
+                                        <p className="text-sm font-bold text-gray-800 dark:text-gray-100">
+                                            {t('slots.official.webhook_url') || 'Webhook URL'}
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {t('slots.official.webhook_hint') || 'Pega esta URL en Meta y usa el mismo Verify Token en la configuración del webhook.'}
+                                        </p>
+                                    </div>
+                                    {official.webhookUrl ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => copyToClipboard(official.webhookUrl, t('slots.official.webhook_copied') || 'Webhook copiado')}
+                                            className="px-3 py-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/40 transition flex items-center gap-2 text-sm font-semibold"
+                                        >
+                                            <Copy size={14} />
+                                            {t('slots.official.copy_webhook') || 'Copiar'}
+                                        </button>
+                                    ) : null}
+                                </div>
+                                <input
+                                    type="text"
+                                    readOnly
+                                    value={official.webhookUrl || (t('slots.official.webhook_pending') || 'Guarda la configuración para generar la URL del webhook')}
+                                    className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-200 font-mono text-xs"
+                                />
+                            </div>
+                                </>
+                            ) : (
+                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200">
+                                    WaFloW configura y enruta el webhook oficial automaticamente para este canal. El cliente no necesita copiar ni pegar nada en Meta por slot.
+                                </div>
+                            )}
+
+                            </div>
+
+                            ) : null}
+
+                            {(official.verifiedName || official.displayPhoneNumber || official.qualityRating || official.lastWebhookAt) && (
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    {official.displayPhoneNumber ? (
+                                        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
+                                            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                                                {t('slots.official.display_phone') || 'Número visible'}
+                                            </p>
+                                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{official.displayPhoneNumber}</p>
+                                        </div>
+                                    ) : null}
+                                    {official.verifiedName ? (
+                                        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
+                                            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                                                {t('slots.official.verified_name') || 'Verified name'}
+                                            </p>
+                                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{official.verifiedName}</p>
+                                        </div>
+                                    ) : null}
+                                    {official.qualityRating ? (
+                                        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
+                                            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                                                {t('slots.official.quality_rating') || 'Quality rating'}
+                                            </p>
+                                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{official.qualityRating}</p>
+                                        </div>
+                                    ) : null}
+                                    {official.lastWebhookAt ? (
+                                        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
+                                            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                                                {t('slots.official.last_webhook') || 'Último webhook'}
+                                            </p>
+                                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatOfficialDatetime(official.lastWebhookAt)}</p>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            )}
+
+                            {false ? (<div className="space-y-5 border-t border-gray-200 pt-6 dark:border-gray-700">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <h5 className="text-base font-bold text-gray-900 dark:text-white">
+                                            {t('slots.official.templates.title') || 'Templates oficiales'}
+                                        </h5>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
+                                            {t('slots.official.templates.desc') || 'Sincroniza los templates aprobados de la WABA y envía pruebas directamente desde WaFloW.'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => loadOfficialWhatsappTemplates(slot.slot_id, true)}
+                                        disabled={!canSyncTemplates || isLoadingTemplates || isLoadingOfficial || isSavingOfficial}
+                                        className="px-4 py-2 rounded-xl bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 dark:bg-gray-950 dark:text-indigo-300 dark:border-indigo-900/40 dark:hover:bg-indigo-900/20 disabled:opacity-50 transition flex items-center gap-2"
+                                    >
+                                        <RefreshCw size={16} className={isLoadingTemplates ? "animate-spin" : ""} />
+                                        {isLoadingTemplates
+                                            ? (t('slots.official.templates.syncing') || 'Sincronizando...')
+                                            : (t('slots.official.templates.sync') || 'Sincronizar templates')}
+                                    </button>
+                                </div>
+
+                                {!official.businessAccountId ? (
+                                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                                        {t('slots.official.templates.missing_waba') || 'Completa el WABA ID antes de usar templates.'}
+                                    </div>
+                                ) : !official.hasAccessToken ? (
+                                    <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-200">
+                                        {t('slots.official.templates.needs_saved_token') || 'Guarda o valida primero la configuración oficial para poder sincronizar templates desde Meta.'}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950/50 overflow-hidden">
+                                            <div className="grid grid-cols-[minmax(0,1.5fr)_110px_120px_110px] gap-3 px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                                                <span>{t('slots.official.templates.name') || 'Template'}</span>
+                                                <span>{t('slots.official.templates.language') || 'Idioma'}</span>
+                                                <span>{t('slots.official.templates.category') || 'Categoría'}</span>
+                                                <span>{t('slots.official.templates.status') || 'Estado'}</span>
+                                            </div>
+                                            {(templateState.templates || []).length > 0 ? (
+                                                <div className="max-h-64 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                                                    {(templateState.templates || []).map((template) => {
+                                                        const templateKey = getOfficialTemplateKey(template);
+                                                        const isApproved = String(template.status || '').trim().toUpperCase() === 'APPROVED';
+                                                        return (
+                                                            <div
+                                                                key={templateKey}
+                                                                className={`grid grid-cols-[minmax(0,1.5fr)_110px_120px_110px] gap-3 px-4 py-3 text-sm ${templateState.selectedTemplateKey === templateKey ? 'bg-indigo-50/70 dark:bg-indigo-900/10' : 'bg-transparent'}`}
+                                                            >
+                                                                <div className="min-w-0">
+                                                                    <p className="font-semibold text-gray-900 dark:text-white truncate">{template.name}</p>
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                                        {Array.isArray(template.components) ? template.components.length : 0} {t('slots.official.templates.components_count') || 'componentes'}
+                                                                    </p>
+                                                                </div>
+                                                                <span className="text-gray-700 dark:text-gray-200 font-mono text-xs self-center">{template.language || '-'}</span>
+                                                                <span className="text-gray-700 dark:text-gray-200 text-xs self-center">{template.category || '-'}</span>
+                                                                <span className={`text-xs font-bold self-center ${isApproved ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+                                                                    {template.status || '-'}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <div className="px-4 py-5 text-sm text-gray-500 dark:text-gray-400">
+                                                    {t('slots.official.templates.empty') || 'No se encontraron templates en esta WABA todavía.'}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {t('slots.official.templates.manage_hint') || 'WaFloW sincroniza y envía templates. La creación o edición avanzada sigue haciéndose en Meta.'}
+                                        </p>
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('slots.official.templates.target_phone') || 'Número destino'}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={templateState.targetPhone || ""}
+                                                    onChange={(e) => updateOfficialTemplateField(slot.slot_id, "targetPhone", e.target.value)}
+                                                    placeholder={t('slots.official.templates.ph_target_phone') || 'Ej: 595981234567'}
+                                                    autoComplete="off"
+                                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                    {t('slots.official.templates.select_template') || 'Template aprobado'}
+                                                </label>
+                                                <select
+                                                    value={templateState.selectedTemplateKey || ""}
+                                                    onChange={(e) => updateOfficialTemplateField(slot.slot_id, "selectedTemplateKey", e.target.value)}
+                                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
+                                                    disabled={approvedTemplates.length === 0}
+                                                >
+                                                    <option value="">{t('slots.official.templates.select_template_placeholder') || 'Selecciona un template aprobado'}</option>
+                                                    {approvedTemplates.map((template) => (
+                                                        <option key={getOfficialTemplateKey(template)} value={getOfficialTemplateKey(template)}>
+                                                            {template.name} · {template.language}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {approvedTemplates.length === 0 ? (
+                                                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">
+                                                        {t('slots.official.templates.no_approved') || 'Todavía no hay templates aprobados disponibles para enviar.'}
+                                                    </p>
+                                                ) : selectedTemplate && !selectedTemplateIsApproved ? (
+                                                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">
+                                                        {t('slots.official.templates.not_approved') || 'El template seleccionado no está aprobado'}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                        </div>
+
+                                        {false ? (
+                                            <div className="space-y-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950/50 p-4">
+                                                {templateFields.length > 0 ? (
+                                                    <div className="grid gap-3 md:grid-cols-2">
+                                                        {templateFields.map((field) => (
+                                                            <div key={field.key}>
+                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                                    {field.label}
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={templateState.parameterValues?.[field.key] || ""}
+                                                                    onChange={(e) => updateOfficialTemplateParameter(slot.slot_id, field.key, e.target.value)}
+                                                                    autoComplete="off"
+                                                                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                                                        {t('slots.official.templates.no_params') || 'Este template no requiere variables dinámicas comunes. Puedes enviarlo directo o usar el JSON avanzado si necesitas un payload especial.'}
+                                                    </div>
+                                                )}
+
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                        {t('slots.official.templates.advanced_json') || 'Components JSON avanzado'}
+                                                    </label>
+                                                    <textarea
+                                                        rows={4}
+                                                        value={templateState.componentsJson || ""}
+                                                        onChange={(e) => updateOfficialTemplateField(slot.slot_id, "componentsJson", e.target.value)}
+                                                        placeholder='[{"type":"body","parameters":[{"type":"text","text":"valor"}]}]'
+                                                        className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-xs"
+                                                    />
+                                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                        {t('slots.official.templates.advanced_json_hint') || 'Si completas este JSON, WaFloW lo enviará tal cual y omitirá las variables simples del formulario.'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ) : null}
+
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => sendOfficialTemplateTest(slot.slot_id)}
+                                                disabled={isSendingTemplate || isLoadingTemplates || !selectedTemplateIsApproved || !String(templateState.targetPhone || '').trim()}
+                                                className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                            >
+                                                {isSendingTemplate ? <Loader2 className="animate-spin" size={16} /> : <MessageSquare size={16} />}
+                                                {t('slots.official.templates.send') || 'Enviar template de prueba'}
+                                            </button>
+                                            {templateState.fetchedAt ? (
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {t('slots.official.templates.last_sync') || 'Última sincronización'}: {formatOfficialDatetime(templateState.fetchedAt)}
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                    </>
+                                )}
+                            </div>) : null}
+
+                            {officialAccessLostDiagnostic ? (
+                                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-100">
+                                    <div className="flex items-start gap-3">
+                                        <AlertTriangle size={18} className="mt-0.5 flex-shrink-0" />
+                                        <div className="space-y-2">
+                                            <p className="font-extrabold">{officialAccessLostDiagnostic.title}</p>
+                                            <p>{officialAccessLostDiagnostic.message}</p>
+                                            <p className="text-red-800 dark:text-red-200">{officialAccessLostDiagnostic.reason}</p>
+                                            {officialAccessLostDiagnostic.actions?.length ? (
+                                                <ol className="list-decimal space-y-1 pl-5">
+                                                    {officialAccessLostDiagnostic.actions.map((action, index) => (
+                                                        <li key={`${slot.slot_id}-official-access-lost-action-${index}`}>{action}</li>
+                                                    ))}
+                                                </ol>
+                                            ) : null}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : official.lastValidationError ? (
+                                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                                    <span className="font-bold mr-2">{t('slots.official.validation_error') || 'Último error'}:</span>
+                                    {official.lastValidationError}
+                                </div>
+                            ) : null}
+
+                            {isOfficialPaused ? (
+                                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                                    <div className="flex items-start gap-3">
+                                        <PauseCircle size={18} className="mt-0.5 flex-shrink-0" />
+                                        <div>
+                                            <p className="font-bold">{t('slots.official.paused_notice_title') || 'Envios oficiales pausados'}</p>
+                                            <p className="mt-1 text-xs leading-5">
+                                                {t('slots.official.paused_notice_desc') || 'WaFloW conserva la vinculacion con Meta, pero no enviara mensajes desde este numero hasta reanudarlo.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            <div className="space-y-3 pt-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                {canValidateOfficial ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => validateOfficialWhatsappConfigSlot(slot.slot_id)}
+                                        disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
+                                        className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition flex items-center gap-2"
+                                    >
+                                        <CheckCircle2 size={16} />
+                                        {t('slots.official.validate') || 'Validar con Meta'}
+                                    </button>
+                                ) : null}
+                                {showManualMethod ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => saveOfficialWhatsappConfig(slot.slot_id)}
+                                        disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
+                                        className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                    >
+                                        {isSavingOfficial ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                        {t('slots.official.save') || 'Guardar'}
+                                    </button>
+                                ) : null}
+                                <button
+                                    type="button"
+                                    onClick={() => isOfficialPaused ? resumeOfficialWhatsappSlot(slot.slot_id) : pauseOfficialWhatsappSlot(slot.slot_id)}
+                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded || isPauseLockedByAdmin}
+                                    className={`px-4 py-2 rounded-xl disabled:opacity-60 disabled:cursor-not-allowed transition flex items-center gap-2 ${
+                                        isOfficialPaused
+                                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/40'
+                                            : 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40'
+                                    }`}
+                                    title={isPauseLockedByAdmin ? (t('slots.official.paused_by_admin') || 'Pausado por un administrador') : undefined}
+                                >
+                                    {isOfficialPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
+                                    {isOfficialPaused ? (t('slots.official.resume') || 'Reanudar envios') : (t('slots.official.pause') || 'Pausar envios')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => loadOfficialWhatsappConfig(slot.slot_id, true)}
+                                    disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded}
+                                    className="px-4 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition flex items-center gap-2 disabled:opacity-60"
+                                    title={t('slots.official.reload') || 'Recargar configuración'}
+                                >
+                                    <RefreshCw size={16} className={isLoadingOfficial ? "animate-spin" : ""} />
+                                    {t('slots.official.reload_short') || 'Recargar'}
+                                </button>
+                            </div>
+
+                                <div className="border-t border-gray-200 pt-5 dark:border-gray-700">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                                                {t('slots.official.danger_zone') || 'Acciones avanzadas'}
+                                            </p>
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                {t('slots.official.danger_zone_desc') || 'Limpiar borra los datos oficiales guardados de este slot. Usalo solo si vas a vincular el numero de nuevo.'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => clearOfficialWhatsappConfigKeepMode(slot.slot_id)}
+                                            disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded || !hasOfficialData}
+                                            className="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 disabled:opacity-60 transition"
+                                        >
+                                            {t('slots.official.clear_connection') || 'Limpiar vinculacion'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+            <div className="flex h-auto max-h-[calc(100dvh-2rem)] min-h-0 w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl">
+
+                {/* HEADER */}
+                <div className="flex shrink-0 items-center justify-between bg-white px-7 pb-2 pt-7 dark:bg-gray-900 sm:px-8 sm:pb-2 sm:pt-7 md:px-9">
+                    <div className="flex min-w-0 items-start gap-3">
+                        <div className="flex h-12 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                            <Smartphone size={20} />
+                        </div>
+                        <div className="min-w-0">
+                            <h2 className="truncate text-xl font-bold text-gray-900 dark:text-white sm:text-[1.35rem]">
+                                {locationName || location.location_id}
+                            </h2>
+                            <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400 sm:text-sm">{t('slots.subtitle')}</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800" aria-label="Cerrar">
+                        <X size={21} />
+                    </button>
+                </div>
+
+                {isChatwootMode && showChatwootAccessModal && (
+                    <div
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        onClick={() => setShowChatwootAccessModal(false)}
+                    >
+                        <div
+                            className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 sm:rounded-3xl"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between gap-3 px-5 pb-4 pt-5 sm:px-6">
+                                <div className="flex min-w-0 items-start gap-3">
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                        <User size={18} />
+                                    </div>
+                                    <div className="min-w-0">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">{`Info de acceso ${managedInboxBrandName}`}</h3>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowChatwootAccessModal(false)}
+                                    className="shrink-0 rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="divide-y divide-gray-100 overflow-y-auto px-5 pb-5 dark:divide-gray-800 sm:px-6">
+                                <div className="py-3 first:pt-1">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">Email</p>
+                                    <p className="mt-1 break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderEmail || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="py-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">Contraseña inicial</p>
+                                    <p className="mt-1 break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderPassword || "No disponible")}
+                                    </p>
+                                    {!chatwootHeaderPassword && !loadingChatwootAccess && (
+                                        <p className="mt-1.5 text-xs leading-4 text-amber-600 dark:text-amber-400">
+                                            Solo aparece si la contraseña pudo guardarse durante el aprovisionamiento.
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="py-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">Login</p>
+                                    <p className="mt-1 break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderLoginUrl || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="py-3 last:pb-1">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">Cuenta exacta</p>
+                                    <p className="mt-1 break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                        {loadingChatwootAccess ? "Cargando..." : (chatwootHeaderDashboardUrl || "No disponible")}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isGhlMode && showGhlAccessModal && (
+                    <div
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        onClick={() => setShowGhlAccessModal(false)}
+                    >
+                        <div
+                            className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 sm:rounded-3xl"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between gap-3 px-5 pb-4 pt-5 sm:px-6">
+                                <div className="flex min-w-0 items-start gap-3">
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                        <User size={18} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Info de acceso GoHighLevel</h3>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowGhlAccessModal(false)}
+                                    className="shrink-0 rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="divide-y divide-gray-100 overflow-y-auto px-5 pb-5 dark:divide-gray-800 sm:px-6">
+                                <div className="py-3 first:pt-1">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">Email del negocio</p>
+                                    <p className="mt-1 break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderBusinessEmail || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="py-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">Teléfono</p>
+                                    <p className="mt-1 break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderBusinessPhone || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="py-3">
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">Location ID</p>
+                                        <p className="mt-1 break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                            {loadingGhlAccess ? "Cargando..." : (ghlHeaderLocationId || "No disponible")}
+                                        </p>
+                                    </div>
+
+                                    <div className="py-3">
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">Company ID</p>
+                                        <p className="mt-1 break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                            {loadingGhlAccess ? "Cargando..." : (ghlHeaderCompanyId || "No disponible")}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="py-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">Portal</p>
+                                    <p className="mt-1 break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderPortalUrl || "No disponible")}
+                                    </p>
+                                </div>
+
+                                <div className="py-3 last:pb-1">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">Acceso directo</p>
+                                    <p className="mt-1 break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                        {loadingGhlAccess ? "Cargando..." : (ghlHeaderDashboardUrl || "No disponible")}
+                                    </p>
+                                    <p className="mt-2 text-xs leading-4 text-gray-500 dark:text-gray-400">
+                                        {ghlOAuthConnected
+                                            ? "La subcuenta tiene tokens OAuth guardados en Waflow."
+                                            : "Waflow no guarda contraseñas de GHL; el acceso depende del usuario con permisos en esa subcuenta."}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showAccountSettingsModal && (
+                    <div
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        onClick={() => setShowAccountSettingsModal(false)}
+                    >
+                        <div
+                            className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 sm:rounded-3xl"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <div className="flex items-start justify-between gap-4 px-6 pb-2 pt-6">
+                                <div className="min-w-0">
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Configuración</h3>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAccountSettingsModal(false)}
+                                    className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-6 px-6 pb-6 pt-4">
+                                {false && (
+                                <div className="space-y-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-widest text-gray-400">OpenAI</p>
+                                            <h4 className="mt-1 text-base font-bold text-gray-900 dark:text-white">Clave principal</h4>
+                                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Para todos los agentes de esta subcuenta.</p>
+                                        </div>
+                                        <div className={`self-start px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${locationOpenAiKeyConfigured ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300'}`}>
+                                            {locationOpenAiKeyConfigured ? 'Activa' : 'Pendiente'}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                                        <input
+                                            type="password"
+                                            value={locationOpenAiKeyDraft}
+                                            onChange={(e) => setLocationOpenAiKeyDraft(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    saveLocationOpenAiKey();
+                                                }
+                                            }}
+                                            autoComplete="new-password"
+                                            placeholder={locationOpenAiKeyConfigured ? "••••••••••••••••" : "sk-..."}
+                                            className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
+                                        />
+                                    <div className="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => saveLocationOpenAiKey()}
+                                                disabled={savingLocationOpenAiKey}
+                                                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 font-bold text-white transition hover:bg-teal-700 disabled:opacity-60"
+                                            >
+                                                {savingLocationOpenAiKey ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                Guardar
+                                            </button>
+                                            {locationOpenAiKeyConfigured && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => saveLocationOpenAiKey("")}
+                                                    disabled={savingLocationOpenAiKey}
+                                                    className="inline-flex min-h-11 items-center rounded-lg px-4 py-2.5 font-bold text-gray-600 transition hover:bg-gray-100 disabled:opacity-60 dark:text-gray-300 dark:hover:bg-gray-800"
+                                                >
+                                                    Limpiar
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                )}
+
+                                {canWhiteLabel && !isChatwootMode && (
+                                    <div className="border-t border-gray-200 pt-5 dark:border-gray-800">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">White Label</p>
+                                                <h4 className="mt-1 text-base font-bold text-gray-900 dark:text-white">Branding</h4>
+                                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Usar branding de la agencia.</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                                                <input
+                                                    type="checkbox"
+                                                    className="sr-only peer"
+                                                    checked={whiteLabelEnabled}
+                                                    onChange={toggleWhiteLabel}
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* BODY */}
+                <div className="flex-1 overflow-y-auto bg-white px-7 pb-7 pt-2 dark:bg-gray-900 sm:px-8 sm:pb-8 sm:pt-2 md:px-9 md:pb-9 md:pt-2">
+                    <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="flex flex-wrap items-center gap-2">
+                                <span className="inline-flex min-h-10 items-center rounded-xl bg-emerald-100 px-3 py-2 text-xs font-bold uppercase tracking-[0.16em] text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                    {isGhlMode ? "GOHIGHLEVEL" : managedInboxBrandName.toUpperCase()}
+                                </span>
+                                {isGhlMode && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => window.open(ghlHeaderOpenUrl, '_blank', 'noopener,noreferrer')}
+                                            disabled={!ghlHeaderOpenUrl}
+                                            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600"
+                                        >
+                                            <Link2 size={16} />
+                                            Abrir cuenta
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowGhlAccessModal(true)}
+                                            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-800 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                                        >
+                                            <User size={16} />
+                                            Info
+                                        </button>
+                                    </>
+                                )}
+                                {isChatwootMode && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={openChatwootAccount}
+                                            disabled={!chatwootHeaderLoginUrl}
+                                            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600"
+                                        >
+                                            <Link2 size={16} />
+                                            Abrir cuenta
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowChatwootAccessModal(true)}
+                                            disabled={loadingChatwootAccess}
+                                            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-800 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                                        >
+                                            <User size={16} />
+                                            Info
+                                        </button>
+                                    </>
+                                )}
+                                {isGhlMode && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAccountSettingsModal(true)}
+                                    className="inline-flex min-h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                                    aria-label="Configuración de cuenta"
+                                    title="Configuración de cuenta"
+                                >
+                                    <Settings size={17} />
+                                </button>
+                                )}
+                                {healthSummary && (
+                                    <>
+                                        <span className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap px-1 text-xs text-gray-500 dark:text-gray-400">
+                                            <span>En linea:</span>
+                                            <strong className="text-sm font-bold text-gray-900 dark:text-white">
+                                                {healthSummary.connected_slots || 0}/{healthSummary.total_slots || 0}
+                                            </strong>
+                                        </span>
+                                        <span className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap px-1 text-xs text-gray-500 dark:text-gray-400">
+                                            <span>Enviados 24h:</span>
+                                            <strong className="text-sm font-bold text-gray-900 dark:text-white">
+                                                {healthSummary.sent_24h || 0}
+                                            </strong>
+                                        </span>
+                                    </>
+                                )}
+                        </div>
+                        <div className="flex justify-start gap-3 md:justify-end">
+                            <button onClick={handleAddSlot} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-sm shadow-indigo-200 transition hover:bg-indigo-700 dark:shadow-none">
+                                <Plus size={18} /> {isChatwootMode ? (t('slots.chatwoot_inbox.new') || "Nuevo Inbox") : t('slots.new')}
+                            </button>
+                        </div>
+                    </div>
+
+                    {healthSummary && (
+                        <div className="hidden">
+                            <div className="flex min-h-[72px] items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.online_slots') || 'Slots en línea'}</p>
+                                <p className="shrink-0 text-2xl font-extrabold text-gray-900 dark:text-white">
+                                    {healthSummary.connected_slots || 0}/{healthSummary.total_slots || 0}
+                                </p>
+                            </div>
+                            <div className="flex min-h-[72px] items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">{t('agency.reliability.sent_24h') || 'Enviados 24h'}</p>
+                                <p className="shrink-0 text-2xl font-extrabold text-gray-900 dark:text-white">
+                                    {healthSummary.sent_24h || 0}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {loading ? (
+                        <div className="flex justify-center p-20"><RefreshCw className="animate-spin text-indigo-500 w-10 h-10" /></div>
+                    ) : slots.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl bg-white dark:bg-gray-900/50">
+                            <Smartphone className="text-gray-300 dark:text-gray-600 w-16 h-16 mb-4" />
+                            <p className="text-gray-500 dark:text-gray-400 font-medium text-lg">{t('slots.empty')}</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                            {slots.map(slot => {
+                                const isExpanded = expandedSlotId === slot.slot_id;
+                                const slotSettings = slot.settings || {};
+                                const officialSlotSettings = (slotSettings.official_api && typeof slotSettings.official_api === 'object')
+                                    ? slotSettings.official_api
+                                    : {};
+                                const connectionMode = getEffectiveSlotConnectionMode(slot);
+                                const isOfficialSlotMode = connectionMode === 'official_api';
+                                const officialStatus = String(officialSlotSettings.status || '').trim().toLowerCase();
+                                const isOfficialAccessLost = isOfficialSlotMode && officialStatus === 'access_lost';
+                                const officialConnectedStatuses = new Set(['verified', 'verified_warning', 'active', 'connected']);
+                                const isOfficialConnected = isOfficialSlotMode && !isOfficialAccessLost && officialConnectedStatuses.has(officialStatus);
+                                const isConnected = isOfficialSlotMode ? isOfficialConnected : slot.is_connected === true;
+                                const connectedPhone = isOfficialSlotMode
+                                    ? String(officialSlotSettings.displayPhoneNumber || slot.phone_number || '').trim()
+                                    : (isConnected ? (slot.phone_number || "") : "");
+                                const currentPrio = slot.priority || 99;
+                                const settings = slotSettings;
+                                const slotHealth = slot.health || {};
+                                const slotSent24h = Number(slotHealth.sent_24h || 0);
+                                const slotNumberQualityLevel = String(slotHealth.number_quality_level || 'unknown').toLowerCase();
+                                const slotNumberQualityLabel = getNumberQualityLabel(slotNumberQualityLevel, t);
+                                const slotNumberQualitySource = String(slotHealth.number_quality_source || 'unknown').toLowerCase();
+                                const slotNumberQualitySourceLabel = getNumberQualitySourceLabel(slotNumberQualitySource, t);
+                                const slotNumberQualityTooltip = getNumberQualityTooltip({
+                                    source: slotNumberQualitySource,
+                                    activeDays: slotHealth.number_quality_active_days,
+                                    sentMessages28d: slotHealth.number_quality_sent_messages_28d
+                                }, t);
+                                const slotHeaderModeLabel = isOfficialSlotMode
+                                    ? (t('slots.card.official_mode') || 'Meta API')
+                                    : (isExpanded ? t('slots.card.managing') : t('slots.card.manage'));
+                                const rawSlotKeywords = Array.isArray(slot?.effective_keywords) && slot.effective_keywords.length > 0
+                                    ? slot.effective_keywords
+                                    : (
+                                        Array.isArray(slot?.keywords) && slot.keywords.length > 0
+                                            ? slot.keywords
+                                            : keywords.filter((keyword) => {
+                                                const keywordSlotId = normalizeSlotId(keyword?.slot_id);
+                                                return keywordSlotId === null || keywordSlotId === normalizeSlotId(slot.slot_id);
+                                            })
+                                    );
+                                const seenKeywordRows = new Set();
+                                const slotKeywords = rawSlotKeywords.filter((keyword) => {
+                                    const key = keyword?.id ?? `${keyword?.slot_id ?? 'global'}:${keyword?.keyword || ''}:${keyword?.tag || ''}`;
+                                    if (seenKeywordRows.has(key)) return false;
+                                    seenKeywordRows.add(key);
+                                    return true;
+                                });
+
+                                return (
+                                    <div id={`slot-card-${slot.slot_id}`} key={slot.slot_id} className={`relative bg-white dark:bg-gray-900 border rounded-2xl transition-all duration-300 overflow-hidden ${isExpanded ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-xl md:col-span-2 xl:col-span-3' : 'border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md'}`}>
+
+                                        {/* CABECERA SLOT */}
+                                        <div className="relative cursor-pointer p-4 pb-16 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 sm:p-5 sm:pb-14" onClick={() => handleExpandSlot(slot.slot_id)}>
+                                            <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+                                                <div className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full sm:mt-0 ${isOfficialAccessLost ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.45)]' : isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="relative flex min-w-0 items-start gap-2 pr-20">
+                                                        {editingSlotId === slot.slot_id ? (
+                                                            <div className="flex min-w-0 items-center gap-1.5" onClick={(event) => event.stopPropagation()}>
+                                                                <input
+                                                                    type="text"
+                                                                    value={editingSlotName}
+                                                                    autoFocus
+                                                                    maxLength={80}
+                                                                    onChange={(event) => setEditingSlotName(event.target.value)}
+                                                                    onKeyDown={(event) => {
+                                                                        if (event.key === 'Enter') saveSlotName(event, slot);
+                                                                        if (event.key === 'Escape') cancelSlotNameEdit(event);
+                                                                    }}
+                                                                    className="h-9 w-[min(13rem,55vw)] min-w-0 rounded-lg border border-indigo-300 bg-white px-2.5 text-sm font-semibold text-gray-900 outline-none ring-2 ring-indigo-100 dark:border-indigo-700 dark:bg-gray-800 dark:text-white dark:ring-indigo-900/40"
+                                                                    aria-label="Editar nombre del dispositivo"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(event) => saveSlotName(event, slot)}
+                                                                    disabled={savingSlotName}
+                                                                    className="rounded-lg p-1.5 text-emerald-600 transition hover:bg-emerald-50 disabled:opacity-50 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
+                                                                    aria-label="Guardar nombre"
+                                                                >
+                                                                    {savingSlotName ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={cancelSlotNameEdit}
+                                                                    disabled={savingSlotName}
+                                                                    className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50 dark:hover:bg-gray-800"
+                                                                    aria-label="Cancelar edición"
+                                                                >
+                                                                    <X size={15} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <h3 className="min-w-0 flex-1 break-words text-base font-bold text-gray-900 dark:text-white sm:text-lg">{slot.slot_name || (isChatwootMode ? `Inbox ${slot.slot_id}` : `Dispositivo ${slot.slot_id}`)}</h3>
+                                                        )}
+                                                        <div className="absolute right-0 top-0 flex shrink-0 gap-1">
+                                                            {connectionMode && (
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
+                                                                    className={`p-1.5 rounded-lg transition ${slot.is_favorite ? 'text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                                                                    title="Favorito"
+                                                                >
+                                                                    <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
+                                                                </button>
+                                                            )}
+                                                            {SLOT_CONNECTION_MODE_CHANGE_ENABLED && OFFICIAL_WHATSAPP_API_UI_ENABLED && connectionMode && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        requestSlotConnectionModeChange(slot);
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-300 dark:hover:bg-sky-900/35 transition text-xs font-semibold"
+                                                                    title={t('slots.connection_mode.change') || 'Cambiar conexión'}
+                                                                >
+                                                                    <Link2 size={14} />
+                                                                    <span>{t('slots.connection_mode.change') || 'Cambiar conexión'}</span>
+                                                                </button>
+                                                            )}
+                                                            {editingSlotId !== slot.slot_id && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(event) => startSlotNameEdit(event, slot)}
+                                                                    className="rounded-lg p-1.5 text-gray-300 transition hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/20"
+                                                                    aria-label="Editar nombre del dispositivo"
+                                                                    title="Editar nombre"
+                                                                >
+                                                                    <Edit2 size={16} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-gray-500 dark:text-gray-400">
+                                                        {isOfficialAccessLost
+                                                            ? <span className="text-red-600 dark:text-red-400 font-bold">{t('slots.card.official_access_lost') || 'Requiere reconexion Meta'}</span>
+                                                            : isConnected && connectedPhone
+                                                            ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{connectedPhone}</span>
+                                                            : isOfficialSlotMode && officialStatus && officialStatus !== 'draft'
+                                                                ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">{t('slots.card.official_verified') || 'Meta API validada'}</span>
+                                                            : t('slots.card.disconnected')}
+                                                        {isGhlMode && !isOfficialSlotMode && (
+                                                            <>
+                                                                <span className="text-gray-300 dark:text-gray-600">•</span>
+                                                                <span>{t('slots.card.priority')}: {currentPrio}</span>
+                                                            </>
+                                                        )}
+                                                    </p>
+                                                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+                                                        <span className="whitespace-nowrap text-gray-500 dark:text-gray-400">
+                                                            {(t('agency.reliability.sent_24h') || 'Enviados 24h')}: {slotSent24h}
+                                                        </span>
+                                                        <span
+                                                            className={`whitespace-nowrap font-semibold ${slotNumberQualityLevel === 'good' ? 'text-emerald-600 dark:text-emerald-300' : 'text-gray-500 dark:text-gray-400'}`}
+                                                            title={slotNumberQualityTooltip}
+                                                        >
+                                                            {slotNumberQualitySourceLabel}: {slotNumberQualityLabel}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="absolute bottom-3 right-3 flex items-center gap-4 sm:right-4">
+                                                <span className={`whitespace-nowrap text-[11px] font-bold uppercase tracking-wide transition-colors ${isExpanded ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-400 dark:text-gray-500'}`}>
+                                                    {slotHeaderModeLabel}
+                                                </span>
+                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.slot_id); }} className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition" disabled={deletingSlotId === slot.slot_id}>
+                                                    {deletingSlotId === slot.slot_id ? <Loader2 className="animate-spin" size={20} /> : <Trash2 size={20} />}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* MODAL DE CONEXIÓN Y GESTIÓN DEL NÚMERO */}
+                                        {isExpanded && (
+                                            <div
+                                                className="fixed inset-0 z-[90] flex items-center justify-center bg-gray-950/45 p-3 sm:p-6"
+                                                role="dialog"
+                                                aria-modal="true"
+                                                aria-label={`Gestionar ${slot.slot_name || `Dispositivo ${slot.slot_id}`}`}
+                                                onClick={() => setExpandedSlotId(null)}
+                                            >
+                                                <div
+                                                    className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900 sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl"
+                                                    onClick={(event) => event.stopPropagation()}
+                                                >
+                                                    <div className="flex shrink-0 items-start justify-between gap-4 bg-white px-5 py-3 dark:bg-gray-900 sm:px-7 sm:py-4">
+                                                        <div className="min-w-0">
+                                                            <h3 className="truncate text-lg font-bold text-gray-900 dark:text-white sm:text-xl">
+                                                                {slot.slot_name || (isChatwootMode ? `Inbox ${slot.slot_id}` : `Dispositivo ${slot.slot_id}`)}
+                                                            </h3>
+                                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                                {connectionMode === 'official_api' ? 'API oficial de WhatsApp' : connectionMode === 'qr' ? 'Conexión QR' : 'Conexión pendiente'}
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setExpandedSlotId(null)}
+                                                            className="shrink-0 rounded-xl p-2 text-gray-400 transition hover:bg-gray-50 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                                                            aria-label="Cerrar modal del número"
+                                                        >
+                                                            <X size={20} />
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="wf-slot-modal-scroll min-h-0 flex-1 overflow-y-auto">
+                                            <div className="bg-white dark:bg-gray-900 animate-in slide-in-from-top-2">
+                                                <>
+                                                {/* TABS */}
+                                                <div className="bg-white px-0 pt-0 dark:bg-gray-900">
+                                                    <div className="wf-tab-scroll min-w-0 overflow-x-auto">
+                                                        <div className="flex min-w-max gap-0">
+                                                    <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label={t('slots.tab.general')} borderlessLeft />
+                                                    <TabButton active={activeSlotTab === 'integration'} onClick={() => { setActiveIntegrationSection(isChatwootMode ? 'chatwoot' : 'openai'); setActiveSlotTab('integration'); }} icon={<Link2 size={16} />} label={t('slots.tab.integration')} />
+                                                    {supportsSmsTab && (
+                                                        <TabButton active={activeSlotTab === 'sms'} onClick={() => setActiveSlotTab('sms')} icon={<Smartphone size={16} />} label={t('slots.tab.sms')} />
+                                                    )}
+                                                    {supportsKeywordsTab && (
+                                                        <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label={t('slots.tab.keywords')} />
+                                                    )}
+                                                    <div className="flex items-end gap-1" aria-label="Configuración del número">
+                                                    <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label={t('slots.tab.groups')} disabled={!isConnected} />
+                                                    </div>
+                                                    <TabButton
+                                                        active={activeSlotTab === 'qr'}
+                                                        onClick={() => connectionMode === 'qr' ? setActiveSlotTab('qr') : selectSlotConnectionMode(slot, 'qr')}
+                                                        icon={<QrCode size={16} />}
+                                                        label={t('slots.connection_mode.qr_title') || 'Conexión QR'}
+                                                    />
+                                                    <TabButton
+                                                        active={activeSlotTab === 'official_api'}
+                                                        onClick={() => {
+                                                            if (!officialApiAvailable) return;
+                                                            if (connectionMode === 'official_api') setActiveSlotTab('official_api');
+                                                            else selectSlotConnectionMode(slot, 'official_api');
+                                                        }}
+                                                        icon={<Link2 size={16} />}
+                                                        label={t('slots.connection_mode.official_title') || 'API oficial'}
+                                                        disabled={!officialApiAvailable}
+                                                    />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="p-8">
+                                                    {/* CONFIG PANELS */}
+                                                    {activeSlotTab === 'general' && (
+                                                        <div className="max-w-4xl">
+                                                            {isGhlMode && (
+                                                                <div className="mb-6 flex flex-col gap-3 border-b border-gray-100 pb-5 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
+                                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.settings.priority_level')}:</label>
+                                                                    <select className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none" value={currentPrio} onChange={(e) => changePriority(slot.slot_id, e.target.value)}>
+                                                                            {Array.from({ length: slots.length }, (_, k) => k + 1).map(p => <option key={p} value={p}>{p} {p === 1 ? '(Alta)' : ''}</option>)}
+                                                                            {currentPrio > slots.length && <option value={currentPrio}>{currentPrio}</option>}
+                                                                    </select>
+                                                                </div>
+                                                            )}
+                                                            <div className="grid grid-cols-1 gap-x-8 gap-y-1 md:grid-cols-2">
+                                                                <SettingRow label={t('slots.settings.source_label')} desc={t('slots.settings.source_desc')} checked={settings.show_source_label ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'show_source_label', settings)} />
+                                                                <SettingRow label={t('slots.settings.transcribe')} desc={t('slots.settings.transcribe_desc')} checked={settings.transcribe_audio ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'transcribe_audio', settings)} />
+                                                                <SettingRow label={t('slots.settings.create_contacts')} desc={t('slots.settings.create_contacts_desc')} checked={settings.create_unknown_contacts ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'create_unknown_contacts', settings)} />
+                                                                <SettingRow label={t('slots.settings.alert_disconnect')} desc={t('slots.settings.alert_disconnect_desc')} checked={settings.send_disconnect_message ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'send_disconnect_message', settings)} />
+                                                                <div className="md:col-span-2 mt-2 border-t border-gray-100 pt-5 dark:border-gray-800">
+                                                                    <label className="text-sm font-bold text-gray-800 dark:text-gray-200 block">
+                                                                        Número de Alerta / Alert Number
+                                                                    </label>
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                                                        Dejar vacío para enviar al número desconectado.
+                                                                    </p>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={settings.alert_phone_number || ""}
+                                                                        onChange={(e) => changeSlotSetting(slot.slot_id, 'alert_phone_number', e.target.value, settings)}
+                                                                        placeholder="+1 555 000 0000"
+                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* OTHER PANELS (GHL, Keywords, Groups) same as before... */}
+                                                    {activeSlotTab === 'integration' && (
+                                                        <div className="max-w-4xl space-y-8">
+                                                            {(isGhlMode || isChatwootMode) && (
+                                                                <div className="mb-2 flex border-b border-gray-200 dark:border-gray-800" role="tablist" aria-label="Secciones de integración">
+                                                                    {isChatwootMode && (
+                                                                        <IntegrationSectionButton active={activeIntegrationSection === 'chatwoot'} onClick={() => setActiveIntegrationSection('chatwoot')} icon={<MessageSquare size={15} />} label="Bandeja" />
+                                                                    )}
+                                                                    <IntegrationSectionButton active={activeIntegrationSection === 'openai'} onClick={() => setActiveIntegrationSection('openai')} icon={<Zap size={15} />} label={isChatwootMode ? 'Credenciales' : 'OpenAI'} />
+                                                                    {isGhlMode && (
+                                                                        <IntegrationSectionButton active={activeIntegrationSection === 'assignment'} onClick={() => setActiveIntegrationSection('assignment')} icon={<User size={15} />} label="Asignación" />
+                                                                    )}
+                                                                    {(isGhlMode || isChatwootMode) && (
+                                                                        <IntegrationSectionButton active={activeIntegrationSection === 'voices'} onClick={() => setActiveIntegrationSection('voices')} icon={<Mic size={15} />} label="Voces" />
+                                                                    )}
+                                                                    {isGhlMode && (
+                                                                        <IntegrationSectionButton active={activeIntegrationSection === 'proxy'} onClick={() => setActiveIntegrationSection('proxy')} icon={<Link2 size={15} />} label="Proxy" />
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                            {isGhlMode && (
+                                                                <>
+                                                                    {activeIntegrationSection === 'openai' && (
+                                                                    <>
+                                                                    {/* 🔥 NUEVO: OpenAI Key para este Slot */}
+                                                                    <div className="space-y-5 px-1 py-2">
+                                                                        <div className="flex justify-between items-start mb-4">
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                                    <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
+                                                                                        <Zap size={14} />
+                                                                                    </div>
+                                            OpenAI API Key legacy del slot
+                                                                                </label>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            Solo para configuraciones antiguas o un fallback puntual. Los agentes nuevos usan la clave principal de la subcuenta.
+                                                                                </p>
+                                                                            </div>
+                                                                            {slot.openai_api_key && (
+                                                                                <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                            Legacy
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="flex gap-2">
+                                                                            <input
+                                                                                type="password"
+                                                                                name={`openai_key_${slot.slot_id}`}
+                                                                                autoComplete="new-password"
+                                                                                placeholder={slot.openai_api_key ? "•••••••••••••••• (Oculto)" : "sk-..."}
+                                                                                className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter') {
+                                                                                        const val = e.target.value.trim();
+                                                                                        if (val) {
+                                                                                            authFetch(`/agency/update-slot-config`, {
+                                                                                                method: 'POST',
+                                                                                                body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                            }).then(() => { toast.success("API Key guardada"); e.target.value = ""; loadData(); });
+                                                                                        }
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    // Buscamos el input hermano anterior
+                                                                                    const input = e.currentTarget.previousElementSibling;
+                                                                                    const val = input.value.trim();
+                                                                                    if (val) {
+                                                                                        authFetch(`/agency/update-slot-config`, {
+                                                                                            method: 'POST',
+                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                        }).then(() => { toast.success("API Key guardada"); input.value = ""; loadData(); });
+                                                                                    } else {
+                                                                                        toast.error("Ingresa una Key válida");
+                                                                                    }
+                                                                                }}
+                                                                                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
+                                                                            >
+                                                                                <Save size={18} /> Guardar
+                                                                            </button>
+
+                                                                            {slot.openai_api_key && (
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        if (confirm("¿Borrar API Key de este número?")) {
+                                                                                            authFetch(`/agency/update-slot-config`, {
+                                                                                                method: 'POST',
+                                                                                                body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: "" }) // Send empty string to clear
+                                                                                            }).then(() => { toast.success("API Key eliminada"); loadData(); });
+                                                                                        }
+                                                                                    }}
+                                                                                    className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                                    title="Borrar Key"
+                                                                                >
+                                                                                    <Trash2 size={18} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    </>
+                                                                    )}
+                                                                    {activeIntegrationSection === 'voices' && !isChatwootMode && (
+                                                                    <div className="space-y-5 px-1 py-2">
+                                                                        <div className="flex justify-between items-start mb-4">
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                                    <div className="w-6 h-6 bg-sky-100 dark:bg-sky-900/30 text-sky-600 rounded flex items-center justify-center">
+                                                                                        <Mic size={14} />
+                                                                                    </div>
+                                                                                    ElevenLabs API Key (Voces)
+                                                                                </label>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                                    Configura una key única para este número. Dejar vacío para desactivar.
+                                                                                </p>
+                                                                            </div>
+                                                                            {slot.elevenlabs_api_key && (
+                                                                                <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                                                                    Conectado
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="flex gap-2">
+                                                                            <input
+                                                                                type="password"
+                                                                                name={`elevenlabs_key_${slot.slot_id}`}
+                                                                                autoComplete="new-password"
+                                                                                placeholder={slot.elevenlabs_api_key ? "•••••••••••••••• (Oculto)" : "sk_..."}
+                                                                                className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition font-mono text-sm"
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter') {
+                                                                                        const val = e.target.value;
+                                                                                        saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                            if (ok) e.target.value = "";
+                                                                                        });
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    const input = e.currentTarget.previousElementSibling;
+                                                                                    const val = input.value;
+                                                                                    saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                        if (ok) input.value = "";
+                                                                                    });
+                                                                                }}
+                                                                                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
+                                                                            >
+                                                                                <Save size={18} /> Guardar
+                                                                            </button>
+
+                                                                            {slot.elevenlabs_api_key && (
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        if (confirm("¿Borrar API Key de este número?")) {
+                                                                                            authFetch(`/agency/update-slot-config`, {
+                                                                                                method: 'POST',
+                                                                                                body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_api_key: "", elevenlabs_voice_id: "" })
+                                                                                            }).then(() => {
+                                                                                                toast.success("API Key eliminada");
+                                                                                                loadData();
+                                                                                                setElevenVoicesBySlot(prev => ({ ...prev, [slot.slot_id]: [] }));
+                                                                                            });
+                                                                                        }
+                                                                                    }}
+                                                                                    className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                                    title="Borrar Key"
+                                                                                >
+                                                                                    <Trash2 size={18} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="mt-4">
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                                                Voz por defecto
+                                                                            </label>
+                                                                            <div className="mb-2">
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={previewTextBySlot[slot.slot_id] || ""}
+                                                                                    onChange={(e) => setPreviewTextBySlot(prev => ({ ...prev, [slot.slot_id]: e.target.value }))}
+                                                                                    placeholder="Texto para preview (opcional)"
+                                                                                    className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition text-sm"
+                                                                                />
+                                                                            </div>
+                                                                            <div className="flex gap-2 items-center">
+                                                                                <select
+                                                                                    className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none"
+                                                                                    value={slot.elevenlabs_voice_id || ""}
+                                                                                    disabled={!slot.elevenlabs_api_key}
+                                                                                    onChange={(e) => {
+                                                                                        const val = e.target.value;
+                                                                                        authFetch(`/agency/update-slot-config`, {
+                                                                                            method: 'POST',
+                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_voice_id: val })
+                                                                                        }).then(() => {
+                                                                                            toast.success("Voz por defecto guardada");
+                                                                                            loadData();
+                                                                                        });
+                                                                                    }}
+                                                                                >
+                                                                                    <option value="">{slot.elevenlabs_api_key ? "Sin voz por defecto" : "Configura la API Key primero"}</option>
+                                                                                    {slot.elevenlabs_voice_id && !(elevenVoicesBySlot[slot.slot_id] || []).some(v => v.id === slot.elevenlabs_voice_id) && (
+                                                                                        <option value={slot.elevenlabs_voice_id}>Voz actual ({slot.elevenlabs_voice_id})</option>
+                                                                                    )}
+                                                                                    {(elevenVoicesBySlot[slot.slot_id] || []).map(v => (
+                                                                                        <option key={v.id} value={v.id}>{v.name}</option>
+                                                                                    ))}
+                                                                                </select>
+                                                                                <button
+                                                                                    onClick={() => loadElevenVoices(slot.slot_id, true)}
+                                                                                    disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                                    className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                                    title="Actualizar voces"
+                                                                                >
+                                                                                    <RefreshCw size={18} className={loadingElevenVoices[slot.slot_id] ? "animate-spin" : ""} />
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        const fallbackVoice = (elevenVoicesBySlot[slot.slot_id] || [])[0]?.id || "";
+                                                                                        const previewVoice = slot.elevenlabs_voice_id || fallbackVoice;
+                                                                                        playVoicePreview(slot.slot_id, previewVoice);
+                                                                                    }}
+                                                                                    disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                                    className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                                    title="Preview"
+                                                                                >
+                                                                                    <Play size={18} />
+                                                                                </button>
+                                                                            </div>
+                                                                            {slot.elevenlabs_api_key && (elevenVoicesBySlot[slot.slot_id] || []).length === 0 && !loadingElevenVoices[slot.slot_id] && (
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                                                    No hay voces cargadas o no se pudieron obtener.
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    )}
+                                                                    {activeIntegrationSection === 'proxy' && (() => {
+                                                                        const customProxy = customProxyBySlot[slot.slot_id] || createEmptyCustomProxyState();
+                                                                        const isLoadingCustomProxy = !!loadingCustomProxyBySlot[slot.slot_id];
+                                                                        const isSavingCustomProxy = !!savingCustomProxyBySlot[slot.slot_id];
+
+                                                                        return (
+                                                                            <div className="space-y-5 px-1 py-2">
+                                                                                <div className="flex flex-wrap items-start justify-between gap-4">
+                                                                                    <div>
+                                                                                        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.proxy.title')}</h4>
+                                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('slots.proxy.desc')}</p>
+                                                                                    </div>
+                                                                                    <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${customProxy.configured ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                                                                                        {customProxy.configured ? t('slots.proxy.configured') : t('slots.proxy.not_configured')}
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.host')}</label>
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            value={customProxy.host || ""}
+                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "host", e.target.value)}
+                                                                                            placeholder={t('slots.proxy.ph_host')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.port')}</label>
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            value={customProxy.port || ""}
+                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "port", e.target.value)}
+                                                                                            placeholder={t('slots.proxy.ph_port')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.username')}</label>
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            value={customProxy.username || ""}
+                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "username", e.target.value)}
+                                                                                            placeholder={t('slots.proxy.ph_username')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.password')}</label>
+                                                                                        <input
+                                                                                            type="password"
+                                                                                            value={customProxy.password || ""}
+                                                                                            onChange={(e) => updateCustomProxyField(slot.slot_id, "password", e.target.value)}
+                                                                                            placeholder={customProxy.passwordMasked || t('slots.proxy.ph_password')}
+                                                                                            autoComplete="new-password"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                        />
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div>
+                                                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.proxy.protocol')}</label>
+                                                                                    <select
+                                                                                        value={customProxy.protocol || "http"}
+                                                                                        onChange={(e) => updateCustomProxyField(slot.slot_id, "protocol", e.target.value)}
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                    >
+                                                                                        <option value="http">http</option>
+                                                                                        <option value="socks5">socks5</option>
+                                                                                    </select>
+                                                                                </div>
+
+                                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                                    <button
+                                                                                        onClick={() => saveCustomProxyConfig(slot.slot_id)}
+                                                                                        disabled={isLoadingCustomProxy || isSavingCustomProxy}
+                                                                                        className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                                    >
+                                                                                        {isSavingCustomProxy ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                                                        {t('slots.proxy.save')}
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => clearCustomProxyConfig(slot.slot_id)}
+                                                                                        disabled={isLoadingCustomProxy || isSavingCustomProxy || !customProxy.configured}
+                                                                                        className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
+                                                                                    >
+                                                                                        {t('slots.proxy.clear')}
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => loadCustomProxyConfig(slot.slot_id, true)}
+                                                                                        disabled={isLoadingCustomProxy || isSavingCustomProxy}
+                                                                                        className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
+                                                                                        title={t('slots.proxy.reload')}
+                                                                                    >
+                                                                                        <RefreshCw size={16} className={isLoadingCustomProxy ? "animate-spin" : ""} />
+                                                                                    </button>
+                                                                                </div>
+
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400">{t('slots.proxy.apply_note')}</p>
+                                                                                {customProxy.invalidConfig && (
+                                                                                    <p className="text-xs text-amber-600 dark:text-amber-400">{t('slots.proxy.invalid')}</p>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                </>
+                                                            )}
+                                                            {activeIntegrationSection === 'chatwoot' && isChatwootMode && (() => {
+                                                                const chatwoot = chatwootConfigBySlot[slot.slot_id] || createEmptyChatwootState();
+                                                                const isLoadingChatwoot = !!loadingChatwootBySlot[slot.slot_id];
+                                                                const isSavingChatwoot = !!savingChatwootBySlot[slot.slot_id];
+                                                                const mappedInboxId = slot.chatwoot_inbox_id || chatwoot.inboxId || null;
+                                                                const showAdvancedChatwootDetails = !!chatwoot.showAdvancedDetails;
+                                                                const isReadOnlyChatwootView = !showAdvancedChatwootDetails;
+                                                                const chatwootAccessCard = null;
+
+                                                                if (isReadOnlyChatwootView) {
+                                                                    return (
+                                                                        <div className="space-y-6 px-1 py-2">
+                                                                            {chatwootAccessCard}
+                                                                            <div className="space-y-6">
+                                                                            <div className="border-l-2 border-emerald-500 bg-emerald-50/70 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 px-4 py-3 text-sm flex items-start gap-3">
+                                                                                <CheckCircle2 className="shrink-0 mt-0.5" size={18} />
+                                                                                <div>
+                                                                                    <p className="font-bold">{t('slots.chatwoot.auto_provision_title') || "Aprovisionamiento Automático"}</p>
+                                                                                    <p className="text-xs opacity-90 mt-1">
+                                                                                        {getManagedInboxText(t('slots.chatwoot.auto_provision_desc'), "Las credenciales de Chatwoot (URL, Token, Account ID y Webhooks) se gestionan internamente para esta cuenta.")}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+                                                                                <div className="border-t border-gray-200 dark:border-gray-700 px-1 pt-3">
+                                                                                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.dashboard_apps_title') || "Apps del panel"}</p>
+                                                                                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{getManagedInboxText(t('slots.chatwoot.dashboard_apps_desc'), "Conversation Hub se publica automáticamente. Las pestañas legacy se limpian en la siguiente sincronización.")}</p>
+                                                                                </div>
+                                                                                <div className="border-t border-gray-200 dark:border-gray-700 px-1 pt-3">
+                                                                                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.custom_attrs_title') || "Atributos sincronizados"}</p>
+                                                                                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{t('slots.chatwoot.custom_attrs_desc') || "Se actualizan slot, tipo de chat, grupo, origen del lead y último preview del contacto."}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="pt-1">
+                                                                                <button
+                                                                                    type="button"
+                                                                                        onClick={() => updateChatwootField(slot.slot_id, "showAdvancedDetails", true)}
+                                                                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/40 transition"
+                                                                                    >
+                                                                                        {t('slots.chatwoot.show_debug') || "Ver detalles técnicos"}
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                const statusLabel = chatwoot.configured
+                                                                    ? t('slots.chatwoot.configured')
+                                                                    : chatwoot.hasGlobalConfig
+                                                                        ? t('slots.chatwoot.global_only')
+                                                                        : t('slots.chatwoot.not_configured');
+                                                                const statusClass = chatwoot.configured
+                                                                    ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30'
+                                                                    : chatwoot.hasGlobalConfig
+                                                                        ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30'
+                                                                        : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300';
+                                                                const inboxIdNumber = Number.parseInt(String(chatwoot.inboxId || ""), 10);
+                                                                const hasInboxMapping = Number.isFinite(inboxIdNumber) && inboxIdNumber > 0;
+                                                                const hasTypedSecret = Boolean((chatwoot.webhookSecret || "").trim());
+                                                                const hasAnySecret = hasTypedSecret || chatwoot.hasWebhookSecret;
+                                                                const webhookUrl = buildChatwootWebhookUrl(chatwoot.webhookSecret || "");
+                                                                const stepGlobalReady = chatwoot.hasGlobalConfig;
+                                                                const stepInboxReady = hasInboxMapping;
+                                                                const stepWebhookReady = hasAnySecret;
+
+                                                                return (
+                                                                    <div className="space-y-7 px-1 py-2">
+                                                                        {chatwootAccessCard}
+                                                                        <div className="space-y-7">
+                                                                        <div className="flex flex-wrap items-start justify-between gap-4">
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{getManagedInboxText(t('slots.chatwoot.title'), "Chatwoot")}</h4>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{getManagedInboxText(t('slots.chatwoot.desc'), "Configura Chatwoot para este numero. URL/token/cuenta son globales por location; Inbox ID es por slot.")}</p>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => updateChatwootField(slot.slot_id, "showAdvancedDetails", false)}
+                                                                                    className="px-2 py-1 text-[10px] font-bold rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition"
+                                                                                >
+                                                                                    {t('slots.chatwoot.hide_debug') || "Ocultar debug"}
+                                                                                </button>
+                                                                                <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${statusClass}`}>
+                                                                                    {statusLabel}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+                                                                            <div className={`border-l-2 px-3 py-1 ${stepGlobalReady ? 'border-emerald-500' : 'border-gray-300 dark:border-gray-700'}`}>
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step1')}</p>
+                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step1_desc')}</p>
+                                                                            </div>
+                                                                            <div className={`border-l-2 px-3 py-1 ${stepInboxReady ? 'border-emerald-500' : 'border-gray-300 dark:border-gray-700'}`}>
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step2')}</p>
+                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step2_desc')}</p>
+                                                                            </div>
+                                                                            <div className={`border-l-2 px-3 py-1 ${stepWebhookReady ? 'border-emerald-500' : 'border-gray-300 dark:border-gray-700'}`}>
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.step3')}</p>
+                                                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.step3_desc')}</p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                            {tenantSettings.is_auto_provisioned ? (
+                                                                                <div className="md:col-span-2 border-l-2 border-indigo-500 bg-indigo-50/70 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 px-4 py-3 text-sm flex items-center gap-3">
+                                                                                    <CheckCircle2 className="shrink-0" size={18} />
+                                                                                    <div>
+                                                                                        <p className="font-bold">Aprovisionamiento Automático</p>
+                                                                                        <p className="text-xs opacity-90">{getManagedInboxText("", "Las credenciales de Chatwoot (URL, Token y Account ID) se gestionan internamente para esta cuenta.")}</p>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <div className="md:col-span-2">
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.url')}</label>
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            value={chatwoot.chatwootUrl || ""}
+                                                                                            onChange={(e) => updateChatwootField(slot.slot_id, "chatwootUrl", e.target.value)}
+                                                                                            placeholder={chatwoot.chatwootUrlMasked || t('slots.chatwoot.ph_url')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                                        />
+                                                                                    </div>
+
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.api_token')}</label>
+                                                                                        <input
+                                                                                            type="password"
+                                                                                            value={chatwoot.apiToken || ""}
+                                                                                            onChange={(e) => updateChatwootField(slot.slot_id, "apiToken", e.target.value)}
+                                                                                            placeholder={chatwoot.apiTokenMasked || t('slots.chatwoot.ph_token')}
+                                                                                            autoComplete="new-password"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                        />
+                                                                                    </div>
+
+                                                                                    <div>
+                                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.account_id')}</label>
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            min="1"
+                                                                                            value={chatwoot.accountId || ""}
+                                                                                            onChange={(e) => updateChatwootField(slot.slot_id, "accountId", e.target.value)}
+                                                                                            placeholder={t('slots.chatwoot.ph_account_id')}
+                                                                                            autoComplete="off"
+                                                                                            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                        />
+                                                                                    </div>
+                                                                                </>
+                                                                            )}
+
+                                                                            <div>
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.inbox_id')}</label>
+                                                                                {chatwootInboxes.length > 0 ? (
+                                                                                    <select
+                                                                                        value={chatwoot.inboxId || ""}
+                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "inboxId", e.target.value)}
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
+                                                                                    >
+                                                                                        <option value="">{t('slots.chatwoot.select_inbox')}</option>
+                                                                                        {chatwootInboxes.map((inbox) => (
+                                                                                            <option key={inbox.id} value={String(inbox.id)}>
+                                                                                                {inbox.name} (#{inbox.id}{inbox.phoneNumber ? ` - ${inbox.phoneNumber}` : ""})
+                                                                                            </option>
+                                                                                        ))}
+                                                                                    </select>
+                                                                                ) : (
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        min="1"
+                                                                                        value={chatwoot.inboxId || ""}
+                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "inboxId", e.target.value)}
+                                                                                        placeholder={t('slots.chatwoot.ph_inbox_id')}
+                                                                                        autoComplete="off"
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                    />
+                                                                                )}
+                                                                                <div className="mt-2">
+                                                                                    <button
+                                                                                        onClick={() => loadChatwootInboxes(true)}
+                                                                                        disabled={isLoadingChatwoot || isSavingChatwoot || loadingChatwootInboxes}
+                                                                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition disabled:opacity-60"
+                                                                                    >
+                                                                                        {loadingChatwootInboxes ? (t('slots.chatwoot.loading_inboxes')) : t('slots.chatwoot.load_inboxes')}
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="md:col-span-2">
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.webhook_secret')}</label>
+                                                                                <div className="flex flex-col md:flex-row gap-2">
+                                                                                    <input
+                                                                                        type="password"
+                                                                                        value={chatwoot.webhookSecret || ""}
+                                                                                        onChange={(e) => updateChatwootField(slot.slot_id, "webhookSecret", e.target.value)}
+                                                                                        placeholder={chatwoot.hasWebhookSecret ? "********" : t('slots.chatwoot.ph_webhook_secret')}
+                                                                                        autoComplete="new-password"
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                                    />
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => generateChatwootSecret(slot.slot_id)}
+                                                                                        disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                        className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 transition disabled:opacity-60 text-sm font-semibold whitespace-nowrap"
+                                                                                    >
+                                                                                        {t('slots.chatwoot.generate_secret')}
+                                                                                    </button>
+                                                                                </div>
+                                                                                {chatwoot.hasWebhookSecret && !hasTypedSecret && (
+                                                                                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">{t('slots.chatwoot.secret_masked_hint')}</p>
+                                                                                )}
+                                                                            </div>
+
+                                                                            <div className="md:col-span-2">
+                                                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.chatwoot.webhook_url')}</label>
+                                                                                <div className="flex flex-col md:flex-row gap-2">
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        value={webhookUrl}
+                                                                                        readOnly
+                                                                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/60 dark:text-white outline-none transition font-mono text-xs"
+                                                                                    />
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => copyToClipboard(webhookUrl, t('slots.chatwoot.webhook_copied'))}
+                                                                                        className="px-3 py-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition text-sm font-semibold flex items-center justify-center gap-1 whitespace-nowrap"
+                                                                                    >
+                                                                                        <Copy size={14} />
+                                                                                        {t('slots.chatwoot.copy_webhook')}
+                                                                                    </button>
+                                                                                </div>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{getManagedInboxText(t('slots.chatwoot.webhook_hint'), "Copia esta URL y configúrala en Chatwoot. Mantén el mismo secret en ambos lados.")}</p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 gap-5 border-t border-gray-200 pt-5 dark:border-gray-700 md:grid-cols-2">
+                                                                            <div className="px-1">
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.dashboard_apps_title') || "Apps del panel"}</p>
+                                                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mt-1">{getManagedInboxText(t('slots.chatwoot.dashboard_apps_desc'), "Conversation Hub se publica automáticamente. Las pestañas legacy se limpian en la siguiente sincronización.")}</p>
+                                                                            </div>
+                                                                            <div className="px-1">
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t('slots.chatwoot.custom_attrs_title') || "Atributos sincronizados"}</p>
+                                                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mt-1">{t('slots.chatwoot.custom_attrs_desc') || "Se actualizan slot, tipo de chat, grupo, origen del lead y último preview del contacto."}</p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{getManagedInboxText(t('slots.chatwoot.scope_note'), "Los campos globales aplican a toda la location. Inbox ID aplica solo a este numero (slot).")}</p>
+
+                                                                        <div className="flex flex-wrap items-center gap-2">
+                                                                            <button
+                                                                                onClick={() => validateChatwootConfigSlot(slot.slot_id)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                            >
+                                                                                <CheckCircle2 size={16} />
+                                                                                {t('slots.chatwoot.validate')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => saveChatwootConfig(slot.slot_id)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2"
+                                                                            >
+                                                                                {isSavingChatwoot ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                                                {t('slots.chatwoot.save')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => clearChatwootSlotConfig(slot.slot_id)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot || (!chatwoot.inboxId && !chatwoot.configured)}
+                                                                                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-60 transition"
+                                                                            >
+                                                                                {t('slots.chatwoot.clear_slot')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => loadChatwootConfig(slot.slot_id, true)}
+                                                                                disabled={isLoadingChatwoot || isSavingChatwoot}
+                                                                                className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
+                                                                                title={t('slots.chatwoot.reload')}
+                                                                            >
+                                                                                <RefreshCw size={16} className={isLoadingChatwoot ? "animate-spin" : ""} />
+                                                                            </button>
+                                                                        </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                            {isGhlMode && activeIntegrationSection === 'assignment' && (
+                                                                <>
+                                                                    <div className="space-y-4 px-1 py-2">
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.integration.tag_auto')}</label>
+                                                                        <input type="text" placeholder={t('slots.integration.tag_auto_ph')} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.crm_contact_tag ?? settings.ghl_contact_tag ?? ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'crm_contact_tag', e.target.value, settings)} />
+                                                                    </div>
+                                                                    <div className="space-y-4 px-1 py-2">
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{isChatwootMode ? "Agente Asignado" : t('slots.integration.user')}</label>
+                                                                        <select className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={settings.crm_assigned_user ?? settings.ghl_assigned_user ?? ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'crm_assigned_user', e.target.value, settings)}>
+                                                                            <option value="">{t('slots.integration.user_none')}</option>
+                                                                            {crmUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                                                        </select>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            {isChatwootMode && (
+                                                                <div className="space-y-6">
+                                                                {activeIntegrationSection === 'openai' && (
+                                                                <>
+                                                                <div className="space-y-5 px-1 py-2">
+                                                                    <div className="flex justify-between items-start mb-4">
+                                                                        <div>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                                <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded flex items-center justify-center">
+                                                                                    <Zap size={14} />
+                                                                                </div>
+                                         OpenAI API Key legacy del inbox
+                                                                            </label>
+                                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                         Solo para configuraciones antiguas o un fallback puntual. Los agentes nuevos usan la clave principal de la subcuenta.
+                                                                            </p>
+                                                                        </div>
+                                                                        {slot.openai_api_key && (
+                                                                            <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                         Legacy
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="flex gap-2">
+                                                                        <input
+                                                                            type="password"
+                                                                            name={`openai_key_chatwoot_${slot.slot_id}`}
+                                                                            autoComplete="new-password"
+                                                                            placeholder={slot.openai_api_key ? "•••••••••••••••• (Oculto)" : "sk-..."}
+                                                                            className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition font-mono text-sm"
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter') {
+                                                                                    const val = e.target.value.trim();
+                                                                                    if (val) {
+                                                                                        authFetch(`/agency/update-slot-config`, {
+                                                                                            method: 'POST',
+                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                        }).then(() => { toast.success("API Key guardada"); e.target.value = ""; loadData(); });
+                                                                                    }
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                const input = e.currentTarget.previousElementSibling;
+                                                                                const val = input.value.trim();
+                                                                                if (val) {
+                                                                                    authFetch(`/agency/update-slot-config`, {
+                                                                                        method: 'POST',
+                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: val })
+                                                                                    }).then(() => { toast.success("API Key guardada"); input.value = ""; loadData(); });
+                                                                                } else {
+                                                                                    toast.error("Ingresa una Key válida");
+                                                                                }
+                                                                            }}
+                                                                            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
+                                                                        >
+                                                                            <Save size={18} /> Guardar
+                                                                        </button>
+
+                                                                        {slot.openai_api_key && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (confirm("¿Borrar API Key de este inbox?")) {
+                                                                                        authFetch(`/agency/update-slot-config`, {
+                                                                                            method: 'POST',
+                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, openai_api_key: "" })
+                                                                                        }).then(() => { toast.success("API Key eliminada"); loadData(); });
+                                                                                    }
+                                                                                }}
+                                                                                className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                                title="Borrar Key"
+                                                                            >
+                                                                                <Trash2 size={18} />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                </>
+                                                                )}
+                                                                {activeIntegrationSection === 'voices' && (
+                                                                <div className="space-y-5 px-1 py-2">
+                                                                    <div className="flex justify-between items-start mb-4">
+                                                                        <div>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                                <div className="w-6 h-6 bg-sky-100 dark:bg-sky-900/30 text-sky-600 rounded flex items-center justify-center">
+                                                                                    <Mic size={14} />
+                                                                                </div>
+                                                                                ElevenLabs API Key (Voces)
+                                                                            </label>
+                                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                                Configura una key única para este inbox. Dejar vacío para desactivar.
+                                                                            </p>
+                                                                        </div>
+                                                                        {slot.elevenlabs_api_key && (
+                                                                            <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30">
+                                                                                Conectado
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="flex gap-2">
+                                                                        <input
+                                                                            type="password"
+                                                                            name={`elevenlabs_key_chatwoot_${slot.slot_id}`}
+                                                                            autoComplete="new-password"
+                                                                            placeholder={slot.elevenlabs_api_key ? "•••••••••••••••• (Oculto)" : "sk_..."}
+                                                                            className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition font-mono text-sm"
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter') {
+                                                                                    const val = e.target.value;
+                                                                                    saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                        if (ok) e.target.value = "";
+                                                                                    });
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                const input = e.currentTarget.previousElementSibling;
+                                                                                const val = input.value;
+                                                                                saveElevenApiKey(slot.slot_id, val).then((ok) => {
+                                                                                    if (ok) input.value = "";
+                                                                                });
+                                                                            }}
+                                                                            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold transition shadow-sm flex items-center gap-2"
+                                                                        >
+                                                                            <Save size={18} /> Guardar
+                                                                        </button>
+
+                                                                        {slot.elevenlabs_api_key && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (confirm("¿Borrar API Key de este número?")) {
+                                                                                        authFetch(`/agency/update-slot-config`, {
+                                                                                            method: 'POST',
+                                                                                            body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_api_key: "", elevenlabs_voice_id: "" })
+                                                                                        }).then(() => {
+                                                                                            toast.success("API Key eliminada");
+                                                                                            loadData();
+                                                                                            setElevenVoicesBySlot(prev => ({ ...prev, [slot.slot_id]: [] }));
+                                                                                        });
+                                                                                    }
+                                                                                }}
+                                                                                className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                                                title="Borrar Key"
+                                                                            >
+                                                                                <Trash2 size={18} />
+                                                                            </button>
+                                                                            )}
+                                                                        </div>
+
+                                                                    <div className="mt-4">
+                                                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                                            Voz por defecto
+                                                                        </label>
+                                                                        <div className="mb-2">
+                                                                            <input
+                                                                                type="text"
+                                                                                value={previewTextBySlot[slot.slot_id] || ""}
+                                                                                onChange={(e) => setPreviewTextBySlot(prev => ({ ...prev, [slot.slot_id]: e.target.value }))}
+                                                                                placeholder="Texto para preview (opcional)"
+                                                                                className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none transition text-sm"
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex gap-2 items-center">
+                                                                            <select
+                                                                                className="flex-1 p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 outline-none"
+                                                                                value={slot.elevenlabs_voice_id || ""}
+                                                                                disabled={!slot.elevenlabs_api_key}
+                                                                                onChange={(e) => {
+                                                                                    const val = e.target.value;
+                                                                                    authFetch(`/agency/update-slot-config`, {
+                                                                                        method: 'POST',
+                                                                                        body: JSON.stringify({ locationId: location.location_id, slotId: slot.slot_id, elevenlabs_voice_id: val })
+                                                                                    }).then(() => {
+                                                                                        toast.success("Voz por defecto guardada");
+                                                                                        loadData();
+                                                                                    });
+                                                                                }}
+                                                                            >
+                                                                                <option value="">{slot.elevenlabs_api_key ? "Sin voz por defecto" : "Configura la API Key primero"}</option>
+                                                                                {slot.elevenlabs_voice_id && !(elevenVoicesBySlot[slot.slot_id] || []).some(v => v.id === slot.elevenlabs_voice_id) && (
+                                                                                    <option value={slot.elevenlabs_voice_id}>Voz actual ({slot.elevenlabs_voice_id})</option>
+                                                                                )}
+                                                                                {(elevenVoicesBySlot[slot.slot_id] || []).map(v => (
+                                                                                    <option key={v.id} value={v.id}>{v.name}</option>
+                                                                                ))}
+                                                                            </select>
+                                                                            <button
+                                                                                onClick={() => loadElevenVoices(slot.slot_id, true)}
+                                                                                disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                                className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                                title="Actualizar voces"
+                                                                            >
+                                                                                <RefreshCw size={18} className={loadingElevenVoices[slot.slot_id] ? "animate-spin" : ""} />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    const fallbackVoice = (elevenVoicesBySlot[slot.slot_id] || [])[0]?.id || "";
+                                                                                    const previewVoice = slot.elevenlabs_voice_id || fallbackVoice;
+                                                                                    playVoicePreview(slot.slot_id, previewVoice);
+                                                                                }}
+                                                                                disabled={!slot.elevenlabs_api_key || loadingElevenVoices[slot.slot_id]}
+                                                                                className="px-3 py-2 text-sky-600 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 rounded-lg transition"
+                                                                                title="Preview"
+                                                                            >
+                                                                                <Play size={18} />
+                                                                            </button>
+                                                                        </div>
+                                                                        {slot.elevenlabs_api_key && (elevenVoicesBySlot[slot.slot_id] || []).length === 0 && !loadingElevenVoices[slot.slot_id] && (
+                                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                                                No hay voces cargadas o no se pudieron obtener.
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {supportsSmsTab && activeSlotTab === 'sms' && (
+                                                        <div className="max-w-3xl space-y-7 px-1 py-2">
+                                                            {(() => {
+                                                                const twilio = twilioConfigBySlot[slot.slot_id] || {
+                                                                    accountSid: "",
+                                                                    authToken: "",
+                                                                    phoneNumber: "",
+                                                                    accountSidMasked: "",
+                                                                    authTokenMasked: "",
+                                                                    hasAuthToken: false,
+                                                                    configured: false
+                                                                };
+                                                                const isLoadingTwilio = !!loadingTwilioBySlot[slot.slot_id];
+                                                                const isSavingTwilio = !!savingTwilioBySlot[slot.slot_id];
+
+                                                                return (
+                                                                    <div className="space-y-7">
+                                                                        <div className="flex flex-wrap items-start justify-between gap-4">
+                                                                            <div>
+                                                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('slots.sms.title')}</h4>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                                    {t('slots.sms.desc')}
+                                                                                </p>
+                                                                            </div>
+                                                                            <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full ${twilio.configured ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}>
+                                                                                {twilio.configured ? t('slots.sms.configured') : t('slots.sms.not_configured')}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                                                                        <div>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.sms.account_sid')}</label>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={twilio.accountSid || ""}
+                                                                                onChange={(e) => updateTwilioField(slot.slot_id, "accountSid", e.target.value)}
+                                                                                placeholder={twilio.accountSidMasked || t('slots.sms.ph_sid')}
+                                                                                autoComplete="off"
+                                                                                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                            />
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.sms.auth_token')}</label>
+                                                                            <input
+                                                                                type="password"
+                                                                                value={twilio.authToken || ""}
+                                                                                onChange={(e) => updateTwilioField(slot.slot_id, "authToken", e.target.value)}
+                                                                                placeholder={twilio.authTokenMasked || t('slots.sms.ph_token')}
+                                                                                autoComplete="new-password"
+                                                                                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                            />
+                                                                        </div>
+
+                                                                        <div className="md:col-span-2">
+                                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('slots.sms.phone_number')}</label>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={twilio.phoneNumber || ""}
+                                                                                onChange={(e) => updateTwilioField(slot.slot_id, "phoneNumber", e.target.value)}
+                                                                                placeholder={t('slots.sms.ph_phone')}
+                                                                                autoComplete="off"
+                                                                                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-sm"
+                                                                            />
+                                                                        </div>
+
+                                                                        </div>
+
+                                                                        <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 pt-5 dark:border-gray-700">
+                                                                            <button
+                                                                                onClick={() => validateTwilioConfigSlot(slot.slot_id)}
+                                                                                disabled={isLoadingTwilio || isSavingTwilio}
+                                                                                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-white transition hover:bg-sky-700 disabled:opacity-60 sm:flex-none"
+                                                                            >
+                                                                                <CheckCircle2 size={16} />
+                                                                                {t('slots.sms.validate')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => saveTwilioConfig(slot.slot_id)}
+                                                                                disabled={isLoadingTwilio || isSavingTwilio}
+                                                                                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-white transition hover:bg-indigo-700 disabled:opacity-60 sm:flex-none"
+                                                                            >
+                                                                                {isSavingTwilio ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                                                                {t('slots.sms.save')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => clearTwilioConfig(slot.slot_id)}
+                                                                                disabled={isLoadingTwilio || isSavingTwilio}
+                                                                                className="flex flex-1 items-center justify-center rounded-lg bg-gray-100 px-4 py-2 text-gray-700 transition hover:bg-gray-200 disabled:opacity-60 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 sm:flex-none"
+                                                                            >
+                                                                                {t('slots.sms.clear')}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => loadTwilioConfig(slot.slot_id, true)}
+                                                                                disabled={isLoadingTwilio || isSavingTwilio}
+                                                                                className="px-3 py-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 transition"
+                                                                                title={t('slots.sms.reload')}
+                                                                            >
+                                                                                <RefreshCw size={16} className={isLoadingTwilio ? "animate-spin" : ""} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    )}
+
+                                                    {supportsKeywordsTab && activeSlotTab === 'keywords' && (
+                                                        <div className="max-w-2xl">
+                                                            <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
+                                                                <input name="keyword" required placeholder={t('slots.kw.input')} className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                                <input name="tag" required placeholder={t('slots.kw.tag')} className="w-1/3 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                                <button type="submit" className="bg-indigo-600 text-white px-5 rounded-xl hover:bg-indigo-700 font-bold"><Plus size={20} /></button>
+                                                            </form>
+                                                            <div className="space-y-2">
+                                                                {slotKeywords.map(k => {
+                                                                    const isGlobalKeyword = normalizeSlotId(k?.slot_id) === null;
+                                                                    return (
+                                                                    <div key={k.id ?? `${k.slot_id ?? 'global'}-${k.keyword}-${k.tag}`} className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                        <div className="flex flex-wrap gap-2 items-center">
+                                                                            <span className="font-bold text-gray-800 dark:text-white">"{k.keyword}"</span>
+                                                                            <span className="text-gray-400">&rarr;</span>
+                                                                            <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-bold">{k.tag}</span>
+                                                                            {isGlobalKeyword && (
+                                                                                <span className="bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 px-2 py-1 rounded text-xs font-semibold">Global</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
+                                                                    </div>
+                                                                    );
+                                                                })}
+                                                                {slotKeywords.length === 0 && (
+                                                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                                        Sin reglas para este WhatsApp.
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {activeSlotTab === 'groups' && (
+                                                        <div className="max-w-3xl space-y-6 px-1 py-2">
+                                                            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 dark:border-gray-700">
+                                                                <div>
+                                                                    <h4 className="font-bold text-gray-800 dark:text-gray-200">{t('slots.groups.detected')}</h4>
+                                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('slots.groups.manage_help')}</p>
+                                                                </div>
+                                                                <button onClick={() => loadGroups(slot.slot_id)} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30">
+                                                                    <RefreshCw size={16} />
+                                                                    <span>{t('slots.groups.refresh')}</span>
+                                                                </button>
+                                                            </div>
+                                                            {loadingGroups ? <div className="text-center py-10"><RefreshCw className="animate-spin mx-auto text-indigo-500" /></div> :
+                                                                groups.length === 0 ? (
+                                                                    <div className="border-l-2 border-indigo-300 px-4 py-5 dark:border-indigo-700">
+                                                                        <div className="flex items-start gap-3">
+                                                                            <Users className="mt-0.5 shrink-0 text-indigo-400" size={18} />
+                                                                            <div>
+                                                                                <p className="font-semibold text-gray-700 dark:text-gray-200">{t('slots.groups.empty')}</p>
+                                                                                <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">{t('slots.groups.empty_help')}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                                                                        {groups.map(g => {
+                                                                            const isActive = settings.groups?.[g.id]?.active;
+                                                                            return (
+                                                                                <div key={g.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                                                                                    <div className="min-w-0">
+                                                                                        <h5 className="truncate font-bold text-gray-800 dark:text-white">{g.subject}</h5>
+                                                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{g.participants} {t('slots.groups.participants')}</p>
+                                                                                    </div>
+                                                                                    <div className="flex items-center gap-3 self-end sm:self-auto">
+                                                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                                                            <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, settings)} />
+                                                                                            <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                                                                                        </label>
+                                                                                        <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg p-2 text-indigo-600 transition hover:bg-indigo-50 dark:bg-transparent dark:text-indigo-400 dark:hover:bg-indigo-900/30" title={t('slots.groups.sync')}><Users size={18} /></button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                )
+                                                            }
+                                                        </div>
+                                                    )}
+                                                    {activeSlotTab === 'qr' && (
+                                                        <div className="space-y-6">
+                                                            {connectionMode === null ? (
+                                                                <div className="max-w-2xl rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 p-5 dark:border-gray-700 dark:bg-gray-800/40">
+                                                                    <h4 className="text-base font-bold text-gray-900 dark:text-white">Elige cómo conectar este número</h4>
+                                                                    <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                                                        Selecciona Conexión QR o API oficial en la barra superior para continuar.
+                                                                    </p>
+                                                                </div>
+                                                            ) : null}
+                                                            {connectionMode === 'qr' ? (
+                                                                <SlotConnectionManager
+                                                                    slot={slot}
+                                                                    locationId={location.location_id}
+                                                                    token={token}
+                                                                    onUpdate={loadData}
+                                                                    isAdminMode={isAdminMode}
+                                                                />
+                                                            ) : null}
+                                                        </div>
+                                                    )}
+                                                    {activeSlotTab === 'official_api' && (
+                                                        <div className="space-y-6">
+                                                            {connectionMode !== 'official_api' ? (
+                                                                <div className="max-w-2xl rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 p-5 dark:border-gray-700 dark:bg-gray-800/40">
+                                                                    <h4 className="text-base font-bold text-gray-900 dark:text-white">API oficial de WhatsApp</h4>
+                                                                    <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                                                        Selecciona esta opción en la barra para configurar la conexión oficial de Meta.
+                                                                    </p>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="max-w-4xl">
+                                                                    {renderOfficialWhatsappPanel(slot)}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                    </>
+                                            </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+const TabButton = ({ active, onClick, icon, label, disabled, borderlessLeft = false }) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`relative flex shrink-0 items-center gap-2 rounded-none border-y-0 border-r-0 border-l border-gray-200 px-3 py-2.5 text-xs font-semibold whitespace-nowrap transition-all dark:border-gray-800 sm:px-4 sm:text-sm ${borderlessLeft ? 'border-l-0' : ''} ${active
+            ? 'z-10 bg-white text-indigo-600 dark:bg-gray-900 dark:text-indigo-300'
+            : 'bg-white text-gray-500 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+        {icon} {label}
+    </button>
+);
+
+const IntegrationSectionButton = ({ active, onClick, icon, label }) => (
+    <button
+        type="button"
+        role="tab"
+        aria-selected={active}
+        onClick={onClick}
+        className={`flex min-w-0 flex-1 items-center justify-center gap-2 border-b-2 px-2 py-2.5 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${active
+            ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-300'
+            : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+        }`}
+    >
+        {icon}
+        <span className="truncate">{label}</span>
+    </button>
+);
+
+const SettingRow = ({ label, desc, checked, onChange }) => (
+    <div className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer" onClick={onChange}>
+        <div>
+            <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{label}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
+        </div>
+        <div className={`w-10 h-6 flex items-center rounded-full p-1 transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
+            <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`}></div>
+        </div>
+    </div>
+);
+
+// ✅ COMPONENTE DE GESTIÓN DE CONEXIÓN
+function SlotConnectionManager({
+    slot,
+    locationId,
+    token,
+    onUpdate,
+    isAdminMode = false
+}) {
+    const { t } = useLanguage();
+    const [status, setStatus] = useState({
+        connected: slot?.is_connected === true,
+        myNumber: slot?.phone_number || null
+    });
+    const [qr, setQr] = useState(null);
+    const [qrUpdatedAt, setQrUpdatedAt] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [accountSuspensionState, setAccountSuspensionState] = useState(null);
+    const [slotSuspendedBy, setSlotSuspendedBy] = useState(slot?.suspended_by || null);
+    const [slotLockMessage, setSlotLockMessage] = useState(null);
+    const [qrExpired, setQrExpired] = useState(false);
+    const [qrPostScanGrace, setQrPostScanGrace] = useState(false);
+    const [shareUrl, setShareUrl] = useState("");
+    const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
+    const pollInterval = useRef(null);
+
+    const authFetch = async (endpoint, options = {}) => {
+        return fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: { ...options.headers, 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+        });
+    };
+
+    const readAccessError = async (res) => {
+        if (!res || res.status !== 403) return null;
+        const data = await res.clone().json().catch(() => null);
+        if (!data?.error) return null;
+
+        if (data.error === 'account_suspended') {
+            return {
+                kind: 'account',
+                status: data.suspension_status || 'suspended',
+                message: data.message || 'Tu cuenta esta suspendida. No puedes vincular numeros en este momento.'
+            };
+        }
+
+        if (data.error === 'slot_suspended') {
+            return {
+                kind: 'slot',
+                status: data.suspended_by || 'system',
+                message: data.message || 'Este slot esta temporalmente suspendido.'
+            };
+        }
+
+        if (data.error === 'admin_lock') {
+            return {
+                kind: 'admin_lock',
+                status: 'admin',
+                message: data.message || 'Este slot fue suspendido por administracion y no puede reconectarse.'
+            };
+        }
+
+        return null;
+    };
+
+    const readResponseError = async (res, fallbackMessage) => {
+        if (!res) return fallbackMessage;
+
+        const body = await res.clone().json().catch(() => null);
+        if (body?.error) return body.error;
+        if (body?.details) return body.details;
+        if (body?.message) return body.message;
+
+        const text = await res.clone().text().catch(() => "");
+        if (text && text.trim()) return text.trim();
+
+        return fallbackMessage;
+    };
+
+    const stopPolling = () => {
+        if (pollInterval.current) {
+            clearTimeout(pollInterval.current);
+            pollInterval.current = null;
+        }
+    };
+
+    const applyAccessError = (accessError) => {
+        if (!accessError) return false;
+
+        if (accessError.kind === 'account') {
+            setAccountSuspensionState(accessError);
+        }
+
+        if (accessError.kind === 'slot' || accessError.kind === 'admin_lock') {
+            setSlotSuspendedBy(accessError.status || 'system');
+            setSlotLockMessage(accessError.message || null);
+        }
+
+        setLoading(false);
+        setQr(null);
+        setQrUpdatedAt(null);
+        setQrExpired(false);
+        setQrPostScanGrace(false);
+        stopPolling();
+        return true;
+    };
+
+    const checkStatus = async () => {
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/status`);
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+
+            if (res.ok) {
+                const data = await res.json();
+                setAccountSuspensionState(null);
+                setStatus({ connected: data.connected, myNumber: data.myNumber });
+                setSlotSuspendedBy(data.suspended_by || null);
+                if (!data.suspended_by) setSlotLockMessage(null);
+
+                if (data.connected) {
+                    setQr(null);
+                    setQrUpdatedAt(null);
+                    setQrPostScanGrace(false);
+                    setLoading(false);
+                    stopPolling();
+                    onUpdate();
+                }
+            }
+        } catch (e) { }
+    };
+
+    useEffect(() => {
+        checkStatus();
+        return () => stopPolling();
+    }, [locationId, slot?.slot_id]);
+
+    useEffect(() => {
+        setShareUrl("");
+        setIsGeneratingShareUrl(false);
+        setQrExpired(false);
+        setQrPostScanGrace(false);
+    }, [locationId, slot?.slot_id]);
+
+    useEffect(() => {
+        const nextConnected = slot?.is_connected === true;
+        const nextNumber = slot?.phone_number || null;
+
+        setStatus((current) => {
+            const resolvedNumber = nextNumber || current.myNumber || null;
+            if (current.connected === nextConnected && current.myNumber === resolvedNumber) {
+                return current;
+            }
+            return {
+                connected: nextConnected,
+                myNumber: resolvedNumber
+            };
+        });
+
+        setSlotSuspendedBy(slot?.suspended_by || null);
+
+        if (nextConnected) {
+            setQr(null);
+            setQrUpdatedAt(null);
+            setQrExpired(false);
+            setQrPostScanGrace(false);
+            setLoading(false);
+            stopPolling();
+        }
+    }, [slot?.slot_id, slot?.is_connected, slot?.phone_number, slot?.suspended_by]);
+
+
+    const handleConnect = async () => {
+        if (!isAdminMode && (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system')) {
+            toast.error('Este slot esta bloqueado temporalmente');
+            return;
+        }
+
+        setLoading(true);
+        setQrExpired(false);
+        setQrPostScanGrace(false);
+        setQr(null);
+        setQrUpdatedAt(null);
+        try {
+            let res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/reconnect`, { method: 'POST' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+
+            if (!res.ok) {
+                throw new Error(await readResponseError(res, 'Fallo al reconectar'));
+            }
+
+            let responseBody = await res.json().catch(() => ({}));
+            let relinkStarted = false;
+            if (responseBody.action === 'qr_required' || responseBody.requiresQr === true) {
+                res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, {
+                    method: 'POST',
+                    body: JSON.stringify({ confirmRelink: true })
+                });
+                if (!res.ok) throw new Error(await readResponseError(res, 'No se pudo preparar el QR'));
+                responseBody = await res.json().catch(() => ({}));
+                relinkStarted = true;
+            }
+
+            setAccountSuspensionState(null);
+            stopPolling();
+            let sawFreshQr = false;
+            let qrMissingSince = null;
+            const attemptStartedAt = Date.now();
+
+            const pollStep = async () => {
+                const attemptTimeoutMs = relinkStarted ? 120000 : 90000;
+                if (Date.now() - attemptStartedAt >= attemptTimeoutMs) {
+                    setLoading(false);
+                    stopPolling();
+                    toast.error(relinkStarted
+                        ? 'No se pudo obtener el QR. El estado anterior quedó archivado para revisión.'
+                        : 'La reconexión no respondió. No se borraron credenciales ni se generó un QR automático.');
+                    return;
+                }
+                try {
+                    const qrRes = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr`);
+                    const qrError = await readAccessError(qrRes);
+                    if (applyAccessError(qrError)) return;
+
+                    if (!qrRes.ok) {
+                        throw new Error(await readResponseError(qrRes, 'No se pudo cargar el QR'));
+                    }
+
+                    const data = await qrRes.json();
+                    if (
+                        !relinkStarted &&
+                        (data.authHealth?.requiresQr === true || data.reconnectPolicy?.action === 'qr_required')
+                    ) {
+                        const startRes = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/start`, {
+                            method: 'POST',
+                            body: JSON.stringify({ confirmRelink: true })
+                        });
+                        if (!startRes.ok) {
+                            throw new Error(await readResponseError(startRes, 'No se pudo preparar el QR'));
+                        }
+                        relinkStarted = true;
+                    }
+                    const nextQrUpdatedAt = data.qrUpdatedAt || null;
+                    const nextQr = data.qr || null;
+                    const stillWaitingForQr = data.waitingForQr === true;
+                    setQrUpdatedAt(nextQrUpdatedAt);
+                    if (nextQr) {
+                        sawFreshQr = true;
+                        qrMissingSince = null;
+                    } else if (sawFreshQr && !stillWaitingForQr) {
+                        qrMissingSince = qrMissingSince || Date.now();
+                    }
+
+                    const transition = resolveSlotQrPollTransition({
+                        connected: data.connected === true,
+                        qr: nextQr,
+                        waitingForQr: stillWaitingForQr,
+                        sawFreshQr,
+                        qrMissingSince,
+                        now: Date.now(),
+                        postScanGraceMs: QR_POST_SCAN_GRACE_MS
+                    });
+
+                    setQr(transition.action === 'show_qr' ? nextQr : null);
+                    setQrPostScanGrace(transition.inPostScanGrace === true);
+
+                    if (transition.action === 'connected') {
+                        checkStatus();
+                        return; // Stop polling, checkStatus will clear the rest
+                    }
+
+                    if (transition.action === 'expired') {
+                        setLoading(false);
+                        setQrExpired(true);
+                        setQrPostScanGrace(false);
+                        stopPolling();
+                        return;
+                    }
+
+                    if (!relinkStarted && !nextQr && Date.now() - attemptStartedAt >= 90000) {
+                        setLoading(false);
+                        stopPolling();
+                        toast.error('La reconexión no respondió. No se borraron credenciales ni se generó un QR automático.');
+                        return;
+                    }
+                } catch (e) {
+                    console.error('[SlotQR] Poll failed:', e);
+                }
+
+                // Adaptive delay: 3s
+                pollInterval.current = setTimeout(pollStep, 3000);
+            };
+
+            pollStep();
+        } catch (e) {
+            toast.error(e.message || 'Error iniciando conexion');
+            setLoading(false);
+        }
+    };
+
+    const handleSoftDisconnect = async (skipConfirm = false) => {
+        if (!skipConfirm) {
+            confirmToast(
+                'Pausar dispositivo',
+                'Pausar este dispositivo sin borrar la sesion?',
+                () => handleSoftDisconnect(true)
+            );
+            return;
+        }
+        if (!skipConfirm && !confirm('Pausar este dispositivo sin borrar la sesion?')) return;
+        setLoading(true);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/soft-disconnect`, { method: 'POST' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || 'No se pudo pausar');
+            }
+
+            const data = await res.json().catch(() => ({}));
+            const newLock = data.suspended_by || (isAdminMode ? 'admin' : 'agency');
+
+            setStatus({ connected: false, myNumber: status.myNumber || slot.phone_number || null });
+            setSlotSuspendedBy(newLock);
+            setSlotLockMessage(newLock === 'admin'
+                ? 'Pausado por administracion. Solo admin puede reactivar.'
+                : 'Pausado por ti. Puedes reconectar sin escanear QR.');
+            setQrExpired(false);
+            setQrPostScanGrace(false);
+            setQr(null);
+            setQrUpdatedAt(null);
+            stopPolling();
+            onUpdate();
+            toast.success('Slot pausado');
+        } catch (e) {
+            toast.error(e.message || 'Error pausando slot');
+        }
+        setLoading(false);
+    };
+
+    const handleReconnect = async () => {
+        if (!isAdminMode && (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system')) {
+            toast.error('Este slot esta bloqueado temporalmente');
+            return;
+        }
+
+        if (accountSuspensionState) {
+            toast.error('No puedes reconectar mientras tu cuenta este en gracia o suspendida');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/reconnect`, { method: 'POST' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || 'No se pudo reconectar');
+            }
+
+            const reconnectBody = await res.json().catch(() => ({}));
+            if (reconnectBody.action === 'qr_required' || reconnectBody.requiresQr === true) {
+                setLoading(false);
+                await handleConnect();
+                return;
+            }
+
+            setSlotSuspendedBy(null);
+            setSlotLockMessage(null);
+            setAccountSuspensionState(null);
+            setQrExpired(false);
+            setQrPostScanGrace(false);
+            setQr(null);
+            setQrUpdatedAt(null);
+            toast.success('Reconectando...');
+
+            stopPolling();
+
+            const reconnectPollStep = async () => {
+                await checkStatus();
+                // If it successfully connected, checkStatus handles stopPolling.
+                // Otherwise, keep checking status every 4 seconds.
+                if (pollInterval.current) {
+                    pollInterval.current = setTimeout(reconnectPollStep, 4000);
+                }
+            };
+
+            pollInterval.current = setTimeout(reconnectPollStep, 4000);
+            setLoading(false);
+        } catch (e) {
+            toast.error(e.message || 'Error reconectando slot');
+            setLoading(false);
+        }
+    };
+
+    const handleDisconnect = async (skipConfirm = false) => {
+        if (!skipConfirm) {
+            confirmToast(
+                'Desconectar dispositivo',
+                'Desconectar este dispositivo?',
+                () => handleDisconnect(true),
+                true
+            );
+            return;
+        }
+        if (!skipConfirm && !confirm('Desconectar este dispositivo?')) return;
+        setLoading(true);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/disconnect`, { method: 'DELETE' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+
+            if (!res.ok) throw new Error('Error desconectando');
+
+            setStatus({ connected: false, myNumber: null });
+            setSlotSuspendedBy(null);
+            setSlotLockMessage(null);
+            setQrExpired(false);
+            setQrPostScanGrace(false);
+            setQr(null);
+            setQrUpdatedAt(null);
+            stopPolling();
+            onUpdate();
+            toast.success('Desconectado');
+        } catch (e) {
+            toast.error('Error desconectando');
+        }
+        setLoading(false);
+    };
+
+    const handleGenerateShareUrl = async () => {
+        setIsGeneratingShareUrl(true);
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/qr-share-link`, { method: 'POST' });
+            const accessError = await readAccessError(res);
+            if (applyAccessError(accessError)) return;
+            if (!res?.ok) {
+                const err = await res?.json().catch(() => ({}));
+                throw new Error(err?.error || 'No se pudo generar la URL QR');
+            }
+
+            const data = await res.json().catch(() => ({}));
+            if (!data?.shareUrl) throw new Error('No se pudo generar la URL QR');
+
+            setShareUrl(data.shareUrl);
+            try {
+                await navigator.clipboard.writeText(data.shareUrl);
+                toast.success(t('slots.share.link_ready') || 'URL QR generada', {
+                    description: t('slots.share.link_ready_slot_desc') || 'Tu cliente podrá abrirla y generar manualmente el QR de este slot cuando lo necesite.'
+                });
+            } catch (_) {
+                toast.success(t('slots.share.link_ready') || 'URL QR generada', {
+                    description: t('slots.share.copy_hint') || 'Copia la URL desde el campo para compartirla con tu cliente.'
+                });
+            }
+        } catch (e) {
+            toast.error(t('slots.share.error') || 'No se pudo generar el enlace QR', {
+                description: e.message || undefined
+            });
+        } finally {
+            setIsGeneratingShareUrl(false);
+        }
+    };
+
+    const headerTitle = slotSuspendedBy === 'admin'
+        ? 'Suspendido por Admin'
+        : slotSuspendedBy === 'system'
+            ? 'Suspendido por Sistema'
+            : slotSuspendedBy === 'agency'
+                ? 'Slot Pausado'
+                : status.connected
+                    ? 'Dispositivo Conectado'
+                    : 'Vincular WhatsApp';
+
+    const headerDescription = slotSuspendedBy === 'admin'
+        ? 'Este slot esta bloqueado por administracion.'
+        : slotSuspendedBy === 'system'
+            ? 'Este slot esta bloqueado temporalmente por el sistema.'
+            : slotSuspendedBy === 'agency'
+                ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
+                : status.connected
+                    ? `Numero: +${status.myNumber}`
+                    : 'Escanea el codigo QR para conectar.';
+
+    return (
+        <div className="w-full max-w-3xl space-y-7 px-1 py-2">
+            <div className="w-full pb-1">
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">{headerTitle}</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{headerDescription}</p>
+            </div>
+
+            {accountSuspensionState && (
+                <div className="w-full border-l-2 border-amber-500 bg-amber-50/70 px-4 py-3 dark:bg-amber-900/20">
+                    <div className="flex items-start gap-2">
+                        <AlertTriangle size={18} className="text-amber-600 mt-0.5" />
+                        <div>
+                            <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                                Cuenta en suspension ({accountSuspensionState.status})
+                            </p>
+                            <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
+                                {accountSuspensionState.message}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {slotSuspendedBy === 'admin' && (
+                <div className="w-full border-l-2 border-red-500 bg-red-50/70 px-4 py-3 dark:bg-red-900/20">
+                    <p className="text-sm font-semibold text-red-800 dark:text-red-300">Bloqueado por administracion</p>
+                    <p className="text-xs text-red-700 dark:text-red-400 mt-1">{slotLockMessage || 'Contacta soporte para habilitar este slot.'}</p>
+                </div>
+            )}
+
+            {slotSuspendedBy === 'agency' && (
+                <div className="w-full border-l-2 border-blue-500 bg-blue-50/70 px-4 py-3 dark:bg-blue-900/20">
+                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Pausado por ti</p>
+                    <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">{slotLockMessage || 'Puedes reconectar sin QR.'}</p>
+                </div>
+            )}
+
+            {slotSuspendedBy === 'system' && (
+                <div className="w-full border-l-2 border-amber-500 bg-amber-50/70 px-4 py-3 dark:bg-amber-900/20">
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Bloqueado por sistema</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">{slotLockMessage || 'Debes regularizar el estado de la cuenta para reactivar este slot.'}</p>
+                </div>
+            )}
+
+            {accountSuspensionState ? (
+                <div className="w-full flex justify-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Reconexion bloqueada mientras la cuenta este en gracia o suspendida.
+                    </p>
+                </div>
+            ) : status.connected ? (
+                <div className="flex w-full flex-col justify-start gap-3 pt-2 sm:flex-row">
+                    <button onClick={handleSoftDisconnect} disabled={loading} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 py-2.5 font-bold text-white transition hover:bg-amber-700 disabled:opacity-60">
+                        <Power size={18} /> Pausar
+                    </button>
+                    <button onClick={handleDisconnect} disabled={loading} className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 px-5 py-2.5 font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20">
+                        <Power size={18} /> Desconectar
+                    </button>
+                </div>
+            ) : slotSuspendedBy === 'agency' ? (
+                <div className="flex w-full flex-col justify-start gap-3 pt-2 sm:flex-row">
+                    <button onClick={handleReconnect} disabled={loading} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 font-bold text-white transition hover:bg-emerald-700 disabled:opacity-60">
+                        <Play size={18} /> Reconectar
+                    </button>
+                    <button onClick={handleDisconnect} disabled={loading} className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 px-5 py-2.5 font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20">
+                        <Power size={18} /> Desconectar
+                    </button>
+                </div>
+            ) : (slotSuspendedBy === 'admin' || slotSuspendedBy === 'system') ? (
+                <div className="w-full flex justify-center">
+                    {isAdminMode ? (
+                        <button onClick={handleReconnect} disabled={loading} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 font-bold text-white transition hover:bg-emerald-700 disabled:opacity-60">
+                            <Play size={18} /> Reactivar como Admin
+                        </button>
+                    ) : (
+                        <p className="text-sm text-red-600 dark:text-red-400 font-semibold">
+                            {slotSuspendedBy === 'admin' ? 'Reconectar bloqueado por Admin' : 'Reconectar bloqueado por Sistema'}
+                        </p>
+                    )}
+                </div>
+            ) : (
+                <div className="flex w-full flex-col items-center space-y-6">
+                    {!qr && !loading && !accountSuspensionState && (
+                        <div className="flex w-full max-w-2xl flex-col items-center gap-4 pt-2 text-center">
+                            {qrExpired && (
+                                <p className="text-sm text-amber-700 dark:text-amber-300 text-center">
+                                    El QR expiró. Pulsa de nuevo para generar uno nuevo.
+                                </p>
+                            )}
+                            <div className="flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
+                                <button onClick={handleConnect} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 font-bold text-white transition hover:bg-indigo-700">
+                                    <QrCode size={20} /> Reconectar o generar QR
+                                </button>
+                                <button
+                                    onClick={handleGenerateShareUrl}
+                                    disabled={isGeneratingShareUrl}
+                                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-white px-5 py-2.5 font-bold text-indigo-700 transition hover:bg-indigo-50 disabled:opacity-60 dark:border-indigo-900 dark:bg-gray-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20"
+                                >
+                                    {isGeneratingShareUrl ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
+                                    {t('slots.share.generate_link') || "Generar URL QR"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {!accountSuspensionState && (qr || loading) && (
+                        <div className="flex w-full flex-col items-center space-y-5 pt-2 text-center animate-in fade-in zoom-in duration-300" aria-live="polite">
+                            <div className="inline-flex rounded-xl border-2 border-indigo-100 bg-white p-3 dark:border-indigo-900 dark:bg-gray-950">
+                                {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
+                            </div>
+                            {qrPostScanGrace && !qr && (
+                                <p className="text-sm font-semibold text-gray-600 dark:text-gray-300">
+                                    Verificando conexión del dispositivo...
+                                </p>
+                            )}
+                            <p className={`text-sm font-semibold text-gray-600 dark:text-gray-300 ${!qr || qrPostScanGrace ? 'hidden' : ''}`}>
+                                {qr
+                                    ? '📷 Escanea con WhatsApp (Expira pronto)'
+                                    : '🔄 Intentando reconectar; si hace falta, generaremos un QR...'
+                                }
+                            </p>
+                            <button onClick={() => { setQr(null); setQrUpdatedAt(null); setQrPostScanGrace(false); setLoading(false); stopPolling(); }} className="rounded-lg px-3 py-2 text-sm font-semibold text-gray-400 transition hover:bg-gray-50 hover:text-red-500 dark:hover:bg-gray-800">Cancelar</button>
+                        </div>
+                    )}
+
+                    {!qr && shareUrl && (
+                        <div className="w-full max-w-2xl pt-2">
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <input
+                                    type="text"
+                                    readOnly
+                                    value={shareUrl}
+                                    className="flex-1 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm font-mono outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => navigator.clipboard.writeText(shareUrl).then(() => toast.success(t('slots.share.copied') || 'URL QR copiada')).catch(() => toast.error(t('slots.chatwoot.copy_error') || 'No se pudo copiar'))}
+                                    className="flex items-center justify-center gap-2 rounded-lg bg-indigo-50 px-4 py-3 font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300"
+                                >
+                                    <Copy size={16} />
+                                    {t('slots.share.copy_link') || "Copiar URL"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+        </div>
+    );
+}
+

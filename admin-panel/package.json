@@ -13,7 +13,9 @@
     "test:official-connection-gate": "node scripts/testOfficialConnectionGate.js",
     "test:official-template-builder": "node scripts/testOfficialTemplateBuilder.js",
     "test:standalone-meta-iframe-connect": "node scripts/testStandaloneMetaIframeConnect.js",
-    "test:interactive-message-builder": "node scripts/testInteractiveMessageBuilder.js"
+    "test:interactive-message-builder": "node scripts/testInteractiveMessageBuilder.js",
+    "test:agency-ui-experience": "node scripts/testAgencyUiExperience.js",
+    "test:agency-ui-isolation": "node scripts/testAgencyUiIsolation.js"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.6.1",
