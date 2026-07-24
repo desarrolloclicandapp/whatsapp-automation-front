@@ -130,6 +130,60 @@ function translateOr(t, key, fallback) {
     return translated;
 }
 
+function getPreventiveRiskLabel(level, t) {
+    const labels = {
+        info: translateOr(t, 'agency.reliability.risk_low', 'Riesgo bajo'),
+        attention: translateOr(t, 'agency.reliability.risk_attention', 'Atención recomendada'),
+        high: translateOr(t, 'agency.reliability.risk_elevated', 'Riesgo elevado'),
+        critical: translateOr(t, 'agency.reliability.risk_high', 'Riesgo alto')
+    };
+    return labels[String(level || '').toLowerCase()]
+        || translateOr(t, 'agency.reliability.risk_unknown', 'Sin señal activa');
+}
+
+function getPreventiveSignalTitle(type, t) {
+    const titles = {
+        reply_ratio_low: translateOr(t, 'agency.reliability.signal_reply_ratio', 'Baja proporción de respuestas'),
+        follow_up_without_reply: translateOr(t, 'agency.reliability.signal_follow_up', 'Seguimientos sin respuesta'),
+        repetitive_copy: translateOr(t, 'agency.reliability.signal_repetitive', 'Mensajes repetidos'),
+        burst_sending: translateOr(t, 'agency.reliability.signal_burst', 'Ritmo de envío acelerado'),
+        spam_like_copy: translateOr(t, 'agency.reliability.signal_content', 'Contenido potencialmente sensible')
+    };
+    return titles[String(type || '').toLowerCase()]
+        || translateOr(t, 'agency.reliability.signal_other', 'Patrón preventivo detectado');
+}
+
+function getPreventiveSignalAction(type, t) {
+    const actions = {
+        reply_ratio_low: translateOr(t, 'agency.reliability.signal_reply_ratio_action', 'Reduce temporalmente el volumen y prioriza conversaciones con clientes que ya respondieron.'),
+        follow_up_without_reply: translateOr(t, 'agency.reliability.signal_follow_up_action', 'Espacia los reintentos y detén seguimientos a contactos que ya acumulan mensajes sin respuesta.'),
+        repetitive_copy: translateOr(t, 'agency.reliability.signal_repetitive_action', 'Varía el contenido y separa mejor las audiencias antes de continuar con el mismo mensaje.'),
+        burst_sending: translateOr(t, 'agency.reliability.signal_burst_action', 'Reduce la cadencia y distribuye los envíos en periodos más amplios.'),
+        spam_like_copy: translateOr(t, 'agency.reliability.signal_content_action', 'Suaviza el tono comercial y revisa urgencias, enlaces o afirmaciones promocionales.')
+    };
+    return actions[String(type || '').toLowerCase()]
+        || translateOr(t, 'agency.reliability.signal_other_action', 'Modera el ritmo y revisa en tu CRM los envíos recientes asociados con esta cuenta.');
+}
+
+function polishPreventiveSignalText(value) {
+    return String(value || '')
+        .replace(/Ã¡/g, 'á')
+        .replace(/Ã©/g, 'é')
+        .replace(/Ã­/g, 'í')
+        .replace(/Ã³/g, 'ó')
+        .replace(/Ãº/g, 'ú')
+        .replace(/Ã±/g, 'ñ')
+        .replace(/â€¦/g, '…')
+        .replace(/\bdespues\b/gi, 'después')
+        .replace(/\bobservacion\b/gi, 'observación')
+        .replace(/\benvio(s)?\b/gi, 'envío$1')
+        .replace(/\bmaxima\b/gi, 'máxima')
+        .replace(/\bidentica(s)?\b/gi, 'idéntica$1')
+        .replace(/\bdetecto\b/gi, 'detectó')
+        .replace(/\btrafico\b/gi, 'tráfico')
+        .trim();
+}
+
 function toFiniteMetric(value, fallback = 0) {
     if (value === null || value === undefined || value === "") return fallback;
     const parsed = Number(value);
@@ -2693,33 +2747,35 @@ export default function AgencyDashboard({ token, onLogout }) {
         ? 'review'
         : ((metaRiskAttentionAccounts > 0 || replyAlertAccounts > 0 || metaRiskInfoAccounts > 0) ? 'watch' : 'healthy');
     const overallOperationalLabel = overallOperationalState === 'review'
-        ? translateOr(t, 'agency.reliability.state_review_today', 'Revisar hoy')
+        ? (metaRiskCriticalAccounts > 0
+            ? getPreventiveRiskLabel('critical', t)
+            : getPreventiveRiskLabel('high', t))
         : (overallOperationalState === 'watch'
-            ? translateOr(t, 'agency.reliability.state_follow_up', 'Conviene seguirlo')
-            : translateOr(t, 'agency.reliability.state_all_good', 'Todo en orden'));
+            ? getPreventiveRiskLabel('attention', t)
+            : translateOr(t, 'agency.reliability.state_all_good', 'Sin señales relevantes'));
     const overallOperationalDesc = overallOperationalState === 'review'
-        ? translateOr(t, 'agency.reliability.state_review_today_desc', 'Hay cuentas que conviene revisar hoy. Es una señal preventiva, no un bloqueo automático.')
+        ? translateOr(t, 'agency.reliability.state_review_today_desc', 'Hay cuentas con patrones preventivos que requieren ajustar el ritmo o el contenido. Esta vista no bloquea ni desconecta números.')
         : (overallOperationalState === 'watch'
-            ? translateOr(t, 'agency.reliability.state_follow_up_desc', 'Hay algunas cuentas con seguimiento recomendado, pero el panel no muestra señales graves.')
-            : translateOr(t, 'agency.reliability.state_all_good_desc', 'Las cuentas activas se ven estables dentro de la ventana observada.'));
+            ? translateOr(t, 'agency.reliability.state_follow_up_desc', 'Hay patrones que conviene corregir antes de aumentar el volumen. No representan una sanción confirmada por Meta.')
+            : translateOr(t, 'agency.reliability.state_all_good_desc', 'No se detectaron patrones preventivos relevantes dentro de la ventana observada.'));
     const riskBreakdownItems = [
         {
-            label: translateOr(t, 'agency.reliability.risk_observation', 'En observación'),
+            label: getPreventiveRiskLabel('info', t),
             value: metaRiskInfoAccounts,
             tone: 'info'
         },
         {
-            label: translateOr(t, 'agency.reliability.risk_follow_up', 'Seguimiento'),
+            label: getPreventiveRiskLabel('attention', t),
             value: metaRiskAttentionAccounts,
             tone: 'attention'
         },
         {
-            label: translateOr(t, 'agency.reliability.risk_review_today', 'Revisar hoy'),
+            label: getPreventiveRiskLabel('high', t),
             value: metaRiskHighAccounts,
             tone: 'high'
         },
         {
-            label: translateOr(t, 'agency.reliability.risk_priority_today', 'Revisión preferente'),
+            label: getPreventiveRiskLabel('critical', t),
             value: metaRiskCriticalAccounts,
             tone: 'review'
         }
@@ -2761,7 +2817,10 @@ export default function AgencyDashboard({ token, onLogout }) {
                     badgeClassName: "bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700"
                 };
             const contactedCount = Number(entry.contacted_contacts_24h ?? entry.inbound_24h) || 0;
+            const engagedCount = Number(entry.engaged_contacts_24h ?? entry.answered_inbound_24h) || 0;
             const unansweredCount = Number(entry.unanswered_contacts_24h ?? entry.unanswered_inbound_24h) || 0;
+            const outboundMessageCount = Number(entry.outbound_messages_24h ?? entry.sent) || 0;
+            const replyRate = toFiniteMetric(entry.reply_rate_24h, contactedCount > 0 ? 0 : 100);
             const connectedSlotCount = Number(entry.connected_slot_count ?? linkedLocation?.connected_slot_count) || 0;
             const totalSlots = Number(linkedLocation?.total_slots) || connectedSlotCount;
             const metaRiskLevel = String(entry.meta_risk_level || 'healthy').toLowerCase();
@@ -2778,6 +2837,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                     .filter((preview) => preview.slot_id || preview.phone_number || preview.slot_name)
                 : [];
             const replyStrikes = Number(entry.reply_strikes) || 0;
+            const metaRiskSignals = Array.isArray(entry.meta_risk_signals)
+                ? entry.meta_risk_signals.filter((signal) => signal && typeof signal === 'object')
+                : [];
             const operationalState = (metaRiskLevel === 'critical' || metaRiskLevel === 'high')
                 ? 'review'
                 : ((metaRiskLevel === 'attention' || metaRiskLevel === 'info' || replyStrikes > 0 || Boolean(entry.reply_auto_blocked))
@@ -2805,10 +2867,18 @@ export default function AgencyDashboard({ token, onLogout }) {
                 channelBadgeClassName: productMeta.badgeClassName,
                 sent: contactedCount,
                 contactedCount,
+                engagedCount,
                 unansweredCount,
+                outboundMessageCount,
+                replyRate,
+                replyStrikes,
+                replyAutoBlocked: Boolean(entry.reply_auto_blocked),
                 connectedSlotCount,
                 totalSlots,
                 metaRiskLevel,
+                metaRiskScore: toFiniteMetric(entry.meta_risk_score, 0),
+                metaRiskSignals,
+                metaRiskRecommendedAction: polishPreventiveSignalText(entry.meta_risk_recommended_action),
                 operationalState,
                 operationalStateLabel,
                 numberQualitySource,
@@ -2817,6 +2887,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                 onClick: linkedLocation ? () => setSelectedLocation(linkedLocation) : null
             };
         });
+    const preventiveSignalRows = reliabilityAccountRows.filter((item) => (
+        ['info', 'attention', 'high', 'critical'].includes(item.metaRiskLevel)
+        || item.replyStrikes > 0
+        || item.replyAutoBlocked
+    ));
     const reliabilityTotalPages = Math.max(1, Math.ceil(reliabilityAccountRows.length / RELIABILITY_PAGE_SIZE));
     const safeReliabilityPage = Math.min(reliabilityPage, reliabilityTotalPages);
     const paginatedReliabilityAccounts = reliabilityAccountRows.slice(
@@ -3881,6 +3956,151 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                         ))}
                                                     </div>
                                                 </div>
+                                            </div>
+
+                                            <div className="mt-7 border-t border-gray-100 pt-6 dark:border-gray-800">
+                                                <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50/70 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+                                                    <Info size={18} className="mt-0.5 shrink-0 text-blue-600 dark:text-blue-300" />
+                                                    <div>
+                                                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                                            {translateOr(t, 'agency.reliability.signals_notice_title', 'Señales preventivas, no bloqueos')}
+                                                        </p>
+                                                        <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">
+                                                            {translateOr(t, 'agency.reliability.signals_notice_desc', 'WaFloW analiza patrones agregados de actividad para ayudarte a cuidar el canal. Esta vista no suspende, desconecta ni confirma sanciones de Meta.')}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {preventiveSignalRows.length === 0 ? (
+                                                    <div className="mt-5 rounded-xl border border-gray-200 bg-white px-5 py-8 text-center dark:border-gray-800 dark:bg-gray-900">
+                                                        <ShieldCheck size={24} className="mx-auto text-emerald-500" />
+                                                        <p className="mt-3 text-sm font-bold text-gray-900 dark:text-white">
+                                                            {translateOr(t, 'agency.reliability.signals_empty_title', 'No hay señales preventivas activas')}
+                                                        </p>
+                                                        <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                                            {translateOr(t, 'agency.reliability.signals_empty_desc', 'La actividad observada no requiere ajustes especiales en este momento.')}
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="mt-5 space-y-4">
+                                                        {preventiveSignalRows.map((item) => {
+                                                            const signalReasons = item.metaRiskSignals.length > 0
+                                                                ? item.metaRiskSignals.map((signal) => ({
+                                                                    type: signal.type,
+                                                                    title: getPreventiveSignalTitle(signal.type, t),
+                                                                    summary: polishPreventiveSignalText(signal.summary)
+                                                                        || translateOr(t, 'agency.reliability.signals_fallback_reason', 'La actividad reciente superó uno de los umbrales preventivos de la cuenta.')
+                                                                }))
+                                                                : [{
+                                                                    type: 'other',
+                                                                    title: getPreventiveSignalTitle('other', t),
+                                                                    summary: translateOr(
+                                                                        t,
+                                                                        'agency.reliability.signals_fallback_reason',
+                                                                        'La actividad reciente superó uno de los umbrales preventivos de la cuenta.'
+                                                                    )
+                                                                }];
+                                                            const recommendedActions = Array.from(new Set(
+                                                                (item.metaRiskSignals.length > 0
+                                                                    ? item.metaRiskSignals.map((signal) => getPreventiveSignalAction(signal.type, t))
+                                                                    : [item.metaRiskRecommendedAction || item.suggestedAction]
+                                                                ).filter(Boolean)
+                                                            ));
+
+                                                            return (
+                                                                <article key={item.locationId || item.name} className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                                                                    <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+                                                                        <div className="min-w-0">
+                                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                                <h5 className="truncate text-base font-black text-gray-900 dark:text-white">{item.name}</h5>
+                                                                                <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${getHealthTone(item.operationalState)}`}>
+                                                                                    {getPreventiveRiskLabel(item.metaRiskLevel, t)}
+                                                                                </span>
+                                                                            </div>
+                                                                            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                                                                {translateOr(t, 'agency.reliability.signals_period', 'Actividad de las últimas 24 horas')}
+                                                                            </p>
+                                                                        </div>
+                                                                        <span className={`w-fit rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${item.channelBadgeClassName}`}>
+                                                                            {item.channelLabel}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div className="grid grid-cols-2 border-b border-gray-100 sm:grid-cols-5 dark:border-gray-800">
+                                                                        {[
+                                                                            [translateOr(t, 'agency.reliability.metric_contacted', 'Contactados'), item.contactedCount],
+                                                                            [translateOr(t, 'agency.reliability.metric_replied', 'Respondieron'), item.engagedCount],
+                                                                            [translateOr(t, 'agency.reliability.metric_unanswered', 'Sin respuesta'), item.unansweredCount],
+                                                                            [translateOr(t, 'agency.reliability.metric_outbound', 'Mensajes enviados'), item.outboundMessageCount],
+                                                                            [translateOr(t, 'agency.reliability.metric_reply_rate', 'Tasa de respuesta'), `${Math.round(item.replyRate)}%`]
+                                                                        ].map(([label, value]) => (
+                                                                            <div key={label} className="border-b border-r border-gray-100 px-4 py-3 last:border-r-0 sm:border-b-0 dark:border-gray-800">
+                                                                                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">{label}</p>
+                                                                                <p className="mt-1 text-base font-black text-gray-900 dark:text-white">{value}</p>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+
+                                                                    <div className="grid gap-6 px-5 py-5 lg:grid-cols-2">
+                                                                        <div>
+                                                                            <p className="text-xs font-black uppercase tracking-[0.16em] text-gray-400">
+                                                                                {translateOr(t, 'agency.reliability.signals_why', 'Por qué aparece')}
+                                                                            </p>
+                                                                            <div className="mt-3 space-y-3">
+                                                                                {signalReasons.map((signal, index) => (
+                                                                                    <div key={`${signal.type}-${index}`} className="flex items-start gap-3">
+                                                                                        <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-500" />
+                                                                                        <div>
+                                                                                            <p className="text-sm font-bold text-gray-900 dark:text-white">{signal.title}</p>
+                                                                                            <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{signal.summary}</p>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <p className="text-xs font-black uppercase tracking-[0.16em] text-gray-400">
+                                                                                {translateOr(t, 'agency.reliability.signals_what_to_do', 'Qué puedes hacer')}
+                                                                            </p>
+                                                                            <div className="mt-3 space-y-3">
+                                                                                {recommendedActions.map((action) => (
+                                                                                    <div key={action} className="flex items-start gap-3">
+                                                                                        <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-500" />
+                                                                                        <p className="text-xs leading-5 text-gray-600 dark:text-gray-300">{polishPreventiveSignalText(action)}</p>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="border-t border-gray-100 bg-gray-50/60 px-5 py-4 dark:border-gray-800 dark:bg-gray-950/30">
+                                                                        <p className="text-xs font-bold text-gray-700 dark:text-gray-200">
+                                                                            {translateOr(t, 'agency.reliability.signals_observed_numbers', 'Números observados en esta cuenta')}
+                                                                        </p>
+                                                                        {item.numberQualityPreview.length > 0 ? (
+                                                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                                                {item.numberQualityPreview.map((preview, index) => (
+                                                                                    <span key={`${preview.slot_id || 'slot'}-${preview.phone_number || index}`} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                                                                        <Smartphone size={12} />
+                                                                                        {getNumberQualityPreviewIdentity(preview, t)}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                                                                {translateOr(t, 'agency.reliability.signals_no_numbers', 'La señal no incluye un número o slot identificable con los datos disponibles.')}
+                                                                            </p>
+                                                                        )}
+                                                                        <p className="mt-3 text-[11px] leading-5 text-gray-400 dark:text-gray-500">
+                                                                            {translateOr(t, 'agency.reliability.signals_scope_note', 'La señal se calcula con actividad agregada de la cuenta. Con estos datos no puede atribuirse a un workflow o slot específico. Esta vista es informativa y no ejecuta bloqueos ni desconexiones.')}
+                                                                        </p>
+                                                                    </div>
+                                                                </article>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
