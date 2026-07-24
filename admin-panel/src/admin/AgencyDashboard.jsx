@@ -16,6 +16,11 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { useBranding } from '../context/BrandingContext';
 import { classifyGhlInstallCallback } from '../utils/ghlInstallCallback';
+import {
+    NEXT_AGENCY_UI,
+    getAgencyUiRuntimeConfig,
+    resolveAgencyUiExperience
+} from '../utils/agencyUiExperience';
 
 import {
     LayoutGrid, CreditCard, LifeBuoy, LogOut,
@@ -25,7 +30,7 @@ import {
     Lock, User, Users, Moon, Sun, Link, MousePointer2,
     Key, Copy, Terminal, Globe, Save, Palette, RotateCcw, BookOpen, Hammer, FileText,
     Sparkles, Bot, CalendarCheck, MessageSquareText, Download, MessageSquare, Loader2, X, Info,
-    Activity, AlertTriangle, Send, ChevronDown // ✅ Iconos
+    Activity, AlertTriangle, Send, ChevronDown, List // ✅ Iconos
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
@@ -313,6 +318,11 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [reachoutChecking, setReachoutChecking] = useState(null);
 
     const [accountInfo, setAccountInfo] = useState(null);
+    const agencyUiExperience = resolveAgencyUiExperience({
+        accountInfo,
+        runtimeConfig: getAgencyUiRuntimeConfig(typeof window !== 'undefined' ? window : globalThis)
+    });
+    const isNextAgencyUi = agencyUiExperience === NEXT_AGENCY_UI;
     const isRestricted = (accountInfo?.plan || '').toLowerCase().includes('starter');
     const [crmPreference, setCrmPreference] = useState(localStorage.getItem("crmType") || "ghl");
     const agencyCrmType = String(accountInfo?.crm_type || crmPreference || "ghl").toLowerCase();
@@ -433,6 +443,9 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     // Integration filter for accounts list
     const [accountsFilter, setAccountsFilter] = useState("all"); // "all" | "ghl" | "waflow" | "chatwoot"
+    const [accountsView, setAccountsView] = useState(
+        () => localStorage.getItem("waflow:accounts-view-v2") || "expanded"
+    );
     const [settingsSection, setSettingsSection] = useState("guide");
     const [integrationOpenAiAccounts, setIntegrationOpenAiAccounts] = useState([]);
     const [integrationOpenAiSelectedIds, setIntegrationOpenAiSelectedIds] = useState([]);
@@ -3068,7 +3081,10 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     return (
-        <div className="agency-dashboard-ui flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden">
+        <div
+            className={`agency-dashboard-ui ${isNextAgencyUi ? 'agency-dashboard-ui--next' : 'agency-dashboard-ui--legacy'} flex h-screen bg-[#F8FAFC] dark:bg-[#0f1117] font-sans overflow-hidden`}
+            data-agency-ui={agencyUiExperience}
+        >
             <ExpiryPopup token={token} /> {/* ✅ Popup Global */}
             {isAccountSuspended && <SubscriptionBlocker token={token} onLogout={onLogout} accountInfo={accountInfo} />}
             {showManagedGhlPaidGate && (
@@ -3197,8 +3213,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                 </div>
             )}
 
-            <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex flex-col z-30`}>
-                <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
+            <aside className={isNextAgencyUi
+                ? `fixed inset-x-0 bottom-0 z-30 flex h-16 w-full flex-row border-t border-gray-200/70 bg-[#FBFCFE] dark:border-gray-800 dark:bg-gray-900 md:static md:h-auto md:flex-col md:border-r md:border-t-0 ${sidebarOpen ? 'md:w-64' : 'md:w-20'} md:transition-all md:duration-300`
+                : `${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex flex-col z-30`
+            }>
+                <div className={isNextAgencyUi
+                    ? "hidden h-14 items-center border-b border-gray-100 px-4 dark:border-gray-800 md:flex"
+                    : "h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800"
+                }>
                     <div
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0 overflow-hidden"
                         style={{ backgroundColor: branding.logoUrl ? 'transparent' : branding.primaryColor }}
@@ -3212,8 +3234,11 @@ export default function AgencyDashboard({ token, onLogout }) {
                     </div>
                     {sidebarOpen && <span className="ml-3 font-bold text-gray-900 dark:text-white tracking-tight truncate">{branding.name}</span>}
                 </div>
-                <div className="flex-1 p-4 overflow-y-auto">
-                    <p className={`text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>{t('dash.nav.management')}</p>
+                <div className={isNextAgencyUi
+                    ? "wf-sidebar-nav wf-sidebar-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2 py-2 md:block md:overflow-x-hidden md:overflow-y-auto md:p-4"
+                    : "flex-1 p-4 overflow-y-auto"
+                }>
+                    <p className={`${isNextAgencyUi ? 'hidden md:block' : ''} text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2 ${!sidebarOpen && 'hidden'}`}>{t('dash.nav.management')}</p>
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="overview" icon={LayoutGrid} label={t('dash.nav.overview')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="billing" icon={CreditCard} label={t('dash.nav.billing')} branding={branding} sidebarOpen={sidebarOpen} />
                     <SidebarItem activeTab={activeTab} setActiveTab={setActiveTab} id="reliability" icon={Activity} label={t('dash.nav.reliability') || 'Confiabilidad'} branding={branding} sidebarOpen={sidebarOpen} />
@@ -3226,15 +3251,49 @@ export default function AgencyDashboard({ token, onLogout }) {
                     <a href="https://docs.waflow.ai" target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}><BookOpen size={20} />{sidebarOpen && <span>{t('dash.nav.docs')}</span>}</a>
                     <a href={`https://wa.me/${SUPPORT_PHONE}`} target="_blank" rel="noreferrer" className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-gray-500 hover:bg-indigo-50 dark:text-gray-400 dark:hover:bg-indigo-900/10`}><LifeBuoy size={20} />{sidebarOpen && <span>{t('dash.nav.support')}</span>}</a>
                 </div>
-                <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+                <div className={isNextAgencyUi
+                    ? "wf-sidebar-footer flex shrink-0 items-center border-l border-gray-200 px-2 dark:border-gray-800 md:block md:border-l-0 md:border-t md:p-4"
+                    : "p-4 border-t border-gray-200 dark:border-gray-800"
+                }>
                     <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all font-medium text-sm"><LogOut size={20} />{sidebarOpen && <span>{t('dash.nav.logout')}</span>}</button>
                 </div>
             </aside>
 
-            <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F8FAFC] dark:bg-[#0f1117]">
-                <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 z-20">
-                    <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500"><Menu size={20} /></button><h2 className="text-lg font-bold text-gray-900 dark:text-white capitalize">{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : activeTab === 'reliability' ? (t('dash.header.reliability') || 'Confiabilidad operativa') : activeTab === 'agents' ? (t('dash.header.agents') || "Agentes") : activeTab === 'builder' ? (t('dash.header.builder') || "Constructor") : activeTab === 'templates' ? (t('dash.header.templates') || "Generar templates") : activeTab === 'my-templates' ? (t('dash.header.my_templates') || "Mis templates") : t('dash.header.settings')}</h2></div>
-                    <div className="flex items-center gap-4"><LanguageSelector /><ThemeToggle /><div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div></div>
+            <div className={`flex-1 flex flex-col h-screen overflow-hidden relative ${isNextAgencyUi ? 'bg-white' : 'bg-[#F8FAFC]'} dark:bg-[#0f1117]`}>
+                <header className={isNextAgencyUi
+                    ? "h-14 bg-white dark:bg-gray-900 flex items-center justify-between gap-4 px-5 z-20"
+                    : "h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 z-20"
+                }>
+                    <div className="flex min-w-0 items-center gap-4">
+                        <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`${isNextAgencyUi ? 'hidden md:block' : ''} p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500`}><Menu size={20} /></button>
+                        <h2 className={`${isNextAgencyUi ? 'text-base' : 'text-lg capitalize'} min-w-0 truncate font-bold text-gray-900 dark:text-white`}>{activeTab === 'overview' ? t('dash.header.overview') : activeTab === 'billing' ? t('dash.header.billing') : activeTab === 'reliability' ? (t('dash.header.reliability') || 'Confiabilidad operativa') : activeTab === 'agents' ? (t('dash.header.agents') || "Agentes") : activeTab === 'builder' ? (t('dash.header.builder') || "Constructor") : activeTab === 'templates' ? (t('dash.header.templates') || "Generar templates") : activeTab === 'my-templates' ? (t('dash.header.my_templates') || "Mis templates") : t('dash.header.settings')}</h2>
+                    </div>
+                    <div className={`flex shrink-0 items-center ${isNextAgencyUi ? 'gap-2' : 'gap-4'}`}>
+                        {isNextAgencyUi && activeTab === 'overview' && (
+                            <div className="hidden items-center gap-1 rounded-lg bg-gray-50 p-1 sm:flex dark:bg-gray-800/70" aria-label="Vista de cuentas">
+                                <button
+                                    type="button"
+                                    onClick={() => { setAccountsView('compact'); localStorage.setItem('waflow:accounts-view-v2', 'compact'); }}
+                                    aria-label="Vista compacta"
+                                    title="Vista compacta"
+                                    className={`rounded-md p-1.5 transition ${accountsView === 'compact' ? 'bg-white text-indigo-600 shadow-sm dark:bg-gray-700 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'}`}
+                                >
+                                    <List size={16} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setAccountsView('expanded'); localStorage.setItem('waflow:accounts-view-v2', 'expanded'); }}
+                                    aria-label="Vista amplia"
+                                    title="Vista amplia"
+                                    className={`rounded-md p-1.5 transition ${accountsView === 'expanded' ? 'bg-white text-indigo-600 shadow-sm dark:bg-gray-700 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'}`}
+                                >
+                                    <LayoutGrid size={16} />
+                                </button>
+                            </div>
+                        )}
+                        <LanguageSelector /><ThemeToggle />
+                        {!isNextAgencyUi && <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/20 shadow-sm" style={{ backgroundColor: branding.primaryColor }}>AG</div>}
+                    </div>
                 </header>
 
                 <section className="border-b border-gray-200/70 dark:border-gray-800 bg-white dark:bg-gray-900 z-10">
@@ -3327,10 +3386,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                     )}
                 </section>
 
-                <main className="flex-1 overflow-y-auto p-6 md:p-8">
+                <main className={isNextAgencyUi
+                    ? "flex-1 overflow-y-auto p-5 pb-24 md:px-8 md:pb-8 md:pt-6"
+                    : "flex-1 overflow-y-auto p-6 md:p-8"
+                }>
                     {activeTab === 'overview' && (
                         !accountInfo ? (<div className="flex justify-center items-center h-full text-gray-400"><RefreshCw className="animate-spin mr-2" /> {t('agency.loading_panel')}</div>) : (
-                            <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className={`max-w-7xl mx-auto ${isNextAgencyUi ? 'space-y-6' : 'space-y-10'} animate-in fade-in slide-in-from-bottom-4 duration-500`}>
                                 {/* WAFLOW CRM — Sección independiente */}
                                 {/*<div className="relative overflow-hidden rounded-2xl border border-indigo-200/60 dark:border-indigo-800/30 bg-gradient-to-r from-white via-indigo-50/30 to-violet-50/20 dark:from-gray-900 dark:via-indigo-950/20 dark:to-violet-950/10 p-5 shadow-sm">
                                     <div className="absolute -top-10 -right-10 w-28 h-28 bg-indigo-500/8 dark:bg-indigo-400/5 rounded-full blur-2xl pointer-events-none" />
@@ -3592,15 +3654,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         {loading && locations.length === 0 ? (
                                             <div className="py-12 text-center text-gray-400">{t('agency.loading_data')}</div>
                                         ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            <div className={`grid grid-cols-1 gap-4 ${isNextAgencyUi && accountsView === 'compact' ? 'lg:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
                                                 {filteredLocationCards.map(({ loc, totalSlots, connectedSlotCount, connectedNumbers, hasConnectedSlots, connectedPreview, remainingConnected }) => {
                                                     const productMeta = getTenantProductMeta(loc);
                                                     const ProductIcon = productMeta.icon;
 
                                                     return (
-                                                        <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer">
-                                                            <div className="flex items-start justify-between mb-3">
-                                                                <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                                                        <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className={`group bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer ${isNextAgencyUi && accountsView === 'compact' ? 'min-h-[76px] p-3.5' : 'p-4'}`}>
+                                                            <div className={`flex items-start justify-between ${isNextAgencyUi && accountsView === 'compact' ? 'mb-2' : 'mb-3'}`}>
+                                                                <div className={`${isNextAgencyUi && accountsView === 'compact' ? 'w-8 h-8' : 'w-10 h-10'} bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center`}>
                                                                     <ProductIcon size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
                                                                 </div>
                                                                 <div className="flex items-center gap-1.5">
@@ -3625,7 +3687,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                                         : (t('agency.location.none_online') || 'Sin números en línea')}
                                                                 </span>
                                                             </div>
-                                                            {connectedNumbers.length > 0 && (
+                                                            {connectedNumbers.length > 0 && (!isNextAgencyUi || accountsView === 'expanded') && (
                                                                 <p
                                                                     className="text-[11px] text-emerald-600 dark:text-emerald-400 mb-3 truncate"
                                                                     title={connectedNumbers.join(' · ')}
@@ -3644,9 +3706,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 })}
 
                                                 {!searchTerm && accountInfo && Array.from({ length: Math.max(0, (accountInfo.limits?.max_subagencies || 0) - locations.length) }).map((_, idx) => (
-                                                    <div key={`empty-${idx}`} onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setOnboardingHoveredCard(null); setShowOnboarding(true); }} className="group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all min-h-[140px]">
-                                                        <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                                                            <Plus size={20} className="text-gray-300 group-hover:text-indigo-600" />
+                                                    <div key={`empty-${idx}`} onClick={() => { setOnboardingStep(0); setOnboardingCrmType(null); setOnboardingConnectionType(null); setOnboardingHoveredCard(null); setShowOnboarding(true); }} className={`group border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all ${isNextAgencyUi && accountsView === 'compact' ? 'min-h-[76px] p-3' : 'min-h-[140px] p-4'}`}>
+                                                        <div className={`${isNextAgencyUi && accountsView === 'compact' ? 'w-7 h-7 mb-1' : 'w-10 h-10 mb-2'} bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                                                            <Plus size={isNextAgencyUi && accountsView === 'compact' ? 16 : 20} className="text-gray-300 group-hover:text-indigo-600" />
                                                         </div>
                                                         <p className="text-xs font-medium text-gray-500">
                                                             {isGhlAgency ? t('agency.location.empty_title') : (t('dash.chatwoot_accounts.new_empty') || "Nueva cuenta Waflow Inbox")}

@@ -162,3 +162,196 @@ html.light .agency-dashboard-ui :where(button, a, .cursor-pointer):focus-visible
 html.light .agency-dashboard-ui :where(input, select, textarea):hover {
   border-color: var(--ag-border-strong) !important;
 }
+
+/*
+ * Viraltia visual canary.
+ * Every rule is scoped to the authenticated agency experience. The legacy
+ * dashboard remains byte-for-byte equivalent at runtime when the canary gate
+ * is closed.
+ */
+.agency-dashboard-ui--next *::-webkit-scrollbar,
+.agency-dashboard-ui--next .wf-soft-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.agency-dashboard-ui--next *::-webkit-scrollbar-button,
+.agency-dashboard-ui--next .wf-soft-scrollbar::-webkit-scrollbar-button {
+  height: 8px;
+}
+
+.agency-dashboard-ui--next .wf-sidebar-scroll {
+  scrollbar-color: transparent transparent;
+}
+
+.agency-dashboard-ui--next .wf-sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+  background: transparent;
+}
+
+.agency-dashboard-ui--next .wf-sidebar-scroll::-webkit-scrollbar-track,
+.agency-dashboard-ui--next .wf-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+.agency-dashboard-ui--next .wf-sidebar-scroll:hover,
+.agency-dashboard-ui--next .wf-sidebar-scroll:focus-within {
+  scrollbar-color: rgba(148, 163, 184, 0.42) transparent;
+}
+
+.agency-dashboard-ui--next .wf-sidebar-scroll:hover::-webkit-scrollbar-thumb,
+.agency-dashboard-ui--next .wf-sidebar-scroll:focus-within::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.42);
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.agency-dashboard-ui--next .wf-tab-scroll,
+.agency-dashboard-ui--next .wf-slot-modal-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.agency-dashboard-ui--next .wf-tab-scroll::-webkit-scrollbar,
+.agency-dashboard-ui--next .wf-slot-modal-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.agency-dashboard-ui--next .wf-account-details > div {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0.25rem 0 !important;
+}
+
+.agency-dashboard-ui--next :where(.text-4xl) {
+  font-size: 1.875rem !important;
+  line-height: 2.25rem !important;
+}
+
+.agency-dashboard-ui--next :where(.text-3xl) {
+  font-size: 1.625rem !important;
+  line-height: 2rem !important;
+}
+
+.agency-dashboard-ui--next :where(.text-2xl) {
+  font-size: 1.375rem !important;
+  line-height: 1.75rem !important;
+}
+
+.agency-dashboard-ui--next :where(.text-xl) {
+  font-size: 1.125rem !important;
+  line-height: 1.5rem !important;
+}
+
+.agency-dashboard-ui--next :where(.text-lg) {
+  font-size: 1rem !important;
+  line-height: 1.5rem !important;
+}
+
+.agency-dashboard-ui--next :where(.p-10, .p-8):not(button):not(input):not(select):not(textarea) {
+  padding: 1.5rem !important;
+}
+
+.agency-dashboard-ui--next :where(.p-6):not(button):not(input):not(select):not(textarea) {
+  padding: 1.25rem !important;
+}
+
+.agency-dashboard-ui--next :where(.p-5):not(button):not(input):not(select):not(textarea) {
+  padding: 1rem !important;
+}
+
+.agency-dashboard-ui--next :where(.gap-10, .gap-8) {
+  gap: 1.5rem !important;
+}
+
+.agency-dashboard-ui--next :where(.gap-7, .gap-6) {
+  gap: 1.25rem !important;
+}
+
+.agency-dashboard-ui--next :where(.space-y-8 > :not([hidden]) ~ :not([hidden])),
+.agency-dashboard-ui--next :where(.space-y-6 > :not([hidden]) ~ :not([hidden])) {
+  margin-top: 1.25rem !important;
+}
+
+.agency-dashboard-ui--next :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select) {
+  height: 2.75rem !important;
+  min-height: 2.75rem !important;
+  padding-block: 0.625rem !important;
+  padding-inline: 0.875rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.25rem !important;
+}
+
+.agency-dashboard-ui--next :where(textarea) {
+  padding-block: 0.625rem !important;
+  padding-inline: 0.875rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.45 !important;
+}
+
+.agency-dashboard-ui--next :where(button.rounded-2xl:not([aria-label]):not([class~="p-1"]):not([class~="p-1.5"]):not([class~="p-2"]):not([class~="p-2.5"]),
+  button.rounded-3xl:not([aria-label]):not([class~="p-1"]):not([class~="p-1.5"]):not([class~="p-2"]):not([class~="p-2.5"])) {
+  min-height: 2.5rem;
+  height: auto !important;
+  padding-block: 0.5rem !important;
+  padding-inline: 0.875rem !important;
+  font-size: 0.8125rem !important;
+}
+
+html.light .agency-dashboard-ui--next {
+  --ag-border: #d5dce8;
+  --ag-border-strong: #b7c2d4;
+  --ag-hover-ring: rgba(79, 70, 229, 0.08);
+  --ag-hover-shadow: rgba(15, 23, 42, 0.08);
+}
+
+html.light .agency-dashboard-ui--next :where(.border) {
+  border-width: 1px;
+}
+
+html.light .agency-dashboard-ui--next :where(.border-2) {
+  border-width: 2px;
+}
+
+html.light .agency-dashboard-ui--next :where(.cursor-pointer, button, a):not(:disabled):hover {
+  box-shadow: 0 2px 10px -8px var(--ag-hover-shadow);
+}
+
+@media (max-width: 767px) {
+  .agency-dashboard-ui--next .wf-sidebar-scroll {
+    scrollbar-width: none;
+  }
+
+  .agency-dashboard-ui--next .wf-sidebar-scroll::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .agency-dashboard-ui--next .wf-sidebar-nav > button,
+  .agency-dashboard-ui--next .wf-sidebar-nav > a {
+    width: 2.75rem !important;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    margin: 0;
+    padding: 0 !important;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .agency-dashboard-ui--next .wf-sidebar-nav > button > span,
+  .agency-dashboard-ui--next .wf-sidebar-nav > a > span,
+  .agency-dashboard-ui--next .wf-sidebar-footer button > span {
+    display: none;
+  }
+
+  .agency-dashboard-ui--next .wf-sidebar-footer button {
+    width: 2.75rem !important;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    padding: 0 !important;
+    justify-content: center;
+  }
+}
