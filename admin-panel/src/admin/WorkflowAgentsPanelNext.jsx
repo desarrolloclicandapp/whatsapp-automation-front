@@ -1461,7 +1461,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                             value={agentQuery}
                             onChange={(event) => setAgentQuery(event.target.value)}
                             placeholder={t("workflow_agents.search_placeholder")}
-                            className={`${inputClassName} h-[44px] py-0 bg-white pl-10 dark:bg-gray-900`}
+                            className={`${inputClassName} wf-input-with-icon h-[44px] py-0 bg-white pl-10 dark:bg-gray-900`}
                         />
                     </div>
                     <div className="w-full xl:max-w-[320px]">

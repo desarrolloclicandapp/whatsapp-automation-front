@@ -1324,7 +1324,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                                     <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
                                                         <div className="border-b border-gray-100 p-2 dark:border-gray-800">
                                                             <div className="relative">
-                                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+                                                                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
                                                                 <input
                                                                     autoFocus
                                                                     value={search}
@@ -1333,7 +1333,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                                                         searchByPlaceholder: { ...(prev.searchByPlaceholder || {}), [placeholder]: event.target.value }
                                                                     }))}
                                                                     placeholder="Buscar variable GHL..."
-                                                                    className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                                                                    className="wf-input-with-icon w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                                                                 />
                                                             </div>
                                                             <button

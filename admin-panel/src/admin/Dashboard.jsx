@@ -26,7 +26,7 @@ export default function AdminDashboard({ token, onLogout }) {
         DEFAULT_BRANDING,
         DEFAULT_STANDALONE_BRANDING
     } = useBranding();
-    const [view, setView] = useState('agencies'); 
+    const [view, setView] = useState('users');
     const [selectedAgency, setSelectedAgency] = useState(null);
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [agencies, setAgencies] = useState([]);
@@ -34,6 +34,7 @@ export default function AdminDashboard({ token, onLogout }) {
     const [users, setUsers] = useState([]); 
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    const [searchDraft, setSearchDraft] = useState("");
     const [userSort, setUserSort] = useState({ key: 'name', direction: 'asc' });
     const [userStatusFilters, setUserStatusFilters] = useState({
         active: true,
@@ -67,6 +68,7 @@ export default function AdminDashboard({ token, onLogout }) {
     const [numberHealthSummary, setNumberHealthSummary] = useState({ total: 0, stable: 0, attention: 0, unstable: 0, restricted: 0, connected: 0, recovering: 0, requiresQr: 0, offline: 0, historicalRestrictions: 0 });
     const [numberHealthLoading, setNumberHealthLoading] = useState(false);
     const [numberHealthQuery, setNumberHealthQuery] = useState('');
+    const [numberHealthQueryDraft, setNumberHealthQueryDraft] = useState('');
     const [numberHealthStatus, setNumberHealthStatus] = useState('all');
     const [adminLogFilters, setAdminLogFilters] = useState({
         source: 'all',
@@ -76,6 +78,7 @@ export default function AdminDashboard({ token, onLogout }) {
         query: '',
         hoursBack: '24'
     });
+    const [adminLogQueryDraft, setAdminLogQueryDraft] = useState('');
 
     // Estado para modal de trial
     const [trialModal, setTrialModal] = useState({ show: false, userId: null, userName: '', currentEnd: null });
@@ -756,7 +759,6 @@ const handleDeleteUser = (user, type = 'soft') => {
     useEffect(() => {
         if (view === 'agencies') fetchAgencies();
         if (view === 'users') fetchUsers();
-        if (view === 'logs') fetchAdminLogs();
         if (view === 'numberHealth') fetchNumberHealth();
     }, [view]);
 
@@ -766,10 +768,32 @@ const handleDeleteUser = (user, type = 'soft') => {
         return () => clearTimeout(timer);
     }, [view, adminLogFilters, showReviewedLogs]);
 
+    useEffect(() => {
+        const timer = setTimeout(() => setSearchTerm(searchDraft), 400);
+        return () => clearTimeout(timer);
+    }, [searchDraft]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setAdminLogFilters((current) => (
+                current.query === adminLogQueryDraft
+                    ? current
+                    : { ...current, query: adminLogQueryDraft }
+            ));
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [adminLogQueryDraft]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setNumberHealthQuery(numberHealthQueryDraft), 350);
+        return () => clearTimeout(timer);
+    }, [numberHealthQueryDraft]);
+
     const handleAgencyClick = (agency) => {
         setSelectedAgency(agency);
         setView('subaccounts');
         setSearchTerm("");
+        setSearchDraft("");
         fetchSubaccounts(agency.agency_id);
     };
 
@@ -777,6 +801,7 @@ const handleDeleteUser = (user, type = 'soft') => {
         setSelectedAgency(null);
         setView('agencies');
         setSearchTerm("");
+        setSearchDraft("");
         setSubaccounts([]);
         fetchAgencies();
     };
@@ -908,6 +933,7 @@ const handleDeleteUser = (user, type = 'soft') => {
     };
 
     const clearAdminLogFilters = () => {
+        setAdminLogQueryDraft('');
         setAdminLogFilters({
             source: 'all',
             severity: 'actionable',
@@ -1050,58 +1076,63 @@ const handleDeleteUser = (user, type = 'soft') => {
         const topTypes = Array.isArray(adminLogOptions.types) ? adminLogOptions.types.slice(0, 8) : [];
 
         return (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                    <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex items-center justify-between">
                             <span className="text-xs font-bold uppercase text-gray-500">Total</span>
                             <Activity size={18} className="text-indigo-500" />
                         </div>
-                        <p className="text-2xl font-black mt-2 text-gray-900 dark:text-white">{adminLogSummary.total || 0}</p>
+                        <p className="mt-1 text-xl font-black text-gray-900 dark:text-white">{adminLogSummary.total || 0}</p>
                     </div>
-                    <div className="bg-white dark:bg-gray-900 border border-red-100 dark:border-red-900/60 rounded-xl p-4">
+                    <div className="rounded-xl border border-red-100 bg-white p-3 dark:border-red-900/60 dark:bg-gray-900">
                         <div className="flex items-center justify-between">
                             <span className="text-xs font-bold uppercase text-red-600 dark:text-red-300">Críticos</span>
                             <ShieldAlert size={18} className="text-red-500" />
                         </div>
-                        <p className="text-2xl font-black mt-2 text-red-600 dark:text-red-300">{adminLogSummary.critical || 0}</p>
+                        <p className="mt-1 text-xl font-black text-red-600 dark:text-red-300">{adminLogSummary.critical || 0}</p>
                     </div>
-                    <div className="bg-white dark:bg-gray-900 border border-amber-100 dark:border-amber-900/60 rounded-xl p-4">
+                    <div className="rounded-xl border border-amber-100 bg-white p-3 dark:border-amber-900/60 dark:bg-gray-900">
                         <div className="flex items-center justify-between">
                             <span className="text-xs font-bold uppercase text-amber-600 dark:text-amber-300">Warnings</span>
                             <AlertTriangle size={18} className="text-amber-500" />
                         </div>
-                        <p className="text-2xl font-black mt-2 text-amber-600 dark:text-amber-300">{adminLogSummary.warning || 0}</p>
+                        <p className="mt-1 text-xl font-black text-amber-600 dark:text-amber-300">{adminLogSummary.warning || 0}</p>
                     </div>
-                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
+                    <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex items-center justify-between">
                             <span className="text-xs font-bold uppercase text-gray-500">Fuentes</span>
                             <Database size={18} className="text-sky-500" />
                         </div>
-                        <p className="text-2xl font-black mt-2 text-gray-900 dark:text-white">{Object.keys(adminLogSummary.bySource || {}).length}</p>
+                        <p className="mt-1 text-xl font-black text-gray-900 dark:text-white">{Object.keys(adminLogSummary.bySource || {}).length}</p>
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-sm text-indigo-900 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-200">
+                <div className="rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2 text-xs text-indigo-900 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-200">
                     La vista prioriza incidentes que requieren decisión. Los eventos <strong>info</strong> quedan ocultos por defecto y las reconexiones repetidas se consolidan en un solo resumen.
                 </div>
 
-                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 space-y-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_160px_150px_150px_150px_auto] gap-3">
+                <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.6fr)_140px_140px_130px_130px_auto]">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                             <input
                                 type="text"
-                                value={adminLogFilters.query}
-                                onChange={(e) => updateAdminLogFilter('query', e.target.value)}
+                                value={adminLogQueryDraft}
+                                onChange={(e) => setAdminLogQueryDraft(e.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                        updateAdminLogFilter('query', adminLogQueryDraft);
+                                    }
+                                }}
                                 placeholder="Buscar por sesión, location, mensaje, servicio o teléfono..."
-                                className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                                className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950"
                             />
                         </div>
-                        <select value={adminLogFilters.source} onChange={(e) => updateAdminLogFilter('source', e.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold">
+                        <select value={adminLogFilters.source} onChange={(e) => updateAdminLogFilter('source', e.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold dark:border-gray-700 dark:bg-gray-950">
                             {sourceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                         </select>
-                        <select value={adminLogFilters.severity} onChange={(e) => updateAdminLogFilter('severity', e.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold">
+                        <select value={adminLogFilters.severity} onChange={(e) => updateAdminLogFilter('severity', e.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold dark:border-gray-700 dark:bg-gray-950">
                             {severityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                         </select>
                         <input
@@ -1109,33 +1140,33 @@ const handleDeleteUser = (user, type = 'soft') => {
                             value={adminLogFilters.type}
                             onChange={(e) => updateAdminLogFilter('type', e.target.value)}
                             placeholder="Tipo"
-                            className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm"
+                            className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-950"
                         />
                         <input
                             type="text"
                             value={adminLogFilters.code}
                             onChange={(e) => updateAdminLogFilter('code', e.target.value)}
                             placeholder="Código"
-                            className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm"
+                            className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-950"
                         />
                         <div className="flex items-center gap-2">
-                            <select value={adminLogFilters.hoursBack} onChange={(e) => updateAdminLogFilter('hoursBack', e.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold">
+                            <select value={adminLogFilters.hoursBack} onChange={(e) => updateAdminLogFilter('hoursBack', e.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold dark:border-gray-700 dark:bg-gray-950">
                                 <option value="2">2h</option>
                                 <option value="6">6h</option>
                                 <option value="24">24h</option>
                                 <option value="72">72h</option>
                                 <option value="168">7d</option>
                             </select>
-                            <button onClick={fetchAdminLogs} className="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition" title="Recargar logs">
+                            <button onClick={fetchAdminLogs} className="rounded-lg bg-indigo-600 p-2.5 text-white transition hover:bg-indigo-700" title="Recargar logs">
                                 <RefreshCw size={18} className={adminLogsLoading ? 'animate-spin' : ''} />
                             </button>
-                            <button onClick={clearAdminLogFilters} className="p-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-indigo-600 rounded-lg transition" title="Limpiar filtros">
+                            <button onClick={clearAdminLogFilters} className="rounded-lg bg-gray-100 p-2.5 text-gray-600 transition hover:text-indigo-600 dark:bg-gray-800 dark:text-gray-300" title="Limpiar filtros">
                                 <Filter size={18} />
                             </button>
-                            <button onClick={() => setShowReviewedLogs((current) => !current)} className={`px-3 py-3 rounded-lg text-xs font-bold border transition ${showReviewedLogs ? 'bg-slate-700 text-white border-slate-700' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
+                            <button onClick={() => setShowReviewedLogs((current) => !current)} className={`whitespace-nowrap rounded-lg border px-3 py-2.5 text-xs font-semibold transition ${showReviewedLogs ? 'bg-slate-700 text-white border-slate-700' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
                                 {showReviewedLogs ? 'Ocultar cerrados' : 'Ver revisados'}
                             </button>
-                            <button type="button" onClick={downloadAdminLogsCsv} className="px-3 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition" title="Descargar todos los logs que coinciden con los filtros actuales">Descargar CSV</button>
+                            <button type="button" onClick={downloadAdminLogsCsv} className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 transition hover:border-indigo-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" title="Descargar todos los logs que coinciden con los filtros actuales">CSV</button>
                         </div>
                     </div>
 
@@ -1308,17 +1339,17 @@ const handleDeleteUser = (user, type = 'soft') => {
                 || Number(right.reconnect_incidents_72h || 0) - Number(left.reconnect_incidents_72h || 0);
         });
         return (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <h2 className="text-xl font-black text-gray-900 dark:text-white">Salud de números</h2>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Actividad de 28 días y estabilidad de conexión. Se consulta solo al abrir esta vista y se cachea brevemente.</p>
+                        <h2 className="text-base font-black text-gray-900 dark:text-white">Salud de números</h2>
+                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Estado actual, actividad e incidentes recientes.</p>
                     </div>
-                    <button onClick={() => fetchNumberHealth(true)} className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm transition">
+                    <button onClick={() => fetchNumberHealth(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">
                         <RefreshCw size={17} className={numberHealthLoading ? 'animate-spin' : ''} /> Actualizar
                     </button>
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
                     {[
                         ['Números', numberHealthSummary.total, 'text-gray-900 dark:text-white'],
                         ['Conectados', numberHealthSummary.connected, 'text-emerald-600 dark:text-emerald-300'],
@@ -1328,11 +1359,11 @@ const handleDeleteUser = (user, type = 'soft') => {
                         ['Restricción superada', numberHealthSummary.historicalRestrictions, 'text-sky-600 dark:text-sky-300'],
                         ['Entregas pendientes', numberHealthSummary.deliveryPending, 'text-amber-600 dark:text-amber-300'],
                         ['Multimedia fallida 24h', numberHealthSummary.mediaFinalFailures24h, 'text-red-600 dark:text-red-300']
-                    ].map(([label, value, color]) => <div key={label} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">{label}</p><p className={`mt-2 text-2xl font-black ${color}`}>{value || 0}</p></div>)}
+                    ].map(([label, value, color]) => <div key={label} className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900"><p className="truncate text-[10px] font-bold uppercase tracking-wide text-gray-400" title={label}>{label}</p><p className={`mt-1 text-xl font-black ${color}`}>{value || 0}</p></div>)}
                 </div>
-                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 flex flex-col md:flex-row gap-3">
-                    <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} /><input value={numberHealthQuery} onChange={(event) => setNumberHealthQuery(event.target.value)} placeholder="Buscar número, cliente, location o slot..." className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" /></div>
-                    <select value={numberHealthStatus} onChange={(event) => setNumberHealthStatus(event.target.value)} className="px-3 py-3 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-bold"><option value="all">Todos los estados</option><option value="connected">Conectados</option><option value="recovering">Reconectando</option><option value="offline">Desconectados</option><option value="requires_qr">Requieren QR</option><option value="reachout_limited">Nuevas conversaciones limitadas</option><option value="verification_pending">Limitación en verificación</option><option value="restricted">Permisos perdidos / revincular</option><option value="historical_restriction">Restricción superada</option><option value="delivery_pending">Entregas pendientes</option><option value="delivery_failed">Fallos reales de entrega</option><option value="media_recovered">Multimedia recuperada</option><option value="media_failed">Multimedia fallida</option><option value="unstable">Conectados inestables</option><option value="attention">Conectados en atención</option><option value="blocked">Bloqueados</option><option value="paused">Pausados</option></select>
+                <div className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900 md:flex-row">
+                    <div className="relative flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={17} /><input value={numberHealthQueryDraft} onChange={(event) => setNumberHealthQueryDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') setNumberHealthQuery(numberHealthQueryDraft); }} placeholder="Buscar número, cliente, location o slot..." className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" /></div>
+                    <select value={numberHealthStatus} onChange={(event) => setNumberHealthStatus(event.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold dark:border-gray-700 dark:bg-gray-950"><option value="all">Todos los estados</option><option value="connected">Conectados</option><option value="recovering">Reconectando</option><option value="offline">Desconectados</option><option value="requires_qr">Requieren QR</option><option value="reachout_limited">Nuevas conversaciones limitadas</option><option value="verification_pending">Limitación en verificación</option><option value="restricted">Permisos perdidos / revincular</option><option value="historical_restriction">Restricción superada</option><option value="delivery_pending">Entregas pendientes</option><option value="delivery_failed">Fallos reales de entrega</option><option value="media_recovered">Multimedia recuperada</option><option value="media_failed">Multimedia fallida</option><option value="unstable">Conectados inestables</option><option value="attention">Conectados en atención</option><option value="blocked">Bloqueados</option><option value="paused">Pausados</option></select>
                 </div>
                 <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
                     {numberHealthLoading ? <div className="py-20 text-center text-gray-500"><RefreshCw className="animate-spin mx-auto mb-3 text-indigo-600" size={32} />Cargando salud de números...</div> : rows.length === 0 ? <div className="py-20 text-center text-gray-500"><Activity className="mx-auto mb-3 text-gray-300" size={40} />No hay números para los filtros seleccionados.</div> : <div className="overflow-x-auto">
@@ -1488,78 +1519,128 @@ const handleDeleteUser = (user, type = 'soft') => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 font-sans transition-colors duration-200">
+        <div className="admin-master-ui min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 font-sans transition-colors duration-200">
             {/* HEADER */}
-            <header className="bg-white dark:bg-gray-900 border-b border-gray-300 dark:border-gray-800 sticky top-0 z-20 shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        {/* Botón Atrás (Subcuentas) */}
-                        {view === 'subaccounts' && (
-                            <button onClick={handleBackToAgencies} className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-600 dark:text-gray-300">
-                                <ArrowLeft size={20} />
-                            </button>
-                        )}
-                        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-indigo-500/20">CA</div>
-                        <div><h1 className="text-lg font-bold tracking-tight leading-tight text-gray-900 dark:text-white">{view === 'branding' ? 'Configuración Global' : view === 'standaloneBranding' ? 'Configuración Standalone' : view === 'users' ? 'Gestión de Usuarios' : view === 'logs' ? 'Logs Operacionales' : view === 'numberHealth' ? 'Salud de números' : view === 'templateVisibility' ? 'Visibilidad de templates' : view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}</h1>{view === 'subaccounts' && <p className="text-xs text-gray-500 dark:text-gray-400">Gestionando {subaccounts.length} cuentas</p>}{view === 'users' && <p className="text-xs text-gray-500 dark:text-gray-400">{users.length} usuarios registrados</p>}{view === 'logs' && <p className="text-xs text-gray-500 dark:text-gray-400">{adminLogSummary.total || adminLogs.length} eventos recientes</p>}{view === 'numberHealth' && <p className="text-xs text-gray-500 dark:text-gray-400">{numberHealthSummary.total || numberHealth.length} números analizados</p>}</div>
-                        {masterOtp && (
-                            <div className="hidden lg:flex items-center gap-2 bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1.5 rounded-lg text-xs font-bold">
-                                <span>Master OTP:</span>
-                                <span className="font-mono text-sm">{masterOtp}</span>
-                                {masterOtpExpiresAt && (
-                                    <span className="text-[10px] text-amber-700">({getMasterOtpLabel()})</span>
-                                )}
-                            </div>
-                        )}
-                        <div className="hidden md:flex items-center gap-1 ml-6 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700">
-                            <button onClick={() => { setView('agencies'); setSubaccounts([]); setSelectedAgency(null); }} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'agencies' || view === 'subaccounts' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Building2 size={16} /> Agencias</button>
-                            <button onClick={() => setView('users')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'users' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Users size={16} /> Usuarios</button>
-                            <button onClick={() => setView('logs')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'logs' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Activity size={16} /> Logs</button>
-                            <button onClick={() => setView('numberHealth')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'numberHealth' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><ShieldAlert size={16} /> Salud</button>
-                            <button onClick={() => setView('templateVisibility')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'templateVisibility' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><FileText size={16} /> Templates</button>
-                            <button onClick={() => setView('branding')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'branding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Settings size={16} /> Marca Global</button>
-                            <button onClick={() => setView('standaloneBranding')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${view === 'standaloneBranding' ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}><Smartphone size={16} /> Marca Standalone</button>
-                        </div>
+            <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
+                <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-3 sm:px-5">
+                    {view === 'subaccounts' && (
+                        <button onClick={handleBackToAgencies} className="shrink-0 rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-indigo-600 dark:hover:bg-gray-800" title="Volver a agencias">
+                            <ArrowLeft size={18} />
+                        </button>
+                    )}
+                    <div className="flex shrink-0 items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-xs font-black text-white">CA</div>
+                        <h1 className="whitespace-nowrap text-sm font-black tracking-tight text-gray-900 dark:text-white sm:text-base">Panel Maestro</h1>
                     </div>
-                    <div className="flex items-center gap-3"><ThemeToggle /><button onClick={() => view === 'agencies' ? fetchAgencies() : view === 'users' ? fetchUsers() : view === 'logs' ? fetchAdminLogs() : view === 'numberHealth' ? fetchNumberHealth(true) : (selectedAgency ? fetchSubaccounts(selectedAgency.agency_id) : null)} className="p-2.5 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-800 rounded-lg transition hover:scale-105" title="Recargar datos"><RefreshCw size={20} className={(loading || adminLogsLoading || numberHealthLoading) ? "animate-spin" : ""} /></button><div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div><button onClick={onLogout} className="p-2.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30 transition font-medium text-sm flex items-center gap-2"><LogOut size={18} /><span className="hidden sm:inline">Salir</span></button></div>
+
+                    {masterOtp && (
+                        <div className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-900 xl:flex">
+                            <span>OTP</span>
+                            <span className="font-mono text-xs font-black">{masterOtp}</span>
+                            {masterOtpExpiresAt && <span className="text-[10px] text-amber-700">{getMasterOtpLabel()}</span>}
+                        </div>
+                    )}
+
+                    <nav className="min-w-0 flex-1 overflow-x-auto" aria-label="Panel Maestro">
+                        <div className="flex min-w-max items-center gap-1">
+                            {[
+                                ['users', 'Usuarios', Users],
+                                ['agencies', 'Agencias', Building2],
+                                ['logs', 'Logs', Activity],
+                                ['numberHealth', 'Salud', ShieldAlert],
+                                ['templateVisibility', 'Templates', FileText],
+                                ['branding', 'Marca global', Settings],
+                                ['standaloneBranding', 'Marca standalone', Smartphone]
+                            ].map(([itemView, label, Icon]) => {
+                                const active = itemView === 'agencies'
+                                    ? (view === 'agencies' || view === 'subaccounts')
+                                    : view === itemView;
+                                return (
+                                    <button
+                                        key={itemView}
+                                        type="button"
+                                        onClick={() => {
+                                            if (itemView === 'agencies') {
+                                                setSubaccounts([]);
+                                                setSelectedAgency(null);
+                                            }
+                                            setView(itemView);
+                                            setSearchTerm('');
+                                            setSearchDraft('');
+                                        }}
+                                        className={`inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 py-2 text-xs font-semibold transition-colors ${
+                                            active
+                                                ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-300'
+                                                : 'border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        <Icon size={14} />
+                                        {label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </nav>
+
+                    <div className="flex shrink-0 items-center gap-1">
+                        <ThemeToggle />
+                        <button
+                            onClick={() => view === 'agencies' ? fetchAgencies() : view === 'users' ? fetchUsers() : view === 'logs' ? fetchAdminLogs() : view === 'numberHealth' ? fetchNumberHealth(true) : (selectedAgency ? fetchSubaccounts(selectedAgency.agency_id) : null)}
+                            className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-indigo-300"
+                            title="Recargar datos"
+                        >
+                            <RefreshCw size={17} className={(loading || adminLogsLoading || numberHealthLoading) ? "animate-spin" : ""} />
+                        </button>
+                        <button onClick={onLogout} className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30" title="Cerrar sesión">
+                            <LogOut size={17} />
+                        </button>
+                    </div>
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5">
                 
                 {/* VISTA: BRANDING */}
                 {view === 'branding' && <BrandingSettings mode="global" />}
                 {view === 'standaloneBranding' && <BrandingSettings mode="standalone" />}
-                {view === 'logs' && <LogsPanel />}
-                {view === 'numberHealth' && <NumberHealthPanel />}
+                {view === 'logs' && LogsPanel()}
+                {view === 'numberHealth' && NumberHealthPanel()}
                 {view === 'templateVisibility' && <AdminTemplateVisibility token={token} agencies={agencies} onUnauthorized={onLogout} />}
 
                 {/* VISTA: USUARIOS */}
                 {view === 'users' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                            <div className="relative w-full max-w-md">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                                <input type="text" placeholder="Buscar por email, nombre o agencia..." className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                        <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                            <div className="relative w-full min-w-0 lg:max-w-lg">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por email, nombre o agencia..."
+                                    className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-gray-700 dark:bg-gray-900 dark:focus:ring-indigo-900/30"
+                                    value={searchDraft}
+                                    onChange={(event) => setSearchDraft(event.target.value)}
+                                    onKeyDown={(event) => { if (event.key === 'Enter') setSearchTerm(searchDraft); }}
+                                />
                             </div>
                             <button
                                 onClick={handleOpenManualUserModal}
-                                className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-sm transition"
+                                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
                             >
-                                Crear Usuario
+                                <Plus size={16} /> Crear usuario
                             </button>
                             <div className="relative">
                                 <button
                                     type="button"
                                     onClick={() => setShowUserStatusFilters((current) => !current)}
-                                    className="px-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-bold text-sm shadow-sm transition flex items-center gap-2 hover:border-indigo-300 dark:hover:border-indigo-700"
+                                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:border-indigo-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                                 >
-                                    Filtros
+                                    <Filter size={15} /> Filtros
                                     <ChevronDown size={16} className={`transition ${showUserStatusFilters ? 'rotate-180' : ''}`} />
                                 </button>
                                 {showUserStatusFilters && (
-                                    <div className="absolute z-30 mt-2 w-72 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 right-0 sm:left-0 sm:right-auto">
+                                    <div className="absolute z-30 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-900 right-0 lg:left-0 lg:right-auto">
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Plan & estado</span>
+                                            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Plan y estado</span>
                                             <button
                                                 type="button"
                                                 onClick={() => setUserStatusFilters({
@@ -1573,29 +1654,26 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                 })}
                                                 className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
                                             >
-                                                Default
+                                                Restablecer
                                             </button>
                                         </div>
-                                        <div className="space-y-1.5">
+                                        <div className="grid grid-cols-2 gap-1">
                                             {userStatusFilterOptions.map((option) => (
-                                                <label key={option.key} className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
+                                                <label key={option.key} className="flex cursor-pointer items-center gap-2 rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-800">
                                                     <input
                                                         type="checkbox"
                                                         checked={userStatusFilters[option.key] !== false}
                                                         onChange={(event) => setUserStatusFilters((current) => ({ ...current, [option.key]: event.target.checked }))}
-                                                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                                     />
-                                                    <span>
-                                                        <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100">{option.label}</span>
-                                                        <span className="block text-[11px] text-gray-500 leading-snug">{option.description}</span>
-                                                    </span>
+                                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{option.label}</span>
                                                 </label>
                                             ))}
                                         </div>
                                     </div>
                                 )}
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 sm:ml-auto">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 lg:ml-auto">
                                 Mostrando <span className="font-bold text-gray-800 dark:text-gray-100">{filteredUsers.length}</span> de {users.length}
                             </div>
                         </div>
@@ -1605,9 +1683,9 @@ const handleDeleteUser = (user, type = 'soft') => {
                         ) : filteredUsers.length === 0 ? (
                             <div className="text-center py-16 bg-white dark:bg-gray-900 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700"><Users className="mx-auto text-gray-300 mb-4" size={64} /><p className="text-gray-500 text-lg">No se encontraron usuarios.</p></div>
                         ) : (
-                            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-sm overflow-hidden">
+                            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                                 <div className="overflow-x-auto">
-                                    <table className="w-full min-w-[1120px] text-left border-collapse">
+                                    <table className="admin-users-table w-full min-w-[1080px] border-collapse text-left">
                                         <thead className="bg-gray-50 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">
                                             <tr>
                                                 <th className="px-6 py-4"><SortableUserHeader sortKey="name">Usuario / Email</SortableUserHeader></th>
@@ -1909,11 +1987,11 @@ const handleDeleteUser = (user, type = 'soft') => {
                 {/* VISTA: AGENCIAS / SUBCUENTAS */}
                 {(view === 'agencies' || view === 'subaccounts') && (
                     <>
-                        <div className="mb-8 space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                        <div className="mb-5 space-y-4 animate-in fade-in slide-in-from-bottom-2">
                             {view === 'agencies' && <SupportManager token={token} />}
                             <div className="relative w-full max-w-md">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                                <input type="text" placeholder={view === 'agencies' ? "Buscar agencia..." : "Buscar subcuenta..."} className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                                <input type="text" placeholder={view === 'agencies' ? "Buscar agencia..." : "Buscar subcuenta..."} className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') setSearchTerm(searchDraft); }} />
                             </div>
                         </div>
                         {view === 'agencies' && (
@@ -1923,23 +2001,23 @@ const handleDeleteUser = (user, type = 'soft') => {
                                 ) : filteredAgencies.length === 0 ? (
                                     <div className="text-center py-16 bg-white dark:bg-gray-900 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700"><Building2 className="mx-auto text-gray-300 mb-4" size={64} /><p className="text-gray-500 text-lg">No se encontraron agencias.</p></div>
                                 ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in">
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 animate-in fade-in">
                                         {filteredAgencies.map((agency) => (
-                                            <div key={agency.agency_id} onClick={() => handleAgencyClick(agency)} className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-sm hover:border-indigo-500 cursor-pointer group relative overflow-hidden transition-all hover:shadow-lg">
+                                            <div key={agency.agency_id} onClick={() => handleAgencyClick(agency)} className="group relative cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white p-4 transition-all hover:border-indigo-400 hover:shadow-sm dark:border-gray-800 dark:bg-gray-900">
                                                 
                                                 {/* Boton de borrar agencia */}
                                                 <button 
                                                     onClick={(e) => handleDeleteAgency(e, agency.agency_id, agency.agency_name)}
-                                                    className="absolute top-4 right-4 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition opacity-0 group-hover:opacity-100 z-20"
+                                                    className="absolute right-3 top-3 z-20 rounded-lg p-1.5 text-gray-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/20"
                                                     title="Eliminar Agencia Completa"
                                                 >
-                                                    <Trash2 size={18} />
+                                                    <Trash2 size={15} />
                                                 </button>
 
-                                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition transform group-hover:scale-110"><Building2 size={80} className="text-indigo-900 dark:text-white" /></div>
+                                                <div className="absolute right-0 top-0 p-3 opacity-[0.04] transition group-hover:opacity-[0.07]"><Building2 size={64} className="text-indigo-900 dark:text-white" /></div>
                                                 <div className="relative z-10">
-                                                    <div className="flex items-center gap-4 mb-6"><div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300 shadow-sm"><Building2 size={28} /></div><div className="overflow-hidden"><h3 className="font-bold text-lg dark:text-white group-hover:text-indigo-600 truncate">{agency.agency_name || agency.agency_id}</h3><p className="text-xs uppercase tracking-wider text-gray-500 font-bold mt-0.5">Agencia Partner</p></div></div>
-                                                    <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800"><div className="text-center w-1/2 border-r border-gray-200 dark:border-gray-800"><p className="text-2xl font-bold dark:text-white">{agency.total_subaccounts}</p><p className="text-xs text-gray-500 uppercase font-medium">Total</p></div><div className="text-center w-1/2"><p className="text-2xl font-bold text-emerald-600">{agency.active_subaccounts || 0}</p><p className="text-xs text-gray-500 uppercase font-medium">Activas</p></div></div>
+                                                    <div className="mb-4 flex items-center gap-3"><div className="rounded-lg bg-indigo-50 p-2.5 text-indigo-600 transition-colors group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-900/30 dark:text-indigo-400"><Building2 size={20} /></div><div className="min-w-0"><h3 className="truncate text-sm font-bold dark:text-white group-hover:text-indigo-600">{agency.agency_name || agency.agency_id}</h3><p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Agencia partner</p></div></div>
+                                                    <div className="flex items-center justify-between border-t border-gray-100 pt-3 dark:border-gray-800"><div className="w-1/2 border-r border-gray-100 text-center dark:border-gray-800"><p className="text-xl font-bold dark:text-white">{agency.total_subaccounts}</p><p className="text-[10px] font-medium uppercase text-gray-500">Total</p></div><div className="w-1/2 text-center"><p className="text-xl font-bold text-emerald-600">{agency.active_subaccounts || 0}</p><p className="text-[10px] font-medium uppercase text-gray-500">Activas</p></div></div>
                                                 </div>
                                             </div>
                                         ))}
@@ -1956,7 +2034,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                 ) : (
                                     <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-sm overflow-hidden animate-in fade-in">
                                         <div className="overflow-x-auto">
-                                            <table className="w-full text-left border-collapse">
+                                            <table className="admin-data-table w-full text-left border-collapse">
                                                 <thead className="bg-gray-100 dark:bg-gray-950 border-b border-gray-300 dark:border-gray-800"><tr><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Nombre</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Location ID</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Estado</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Plan</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Creado</th><th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Acciones</th></tr></thead>
                                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                                                     {filteredSubaccounts.map(sub => (

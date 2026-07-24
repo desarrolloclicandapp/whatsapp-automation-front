@@ -251,6 +251,15 @@ html.light .agency-dashboard-ui--redesign :where(input, select, textarea):hover 
   line-height: 1.45;
 }
 
+/*
+ * Inputs with a leading SVG icon must keep a real text gutter.
+ * The explicit rule avoids collisions when utility padding is overridden
+ * by a denser form context.
+ */
+.agency-dashboard-ui--redesign input.wf-input-with-icon {
+  padding-inline-start: 2.5rem !important;
+}
+
 .agency-dashboard-ui--redesign .wf-agents-ui :where(button) {
   font-size: 0.8125rem;
 }

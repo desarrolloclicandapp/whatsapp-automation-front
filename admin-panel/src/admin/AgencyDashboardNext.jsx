@@ -114,6 +114,16 @@ function formatRelativeTime(value) {
     return `${diffDays}d`;
 }
 
+function formatOperationalTimestamp(value) {
+    if (!value) return "";
+    const timestamp = new Date(value);
+    if (!Number.isFinite(timestamp.getTime())) return "";
+    return timestamp.toLocaleString(undefined, {
+        dateStyle: "short",
+        timeStyle: "short"
+    });
+}
+
 function translateOr(t, key, fallback) {
     const translated = typeof t === "function" ? t(key) : null;
     if (!translated || translated === key) return fallback;
@@ -2321,7 +2331,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     value={integrationOpenAiSearch}
                                     onChange={(event) => setIntegrationOpenAiSearch(event.target.value)}
                                     placeholder={t('agency.integrations.openai_accounts_search') || 'Buscar cuenta...'}
-                                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                                    className="wf-input-with-icon w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                                 />
                             </div>
                         </div>
@@ -2767,15 +2777,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                     }))
                     .filter((preview) => preview.slot_id || preview.phone_number || preview.slot_name)
                 : [];
-            const reachoutSlots = (Array.isArray(linkedLocation?.slot_health) ? linkedLocation.slot_health : [])
-                .filter((slot) => (
-                    (slot?.reachout?.state === 'restricted' || slot?.reachout?.state === 'suspected')
-                    && slot?.capabilities?.verifyNow
-                ))
-                .map((slot) => ({
-                    ...slot,
-                    locationId: linkedLocation.location_id
-                }));
             const replyStrikes = Number(entry.reply_strikes) || 0;
             const operationalState = (metaRiskLevel === 'critical' || metaRiskLevel === 'high')
                 ? 'review'
@@ -2812,7 +2813,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                 operationalStateLabel,
                 numberQualitySource,
                 numberQualityPreview,
-                reachoutSlots,
                 suggestedAction,
                 onClick: linkedLocation ? () => setSelectedLocation(linkedLocation) : null
             };
@@ -2829,6 +2829,22 @@ export default function AgencyDashboard({ token, onLogout }) {
     const reliabilityRangeEnd = reliabilityAccountRows.length === 0
         ? 0
         : Math.min(reliabilityAccountRows.length, safeReliabilityPage * RELIABILITY_PAGE_SIZE);
+    const operationalSlots = filteredLocationCards.flatMap(({ loc }) =>
+        (Array.isArray(loc?.slot_health) ? loc.slot_health : []).map((slot) => ({
+            ...slot,
+            locationName: loc?.name || loc?.location_id,
+            locationId: loc?.location_id
+        }))
+    );
+    const operationalAlerts = operationalSlots.filter((slot) => (
+        slot?.capabilities?.requiresQr
+        || slot?.reachout?.state === 'restricted'
+        || slot?.reachout?.state === 'suspected'
+        || (!slot?.is_connected && !slot?.suspended_by)
+    ));
+    const confirmedReachoutCount = operationalSlots.filter((slot) => (
+        slot?.reachout?.state === 'restricted' && slot?.reachout?.confirmedByMeta === true
+    )).length;
     useEffect(() => {
         if (reliabilityPage > reliabilityTotalPages) {
             setReliabilityPage(reliabilityTotalPages);
@@ -3044,14 +3060,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">{t('agency.wl.logo_url')}</label>
                                 <div className="flex items-center gap-3">
                                     <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"><img src={form.logoUrl} alt="Preview" className="h-full w-full object-contain" onError={(e) => e.target.style.display = 'none'} /></div>
-                                    <div className="relative min-w-0 flex-1"><Link size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.logoUrl === systemBranding?.logoUrl ? '' : (form.logoUrl || '')} onChange={e => setForm({ ...form, logoUrl: e.target.value || systemBranding.logoUrl })} className="w-full rounded-lg border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none transition-all dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="URL Logo" /></div>
+                                    <div className="relative min-w-0 flex-1"><Link size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.logoUrl === systemBranding?.logoUrl ? '' : (form.logoUrl || '')} onChange={e => setForm({ ...form, logoUrl: e.target.value || systemBranding.logoUrl })} className="wf-input-with-icon w-full rounded-lg border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none transition-all dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="URL Logo" /></div>
                                 </div>
                             </div>
                             <div>
                                 <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">{t('agency.wl.favicon_url')}</label>
                                 <div className="flex items-center gap-3">
                                     <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"><img src={form.faviconUrl} alt="Preview" className="h-7 w-7 object-contain" onError={(e) => e.target.style.display = 'none'} /></div>
-                                    <div className="relative min-w-0 flex-1"><MousePointer2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.faviconUrl === systemBranding?.faviconUrl ? '' : (form.faviconUrl || '')} onChange={e => setForm({ ...form, faviconUrl: e.target.value || systemBranding.faviconUrl })} className="w-full rounded-lg border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none transition-all dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="URL Favicon" /></div>
+                                    <div className="relative min-w-0 flex-1"><MousePointer2 size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="url" value={form.faviconUrl === systemBranding?.faviconUrl ? '' : (form.faviconUrl || '')} onChange={e => setForm({ ...form, faviconUrl: e.target.value || systemBranding.faviconUrl })} className="wf-input-with-icon w-full rounded-lg border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none transition-all dark:border-gray-700 dark:bg-gray-800 dark:text-white" placeholder="URL Favicon" /></div>
                                 </div>
                             </div>
                         </div>
@@ -3523,12 +3539,12 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </div>
                                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center xl:shrink-0">
                                                 <div className="relative min-w-0 sm:w-64 xl:w-80">
-                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                                                     <input
                                                         type="text"
                                                         autoComplete="off"
                                                         placeholder={t('agency.onboarding.search_accounts') || 'Buscar cuentas...'}
-                                                        className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900/30 transition"
+                                                        className="wf-input-with-icon w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900/30 transition"
                                                         value={searchTerm}
                                                         onChange={e => setSearchTerm(e.target.value)}
                                                     />
@@ -3674,7 +3690,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             {[
                                                 ['summary', t('agency.reliability.view_summary') || 'Resumen'],
                                                 ['accounts', t('agency.reliability.view_accounts') || 'Cuentas'],
-                                                ['signals', t('agency.reliability.view_signals') || 'Señales']
+                                                ['signals', t('agency.reliability.view_signals') || 'Señales'],
+                                                ['health', t('agency.reliability.view_health') || 'Centro de salud']
                                             ].map(([viewId, label]) => (
                                                 <button
                                                     key={viewId}
@@ -3713,12 +3730,12 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 </button>
                                             ))}
                                             <div className="relative">
-                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                                                 <input
                                                     type="text"
                                                     autoComplete="off"
                                                     placeholder={t('agency.onboarding.search_accounts') || 'Buscar cuentas...'}
-                                                    className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 transition-colors dark:border-gray-700 dark:bg-gray-800 dark:text-white sm:w-52"
+                                                    className="wf-input-with-icon w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 transition-colors dark:border-gray-700 dark:bg-gray-800 dark:text-white sm:w-52"
                                                     value={searchTerm}
                                                     onChange={e => setSearchTerm(e.target.value)}
                                                 />
@@ -3738,7 +3755,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                             {loading && locations.length === 0 ? (
                                 <div className="py-14 text-center text-gray-400">{t('agency.loading_data')}</div>
-                            ) : reliabilityTotalAccounts === 0 ? (
+                            ) : reliabilityTotalAccounts === 0 && reliabilityView !== 'health' ? (
                                 <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm py-14 px-6 text-center">
                                     <div className="w-14 h-14 mx-auto rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-400 flex items-center justify-center mb-4">
                                         <Activity size={24} />
@@ -3869,6 +3886,101 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </div>
                                     </div>
 
+                                    <div className={`space-y-5 ${reliabilityView === 'health' ? '' : 'hidden'}`}>
+                                        <div className="grid gap-4 sm:grid-cols-3">
+                                            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                                                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400">
+                                                    {t('agency.reliability.health_numbers') || 'Números observados'}
+                                                </p>
+                                                <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{operationalSlots.length}</p>
+                                            </div>
+                                            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                                                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400">
+                                                    {t('agency.reliability.health_open') || 'Requieren atención'}
+                                                </p>
+                                                <p className={`mt-2 text-2xl font-black ${operationalAlerts.length ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                                                    {operationalAlerts.length}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                                                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400">
+                                                    {t('agency.reliability.health_meta_confirmed') || 'Confirmados por Meta'}
+                                                </p>
+                                                <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{confirmedReachoutCount}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                                            <div className="flex items-start gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-800">
+                                                <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                                                    operationalAlerts.length
+                                                        ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-300'
+                                                        : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-300'
+                                                }`}>
+                                                    {operationalAlerts.length ? <AlertTriangle size={17} /> : <ShieldCheck size={17} />}
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                                                        {t('agency.reliability.health_title') || 'Centro de salud operativo'}
+                                                    </h4>
+                                                    <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                                        {t('agency.reliability.health_desc') || 'Muestra únicamente estados actuales que requieren una acción. Los eventos recuperados permanecen en el historial.'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {operationalAlerts.length === 0 ? (
+                                                <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                                    {t('agency.reliability.health_empty') || 'No hay incidentes operativos abiertos para este filtro.'}
+                                                </div>
+                                            ) : (
+                                                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                    {operationalAlerts.map((slot) => {
+                                                        const key = `${slot.locationId}_slot${slot.slot_id}`;
+                                                        const requiresQr = slot?.capabilities?.requiresQr;
+                                                        const confirmed = slot?.reachout?.state === 'restricted' && slot?.reachout?.confirmedByMeta;
+                                                        const suspected = slot?.reachout?.state === 'suspected';
+                                                        const statusLabel = requiresQr
+                                                            ? (t('agency.reliability.health_requires_qr') || 'Requiere QR')
+                                                            : confirmed
+                                                                ? (t('agency.reliability.health_meta_limited') || 'Limitación temporal confirmada por Meta')
+                                                                : suspected
+                                                                    ? (t('agency.reliability.health_meta_pending') || 'Señal de Meta pendiente de verificar')
+                                                                    : (t('agency.reliability.health_disconnected') || 'Desconectado temporalmente');
+
+                                                        return (
+                                                            <div key={key} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                                                                <div className="min-w-0">
+                                                                    <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                                                                        {slot.locationName} · {slot.slot_name || `Slot ${slot.slot_id}`}
+                                                                    </p>
+                                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                                        {statusLabel}
+                                                                        {slot?.reachout?.restrictedUntil
+                                                                            ? ` · ${(t('agency.reliability.health_until') || 'hasta')} ${formatOperationalTimestamp(slot.reachout.restrictedUntil)}`
+                                                                            : ''}
+                                                                    </p>
+                                                                </div>
+                                                                {(confirmed || suspected) && slot?.capabilities?.verifyNow && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => verifyReachoutState(slot)}
+                                                                        disabled={Boolean(reachoutChecking)}
+                                                                        className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+                                                                    >
+                                                                        {reachoutChecking === key
+                                                                            ? (t('agency.reliability.verifying_reachout') || 'Consultando Meta…')
+                                                                            : (t('agency.reliability.verify_reachout') || 'Verificar con Meta')}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
                                     <div className={`space-y-5 ${reliabilityView === 'accounts' ? '' : 'hidden'}`}>
                                         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                                             <div>
@@ -3917,8 +4029,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     action: t('agency.reliability.table_action') || 'Recomendación'
                                                 }}
                                                 noSampleText={t('agency.reliability.no_sample_short') || 'Sin muestra'}
-                                                onVerifyReachout={verifyReachoutState}
-                                                reachoutChecking={reachoutChecking}
                                             />
                                         </div>
                                     </div>
@@ -5379,9 +5489,7 @@ const ReliabilityAccountsTable = ({
     nextText,
     t,
     columns,
-    noSampleText,
-    onVerifyReachout,
-    reachoutChecking
+    noSampleText
 }) => {
     const translate = typeof t === 'function' ? t : ((key) => key);
 
@@ -5481,26 +5589,7 @@ const ReliabilityAccountsTable = ({
                                         </div>
                                     </td>
                                     <td className="px-3 py-4 align-top text-sm leading-5 text-gray-600 dark:text-gray-300">
-                                        <p>{item.suggestedAction}</p>
-                                        {Array.isArray(item.reachoutSlots) && item.reachoutSlots.map((slot) => {
-                                            const key = `${slot.locationId}_slot${slot.slot_id}`;
-                                            return (
-                                                <button
-                                                    key={key}
-                                                    type="button"
-                                                    onClick={(event) => {
-                                                        event.stopPropagation();
-                                                        onVerifyReachout?.(slot);
-                                                    }}
-                                                    disabled={Boolean(reachoutChecking)}
-                                                    className="mt-2 inline-flex items-center rounded-lg border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
-                                                >
-                                                    {reachoutChecking === key
-                                                        ? translateOr(translate, 'agency.reliability.verifying_reachout', 'Consultando Meta…')
-                                                        : translateOr(translate, 'agency.reliability.verify_reachout', 'Verificar con Meta')}
-                                                </button>
-                                            );
-                                        })}
+                                        {item.suggestedAction}
                                     </td>
                                 </tr>
                             );
@@ -5593,25 +5682,6 @@ const ReliabilityAccountsTable = ({
                             <div className="min-w-0">
                                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-gray-400 xl:hidden">{columns.action}</span>
                                 <p className="text-sm leading-5 text-gray-600 dark:text-gray-300">{item.suggestedAction}</p>
-                                {Array.isArray(item.reachoutSlots) && item.reachoutSlots.map((slot) => {
-                                    const key = `${slot.locationId}_slot${slot.slot_id}`;
-                                    return (
-                                        <button
-                                            key={key}
-                                            type="button"
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                onVerifyReachout?.(slot);
-                                            }}
-                                            disabled={Boolean(reachoutChecking)}
-                                            className="mt-2 inline-flex items-center rounded-lg border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
-                                        >
-                                            {reachoutChecking === key
-                                                ? translateOr(translate, 'agency.reliability.verifying_reachout', 'Consultando Meta…')
-                                                : translateOr(translate, 'agency.reliability.verify_reachout', 'Verificar con Meta')}
-                                        </button>
-                                    );
-                                })}
                             </div>
                         </div>
                     );
