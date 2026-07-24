@@ -1006,6 +1006,12 @@ const handleDeleteUser = (user, type = 'soft') => {
             impact: 'Impacto: no es un segundo fallo ni una operación adicional.',
             action: 'Acción: revisar únicamente el incidente terminal relacionado.'
         };
+        if (code === 'GHL_DELIVERY_DEFERRED_RECONNECT' || log.incident_status === 'deferred') return {
+            title: 'Entrega diferida mientras el canal se reconecta',
+            cause: 'El mensaje quedó preservado en la cola porque la sesión QR estaba recuperando su conexión.',
+            impact: 'Impacto: todavía no es un fallo terminal y no debe reenviarse manualmente.',
+            action: 'Acción: esperar el resultado final. El panel sólo lo mostrará como accionable si la entrega termina fallando.'
+        };
         if (log.incident_status === 'ignored' && ['408', '428', '503', '515'].includes(code)) return {
             title: 'Evento QR no aplicable al canal oficial',
             cause: 'El slot utiliza la API oficial de Meta y no depende de un socket QR activo.',
@@ -1262,6 +1268,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                                                     {log.incident_status === 'recovered' && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900">Recuperado automáticamente</span>}
                                                     {log.incident_status === 'ignored' && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">Informativo · ignorado</span>}
                                                     {log.incident_status === 'correlated' && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-900">Correlacionado</span>}
+                                                    {log.incident_status === 'deferred' && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-900">En espera programada</span>}
                                                     {log.incident_status === 'open' && <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900">Incidente abierto</span>}
                                                 </div>
                                                 <p className="text-sm font-semibold text-gray-900 dark:text-white break-words">{human.title}</p>
