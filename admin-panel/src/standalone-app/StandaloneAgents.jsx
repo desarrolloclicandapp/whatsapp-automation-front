@@ -1214,7 +1214,7 @@ const disableTagAction = (permissionKey) => {
                                 ) : null}
                                 {!isActive ? (
                                     <div className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                                        Activalo para poder usarlo en un numero.
+                                        Actívalo para poder usarlo en un número.
                                     </div>
                                 ) : null}
                                 {isActive && !isDefaultReady ? (
@@ -1918,7 +1918,7 @@ const disableTagAction = (permissionKey) => {
                                     ))}
                                 </select>
                                 {slots.length <= 1 ? (
-                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Solo hay un numero, se usara automaticamente.</p>
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Solo hay un número, se usará automáticamente.</p>
                                 ) : null}
                             </div>
                             <label className={`relative flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${

@@ -2691,7 +2691,7 @@ function OfficialPanel({
               <p className="mt-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
                 {embeddedMissing.length > 0
                   ? `${translateOr(t, 'standalone.slots.official.embedded_missing', 'Faltan datos de configuracion')}: ${embeddedMissing.join(', ')}`
-                  : translateOr(t, 'standalone.slots.official.embedded_unavailable', 'Embedded Signup no esta configurado en este entorno.')}
+                  : translateOr(t, 'standalone.slots.official.embedded_unavailable', 'Embedded Signup no está configurado en este entorno.')}
               </p>
             )}
           </div>

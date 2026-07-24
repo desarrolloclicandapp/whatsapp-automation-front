@@ -707,7 +707,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (data.success) {
                 const successDescription = isChatwootMode
                     ? (tenantSettings?.is_auto_provisioned
-                        ? getManagedInboxText(t('slots.chatwoot.auto_provisioned_ready'), "Configurado automaticamente en Chatwoot.")
+                        ? getManagedInboxText(t('slots.chatwoot.auto_provisioned_ready'), "Configurado automáticamente en Chatwoot.")
                         : "Listo para vincular.")
                     : "Listo para vincular.";
                 toast.success(isChatwootMode ? (t('slots.chatwoot_inbox.added') || "Inbox agregado") : "Dispositivo agregado", { description: successDescription });
@@ -2907,12 +2907,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res) return false;
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "Credenciales inv�lidas");
+                throw new Error(err.error || "Credenciales inválidas");
             }
             toast.success("Twilio validado correctamente");
             return true;
         } catch (e) {
-            toast.error("Validaci�n Twilio fall�", { description: e.message });
+            toast.error("Validación Twilio falló", { description: e.message });
             return false;
         } finally {
             toast.dismiss(loadingId);
@@ -2929,7 +2929,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const tokenReady = tokenInput || current.authTokenMasked || current.hasAuthToken;
 
         if (!sidReady || !tokenReady || !fromNumber) {
-            toast.error("Completa SID, Auth Token y n�mero Twilio");
+            toast.error("Completa SID, Auth Token y número Twilio");
             return;
         }
 
@@ -2952,7 +2952,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 const err = await res.json().catch(() => ({}));
                 throw new Error(err.error || "No se pudo guardar");
             }
-            toast.success("Configuraci�n Twilio guardada");
+            toast.success("Configuración Twilio guardada");
             await loadTwilioConfig(slotId, true);
         } catch (e) {
             toast.error("Error guardando Twilio", { description: e.message });
@@ -3588,7 +3588,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </>
                             ) : (
                                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200">
-                                    WaFloW configura y enruta el webhook oficial automaticamente para este canal. El cliente no necesita copiar ni pegar nada en Meta por slot.
+                                    WaFloW configura y enruta el webhook oficial automáticamente para este canal. El cliente no necesita copiar ni pegar nada en Meta por slot.
                                 </div>
                             )}
 
@@ -6173,7 +6173,7 @@ function SlotConnectionManager({
                                     onClick={onConnectOfficial}
                                     disabled={officialEmbeddedLoading || officialEmbeddedStarting || typeof onConnectOfficial !== 'function'}
                                     className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                                    title={!officialEmbeddedEnabled ? (t('slots.official.embedded.unavailable') || 'Embedded Signup no esta configurado en este entorno.') : undefined}
+                                    title={!officialEmbeddedEnabled ? (t('slots.official.embedded.unavailable') || 'Embedded Signup no está configurado en este entorno.') : undefined}
                                 >
                                     {officialEmbeddedLoading || officialEmbeddedStarting ? <Loader2 className="animate-spin" size={18} /> : <Link2 size={18} />}
                                     {officialEmbeddedStarting

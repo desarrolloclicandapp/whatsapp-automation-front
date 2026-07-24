@@ -172,7 +172,7 @@ export default function StandaloneSettings({
     () => [
       {
         key: 'ops',
-        label: t('agency.settings_nav.operations') || 'Operacion',
+        label: t('agency.settings_nav.operations') || 'Operación',
         items: [
           {
             id: 'general',
@@ -1721,7 +1721,7 @@ export default function StandaloneSettings({
                       onClick={openApiKeyTutorial}
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-emerald-200 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30 transition"
                     >
-                      {t('standalone.settings.openai_howto_cta') || 'como configurar mi api key'}
+                      {t('standalone.settings.openai_howto_cta') || 'Cómo configurar mi API key'}
                     </button>
                   </div>
                 </div>
@@ -2354,7 +2354,7 @@ export default function StandaloneSettings({
                       onClick={openApiKeyTutorial}
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-emerald-200 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30 transition"
                     >
-                      {t('standalone.settings.openai_howto_cta') || 'como configurar mi api key'}
+                      {t('standalone.settings.openai_howto_cta') || 'Cómo configurar mi API key'}
                     </button>
                   </div>
                 </div>

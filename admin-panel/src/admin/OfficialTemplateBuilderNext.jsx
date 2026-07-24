@@ -26,7 +26,7 @@ const emptyForm = {
         addSecurityRecommendation: true,
         codeExpirationMinutes: "10",
         otpType: "COPY_CODE",
-        buttonText: "Copiar codigo",
+        buttonText: "Copiar código",
         autofillText: "Autocompletar",
         packageName: "",
         signatureHash: ""
@@ -341,19 +341,19 @@ function friendlyTemplateError(payload = {}, t) {
     const code = String(payload?.code || "").trim();
     if (code === "OFFICIAL_WABA_ACCESS_LOST") {
         return {
-            title: payload.title || (t("templates.builder.access_lost_title") || "La conexion con Meta perdio permisos"),
-            message: payload.error || (t("templates.builder.access_lost_message") || "Ya no tenemos acceso a la cuenta de WhatsApp Business vinculada a este numero."),
+            title: payload.title || (t("templates.builder.access_lost_title") || "La conexión con Meta perdió permisos"),
+            message: payload.error || (t("templates.builder.access_lost_message") || "Ya no tenemos acceso a la cuenta de WhatsApp Business vinculada a este número."),
             reason: payload.reason || (t("templates.builder.access_lost_reason") || "Esto suele pasar cuando se elimina a WaFloW como socio/partner del portfolio comercial del cliente o se revocan permisos en Meta."),
             actions: Array.isArray(payload.actions) && payload.actions.length > 0 ? payload.actions : [
-                t("templates.builder.access_lost_action_clear") || "Pulsa Limpiar en la configuracion del numero para quitar la vinculacion anterior.",
-                t("templates.builder.access_lost_action_reconnect") || "Vuelve a conectar el numero con el boton de Meta oficial y acepta nuevamente los permisos.",
-                t("templates.builder.access_lost_action_partner") || "Confirma en Meta Business que WaFloW/Clic&App figure como socio con acceso al WABA y al numero."
+                t("templates.builder.access_lost_action_clear") || "Pulsa Limpiar en la configuración del número para quitar la vinculación anterior.",
+                t("templates.builder.access_lost_action_reconnect") || "Vuelve a conectar el número con el botón de Meta oficial y acepta nuevamente los permisos.",
+                t("templates.builder.access_lost_action_partner") || "Confirma en Meta Business que WaFloW/Clic&App figure como socio con acceso al WABA y al número."
             ]
         };
     }
     return {
         title: t("templates.builder.load_templates_error") || "No se pudieron cargar templates",
-        message: payload?.error || payload?.message || (t("templates.builder.generic_templates_error") || "No pudimos consultar las plantillas de este numero."),
+        message: payload?.error || payload?.message || (t("templates.builder.generic_templates_error") || "No pudimos consultar las plantillas de este número."),
         reason: payload?.reason || "",
         actions: []
     };
@@ -413,7 +413,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         });
         if (res.status === 401) {
             if (typeof onUnauthorized === "function") onUnauthorized();
-            throw new Error(t("agency.session_expired") || "Sesion expirada");
+            throw new Error(t("agency.session_expired") || "Sesión expirada");
         }
         return res;
     };
@@ -709,7 +709,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
             });
         } catch (error) {
             if (!mountedRef.current || slotsLoadRequestRef.current !== requestId) return;
-            toast.error(t("templates.builder.load_slots_error") || "No se pudieron cargar numeros Meta oficiales", {
+            toast.error(t("templates.builder.load_slots_error") || "No se pudieron cargar números oficiales de Meta", {
                 description: error.message
             });
         } finally {
@@ -928,7 +928,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
     const createTemplate = async (event) => {
         event.preventDefault();
         if (!selectedSlot || selectedSlots.length === 0) {
-            toast.error(t("templates.builder.no_official_slots") || "No hay numeros Meta oficiales conectados");
+            toast.error(t("templates.builder.no_official_slots") || "No hay números oficiales de Meta conectados");
             return;
         }
         if (!normalizedName || (!isAuthenticationTemplate && !form.bodyText.trim())) {
@@ -1441,7 +1441,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                     <div key={`button-${index}`} className="border-b border-gray-100 pb-3 last:border-b-0 dark:border-gray-800">
                         <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                             <select value={button.type || "QUICK_REPLY"} onChange={(event) => updateButton(index, "type", event.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white">
-                                <option value="QUICK_REPLY">Respuesta rapida</option>
+                                <option value="QUICK_REPLY">Respuesta rápida</option>
                                 <option value="URL">Visitar sitio web</option>
                                 <option value="PHONE_NUMBER">Llamar por telefono</option>
                                 <option value="FLOW">Abrir Flow</option>
@@ -1450,7 +1450,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             <button type="button" onClick={() => removeButton(index)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600 dark:border-red-900">Eliminar</button>
                         </div>
                         {button.type === "URL" ? <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2"><input value={button.url || ""} onChange={(event) => updateButton(index, "url", event.target.value)} placeholder="https://ejemplo.com/promo/{{codigo}}" className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /><input value={button.urlExample || ""} onChange={(event) => updateButton(index, "urlExample", event.target.value)} placeholder="Ejemplo si la URL tiene variable" className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></div> : null}
-                        {button.type === "PHONE_NUMBER" ? <input value={button.phoneNumber || ""} onChange={(event) => updateButton(index, "phoneNumber", event.target.value)} placeholder="Numero con codigo de pais" className="mt-2 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /> : null}
+                        {button.type === "PHONE_NUMBER" ? <input value={button.phoneNumber || ""} onChange={(event) => updateButton(index, "phoneNumber", event.target.value)} placeholder="Número con código de país" className="mt-2 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /> : null}
                         {button.type === "FLOW" ? <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2"><input value={button.flowId || ""} onChange={(event) => updateButton(index, "flowId", event.target.value)} placeholder="Flow ID" className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /><input value={button.navigateScreen || ""} onChange={(event) => updateButton(index, "navigateScreen", event.target.value)} placeholder="ID de pantalla inicial" className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></div> : null}
                     </div>
                 ))}
@@ -1466,11 +1466,11 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
 
                 {loadingSlots ? (
                     <div className="border-l-2 border-indigo-400 pl-4 text-indigo-900 dark:border-indigo-500 dark:text-indigo-100">
-                        <div className="flex items-center gap-3"><Loader2 size={20} className="animate-spin" /> {t("templates.builder.loading_slots") || "Buscando numeros Meta oficiales..."}</div>
+                        <div className="flex items-center gap-3"><Loader2 size={20} className="animate-spin" /> {t("templates.builder.loading_slots") || "Buscando números oficiales de Meta..."}</div>
                     </div>
                 ) : officialSlots.length === 0 ? (
                     <div className="text-sm text-gray-500">
-                        {t("templates.builder.no_ready_slots_short") || "Sin numeros listos para templates"}
+                        {t("templates.builder.no_ready_slots_short") || "Sin números listos para plantillas"}
                     </div>
                 ) : (
                     <>
@@ -1557,7 +1557,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                     <div className="flex items-start gap-3">
                         <Loader2 size={20} className="mt-0.5 shrink-0 animate-spin" />
                         <div>
-                            <p className="font-bold">{t("templates.builder.loading_slots") || "Buscando numeros Meta oficiales..."}</p>
+                            <p className="font-bold">{t("templates.builder.loading_slots") || "Buscando números oficiales de Meta..."}</p>
                             <p className="mt-1 text-sm">{t("templates.builder.loading_slots_desc") || "Estamos revisando las cuentas conectadas. Esto puede tardar unos segundos si tienes varias cuentas."}</p>
                         </div>
                     </div>
@@ -1566,8 +1566,8 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
 
             {officialSlots.length === 0 && !loadingSlots ? (
                 <div className="border-l-2 border-amber-400 pl-4 text-amber-900 dark:border-amber-500 dark:text-amber-100">
-                    <p className="font-bold">{t("templates.builder.no_official_slots") || "No hay numeros Meta oficiales conectados."}</p>
-                    <p className="mt-1 text-sm">{t("templates.builder.no_official_slots_desc") || "Este apartado se habilita cuando una cuenta tiene al menos un numero vinculado con WhatsApp Meta oficial."}</p>
+                    <p className="font-bold">{t("templates.builder.no_official_slots") || "No hay números oficiales de Meta conectados."}</p>
+                    <p className="mt-1 text-sm">{t("templates.builder.no_official_slots_desc") || "Este apartado se habilita cuando una cuenta tiene al menos un número vinculado con WhatsApp oficial de Meta."}</p>
                 </div>
             ) : null}
 
@@ -1619,7 +1619,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div className="md:col-span-2">
                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                Portafolio Meta y numeros oficiales
+                                Portafolio de Meta y números oficiales
                             </label>
                             <select
                                 value={selectedPortfolioId}
@@ -1631,11 +1631,11 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                     <option value="">Cargando portafolios...</option>
                                 ) : null}
                                 {!loadingSlots && portfolioOptions.length === 0 ? (
-                                    <option value="">{t("templates.builder.no_ready_slots_short") || "Sin numeros listos para templates"}</option>
+                                    <option value="">{t("templates.builder.no_ready_slots_short") || "Sin números listos para plantillas"}</option>
                                 ) : null}
                                 {portfolioOptions.map((portfolio) => (
                                     <option key={portfolio.portfolioId} value={portfolio.portfolioId}>
-                                        {portfolio.metaBusinessName || `Meta Business ${portfolio.portfolioId}`} · {portfolio.locationLabel} · {portfolio.count} numero{portfolio.count === 1 ? "" : "s"} · {portfolio.wabaCount} WABA{portfolio.wabaCount === 1 ? "" : "s"}
+                                        {portfolio.metaBusinessName || `Meta Business ${portfolio.portfolioId}`} · {portfolio.locationLabel} · {portfolio.count} número{portfolio.count === 1 ? "" : "s"} · {portfolio.wabaCount} WABA{portfolio.wabaCount === 1 ? "" : "s"}
                                     </option>
                                 ))}
                             </select>
@@ -1661,7 +1661,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                             </div>
                             {selectedSlots.length > 0 ? (
                                 <p className="mt-2 text-xs font-semibold text-gray-500 dark:text-gray-400">
-                                    {selectedSlots.length} numero{selectedSlots.length === 1 ? "" : "s"} seleccionado{selectedSlots.length === 1 ? "" : "s"} · {selectedWabaGroups.length} WABA{selectedWabaGroups.length === 1 ? "" : "s"} a procesar en {new Set(selectedSlots.map((slot) => slot.locationId)).size} cuenta{new Set(selectedSlots.map((slot) => slot.locationId)).size === 1 ? "" : "s"}
+                                    {selectedSlots.length} número{selectedSlots.length === 1 ? "" : "s"} seleccionado{selectedSlots.length === 1 ? "" : "s"} · {selectedWabaGroups.length} WABA{selectedWabaGroups.length === 1 ? "" : "s"} a procesar en {new Set(selectedSlots.map((slot) => slot.locationId)).size} cuenta{new Set(selectedSlots.map((slot) => slot.locationId)).size === 1 ? "" : "s"}
                                 </p>
                             ) : null}
                         </div>
@@ -1693,7 +1693,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                {t("templates.builder.name") || "Nombre tecnico"}
+                                {t("templates.builder.name") || "Nombre técnico"}
                             </label>
                             <input
                                 value={form.name}
@@ -1704,7 +1704,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                         </div>
                         <div>
                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                {t("templates.builder.category") || "Categoria"}
+                                {t("templates.builder.category") || "Categoría"}
                             </label>
                             <select
                                 value={form.category}
@@ -1722,19 +1722,19 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                         <div className="space-y-4 border-t border-amber-200 pt-5 dark:border-amber-900/60">
                             <div>
                                 <p className="text-sm font-extrabold text-amber-900 dark:text-amber-200">Plantilla de autenticacion</p>
-                                <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">Meta genera el cuerpo del codigo OTP. Esta categoria no admite el mensaje, encabezado ni botones normales.</p>
+                                <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">Meta genera el cuerpo del código OTP. Esta categoría no admite el mensaje, encabezado ni botones normales.</p>
                             </div>
                             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
                                 <input type="checkbox" checked={form.authentication?.addSecurityRecommendation !== false} onChange={(event) => setAuthenticationField("addSecurityRecommendation", event.target.checked)} className="h-4 w-4 accent-indigo-600" />
-                                Incluir recomendacion de seguridad
+                                Incluir recomendación de seguridad
                             </label>
                             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Expiracion del codigo (minutos)
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Expiración del código (minutos)
                                     <input type="number" min="1" value={form.authentication?.codeExpirationMinutes || ""} onChange={(event) => setAuthenticationField("codeExpirationMinutes", event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" />
                                 </label>
                                 <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Tipo de boton OTP
                                     <select value={form.authentication?.otpType || "COPY_CODE"} onChange={(event) => setAuthenticationField("otpType", event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
-                                        <option value="COPY_CODE">Copiar codigo</option>
+                                        <option value="COPY_CODE">Copiar código</option>
                                         <option value="ONE_TAP">Autocompletar en Android</option>
                                     </select>
                                 </label>
@@ -1786,7 +1786,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                 <div className="border-t border-indigo-100 pt-3 dark:border-indigo-900/50">
                                     <p className="text-xs font-bold text-indigo-800 dark:text-indigo-200">Variable del encabezado (Meta admite una)</p>
                                     {headerVariableAnalysis.variables.map((variable) => (
-                                        <label key={`header-${variable.key}`} className="mt-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">{variable.label} se enviara a Meta como {`{{${variable.index}}}`}
+                                        <label key={`header-${variable.key}`} className="mt-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">{variable.label} se enviará a Meta como {`{{${variable.index}}}`}
                                             <input value={form.headerExamples?.[variable.key] || ""} onChange={(event) => setVariableExample("headerExamples", variable.key, event.target.value)} placeholder="Ejemplo para revision" className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm dark:border-indigo-900 dark:bg-gray-900" />
                                         </label>
                                     ))}
@@ -1807,7 +1807,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                     <p className="text-xs font-bold text-indigo-800 dark:text-indigo-200">Variables y ejemplos requeridos por Meta</p>
                                     <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                                         {bodyVariableAnalysis.variables.map((variable) => (
-                                            <label key={`body-${variable.key}`} className="text-xs font-semibold text-gray-700 dark:text-gray-300">{variable.label} se enviara como {`{{${variable.index}}}`}
+                                            <label key={`body-${variable.key}`} className="text-xs font-semibold text-gray-700 dark:text-gray-300">{variable.label} se enviará como {`{{${variable.index}}}`}
                                                 <input value={form.bodyExamples?.[variable.key] || ""} onChange={(event) => setVariableExample("bodyExamples", variable.key, event.target.value)} placeholder="Ejemplo para revision de Meta" className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm dark:border-indigo-900 dark:bg-gray-900" />
                                             </label>
                                         ))}
@@ -1835,9 +1835,9 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                         <div className="mt-4 rounded-xl bg-gray-50 p-4 dark:bg-gray-950/40">
                             {isAuthenticationTemplate ? (
                                 <>
-                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Tu codigo de verificacion es: 123456</p>
-                                    {form.authentication?.addSecurityRecommendation !== false ? <p className="mt-3 text-xs text-gray-500">No compartas este codigo con nadie.</p> : null}
-                                    <div className="mt-3 rounded-lg border border-sky-200 bg-white px-3 py-2 text-center text-xs font-bold text-sky-700 dark:bg-gray-900">{form.authentication?.buttonText || "Copiar codigo"}</div>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Tu código de verificación es: 123456</p>
+                                    {form.authentication?.addSecurityRecommendation !== false ? <p className="mt-3 text-xs text-gray-500">No compartas este código con nadie.</p> : null}
+                                    <div className="mt-3 rounded-lg border border-sky-200 bg-white px-3 py-2 text-center text-xs font-bold text-sky-700 dark:bg-gray-900">{form.authentication?.buttonText || "Copiar código"}</div>
                                 </>
                             ) : (
                                 <>

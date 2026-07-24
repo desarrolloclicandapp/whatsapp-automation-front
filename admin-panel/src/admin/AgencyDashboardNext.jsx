@@ -306,6 +306,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [reliabilityLoading, setReliabilityLoading] = useState(false);
     const [reliabilityLastUpdated, setReliabilityLastUpdated] = useState(null);
     const [reliabilityView, setReliabilityView] = useState('summary');
+    const [reachoutChecking, setReachoutChecking] = useState(null);
 
     const [accountInfo, setAccountInfo] = useState(null);
     const isRestricted = (accountInfo?.plan || '').toLowerCase().includes('starter');
@@ -2716,6 +2717,27 @@ export default function AgencyDashboard({ token, onLogout }) {
     const locationsById = new Map(
         locations.map((loc) => [String(loc?.location_id || ''), loc])
     );
+    const verifyReachoutState = async (slot) => {
+        const key = `${slot.locationId}_slot${slot.slot_id}`;
+        if (reachoutChecking) return;
+        setReachoutChecking(key);
+        try {
+            const response = await authFetch(
+                `/agency/slots/${encodeURIComponent(slot.locationId)}/${slot.slot_id}/reachout/verify`,
+                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
+            );
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(body?.error || body?.code || `HTTP ${response.status}`);
+            toast.success(body?.reachout?.state === 'restricted'
+                ? translateOr(t, 'agency.reliability.verify_restricted_success', 'Meta confirmó una limitación temporal.')
+                : translateOr(t, 'agency.reliability.verify_clear_success', 'Meta no informa una limitación activa.'));
+            await refreshData();
+        } catch (error) {
+            toast.error(`${translateOr(t, 'agency.reliability.verify_reachout_error', 'No se pudo verificar ahora:')} ${error.message}`);
+        } finally {
+            setReachoutChecking(null);
+        }
+    };
     const reliabilityAccountRows = accountActivity
         .map((entry) => ({
             entry,
@@ -2745,6 +2767,15 @@ export default function AgencyDashboard({ token, onLogout }) {
                     }))
                     .filter((preview) => preview.slot_id || preview.phone_number || preview.slot_name)
                 : [];
+            const reachoutSlots = (Array.isArray(linkedLocation?.slot_health) ? linkedLocation.slot_health : [])
+                .filter((slot) => (
+                    (slot?.reachout?.state === 'restricted' || slot?.reachout?.state === 'suspected')
+                    && slot?.capabilities?.verifyNow
+                ))
+                .map((slot) => ({
+                    ...slot,
+                    locationId: linkedLocation.location_id
+                }));
             const replyStrikes = Number(entry.reply_strikes) || 0;
             const operationalState = (metaRiskLevel === 'critical' || metaRiskLevel === 'high')
                 ? 'review'
@@ -2781,6 +2812,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 operationalStateLabel,
                 numberQualitySource,
                 numberQualityPreview,
+                reachoutSlots,
                 suggestedAction,
                 onClick: linkedLocation ? () => setSelectedLocation(linkedLocation) : null
             };
@@ -3113,7 +3145,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     {t('agency.onboarding.ghl_paid_gate_choose_plan') || 'Elige un plan para continuar'}
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                    {t('agency.onboarding.ghl_paid_gate_choose_plan_desc') || 'Cuando el pago quede activo, abriremos el formulario de solicitud automaticamente.'}
+                                    {t('agency.onboarding.ghl_paid_gate_choose_plan_desc') || 'Cuando el pago quede activo, abriremos el formulario de solicitud automáticamente.'}
                                 </p>
                             </div>
                             <button
@@ -3885,6 +3917,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                     action: t('agency.reliability.table_action') || 'Recomendación'
                                                 }}
                                                 noSampleText={t('agency.reliability.no_sample_short') || 'Sin muestra'}
+                                                onVerifyReachout={verifyReachoutState}
+                                                reachoutChecking={reachoutChecking}
                                             />
                                         </div>
                                     </div>
@@ -5345,7 +5379,9 @@ const ReliabilityAccountsTable = ({
     nextText,
     t,
     columns,
-    noSampleText
+    noSampleText,
+    onVerifyReachout,
+    reachoutChecking
 }) => {
     const translate = typeof t === 'function' ? t : ((key) => key);
 
@@ -5432,7 +5468,7 @@ const ReliabilityAccountsTable = ({
                                                     ))}
                                                     {item.numberQualityPreview.length > 2 ? (
                                                         <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                                                            {translateOr(translate, 'agency.reliability.more_numbers', '+{count} mas')
+                                                            {translateOr(translate, 'agency.reliability.more_numbers', '+{count} más')
                                                                 .replace('{count}', String(item.numberQualityPreview.length - 2))}
                                                         </span>
                                                     ) : null}
@@ -5445,7 +5481,26 @@ const ReliabilityAccountsTable = ({
                                         </div>
                                     </td>
                                     <td className="px-3 py-4 align-top text-sm leading-5 text-gray-600 dark:text-gray-300">
-                                        {item.suggestedAction}
+                                        <p>{item.suggestedAction}</p>
+                                        {Array.isArray(item.reachoutSlots) && item.reachoutSlots.map((slot) => {
+                                            const key = `${slot.locationId}_slot${slot.slot_id}`;
+                                            return (
+                                                <button
+                                                    key={key}
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        onVerifyReachout?.(slot);
+                                                    }}
+                                                    disabled={Boolean(reachoutChecking)}
+                                                    className="mt-2 inline-flex items-center rounded-lg border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+                                                >
+                                                    {reachoutChecking === key
+                                                        ? translateOr(translate, 'agency.reliability.verifying_reachout', 'Consultando Meta…')
+                                                        : translateOr(translate, 'agency.reliability.verify_reachout', 'Verificar con Meta')}
+                                                </button>
+                                            );
+                                        })}
                                     </td>
                                 </tr>
                             );
@@ -5523,7 +5578,7 @@ const ReliabilityAccountsTable = ({
                                         ))}
                                         {item.numberQualityPreview.length > 2 ? (
                                             <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                                                {translateOr(translate, 'agency.reliability.more_numbers', '+{count} mas')
+                                                {translateOr(translate, 'agency.reliability.more_numbers', '+{count} más')
                                                     .replace('{count}', String(item.numberQualityPreview.length - 2))}
                                             </p>
                                         ) : null}
@@ -5538,6 +5593,25 @@ const ReliabilityAccountsTable = ({
                             <div className="min-w-0">
                                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-gray-400 xl:hidden">{columns.action}</span>
                                 <p className="text-sm leading-5 text-gray-600 dark:text-gray-300">{item.suggestedAction}</p>
+                                {Array.isArray(item.reachoutSlots) && item.reachoutSlots.map((slot) => {
+                                    const key = `${slot.locationId}_slot${slot.slot_id}`;
+                                    return (
+                                        <button
+                                            key={key}
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                onVerifyReachout?.(slot);
+                                            }}
+                                            disabled={Boolean(reachoutChecking)}
+                                            className="mt-2 inline-flex items-center rounded-lg border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+                                        >
+                                            {reachoutChecking === key
+                                                ? translateOr(translate, 'agency.reliability.verifying_reachout', 'Consultando Meta…')
+                                                : translateOr(translate, 'agency.reliability.verify_reachout', 'Verificar con Meta')}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
                     );

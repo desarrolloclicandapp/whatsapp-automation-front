@@ -800,7 +800,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             return;
         }
         if (slots.length === 0) {
-            toast.error("Esta cuenta no tiene numeros o slots disponibles.");
+            toast.error("Esta cuenta no tiene números o slots disponibles.");
             return;
         }
         const firstAvailableSlotId = String(slots[0]?.slot_id || "");
@@ -840,10 +840,10 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
             setDefaultAssignmentModal(null);
             if (data.chatwoot_sync?.success === false && data.chatwoot_sync?.skipped !== true) {
                 toast.warning("Agente asignado al slot, pero no se pudo sincronizar Chatwoot.", {
-                    description: data.chatwoot_sync?.error || "Revisa la configuracion de Chatwoot."
+                    description: data.chatwoot_sync?.error || "Revisa la configuración de Chatwoot."
                 });
             } else {
-                toast.success("Agente dejado por defecto para el numero seleccionado.");
+                toast.success("Agente dejado por defecto para el número seleccionado.");
             }
         } catch (error) {
             toast.error("No se pudo dejar el agente por defecto.", { description: error.message });
@@ -1155,7 +1155,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                 ) : null}
                                 {!isActive ? (
                                     <div className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                                        Activalo para poder usarlo en un numero.
+                                        Actívalo para poder usarlo en un número.
                                     </div>
                                 ) : null}
                                 {isActive && !isDefaultReady ? (
@@ -1950,12 +1950,12 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                             <div className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-500">Agente por defecto</div>
                             <h4 className="mt-2 text-xl font-extrabold text-gray-900 dark:text-white">{defaultAssignmentModal.agent?.name}</h4>
                             <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
-                                Este agente respondera por defecto en el numero seleccionado. Si el numero esta conectado a Waflow Inbox, tambien se sincroniza la configuracion del bot en Chatwoot.
+                                Este agente responderá por defecto en el número seleccionado. Si el número está conectado a Waflow Inbox, también se sincroniza la configuración del bot en Chatwoot.
                             </p>
                         </div>
                         <div className="mt-5 space-y-4">
                             <div>
-                                <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">Numero o slot</label>
+                                <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">Número o slot</label>
                                 <select
                                     value={defaultAssignmentModal.slotId}
                                     onChange={(event) => setDefaultAssignmentModal((prev) => ({ ...prev, slotId: event.target.value }))}
@@ -1969,7 +1969,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                     ))}
                                 </select>
                                 {slots.length <= 1 ? (
-                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Solo hay un numero, se usara automaticamente.</p>
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Solo hay un número, se usará automáticamente.</p>
                                 ) : null}
                             </div>
                             <label className={`relative flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${

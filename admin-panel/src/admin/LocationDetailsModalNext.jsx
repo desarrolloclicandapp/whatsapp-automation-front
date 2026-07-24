@@ -54,11 +54,11 @@ function getNumberQualitySourceLabel(source = '', t) {
 function getNumberQualityTooltip({ source = '', activeDays = 0, sentMessages28d = 0 } = {}, t) {
     const normalized = String(source || '').toLowerCase();
     const base = normalized.includes('official')
-        ? translateOr(t, 'agency.reliability.number_quality_tooltip_meta', 'Rating oficial de Meta combinado con senales internas recientes.')
+        ? translateOr(t, 'agency.reliability.number_quality_tooltip_meta', 'Rating oficial de Meta combinado con señales internas recientes.')
         : normalized === 'internal_history'
             ? translateOr(t, 'agency.reliability.number_quality_tooltip_internal', 'Estimacion interna de WaFloW basada en actividad reciente, respuestas, volumen y repeticion.')
-            : translateOr(t, 'agency.reliability.number_quality_tooltip_unknown', 'No hay suficientes datos recientes asociados a este slot. No significa que el numero sea nuevo ni malo.');
-    return `${base} ${translateOr(t, 'agency.reliability.active_days', 'Dias activos')}: ${Number(activeDays) || 0}. ${translateOr(t, 'agency.reliability.sent_28d', 'Enviados 28d')}: ${Number(sentMessages28d) || 0}.`;
+            : translateOr(t, 'agency.reliability.number_quality_tooltip_unknown', 'No hay suficientes datos recientes asociados a este slot. No significa que el número sea nuevo ni malo.');
+    return `${base} ${translateOr(t, 'agency.reliability.active_days', 'Días activos')}: ${Number(activeDays) || 0}. ${translateOr(t, 'agency.reliability.sent_28d', 'Enviados 28d')}: ${Number(sentMessages28d) || 0}.`;
 }
 
 function buildMetaBusinessPaymentUrl(official = {}) {
@@ -104,13 +104,13 @@ function buildOfficialAccessLostDiagnostic(payload = {}, t) {
 
     return {
         isAccessLost: true,
-        title: payload.title || translateOr(t, 'slots.official.access_lost_title', 'Meta perdio permisos'),
-        message: message || translateOr(t, 'slots.official.access_lost_message', 'Ya no tenemos acceso a la cuenta de WhatsApp Business vinculada a este numero.'),
+        title: payload.title || translateOr(t, 'slots.official.access_lost_title', 'Meta perdió permisos'),
+        message: message || translateOr(t, 'slots.official.access_lost_message', 'Ya no tenemos acceso a la cuenta de WhatsApp Business vinculada a este número.'),
         reason: payload.reason || translateOr(t, 'slots.official.access_lost_reason', 'Esto suele pasar cuando WaFloW fue eliminado como socio/partner del portfolio comercial del cliente o se revocaron permisos en Meta.'),
         actions: Array.isArray(payload.actions) && payload.actions.length > 0 ? payload.actions : [
-            translateOr(t, 'slots.official.access_lost_action_clear', 'Pulsa Limpiar vinculacion para quitar los datos oficiales anteriores.'),
-            translateOr(t, 'slots.official.access_lost_action_reconnect', 'Vuelve a conectar el numero con Meta Cloud API y acepta nuevamente los permisos.'),
-            translateOr(t, 'slots.official.access_lost_action_partner', 'Si el cliente administra Meta, confirma que WaFloW/Clic&App figure como socio con acceso al WABA y al numero.')
+            translateOr(t, 'slots.official.access_lost_action_clear', 'Pulsa Limpiar vinculación para quitar los datos oficiales anteriores.'),
+            translateOr(t, 'slots.official.access_lost_action_reconnect', 'Vuelve a conectar el número con Meta Cloud API y acepta nuevamente los permisos.'),
+            translateOr(t, 'slots.official.access_lost_action_partner', 'Si el cliente administra Meta, confirma que WaFloW/Clic&App figure como socio con acceso al WABA y al número.')
         ]
     };
 }
@@ -698,7 +698,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (data.success) {
                 const successDescription = isChatwootMode
                     ? (tenantSettings?.is_auto_provisioned
-                        ? getManagedInboxText(t('slots.chatwoot.auto_provisioned_ready'), "Configurado automaticamente en Chatwoot.")
+                        ? getManagedInboxText(t('slots.chatwoot.auto_provisioned_ready'), "Configurado automáticamente en Chatwoot.")
                         : "Listo para vincular.")
                     : "Listo para vincular.";
                 toast.success(isChatwootMode ? (t('slots.chatwoot_inbox.added') || "Inbox agregado") : "Dispositivo agregado", { description: successDescription });
@@ -1095,7 +1095,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const clearCustomProxyConfig = async (slotId, { skipConfirm = false } = {}) => {
-        if (!confirm("¿Quitar proxy personalizado de este numero?")) return;
+        if (!confirm("¿Quitar proxy personalizado de este número?")) return;
 
         const loadingId = toast.loading("Quitando proxy custom...");
         try {
@@ -1822,7 +1822,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
     const markOfficialSlotAccessLost = (slotId, diagnostic) => {
         const safeDiagnostic = diagnostic || buildOfficialAccessLostDiagnostic({ code: "OFFICIAL_WABA_ACCESS_LOST" }, t);
-        const lastValidationError = safeDiagnostic?.message || translateOr(t, 'slots.official.access_lost_message', 'Ya no tenemos acceso a la cuenta de WhatsApp Business vinculada a este numero.');
+        const lastValidationError = safeDiagnostic?.message || translateOr(t, 'slots.official.access_lost_message', 'Ya no tenemos acceso a la cuenta de WhatsApp Business vinculada a este número.');
 
         setOfficialConfigBySlot(prev => {
             const current = prev[slotId] || createEmptyOfficialWhatsappState();
@@ -2282,7 +2282,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const clearOfficialWhatsappConfigKeepMode = async (slotId) => {
-        const loadingId = toast.loading(t('slots.official.clearing') || "Limpiando configuracion oficial...");
+        const loadingId = toast.loading(t('slots.official.clearing') || "Limpiando configuración oficial...");
         setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
             const res = await authFetch(`/agency/whatsapp-official/config`, {
@@ -2297,9 +2297,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res) return;
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                throw new Error(data.error || "No se pudo limpiar la configuracion oficial");
+                throw new Error(data.error || "No se pudo limpiar la configuración oficial");
             }
-            toast.success(t('slots.official.cleared') || "Configuracion oficial eliminada");
+            toast.success(t('slots.official.cleared') || "Configuración oficial eliminada");
             setOfficialConfigBySlot(prev => ({
                 ...prev,
                 [slotId]: hydrateOfficialWhatsappState(data, prev[slotId])
@@ -2333,7 +2333,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const pauseOfficialWhatsappSlot = async (slotId) => {
-        const loadingId = toast.loading(t('slots.official.pausing') || "Pausando envios oficiales...");
+        const loadingId = toast.loading(t('slots.official.pausing') || "Pausando envíos oficiales...");
         setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
             const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/soft-disconnect`, {
@@ -2342,13 +2342,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res) return;
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                throw new Error(data.message || data.error || "No se pudo pausar la vinculacion Meta");
+                throw new Error(data.message || data.error || "No se pudo pausar la vinculación con Meta");
             }
             const suspendedBy = data.suspended_by || (isAdminMode ? 'admin' : 'agency');
             syncSlotSuspendedState(slotId, suspendedBy);
-            toast.success(t('slots.official.paused') || "Envios oficiales pausados");
+            toast.success(t('slots.official.paused') || "Envíos oficiales pausados");
         } catch (e) {
-            toast.error(t('slots.official.pause_error') || "No se pudo pausar la vinculacion Meta", {
+            toast.error(t('slots.official.pause_error') || "No se pudo pausar la vinculación con Meta", {
                 description: e.message
             });
         } finally {
@@ -2358,7 +2358,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const resumeOfficialWhatsappSlot = async (slotId) => {
-        const loadingId = toast.loading(t('slots.official.resuming') || "Reanudando envios oficiales...");
+        const loadingId = toast.loading(t('slots.official.resuming') || "Reanudando envíos oficiales...");
         setSavingOfficialBySlot(prev => ({ ...prev, [slotId]: true }));
         try {
             const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/reconnect`, {
@@ -2367,15 +2367,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res) return;
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                throw new Error(data.message || data.error || "No se pudo reanudar la vinculacion Meta");
+                throw new Error(data.message || data.error || "No se pudo reanudar la vinculación con Meta");
             }
             syncSlotSuspendedState(slotId, null);
             if (data.connection_mode === 'official_api') {
                 syncSlotConnectionMode(slotId, 'official_api', slots.find((slot) => slot.slot_id === slotId)?.settings?.official_api || {});
             }
-            toast.success(t('slots.official.resumed') || "Envios oficiales reanudados");
+            toast.success(t('slots.official.resumed') || "Envíos oficiales reanudados");
         } catch (e) {
-            toast.error(t('slots.official.resume_error') || "No se pudo reanudar la vinculacion Meta", {
+            toast.error(t('slots.official.resume_error') || "No se pudo reanudar la vinculación con Meta", {
                 description: e.message
             });
         } finally {
@@ -2477,7 +2477,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                         error: e.message || ""
                     }
                 }));
-                toast.info('Selecciona el numero de WhatsApp Business que quieres vincular');
+                toast.info('Selecciona el número de WhatsApp Business que quieres vincular');
                 return;
             }
 
@@ -2929,12 +2929,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (!res) return false;
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "Credenciales inv�lidas");
+                throw new Error(err.error || "Credenciales inválidas");
             }
             toast.success("Twilio validado correctamente");
             return true;
         } catch (e) {
-            toast.error("Validaci�n Twilio fall�", { description: e.message });
+            toast.error("Validación Twilio falló", { description: e.message });
             return false;
         } finally {
             toast.dismiss(loadingId);
@@ -2951,7 +2951,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const tokenReady = tokenInput || current.authTokenMasked || current.hasAuthToken;
 
         if (!sidReady || !tokenReady || !fromNumber) {
-            toast.error("Completa SID, Auth Token y n�mero Twilio");
+            toast.error("Completa SID, Auth Token y número Twilio");
             return;
         }
 
@@ -2974,7 +2974,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 const err = await res.json().catch(() => ({}));
                 throw new Error(err.error || "No se pudo guardar");
             }
-            toast.success("Configuraci�n Twilio guardada");
+            toast.success("Configuración Twilio guardada");
             await loadTwilioConfig(slotId, true);
         } catch (e) {
             toast.error("Error guardando Twilio", { description: e.message });
@@ -3216,7 +3216,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const needsBillingAction = officialBillingNeedsAction(official);
         const metaBusinessPaymentUrl = buildMetaBusinessPaymentUrl(official);
         const embeddedCtaLabel = isOfficialConnected
-            ? (t('slots.official.embedded.reconnect_cta') || 'Cambiar o reconectar numero')
+            ? (t('slots.official.embedded.reconnect_cta') || 'Cambiar o reconectar número')
             : (t('slots.official.embedded.cta') || 'Conectar con WhatsApp Business');
 
         return (
@@ -3254,7 +3254,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                             {t('slots.official.method.embedded') || 'Conectar con Meta'}
                                         </p>
                                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                            {t('slots.official.embedded.desc') || 'Abre el flujo oficial de Meta dentro de Waflow para crear o vincular la cuenta, elegir el numero y dejar el slot listo sin copiar IDs ni tokens manualmente.'}
+                                            {t('slots.official.embedded.desc') || 'Abre el flujo oficial de Meta dentro de Waflow para crear o vincular la cuenta, elegir el número y dejar el slot listo sin copiar IDs ni tokens manualmente.'}
                                         </p>
                                     </button>
                                     <button
@@ -3290,7 +3290,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 {official.displayPhoneNumber ? (
                                                     <div className="border-t border-emerald-200/70 px-1 pt-3 dark:border-emerald-900/50">
                                                         <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-300">
-                                                            {t('slots.official.display_phone') || 'Numero visible'}
+                                                            {t('slots.official.display_phone') || 'Número visible'}
                                                         </p>
                                                         <p className="mt-1 text-sm font-extrabold text-gray-900 dark:text-white">
                                                             {official.displayPhoneNumber}
@@ -3362,10 +3362,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                             {embeddedPhoneCandidates.length > 0 ? (
                             <div className="border-t border-emerald-200 pt-5 dark:border-emerald-900/50">
                                 <p className="text-sm font-extrabold text-gray-900 dark:text-white">
-                                    Selecciona el numero que quieres vincular
+                                    Selecciona el número que quieres vincular
                                 </p>
                                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    Encontramos varios numeros en tu cuenta de Meta. Elige el que corresponde a este slot.
+                                    Encontramos varios números en tu cuenta de Meta. Elige el que corresponde a este slot.
                                 </p>
                                 <div className="mt-4 space-y-2">
                                     {embeddedPhoneCandidates.map((candidate) => {
@@ -3379,7 +3379,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-left transition hover:border-emerald-400 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-emerald-500"
                                             >
                                                 <span className="block text-sm font-bold text-gray-900 dark:text-white">
-                                                    {candidate.displayPhoneNumber || candidate.phoneNumberId || 'Numero de WhatsApp'}
+                                                    {candidate.displayPhoneNumber || candidate.phoneNumberId || 'Número de WhatsApp'}
                                                 </span>
                                                 <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
                                                     {candidate.verifiedName ? `${candidate.verifiedName} - ` : ''}
@@ -3396,10 +3396,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                             {embeddedSelection?.needsSetupGuide ? (
                             <div className="border-l-2 border-amber-400 bg-amber-50/80 px-4 py-3 dark:bg-amber-950/20">
                                 <p className="text-sm font-extrabold text-amber-900 dark:text-amber-100">
-                                    No encontramos numeros disponibles en Meta
+                                    No encontramos números disponibles en Meta
                                 </p>
                                 <p className="mt-2 text-xs leading-5 text-amber-800 dark:text-amber-200">
-                                    Continua el flujo de Meta creando o seleccionando tu portfolio de negocio, agrega el numero de WhatsApp Business y completa la verificacion que Meta solicite. Cuando el numero quede disponible, vuelve a presionar Conectar con WhatsApp Business.
+                                    Continúa el flujo de Meta creando o seleccionando tu portafolio de negocio, agrega el número de WhatsApp Business y completa la verificación que Meta solicite. Cuando el número quede disponible, vuelve a presionar Conectar con WhatsApp Business.
                                 </p>
                             </div>
                             ) : null}
@@ -3413,10 +3413,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="text-sm font-extrabold">
-                                                    {t('slots.official.billing.title') || 'Falta revisar el metodo de pago en Meta'}
+                                                    {t('slots.official.billing.title') || 'Falta revisar el método de pago en Meta'}
                                                 </p>
                                                 <p className="mt-1 text-sm leading-6 text-amber-900 dark:text-amber-100">
-                                                    {t('slots.official.billing.desc') || 'El numero puede recibir mensajes, pero Meta puede bloquear los envios si el WABA no tiene metodo de pago confirmado. Abre Meta Business, revisa el metodo de pago de la cuenta de WhatsApp y vuelve a validar.'}
+                                                    {t('slots.official.billing.desc') || 'El número puede recibir mensajes, pero Meta puede bloquear los envíos si el WABA no tiene método de pago confirmado. Abre Meta Business, revisa el método de pago de la cuenta de WhatsApp y vuelve a validar.'}
                                                 </p>
                                                 {official.lastBillingError ? (
                                                     <p className="mt-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
@@ -3432,7 +3432,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-700"
                                             >
                                                 <ExternalLink size={15} />
-                                                {t('slots.official.billing.open_meta') || 'Abrir configuracion de pagos en Meta Business'}
+                                                {t('slots.official.billing.open_meta') || 'Abrir configuración de pagos en Meta Business'}
                                             </button>
                                             {canValidateOfficial ? (
                                                 <button
@@ -3442,7 +3442,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-bold text-amber-800 transition hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100 dark:hover:bg-amber-950/40"
                                                 >
                                                     <RefreshCw size={15} className={isLoadingOfficial ? "animate-spin" : ""} />
-                                                    {t('slots.official.billing.revalidate') || 'Ya cargue el metodo, revalidar'}
+                                                    {t('slots.official.billing.revalidate') || 'Ya cargué el método, revalidar'}
                                                 </button>
                                             ) : null}
                                         </div>
@@ -3568,7 +3568,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 </>
                             ) : (
                                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200">
-                                    WaFloW configura y enruta el webhook oficial automaticamente para este canal. El cliente no necesita copiar ni pegar nada en Meta por slot.
+                                    WaFloW configura y enruta el webhook oficial automáticamente para este canal. El cliente no necesita copiar ni pegar nada en Meta por slot.
                                 </div>
                             )}
 
@@ -3825,9 +3825,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     <div className="flex items-start gap-3">
                                         <PauseCircle size={18} className="mt-0.5 flex-shrink-0" />
                                         <div>
-                                            <p className="font-bold">{t('slots.official.paused_notice_title') || 'Envios oficiales pausados'}</p>
+                                            <p className="font-bold">{t('slots.official.paused_notice_title') || 'Envíos oficiales pausados'}</p>
                                             <p className="mt-1 text-xs leading-5">
-                                                {t('slots.official.paused_notice_desc') || 'WaFloW conserva la vinculacion con Meta, pero no enviara mensajes desde este numero hasta reanudarlo.'}
+                                                {t('slots.official.paused_notice_desc') || 'WaFloW conserva la vinculación con Meta, pero no enviará mensajes desde este número hasta reanudarlo.'}
                                             </p>
                                         </div>
                                     </div>
@@ -3870,7 +3870,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     title={isPauseLockedByAdmin ? (t('slots.official.paused_by_admin') || 'Pausado por un administrador') : undefined}
                                 >
                                     {isOfficialPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
-                                    {isOfficialPaused ? (t('slots.official.resume') || 'Reanudar envios') : (t('slots.official.pause') || 'Pausar envios')}
+                                    {isOfficialPaused ? (t('slots.official.resume') || 'Reanudar envíos') : (t('slots.official.pause') || 'Pausar envíos')}
                                 </button>
                                 <button
                                     type="button"
@@ -3891,7 +3891,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 {t('slots.official.danger_zone') || 'Acciones avanzadas'}
                                             </p>
                                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                {t('slots.official.danger_zone_desc') || 'Limpiar borra los datos oficiales guardados de este slot. Usalo solo si vas a vincular el numero de nuevo.'}
+                                                {t('slots.official.danger_zone_desc') || 'Limpiar borra los datos oficiales guardados de este slot. Úsalo solo si vas a vincular el número de nuevo.'}
                                             </p>
                                         </div>
                                         <button
@@ -3900,7 +3900,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                             disabled={isLoadingOfficial || isSavingOfficial || isWorkingEmbedded || !hasOfficialData}
                                             className="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 disabled:opacity-60 transition"
                                         >
-                                            {t('slots.official.clear_connection') || 'Limpiar vinculacion'}
+                                            {t('slots.official.clear_connection') || 'Limpiar vinculación'}
                                         </button>
                                     </div>
                                 </div>
@@ -4245,7 +4245,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 {healthSummary && (
                                     <>
                                         <span className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap px-1 text-xs text-gray-500 dark:text-gray-400">
-                                            <span>En linea:</span>
+                                            <span>En línea:</span>
                                             <strong className="text-sm font-bold text-gray-900 dark:text-white">
                                                 {healthSummary.connected_slots || 0}/{healthSummary.total_slots || 0}
                                             </strong>
@@ -4997,7 +4997,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                         <div className="flex flex-wrap items-start justify-between gap-4">
                                                                             <div>
                                                                                 <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{getManagedInboxText(t('slots.chatwoot.title'), "Chatwoot")}</h4>
-                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{getManagedInboxText(t('slots.chatwoot.desc'), "Configura Chatwoot para este numero. URL/token/cuenta son globales por location; Inbox ID es por slot.")}</p>
+                                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{getManagedInboxText(t('slots.chatwoot.desc'), "Configura Chatwoot para este número. URL/token/cuenta son globales por location; Inbox ID es por slot.")}</p>
                                                                             </div>
                                                                             <div className="flex items-center gap-2">
                                                                                 <button
@@ -5173,7 +5173,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                             </div>
                                                                         </div>
 
-                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{getManagedInboxText(t('slots.chatwoot.scope_note'), "Los campos globales aplican a toda la location. Inbox ID aplica solo a este numero (slot).")}</p>
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{getManagedInboxText(t('slots.chatwoot.scope_note'), "Los campos globales aplican a toda la location. Inbox ID aplica solo a este número (slot).")}</p>
 
                                                                         <div className="flex flex-wrap items-center gap-2">
                                                                             <button
@@ -5774,7 +5774,7 @@ function SlotConnectionManager({
             return {
                 kind: 'account',
                 status: data.suspension_status || 'suspended',
-                message: data.message || 'Tu cuenta esta suspendida. No puedes vincular numeros en este momento.'
+                message: data.message || 'Tu cuenta está suspendida. No puedes vincular números en este momento.'
             };
         }
 
@@ -6028,7 +6028,7 @@ function SlotConnectionManager({
 
             pollStep();
         } catch (e) {
-            toast.error(e.message || 'Error iniciando conexion');
+            toast.error(e.message || 'Error iniciando conexión');
             setLoading(false);
         }
     };
@@ -6037,12 +6037,12 @@ function SlotConnectionManager({
         if (!skipConfirm) {
             confirmToast(
                 'Pausar dispositivo',
-                'Pausar este dispositivo sin borrar la sesion?',
+                '¿Pausar este dispositivo sin borrar la sesión?',
                 () => handleSoftDisconnect(true)
             );
             return;
         }
-        if (!skipConfirm && !confirm('Pausar este dispositivo sin borrar la sesion?')) return;
+        if (!skipConfirm && !confirm('¿Pausar este dispositivo sin borrar la sesión?')) return;
         setLoading(true);
         try {
             const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/soft-disconnect`, { method: 'POST' });
@@ -6216,10 +6216,10 @@ function SlotConnectionManager({
         : slotSuspendedBy === 'system'
             ? 'Este slot esta bloqueado temporalmente por el sistema.'
             : slotSuspendedBy === 'agency'
-                ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
+                ? `Número: +${status.myNumber || slot.phone_number || 'N/A'}`
                 : status.connected
-                    ? `Numero: +${status.myNumber}`
-                    : 'Escanea el codigo QR para conectar.';
+                    ? `Número: +${status.myNumber}`
+                    : 'Escanea el código QR para conectar.';
 
     return (
         <div className="w-full max-w-3xl space-y-7 px-1 py-2">
