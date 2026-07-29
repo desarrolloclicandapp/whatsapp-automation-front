@@ -850,6 +850,7 @@ export const en = {
     "slots.card.managing": "Editing",
     "slots.card.manage": "Manage",
     "slots.card.official_mode": "Meta API",
+    "slots.card.qr_mode": "QR",
 
     // Tabs
     "slots.tab.general": "General",

@@ -4326,8 +4326,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     !isOfficialAccessLost &&
                                     officialStatus !== 'draft';
                                 const connectedPhone = isOfficialSlotMode
-                                    ? String(officialSlotSettings.displayPhoneNumber || slot.phone_number || '').trim()
-                                    : (isConnected ? (slot.phone_number || "") : "");
+                                    ? String(officialSlotSettings.displayPhoneNumber || slot.phone_number || '').trim().replace(/^\++/, '')
+                                    : (isConnected ? String(slot.phone_number || "").trim().replace(/^\++/, '') : "");
                                 const currentPrio = slot.priority || 99;
                                 const settings = slotSettings;
                                 const isRoutingLocked = settings.routing_lock_enabled === true;
@@ -4344,7 +4344,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 }, t);
                                 const slotHeaderModeLabel = isOfficialSlotMode
                                     ? (t('slots.card.official_mode') || 'Meta API')
-                                    : (isExpanded ? t('slots.card.managing') : t('slots.card.manage'));
+                                    : connectionMode === 'qr'
+                                        ? (t('slots.card.qr_mode') || 'QR')
+                                        : (isExpanded ? t('slots.card.managing') : t('slots.card.manage'));
                                 const rawSlotKeywords = Array.isArray(slot?.effective_keywords) && slot.effective_keywords.length > 0
                                     ? slot.effective_keywords
                                     : (

@@ -848,6 +848,7 @@ export const es = {
     "slots.card.managing": "Editando",
     "slots.card.manage": "Gestionar",
     "slots.card.official_mode": "Meta API",
+    "slots.card.qr_mode": "QR",
 
     // Tabs
     "slots.tab.general": "General",
