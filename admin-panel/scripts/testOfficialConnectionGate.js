@@ -115,6 +115,31 @@ assert.doesNotMatch(
 );
 assert.match(
     component,
+    /const isConnected = slot\.is_connected === true && !isOfficialAccessLost/,
+    "Official slot cards must use the same backend connection truth as the location summary"
+);
+assert.match(
+    component,
+    /slots\.card\.official_incomplete/,
+    "Official slots with incomplete credentials must show an explicit reauthorization state"
+);
+assert.match(
+    component,
+    /official\.hasAccessToken === true/,
+    "The expanded official panel must require the access token before presenting the slot as connected"
+);
+assert.match(
+    component,
+    /checked=\{settings\.routing_lock_enabled === true\}/,
+    "QR slot settings must expose the routing lock without changing the default behavior"
+);
+assert.match(
+    component,
+    /toggleSlotSetting\(slot\.slot_id, 'routing_lock_enabled'/,
+    "The advanced device panel must persist the routing lock in slot settings"
+);
+assert.match(
+    component,
     /slots\.official\.access_lost_title/,
     "LocationDetailsModal must show clear recovery guidance when Meta access is lost"
 );
@@ -132,13 +157,17 @@ assert.match(esLocale, /"slots\.connection_mode\.official_badge": "En desarrollo
 assert.match(enLocale, /"slots\.connection_mode\.official_badge": "In development"/);
 assert.match(esLocale, /"slots\.connection_mode\.official_disabled_desc"/);
 assert.match(enLocale, /"slots\.connection_mode\.official_disabled_desc"/);
-assert.match(esLocale, /"slots\.official\.billing\.open_meta": "Abrir configuracion de pagos en Meta Business"/);
+assert.match(esLocale, /"slots\.official\.billing\.open_meta": "Abrir configuración de pagos en Meta Business"/);
 assert.match(enLocale, /"slots\.official\.billing\.open_meta": "Open payment settings in Meta Business"/);
-assert.match(esLocale, /"slots\.official\.pause": "Pausar envios"/);
+assert.match(esLocale, /"slots\.official\.pause": "Pausar envíos"/);
 assert.match(enLocale, /"slots\.official\.pause": "Pause sends"/);
 assert.match(esLocale, /"slots\.official\.danger_zone": "Acciones avanzadas"/);
 assert.match(enLocale, /"slots\.official\.danger_zone": "Advanced actions"/);
-assert.match(esLocale, /"slots\.official\.access_lost_title": "Meta perdio permisos"/);
+assert.match(esLocale, /"slots\.official\.access_lost_title": "Meta perdió permisos"/);
 assert.match(enLocale, /"slots\.official\.access_lost_title": "Meta permissions lost"/);
+assert.match(esLocale, /"slots\.card\.official_incomplete": "Meta API incompleta/);
+assert.match(enLocale, /"slots\.card\.official_incomplete": "Meta API incomplete/);
+assert.match(esLocale, /"slots\.settings\.routing_lock": "Fijar conversaciones a este número"/);
+assert.match(enLocale, /"slots\.settings\.routing_lock": "Keep conversations on this number"/);
 
 console.log("testOfficialConnectionGate passed");

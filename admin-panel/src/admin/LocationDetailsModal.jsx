@@ -3177,6 +3177,12 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const templateFields = selectedTemplate ? getOfficialTemplateParameterFields(selectedTemplate) : [];
         const canSyncTemplates = Boolean(String(official.businessAccountId || '').trim() && official.hasAccessToken);
         const status = String(official.status || 'draft').toLowerCase();
+        const hasCompleteOfficialAuth = Boolean(
+            String(official.phoneNumberId || '').trim() &&
+            official.hasAccessToken === true
+        );
+        const isOfficialConfigIncomplete = ['verified', 'verified_warning', 'active', 'connected'].includes(status) &&
+            !hasCompleteOfficialAuth;
         const officialAccessLostDiagnostic = official.accessLostDiagnostic ||
             templateState.accessLostDiagnostic ||
             (status === 'access_lost'
@@ -3185,6 +3191,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const isOfficialAccessLost = status === 'access_lost' || officialAccessLostDiagnostic?.isAccessLost === true;
         const statusClassName = isOfficialAccessLost
             ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+            : isOfficialConfigIncomplete
+            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
             : status === 'verified'
             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
             : official.configured
@@ -3192,16 +3200,18 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
         const statusLabel = isOfficialAccessLost
             ? (t('slots.official.access_lost_status') || 'Requiere reconexion')
+            : isOfficialConfigIncomplete
+            ? (t('slots.card.official_incomplete') || 'Meta API incompleta — volver a autorizar')
             : status === 'verified'
             ? (t('slots.official.verified') || 'Verificada')
             : official.configured
                 ? (t('slots.official.pending') || 'Pendiente de validación')
                 : (t('slots.official.not_configured') || 'Sin configurar');
 
-        const effectiveStatusClassName = status === 'verified_warning'
+        const effectiveStatusClassName = !isOfficialConfigIncomplete && status === 'verified_warning'
             ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
             : statusClassName;
-        const effectiveStatusLabel = status === 'verified_warning'
+        const effectiveStatusLabel = !isOfficialConfigIncomplete && status === 'verified_warning'
             ? (t('slots.official.verified_warning') || 'Vinculada con advertencia')
             : statusLabel;
 
@@ -3225,7 +3235,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const slotSuspendedBy = String(slot.suspended_by || '').trim();
         const isOfficialPaused = Boolean(slotSuspendedBy);
         const isPauseLockedByAdmin = slotSuspendedBy === 'admin' && !isAdminMode;
-        const isOfficialConnected = !isOfficialAccessLost && ['verified', 'verified_warning'].includes(status) && Boolean(
+        const isOfficialConnected = !isOfficialAccessLost && hasCompleteOfficialAuth && ['verified', 'verified_warning', 'active', 'connected'].includes(status) && Boolean(
             String(official.displayPhoneNumber || '').trim() ||
             String(official.phoneNumberId || '').trim()
         );
@@ -3261,9 +3271,18 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 {t('slots.official.desc') || 'Configura este slot con la API oficial de Meta. Este modo queda enfocado en recibir y enviar mensajes desde Chatwoot o GoHighLevel, sin el panel QR ni extras del flujo Baileys.'}
                             </p>
                         </div>
-                                <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${effectiveStatusClassName}`}>
-                                    {effectiveStatusLabel}
+                        <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${effectiveStatusClassName}`}>
+                            {effectiveStatusLabel}
                         </span>
+                    </div>
+
+                    <div className="mb-5 rounded-2xl border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900/40">
+                        <SettingRow
+                            label={t('slots.settings.routing_lock')}
+                            desc={t('slots.settings.routing_lock_desc')}
+                            checked={slot.settings?.routing_lock_enabled === true}
+                            onChange={() => toggleSlotSetting(slot.slot_id, 'routing_lock_enabled', slot.settings || {})}
+                        />
                     </div>
 
                     {isLoadingOfficial && !official.loaded ? (
@@ -4301,9 +4320,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const isOfficialSlotMode = connectionMode === 'official_api';
                                 const officialStatus = String(officialSlotSettings.status || '').trim().toLowerCase();
                                 const isOfficialAccessLost = isOfficialSlotMode && officialStatus === 'access_lost';
-                                const officialConnectedStatuses = new Set(['verified', 'verified_warning', 'active', 'connected']);
-                                const isOfficialConnected = isOfficialSlotMode && !isOfficialAccessLost && officialConnectedStatuses.has(officialStatus);
-                                const isConnected = isOfficialSlotMode ? isOfficialConnected : slot.is_connected === true;
+                                const isConnected = slot.is_connected === true && !isOfficialAccessLost;
+                                const isOfficialConfigIncomplete = isOfficialSlotMode &&
+                                    !isConnected &&
+                                    !isOfficialAccessLost &&
+                                    officialStatus !== 'draft';
                                 const connectedPhone = isOfficialSlotMode
                                     ? String(officialSlotSettings.displayPhoneNumber || slot.phone_number || '').trim()
                                     : (isConnected ? (slot.phone_number || "") : "");
@@ -4387,8 +4408,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             ? <span className="text-red-600 dark:text-red-400 font-bold">{t('slots.card.official_access_lost') || 'Requiere reconexion Meta'}</span>
                                                             : isConnected && connectedPhone
                                                             ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{connectedPhone}</span>
-                                                            : isOfficialSlotMode && officialStatus && officialStatus !== 'draft'
-                                                                ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">{t('slots.card.official_verified') || 'Meta API validada'}</span>
+                                                            : isOfficialConfigIncomplete
+                                                                ? <span className="text-amber-600 dark:text-amber-400 font-bold">{t('slots.card.official_incomplete') || 'Meta API incompleta — volver a autorizar'}</span>
                                                             : t('slots.card.disconnected')}
                                                         {isGhlMode && !isOfficialSlotMode && (
                                                             <>
@@ -4474,6 +4495,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 <SettingRow label={t('slots.settings.transcribe')} desc={t('slots.settings.transcribe_desc')} checked={settings.transcribe_audio ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'transcribe_audio', settings)} />
                                                                 <SettingRow label={t('slots.settings.create_contacts')} desc={t('slots.settings.create_contacts_desc')} checked={settings.create_unknown_contacts ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'create_unknown_contacts', settings)} />
                                                                 <SettingRow label={t('slots.settings.alert_disconnect')} desc={t('slots.settings.alert_disconnect_desc')} checked={settings.send_disconnect_message ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'send_disconnect_message', settings)} />
+                                                                <SettingRow label={t('slots.settings.routing_lock')} desc={t('slots.settings.routing_lock_desc')} checked={settings.routing_lock_enabled === true} onChange={() => toggleSlotSetting(slot.slot_id, 'routing_lock_enabled', settings)} />
                                                                 <div className="p-3">
                                                                     <label className="text-sm font-bold text-gray-800 dark:text-gray-200 block">
                                                                         Número de Alerta / Alert Number

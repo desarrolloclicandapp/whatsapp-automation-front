@@ -838,6 +838,7 @@ export const es = {
     // Slot Card
     "slots.card.disconnected": "Desconectado",
     "slots.card.official_verified": "Meta API validada",
+    "slots.card.official_incomplete": "Meta API incompleta — volver a autorizar",
     "slots.card.official_access_lost": "Requiere reconexión Meta",
     "slots.card.priority": "Prioridad",
     "slots.card.managing": "Editando",
@@ -1173,6 +1174,8 @@ export const es = {
     "slots.settings.create_contacts_desc": "Registrar desconocidos en tu CRM.",
     "slots.settings.alert_disconnect": "Alerta Desconexión",
     "slots.settings.alert_disconnect_desc": "Avisar al número si se desconecta.",
+    "slots.settings.routing_lock": "Fijar conversaciones a este número",
+    "slots.settings.routing_lock_desc": "Si este dispositivo está desconectado, no enviar el mensaje por otro número. Si está recuperándose, WaFloW esperará por este mismo dispositivo cuando sea posible.",
 
     // GHL
     "slots.integration.tag_auto": "Tag Automático (Entrante)",
