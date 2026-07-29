@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy, CreditCard, ExternalLink, PauseCircle, PlayCircle
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy, CreditCard, ExternalLink, PauseCircle, PlayCircle, Lock, Unlock
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
@@ -4330,6 +4330,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                     : (isConnected ? (slot.phone_number || "") : "");
                                 const currentPrio = slot.priority || 99;
                                 const settings = slotSettings;
+                                const isRoutingLocked = settings.routing_lock_enabled === true;
                                 const slotHealth = slot.health || {};
                                 const slotSent24h = Number(slotHealth.sent_24h || 0);
                                 const slotNumberQualityLevel = String(slotHealth.number_quality_level || 'unknown').toLowerCase();
@@ -4368,11 +4369,33 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         {/* CABECERA SLOT */}
                                         <div className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" onClick={() => handleExpandSlot(slot.slot_id)}>
                                             <div className="flex items-center gap-5">
-                                                <div className={`w-3 h-3 rounded-full ${isOfficialAccessLost ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.45)]' : isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                                                <div className={`w-3 h-3 rounded-full ${isOfficialAccessLost ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.45)]' : isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : isOfficialConfigIncomplete ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.35)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
                                                 <div>
                                                     <div className="flex items-center gap-3">
                                                         <h3 className="font-bold text-gray-900 dark:text-white text-xl">{slot.slot_name || (isChatwootMode ? `Inbox ${slot.slot_id}` : `Dispositivo ${slot.slot_id}`)}</h3>
                                                         <div className="flex gap-1">
+                                                            {isGhlMode && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(event) => {
+                                                                        event.stopPropagation();
+                                                                        toggleSlotSetting(slot.slot_id, 'routing_lock_enabled', settings);
+                                                                    }}
+                                                                    className={`rounded-lg p-1.5 transition ${
+                                                                        isRoutingLocked
+                                                                            ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/25 dark:text-indigo-300'
+                                                                            : 'text-gray-300 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300'
+                                                                    }`}
+                                                                    aria-label={isRoutingLocked
+                                                                        ? (t('slots.card.routing_lock_disable') || 'Desactivar candado de derivación')
+                                                                        : (t('slots.card.routing_lock_enable') || 'Activar candado de derivación')}
+                                                                    title={isRoutingLocked
+                                                                        ? (t('slots.card.routing_lock_active_help') || 'Candado activo: si este número se desconecta, sus mensajes no se derivarán a otro.')
+                                                                        : (t('slots.card.routing_lock_inactive_help') || 'Activar candado para impedir derivaciones cuando este número se desconecte.')}
+                                                                >
+                                                                    {isRoutingLocked ? <Lock size={17} /> : <Unlock size={17} />}
+                                                                </button>
+                                                            )}
                                                             {connectionMode && !isOfficialSlotMode && (
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}

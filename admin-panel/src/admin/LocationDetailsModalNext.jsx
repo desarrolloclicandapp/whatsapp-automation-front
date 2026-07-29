@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy, CreditCard, ExternalLink, PauseCircle, PlayCircle
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy, CreditCard, ExternalLink, PauseCircle, PlayCircle, Lock, Unlock
 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
@@ -4302,14 +4302,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const isOfficialSlotMode = connectionMode === 'official_api';
                                 const officialStatus = String(officialSlotSettings.status || '').trim().toLowerCase();
                                 const isOfficialAccessLost = isOfficialSlotMode && officialStatus === 'access_lost';
-                                const officialConnectedStatuses = new Set(['verified', 'verified_warning', 'active', 'connected']);
-                                const isOfficialConnected = isOfficialSlotMode && !isOfficialAccessLost && officialConnectedStatuses.has(officialStatus);
-                                const isConnected = isOfficialSlotMode ? isOfficialConnected : slot.is_connected === true;
+                                const isConnected = slot.is_connected === true && !isOfficialAccessLost;
+                                const isOfficialConfigIncomplete = isOfficialSlotMode &&
+                                    !isConnected &&
+                                    !isOfficialAccessLost &&
+                                    officialStatus !== 'draft';
                                 const connectedPhone = isOfficialSlotMode
                                     ? String(officialSlotSettings.displayPhoneNumber || slot.phone_number || '').trim()
                                     : (isConnected ? (slot.phone_number || "") : "");
                                 const currentPrio = slot.priority || 99;
                                 const settings = slotSettings;
+                                const isRoutingLocked = settings.routing_lock_enabled === true;
                                 const slotHealth = slot.health || {};
                                 const slotSent24h = Number(slotHealth.sent_24h || 0);
                                 const slotNumberQualityLevel = String(slotHealth.number_quality_level || 'unknown').toLowerCase();
@@ -4348,9 +4351,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         {/* CABECERA SLOT */}
                                         <div className="relative cursor-pointer p-4 pb-16 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 sm:p-5 sm:pb-14" onClick={() => handleExpandSlot(slot.slot_id)}>
                                             <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
-                                                <div className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full sm:mt-0 ${isOfficialAccessLost ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.45)]' : isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                                                <div className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full sm:mt-0 ${isOfficialAccessLost ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.45)]' : isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : isOfficialConfigIncomplete ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.35)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
                                                 <div className="min-w-0 flex-1">
-                                                    <div className="relative flex min-w-0 items-start gap-2 pr-20">
+                                                    <div className="relative flex min-w-0 items-start gap-2 pr-28">
                                                         {editingSlotId === slot.slot_id ? (
                                                             <div className="flex min-w-0 items-center gap-1.5" onClick={(event) => event.stopPropagation()}>
                                                                 <input
@@ -4389,6 +4392,28 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             <h3 className="min-w-0 flex-1 break-words text-base font-bold text-gray-900 dark:text-white sm:text-lg">{slot.slot_name || (isChatwootMode ? `Inbox ${slot.slot_id}` : `Dispositivo ${slot.slot_id}`)}</h3>
                                                         )}
                                                         <div className="absolute right-0 top-0 flex shrink-0 gap-1">
+                                                            {isGhlMode && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(event) => {
+                                                                        event.stopPropagation();
+                                                                        toggleSlotSetting(slot.slot_id, 'routing_lock_enabled', settings);
+                                                                    }}
+                                                                    className={`rounded-lg p-1.5 transition ${
+                                                                        isRoutingLocked
+                                                                            ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/25 dark:text-indigo-300'
+                                                                            : 'text-gray-300 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300'
+                                                                    }`}
+                                                                    aria-label={isRoutingLocked
+                                                                        ? (t('slots.card.routing_lock_disable') || 'Desactivar candado de derivación')
+                                                                        : (t('slots.card.routing_lock_enable') || 'Activar candado de derivación')}
+                                                                    title={isRoutingLocked
+                                                                        ? (t('slots.card.routing_lock_active_help') || 'Candado activo: si este número se desconecta, sus mensajes no se derivarán a otro.')
+                                                                        : (t('slots.card.routing_lock_inactive_help') || 'Activar candado para impedir derivaciones cuando este número se desconecte.')}
+                                                                >
+                                                                    {isRoutingLocked ? <Lock size={17} /> : <Unlock size={17} />}
+                                                                </button>
+                                                            )}
                                                             {connectionMode && (
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
@@ -4429,8 +4454,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             ? <span className="text-red-600 dark:text-red-400 font-bold">{t('slots.card.official_access_lost') || 'Requiere reconexion Meta'}</span>
                                                             : isConnected && connectedPhone
                                                             ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{connectedPhone}</span>
-                                                            : isOfficialSlotMode && officialStatus && officialStatus !== 'draft'
-                                                                ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">{t('slots.card.official_verified') || 'Meta API validada'}</span>
+                                                            : isOfficialConfigIncomplete
+                                                                ? <span className="text-amber-600 dark:text-amber-400 font-bold">{t('slots.card.official_incomplete') || 'Meta API incompleta — volver a autorizar'}</span>
                                                             : t('slots.card.disconnected')}
                                                         {isGhlMode && !isOfficialSlotMode && (
                                                             <>
