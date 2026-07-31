@@ -66,6 +66,8 @@ export default function AdminDashboard({ token, onLogout }) {
     const [showReviewedLogs, setShowReviewedLogs] = useState(false);
     const [numberHealth, setNumberHealth] = useState([]);
     const [numberHealthSummary, setNumberHealthSummary] = useState({ total: 0, stable: 0, attention: 0, unstable: 0, restricted: 0, connected: 0, recovering: 0, requiresQr: 0, offline: 0, historicalRestrictions: 0 });
+    const [numberHealthChannels, setNumberHealthChannels] = useState({ qr: { numbers: [], summary: {} }, official: { numbers: [], summary: {} } });
+    const [numberHealthChannel, setNumberHealthChannel] = useState('qr');
     const [numberHealthLoading, setNumberHealthLoading] = useState(false);
     const [numberHealthQuery, setNumberHealthQuery] = useState('');
     const [numberHealthQueryDraft, setNumberHealthQueryDraft] = useState('');
@@ -297,6 +299,10 @@ export default function AdminDashboard({ token, onLogout }) {
             if (!res.ok) throw new Error(data.error || 'No se pudo cargar la salud de los números');
             setNumberHealth(Array.isArray(data.numbers) ? data.numbers : []);
             setNumberHealthSummary(data.summary || { total: 0, stable: 0, attention: 0, unstable: 0, restricted: 0 });
+            setNumberHealthChannels({
+                qr: data.channels?.qr || { numbers: Array.isArray(data.numbers) ? data.numbers : [], summary: data.summary || {} },
+                official: data.channels?.official || { numbers: [], summary: {} }
+            });
         } catch (error) {
             console.error('Error salud de números:', error);
             toast.error(error.message || 'Error cargando la salud de números');
@@ -1365,9 +1371,89 @@ const handleDeleteUser = (user, type = 'soft') => {
         good: 'Buena', care: 'A cuidar', sensitive: 'Sensible', delicate: 'Delicada'
     }[String(level || '').toLowerCase()] || 'Sin historial');
 
-    const NumberHealthPanel = () => {
+    const getOfficialHealthLabel = (state) => ({
+        active_recent: 'Activa recientemente',
+        validated_recently: 'Validada recientemente',
+        configured_no_recent_activity: 'Configurada, sin actividad reciente',
+        verification_pending: 'Validación pendiente',
+        permissions_limited: 'Permisos limitados',
+        reauth_required: 'Requiere reautorización',
+        unconfigured: 'Sin configurar',
+        paused: 'Pausada'
+    }[String(state || '').toLowerCase()] || 'Estado no confirmado');
+
+    const getOfficialHealthStyle = (state) => ({
+        active_recent: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+        validated_recently: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
+        configured_no_recent_activity: 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300',
+        verification_pending: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+        permissions_limited: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+        reauth_required: 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300',
+        unconfigured: 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-400',
+        paused: 'border-gray-200 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+    }[String(state || '').toLowerCase()] || 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300');
+
+    const HealthChannelTabs = () => (
+        <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 dark:border-gray-800 dark:bg-gray-900">
+            <button type="button" onClick={() => { setNumberHealthChannel('qr'); setNumberHealthStatus('all'); }} className={`rounded-lg px-4 py-2 text-sm font-bold transition ${numberHealthChannel === 'qr' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}>Conexiones QR</button>
+            <button type="button" onClick={() => { setNumberHealthChannel('official'); setNumberHealthStatus('all'); }} className={`rounded-lg px-4 py-2 text-sm font-bold transition ${numberHealthChannel === 'official' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}>Meta API</button>
+        </div>
+    );
+
+    const OfficialMetaHealthPanel = () => {
+        const officialNumbers = Array.isArray(numberHealthChannels.official?.numbers) ? numberHealthChannels.official.numbers : [];
+        const summary = numberHealthChannels.official?.summary || {};
         const normalizedQuery = numberHealthQuery.trim().toLowerCase();
-        const rows = numberHealth.filter((item) => {
+        const rows = officialNumbers.filter((item) => {
+            const matchesStatus = numberHealthStatus === 'all' || item.state === numberHealthStatus;
+            const searchable = [item.phone_number, item.client_name, item.location_id, item.slot_name, item.slot_id, item.verifiedName].join(' ').toLowerCase();
+            return matchesStatus && (!normalizedQuery || searchable.includes(normalizedQuery));
+        }).sort((left, right) => {
+            const priority = { reauth_required: 0, permissions_limited: 1, verification_pending: 2, configured_no_recent_activity: 3, unconfigured: 4, paused: 5, validated_recently: 6, active_recent: 7 };
+            return (priority[left.state] ?? 9) - (priority[right.state] ?? 9);
+        });
+
+        return <>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
+                {[
+                    ['Canales Meta', summary.total, 'text-gray-900 dark:text-white'],
+                    ['Configurados', summary.configured, 'text-emerald-600 dark:text-emerald-300'],
+                    ['Actividad reciente', summary.activeRecent, 'text-emerald-600 dark:text-emerald-300'],
+                    ['Pendientes de validar', summary.pendingValidation, 'text-amber-600 dark:text-amber-300'],
+                    ['Reautorizar', summary.reauthRequired, 'text-red-600 dark:text-red-300'],
+                    ['Sin configurar', summary.unconfigured, 'text-gray-600 dark:text-gray-300'],
+                    ['Con respaldo', summary.withBackup, 'text-sky-600 dark:text-sky-300'],
+                    ['Sin respaldo', summary.withoutBackup, 'text-amber-600 dark:text-amber-300']
+                ].map(([label, value, color]) => <div key={label} className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900"><p className="truncate text-[10px] font-bold uppercase tracking-wide text-gray-400" title={label}>{label}</p><p className={`mt-1 text-xl font-black ${color}`}>{value || 0}</p></div>)}
+            </div>
+            <div className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900 md:flex-row">
+                <div className="relative flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={17} /><input value={numberHealthQueryDraft} onChange={(event) => setNumberHealthQueryDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') setNumberHealthQuery(numberHealthQueryDraft); }} placeholder="Buscar número, cliente, location o slot..." className="w-full rounded-lg border border-gray-300 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950" /></div>
+                <select value={numberHealthStatus} onChange={(event) => setNumberHealthStatus(event.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold dark:border-gray-700 dark:bg-gray-950"><option value="all">Todos los estados Meta</option><option value="active_recent">Actividad reciente</option><option value="validated_recently">Validada recientemente</option><option value="configured_no_recent_activity">Sin actividad reciente</option><option value="verification_pending">Validación pendiente</option><option value="permissions_limited">Permisos limitados</option><option value="reauth_required">Requiere reautorización</option><option value="unconfigured">Sin configurar</option><option value="paused">Pausada</option></select>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                {numberHealthLoading ? <div className="py-20 text-center text-gray-500"><RefreshCw className="mx-auto mb-3 animate-spin text-indigo-600" size={32} />Cargando canales Meta...</div> : rows.length === 0 ? <div className="py-20 text-center text-gray-500"><Activity className="mx-auto mb-3 text-gray-300" size={40} />No hay canales Meta para los filtros seleccionados.</div> : <div className="overflow-x-auto"><table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500 dark:bg-gray-950"><tr><th className="px-4 py-3 text-left">Número / cliente</th><th className="px-4 py-3 text-left">Estado Meta actual</th><th className="px-4 py-3 text-left">Credencial</th><th className="px-4 py-3 text-left">Última validación</th><th className="px-4 py-3 text-left">Última actividad</th></tr></thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">{rows.map((item) => <tr key={`${item.location_id}-${item.slot_id}`} className="hover:bg-gray-50 dark:hover:bg-gray-950/60">
+                        <td className="px-4 py-4"><p className="font-bold text-gray-900 dark:text-white">{item.phone_number || 'Número no configurado'}</p><p className="mt-1 text-xs text-gray-500">{item.client_name || item.location_id} · {item.slot_name || `Slot ${item.slot_id}`}</p></td>
+                        <td className="px-4 py-4"><span className={`inline-flex rounded-full border px-2 py-1 text-xs font-bold ${getOfficialHealthStyle(item.state)}`}>{getOfficialHealthLabel(item.state)}</span>{item.state === 'permissions_limited' && <p className="mt-1 max-w-xs text-[11px] text-amber-700 dark:text-amber-300">El canal puede seguir activo; falta un permiso para una función específica.</p>}</td>
+                        <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{item.hasAccessToken ? 'Credencial presente' : 'Sin credencial'}</p><p className={`mt-1 text-[11px] font-semibold ${item.hasLastGood ? 'text-sky-600 dark:text-sky-300' : 'text-amber-700 dark:text-amber-300'}`}>{item.hasLastGood ? 'Respaldo disponible' : item.configured ? 'Respaldo pendiente' : 'No aplica'}</p></td>
+                        <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{item.lastValidationAt ? formatAdminLogDate(item.lastValidationAt) : 'Aún no validada'}</p>{item.validationError && <p className="mt-1 max-w-sm text-[11px] text-gray-500">{item.validationError}</p>}</td>
+                        <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{item.lastWebhookAt ? formatAdminLogDate(item.lastWebhookAt) : 'Sin webhook registrado'}</p><p className="mt-1 text-[11px] text-gray-500">{item.hasRecentWebhook ? 'Actividad recibida en los últimos 7 días' : 'No implica desconexión; requiere validación'}</p></td>
+                    </tr>)}</tbody>
+                </table></div>}
+            </div>
+        </>;
+    };
+
+    const NumberHealthPanel = () => {
+        const qrNumberHealth = Array.isArray(numberHealthChannels.qr?.numbers)
+            ? numberHealthChannels.qr.numbers
+            : numberHealth;
+        const qrSummary = numberHealthChannels.qr?.summary && Object.keys(numberHealthChannels.qr.summary).length
+            ? numberHealthChannels.qr.summary
+            : numberHealthSummary;
+        const normalizedQuery = numberHealthQuery.trim().toLowerCase();
+        const rows = qrNumberHealth.filter((item) => {
             const matchesStatus = numberHealthStatus === 'all'
                 || item.connection_status === numberHealthStatus
                 || item.current_connection_state === numberHealthStatus
@@ -1397,16 +1483,18 @@ const handleDeleteUser = (user, type = 'soft') => {
                         <RefreshCw size={17} className={numberHealthLoading ? 'animate-spin' : ''} /> Actualizar
                     </button>
                 </div>
+                <HealthChannelTabs />
+                {numberHealthChannel === 'official' ? <OfficialMetaHealthPanel /> : <>
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
                     {[
-                        ['Números', numberHealthSummary.total, 'text-gray-900 dark:text-white'],
-                        ['Conectados', numberHealthSummary.connected, 'text-emerald-600 dark:text-emerald-300'],
-                        ['Reconectando', numberHealthSummary.recovering, 'text-orange-600 dark:text-orange-300'],
-                        ['Requieren QR', numberHealthSummary.requiresQr, 'text-red-600 dark:text-red-300'],
-                        ['Limitación Meta', numberHealthSummary.reachoutLimited, 'text-amber-600 dark:text-amber-300'],
-                        ['Restricción superada', numberHealthSummary.historicalRestrictions, 'text-sky-600 dark:text-sky-300'],
-                        ['Entregas pendientes', numberHealthSummary.deliveryPending, 'text-amber-600 dark:text-amber-300'],
-                        ['Multimedia fallida 24h', numberHealthSummary.mediaFinalFailures24h, 'text-red-600 dark:text-red-300']
+                        ['Números QR', qrSummary.total, 'text-gray-900 dark:text-white'],
+                        ['Conectados', qrSummary.connected, 'text-emerald-600 dark:text-emerald-300'],
+                        ['Reconectando', qrSummary.recovering, 'text-orange-600 dark:text-orange-300'],
+                        ['Requieren QR', qrSummary.requiresQr, 'text-red-600 dark:text-red-300'],
+                        ['Limitación Meta', qrSummary.reachoutLimited, 'text-amber-600 dark:text-amber-300'],
+                        ['Restricción superada', qrSummary.historicalRestrictions, 'text-sky-600 dark:text-sky-300'],
+                        ['Entregas pendientes', qrSummary.deliveryPending, 'text-amber-600 dark:text-amber-300'],
+                        ['Multimedia fallida 24h', qrSummary.mediaFinalFailures24h, 'text-red-600 dark:text-red-300']
                     ].map(([label, value, color]) => <div key={label} className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900"><p className="truncate text-[10px] font-bold uppercase tracking-wide text-gray-400" title={label}>{label}</p><p className={`mt-1 text-xl font-black ${color}`}>{value || 0}</p></div>)}
                 </div>
                 <div className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900 md:flex-row">
@@ -1433,6 +1521,7 @@ const handleDeleteUser = (user, type = 'soft') => {
                         </table>
                     </div>}
                 </div>
+                </>}
             </div>
         );
     };
