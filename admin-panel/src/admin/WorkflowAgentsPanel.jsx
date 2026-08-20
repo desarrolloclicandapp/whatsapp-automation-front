@@ -363,7 +363,9 @@ function buildFormFromAgent(agent, catalog = []) {
         agent_key: agent?.agent_key || "",
         status: agent?.status || "active",
         credential_mode: "location",
-        slot_ids: [],
+        slot_ids: Array.isArray(agent?.slot_ids)
+            ? agent.slot_ids.map((value) => String(value))
+            : (agent?.slot_id ? [String(agent.slot_id)] : []),
         manual_api_key: "",
         manual_api_key_configured: agent?.manual_api_key_configured === true,
         clear_manual_api_key: false,
@@ -682,7 +684,9 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                 agent_key: normalizedForm.agent_key,
                 status: normalizedForm.status,
                 credential_mode: "location",
-                slot_ids: [],
+                slot_ids: Array.isArray(normalizedForm.slot_ids)
+                    ? normalizedForm.slot_ids.map((value) => String(value))
+                    : [],
                 model: normalizedForm.model,
                 temperature: Number.parseFloat(normalizedForm.temperature || "0.4"),
                 max_output_chars: Number.parseInt(normalizedForm.max_output_chars || "600", 10),
@@ -813,7 +817,8 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
         setDefaultAssignmentModal({
             agent,
             slotId: currentSlotId,
-            newConversationsOnly: false
+            autoReplyEnabled: agent?.integrations?.ghl?.enabled === true && agent?.integrations?.ghl?.config?.auto_reply_enabled === true,
+            newConversationsOnly: agent?.integrations?.ghl?.config?.new_conversations_only === true
         });
     };
 
@@ -830,6 +835,7 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                     locationId: selectedLocationId,
                     slotId,
                     mode: "reply",
+                    autoReplyEnabled: defaultAssignmentModal.autoReplyEnabled === true,
                     newConversationsOnly: defaultAssignmentModal.newConversationsOnly === true
                 })
             });
@@ -2006,6 +2012,26 @@ export default function WorkflowAgentsPanel({ locations = [], onUnauthorized, to
                                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Solo hay un número, se usará automáticamente.</p>
                                 ) : null}
                             </div>
+                            {defaultAssignmentModal.agent?.integrations?.ghl?.enabled === true ? (
+                                <label className={`relative flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
+                                    defaultAssignmentModal.autoReplyEnabled
+                                        ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_0_1px_rgba(16,185,129,0.28)] dark:border-emerald-500/70 dark:bg-emerald-500/15"
+                                        : "border-gray-200 bg-gray-50/80 hover:border-emerald-200 dark:border-gray-700 dark:bg-gray-950/40"
+                                }`}>
+                                    <input
+                                        type="checkbox"
+                                        checked={defaultAssignmentModal.autoReplyEnabled}
+                                        onChange={(event) => setDefaultAssignmentModal((prev) => ({ ...prev, autoReplyEnabled: event.target.checked }))}
+                                        className="mt-1 h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500"
+                                    />
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-sm font-bold text-gray-900 dark:text-white">Responder automáticamente desde este número</span>
+                                        <span className="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                            Está desactivado por defecto. Al activarlo, WaFloW responderá los mensajes entrantes con este agente y respetará las intervenciones humanas.
+                                        </span>
+                                    </span>
+                                </label>
+                            ) : null}
                             <label className={`relative flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
                                 defaultAssignmentModal.newConversationsOnly
                                     ? "border-indigo-400 bg-indigo-500/10 shadow-[0_0_0_1px_rgba(99,102,241,0.32)] dark:border-indigo-500/70 dark:bg-indigo-500/15"
