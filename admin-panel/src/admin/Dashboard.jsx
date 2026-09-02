@@ -1406,7 +1406,7 @@ const handleDeleteUser = (user, type = 'soft') => {
         const normalizedQuery = numberHealthQuery.trim().toLowerCase();
         const rows = officialNumbers.filter((item) => {
             const matchesStatus = numberHealthStatus === 'all' || item.state === numberHealthStatus;
-            const searchable = [item.phone_number, item.client_name, item.location_id, item.slot_name, item.slot_id, item.verifiedName].join(' ').toLowerCase();
+            const searchable = [item.phone_number, item.client_name, item.location_id, item.slot_name, item.slot_id, item.verifiedName, item.nameStatus, item.delivery?.lastFailureCode, item.delivery?.lastFailureTitle].join(' ').toLowerCase();
             return matchesStatus && (!normalizedQuery || searchable.includes(normalizedQuery));
         }).sort((left, right) => {
             const priority = { reauth_required: 0, permissions_limited: 1, verification_pending: 2, configured_no_recent_activity: 3, unconfigured: 4, paused: 5, validated_recently: 6, active_recent: 7 };
@@ -1414,7 +1414,7 @@ const handleDeleteUser = (user, type = 'soft') => {
         });
 
         return <>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-5 xl:grid-cols-10">
                 {[
                     ['Canales Meta', summary.total, 'text-gray-900 dark:text-white'],
                     ['Configurados', summary.configured, 'text-emerald-600 dark:text-emerald-300'],
@@ -1422,6 +1422,8 @@ const handleDeleteUser = (user, type = 'soft') => {
                     ['Pendientes de validar', summary.pendingValidation, 'text-amber-600 dark:text-amber-300'],
                     ['Reautorizar', summary.reauthRequired, 'text-red-600 dark:text-red-300'],
                     ['Sin configurar', summary.unconfigured, 'text-gray-600 dark:text-gray-300'],
+                    ['Nombres a revisar', summary.nameReviewRequired, 'text-amber-600 dark:text-amber-300'],
+                    ['Fallos 24 h', summary.deliveryFailures24h, 'text-red-600 dark:text-red-300'],
                     ['Con respaldo', summary.withBackup, 'text-sky-600 dark:text-sky-300'],
                     ['Sin respaldo', summary.withoutBackup, 'text-amber-600 dark:text-amber-300']
                 ].map(([label, value, color]) => <div key={label} className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900"><p className="truncate text-[10px] font-bold uppercase tracking-wide text-gray-400" title={label}>{label}</p><p className={`mt-1 text-xl font-black ${color}`}>{value || 0}</p></div>)}
@@ -1435,10 +1437,10 @@ const handleDeleteUser = (user, type = 'soft') => {
                     <thead className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500 dark:bg-gray-950"><tr><th className="px-4 py-3 text-left">Número / cliente</th><th className="px-4 py-3 text-left">Estado Meta actual</th><th className="px-4 py-3 text-left">Credencial</th><th className="px-4 py-3 text-left">Última validación</th><th className="px-4 py-3 text-left">Última actividad</th></tr></thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">{rows.map((item) => <tr key={`${item.location_id}-${item.slot_id}`} className="hover:bg-gray-50 dark:hover:bg-gray-950/60">
                         <td className="px-4 py-4"><p className="font-bold text-gray-900 dark:text-white">{item.phone_number || 'Número no configurado'}</p><p className="mt-1 text-xs text-gray-500">{item.client_name || item.location_id} · {item.slot_name || `Slot ${item.slot_id}`}</p></td>
-                        <td className="px-4 py-4"><span className={`inline-flex rounded-full border px-2 py-1 text-xs font-bold ${getOfficialHealthStyle(item.state)}`}>{getOfficialHealthLabel(item.state)}</span>{item.state === 'permissions_limited' && <p className="mt-1 max-w-xs text-[11px] text-amber-700 dark:text-amber-300">El canal puede seguir activo; falta un permiso para una función específica.</p>}</td>
-                        <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{item.hasAccessToken ? 'Credencial presente' : 'Sin credencial'}</p><p className={`mt-1 text-[11px] font-semibold ${item.hasLastGood ? 'text-sky-600 dark:text-sky-300' : 'text-amber-700 dark:text-amber-300'}`}>{item.hasLastGood ? 'Respaldo disponible' : item.configured ? 'Respaldo pendiente' : 'No aplica'}</p></td>
-                        <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{item.lastValidationAt ? formatAdminLogDate(item.lastValidationAt) : 'Aún no validada'}</p>{item.validationError && <p className="mt-1 max-w-sm text-[11px] text-gray-500">{item.validationError}</p>}</td>
-                        <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{item.lastWebhookAt ? formatAdminLogDate(item.lastWebhookAt) : 'Sin webhook registrado'}</p><p className="mt-1 text-[11px] text-gray-500">{item.hasRecentWebhook ? 'Actividad recibida en los últimos 7 días' : 'No implica desconexión; requiere validación'}</p></td>
+                        <td className="px-4 py-4"><span className={`inline-flex rounded-full border px-2 py-1 text-xs font-bold ${getOfficialHealthStyle(item.state)}`}>{getOfficialHealthLabel(item.state)}</span>{item.state === 'permissions_limited' && <p className="mt-1 max-w-xs text-[11px] text-amber-700 dark:text-amber-300">El canal puede seguir activo; falta un permiso para una función específica.</p>}{item.nameReviewRequired && <p className="mt-1 max-w-xs text-[11px] font-semibold text-amber-700 dark:text-amber-300">Meta rechazó el nombre mostrado. El canal puede seguir operativo.</p>}{item.qualityRating && <p className="mt-1 text-[11px] text-gray-500">Calidad Meta: {item.qualityRating}</p>}</td>
+                        <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{item.liveCredentialState === 'valid' ? 'Credencial válida' : item.hasAccessToken ? 'Credencial presente' : 'Sin credencial'}</p><p className={`mt-1 text-[11px] font-semibold ${item.hasLastGood ? 'text-sky-600 dark:text-sky-300' : 'text-amber-700 dark:text-amber-300'}`}>{item.hasLastGood ? 'Respaldo disponible' : item.configured ? 'Respaldo pendiente' : 'No aplica'}</p></td>
+                        <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{item.liveCheckedAt ? formatAdminLogDate(item.liveCheckedAt) : item.lastValidationAt ? formatAdminLogDate(item.lastValidationAt) : 'Aún no validada'}</p>{item.liveCheckedAt && <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-300">Comprobación directa con Meta</p>}{(item.liveValidationError || item.validationError) && <p className="mt-1 max-w-sm text-[11px] text-gray-500">{item.liveValidationError || item.validationError}</p>}</td>
+                        <td className="px-4 py-4"><p className="font-semibold text-gray-800 dark:text-gray-200">{item.lastWebhookAt ? formatAdminLogDate(item.lastWebhookAt) : 'Sin webhook registrado'}</p><p className="mt-1 text-[11px] text-gray-500">{item.hasRecentWebhook ? 'Actividad recibida en los últimos 7 días' : 'Sin actividad reciente; no implica desconexión'}</p>{Number(item.delivery?.failures24h || 0) > 0 && <p className="mt-1 max-w-sm text-[11px] font-semibold text-red-600 dark:text-red-300">{item.delivery.failures24h} fallo(s) en 24 h · {item.delivery.lastFailureCode || 'sin código'}{item.delivery.lastFailureDetails ? ` · ${item.delivery.lastFailureDetails}` : ''}</p>}</td>
                     </tr>)}</tbody>
                 </table></div>}
             </div>
