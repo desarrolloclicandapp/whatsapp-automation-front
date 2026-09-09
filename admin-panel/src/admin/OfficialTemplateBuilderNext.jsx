@@ -325,10 +325,27 @@ function getLiteralTemplateValue(value = "") {
         : "";
 }
 
+function templateNeedsHeaderMedia(template = {}) {
+    const header = (Array.isArray(template?.components) ? template.components : [])
+        .find((component) => String(component?.type || "").toUpperCase() === "HEADER");
+    return ["IMAGE", "VIDEO", "DOCUMENT"].includes(String(header?.format || "").toUpperCase());
+}
+
+function getTemplateHeaderMediaUrl(variableMappings = {}) {
+    const raw = String(variableMappings?.__header_media_url || "").trim();
+    const url = raw.startsWith(LITERAL_TEMPLATE_VALUE_PREFIX)
+        ? raw.slice(LITERAL_TEMPLATE_VALUE_PREFIX.length).trim()
+        : raw;
+    return /^https:\/\//i.test(url) ? url : "";
+}
+
 function buildTemplateCommand(template = {}, fallbackLanguage = "es", variableMappings = {}) {
     const name = String(template?.name || "").trim();
     const language = String(template?.language || fallbackLanguage || "es").trim();
     if (!name || !language) return "";
+    // WaFloW applies the saved image when the message goes out, so the command
+    // stays short and is only offered once that image exists.
+    if (templateNeedsHeaderMedia(template) && !getTemplateHeaderMediaUrl(variableMappings)) return "";
     const placeholders = getTemplateCommandPlaceholders(template);
     const values = placeholders.map((placeholder, index) => {
         const safePlaceholder = String(placeholder || "").trim();
@@ -351,11 +368,14 @@ function friendlyTemplateError(payload = {}, t) {
             ]
         };
     }
+    // Any backend error that already carries a title, a cause and the steps to
+    // fix it is shown as-is: that is what makes a credential problem solvable
+    // by the client instead of a dead end.
     return {
-        title: t("templates.builder.load_templates_error") || "No se pudieron cargar templates",
+        title: payload?.title || t("templates.builder.load_templates_error") || "No se pudieron cargar templates",
         message: payload?.error || payload?.message || (t("templates.builder.generic_templates_error") || "No pudimos consultar las plantillas de este número."),
         reason: payload?.reason || "",
-        actions: []
+        actions: Array.isArray(payload?.actions) ? payload.actions.filter(Boolean) : []
     };
 }
 
@@ -439,7 +459,110 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         return legacy?.[key] || legacy?.[legacyStatusKey] || {};
     };
 
-    const persistMappings = async (portfolioId, locationId, mappings) => {
+    const headerImageInputRef = useRef(null);
+    const [pendingImageTemplate, setPendingImageTemplate] = useState(null);
+    const [headerImage, setHeaderImage] = useState({ name: "", previewUrl: "", assetToken: "", uploading: false });
+
+    // The image is uploaded through the API, which validates it and hands it to
+    // Meta. Asking the client for a Meta media handle was never something a
+    // non-technical user could produce.
+    const uploadTemplateHeaderImage = async (file, slot) => {
+        const safeLocationId = String(slot?.locationId || "").trim();
+        const safeSlotId = String(slot?.slotId || "").trim();
+        if (!file) throw new Error("Selecciona una imagen JPG o PNG.");
+        if (!safeLocationId || !safeSlotId) throw new Error("Selecciona el numero que usara la plantilla.");
+        if (!["image/jpeg", "image/png"].includes(String(file.type || "").toLowerCase())) {
+            throw new Error("Selecciona una imagen JPG o PNG.");
+        }
+        if (Number(file.size || 0) > 5 * 1024 * 1024) throw new Error("La imagen no puede superar 5 MB.");
+
+        const body = new FormData();
+        body.append("image", file, file.name || "template-image");
+        // Content-Type is left to the browser so the multipart boundary is set.
+        const response = await fetch(
+            `${API_URL}/agency/whatsapp-official/template-media?locationId=${encodeURIComponent(safeLocationId)}&slotId=${encodeURIComponent(safeSlotId)}`,
+            { method: "POST", body, headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (response.status === 401) {
+            if (typeof onUnauthorized === "function") onUnauthorized();
+            throw new Error(t("agency.session_expired") || "Sesion expirada");
+        }
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data?.assetToken || !data?.previewUrl) {
+            throw new Error(data?.error || "No se pudo cargar la imagen.");
+        }
+        return data;
+    };
+
+    const onHeaderImageSelected = async (event) => {
+        const file = event.target.files?.[0] || null;
+        if (!file) {
+            setHeaderImage({ name: "", previewUrl: "", assetToken: "", uploading: false });
+            return;
+        }
+        setHeaderImage({ name: file.name || "", previewUrl: "", assetToken: "", uploading: true });
+        try {
+            const uploaded = await uploadTemplateHeaderImage(file, selectedSlot);
+            setHeaderImage({
+                name: uploaded.fileName || file.name || "",
+                previewUrl: uploaded.previewUrl,
+                assetToken: uploaded.assetToken,
+                uploading: false
+            });
+        } catch (error) {
+            setHeaderImage({ name: "", previewUrl: "", assetToken: "", uploading: false });
+            event.target.value = "";
+            toast.error("No se pudo cargar la imagen", { description: error.message });
+        }
+    };
+
+    // Replacing the image of an already approved template: upload it, then point
+    // the saved mapping at the new file so every future send picks it up.
+    const requestTemplateImageChange = (template) => {
+        setPendingImageTemplate(template);
+        if (headerImageInputRef.current) {
+            headerImageInputRef.current.value = "";
+            headerImageInputRef.current.click();
+        }
+    };
+
+    const onExistingTemplateImageSelected = async (event) => {
+        const file = event.target.files?.[0] || null;
+        const template = pendingImageTemplate;
+        setPendingImageTemplate(null);
+        event.target.value = "";
+        if (!file || !template) return;
+
+        const portfolioId = getMappingScope(template);
+        const locationId = String(selectedSlot?.locationId || "").trim();
+        if (!portfolioId || !locationId) {
+            toast.error("No se pudieron identificar el portfolio de Meta y la subcuenta.");
+            return;
+        }
+        try {
+            const uploaded = await uploadTemplateHeaderImage(file, selectedSlot);
+            const key = getTemplateKey(template);
+            const scoped = templateVariableMappings[portfolioId] || {};
+            const nextMappings = {
+                ...scoped,
+                [key]: {
+                    ...(scoped[key] || {}),
+                    __header_media_url: `${LITERAL_TEMPLATE_VALUE_PREFIX}${uploaded.previewUrl}`
+                }
+            };
+            const saved = await persistMappings(portfolioId, locationId, nextMappings, {
+                slotId: selectedSlot?.slotId,
+                headerMediaAssetToken: uploaded.assetToken
+            });
+            if (!saved) return;
+            setTemplateVariableMappings((prev) => ({ ...prev, [portfolioId]: nextMappings }));
+            toast.success("Imagen guardada");
+        } catch (error) {
+            toast.error("No se pudo guardar la imagen", { description: error.message });
+        }
+    };
+
+    const persistMappings = async (portfolioId, locationId, mappings, options = {}) => {
         const safePortfolioId = String(portfolioId || "").trim();
         const safeLocationId = String(locationId || "").trim();
         if (!safePortfolioId || !safeLocationId) {
@@ -449,7 +572,13 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
         try {
             const response = await authFetch("/agency/whatsapp-official/template-mappings", {
                 method: "PUT",
-                body: JSON.stringify({ locationId: safeLocationId, portfolioId: safePortfolioId, mappings })
+                body: JSON.stringify({
+                    locationId: safeLocationId,
+                    portfolioId: safePortfolioId,
+                    slotId: options.slotId || selectedSlot?.slotId || undefined,
+                    headerMediaAssetToken: options.headerMediaAssetToken || undefined,
+                    mappings
+                })
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data?.error || "La API no aceptó las variables GHL.");
@@ -949,6 +1078,15 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
             return;
         }
 
+        if (!isAuthenticationTemplate && ["IMAGE", "VIDEO", "DOCUMENT"].includes(form.headerFormat) && !headerImage.assetToken) {
+            toast.error("Selecciona la imagen del encabezado antes de crear la plantilla.");
+            return;
+        }
+        if (headerImage.uploading) {
+            toast.error("Espera a que termine de cargar la imagen.");
+            return;
+        }
+
         setCreating(true);
         try {
             const res = await authFetch("/agency/whatsapp-official/templates", {
@@ -969,6 +1107,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                     headerText: form.headerText,
                     headerExamples,
                     headerMediaHandle: form.headerMediaHandle,
+                    headerMediaAssetToken: headerImage.assetToken,
                     footerText: form.footerText,
                     buttons,
                     authentication: form.authentication
@@ -988,6 +1127,12 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                 throw new Error([data.error || (t("templates.builder.create_error") || "No se pudo crear la plantilla"), diagnostic].filter(Boolean).join(" — "));
             }
             setCreationResults(data);
+            // The template exists in Meta but its image could not be stored: say
+            // so, because otherwise it would only fail later at send time.
+            if (data?.headerMediaWarning) {
+                toast.warning("Falta guardar la imagen", { description: data.headerMediaWarning });
+            }
+            setHeaderImage({ name: "", previewUrl: "", assetToken: "", uploading: false });
             const createdCount = Number(data?.summary?.created || 0);
             const duplicateCount = Number(data?.summary?.duplicates || 0);
             const failedCount = Number(data?.summary?.failed || 0);
@@ -1070,6 +1215,11 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                             </p>
                                         ) : null}
                                         {template.rejectedReason ? <p className="mt-1 text-xs text-red-500">{template.rejectedReason}</p> : null}
+                                        {templateNeedsHeaderMedia(template) && !getTemplateHeaderMediaUrl(mapping) ? (
+                                            <p className="mt-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                                Esta plantilla lleva una imagen arriba. Elige la imagen para poder usarla en tus mensajes.
+                                            </p>
+                                        ) : null}
                                     </div>
                                     <div className="flex shrink-0 items-center gap-1.5">
                                         {placeholders.length ? (
@@ -1080,6 +1230,16 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                                 title={t("templates.builder.map_variables") || "Mapear variables GHL"}
                                             >
                                                 <Pencil size={14} />
+                                            </button>
+                                        ) : null}
+                                        {templateNeedsHeaderMedia(template) ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => requestTemplateImageChange(template)}
+                                                className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 hover:text-indigo-600 dark:border-gray-700 dark:bg-gray-900"
+                                                title="Elegir o cambiar imagen"
+                                            >
+                                                <FileText size={14} />
                                             </button>
                                         ) : null}
                                         {command ? (
@@ -1550,6 +1710,13 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
 
     return (
         <div className="official-template-builder-ui mx-auto max-w-7xl space-y-5 animate-in fade-in slide-in-from-bottom-4" translate="no">
+            <input
+                ref={headerImageInputRef}
+                type="file"
+                accept="image/jpeg,image/png"
+                className="hidden"
+                onChange={onExistingTemplateImageSelected}
+            />
             {renderVariableMappingModal()}
 
             {loadingSlots ? (
@@ -1775,9 +1942,21 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                     </label>
                                 ) : null}
                                 {["IMAGE", "VIDEO", "DOCUMENT"].includes(form.headerFormat) ? (
-                                    <label className="md:col-span-2 text-sm font-bold text-gray-700 dark:text-gray-300">Handle de muestra de Meta
-                                        <input value={form.headerMediaHandle} onChange={(event) => setFormField("headerMediaHandle", event.target.value)} placeholder="4::..." className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
-                                        <span className="mt-1 block text-xs font-normal text-gray-500">Meta requiere un header_handle cargado previamente; una URL publica no sirve como muestra de plantilla.</span>
+                                    <label className="md:col-span-2 text-sm font-bold text-gray-700 dark:text-gray-300">Imagen del encabezado
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/png"
+                                            onChange={onHeaderImageSelected}
+                                            disabled={headerImage.uploading || !selectedSlot}
+                                            className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                                        />
+                                        <span className="mt-1 block text-xs font-normal text-gray-500">Elige una imagen JPG o PNG de hasta 5 MB. Se mostrara arriba del mensaje y WaFloW la usara en cada envio.</span>
+                                        {headerImage.uploading ? (
+                                            <span className="mt-2 block text-xs font-semibold text-indigo-600 dark:text-indigo-300">Cargando imagen...</span>
+                                        ) : null}
+                                        {headerImage.previewUrl ? (
+                                            <img src={headerImage.previewUrl} alt="" className="mt-2 max-h-48 w-full rounded-xl border border-gray-200 object-contain dark:border-gray-700" />
+                                        ) : null}
                                     </label>
                                 ) : null}
                             </div>
