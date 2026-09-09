@@ -1150,6 +1150,10 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                         : t("templates.builder.created") || "Plantilla enviada a revision de Meta"
             );
             await loadTemplates(selectedSlot);
+            const createdPortfolioId = getOfficialPortfolioKey(selectedSlot);
+            if (createdPortfolioId && selectedSlot?.locationId) {
+                await loadMappings(createdPortfolioId, selectedSlot.locationId);
+            }
         } catch (error) {
             toast.error(t("templates.builder.create_error") || "No se pudo crear la plantilla", {
                 description: error.message
@@ -1220,7 +1224,7 @@ export default function OfficialTemplateBuilder({ locations = [], token, onUnaut
                                             </p>
                                         ) : null}
                                         {template.rejectedReason ? <p className="mt-1 text-xs text-red-500">{template.rejectedReason}</p> : null}
-                                        {templateNeedsHeaderMedia(template) && !getTemplateHeaderMediaUrl(mapping) ? (
+                                        {String(template?.status || "").toUpperCase() === "APPROVED" && templateNeedsHeaderMedia(template) && !getTemplateHeaderMediaUrl(mapping) ? (
                                             <p className="mt-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
                                                 Esta plantilla lleva una imagen arriba. Elige la imagen para poder usarla en tus mensajes.
                                             </p>
