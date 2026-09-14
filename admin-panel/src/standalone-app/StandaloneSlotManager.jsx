@@ -2618,7 +2618,7 @@ function StandaloneSlotConnectionManager({
             <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
               <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
                 {qr ? (
-                  <QRCode value={qr} size={220} bgColor="#FFFFFF" fgColor="#000000" />
+                  <QRCode className="waflow-qr-canonical" value={qr} size={220} bgColor="#FFFFFF" fgColor="#000000" />
                 ) : (
                   <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />
                 )}
@@ -2696,7 +2696,7 @@ function QrPanel({
         <h4 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">{translateOr(t, 'standalone.slots.qr_status_title', 'Estado del QR')}</h4>
         {qrData.qr ? (
           <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white inline-flex">
-            <QRCode value={qrData.qr} size={240} bgColor="#FFFFFF" fgColor="#000000" />
+            <QRCode className="waflow-qr-canonical" value={qrData.qr} size={240} bgColor="#FFFFFF" fgColor="#000000" />
           </div>
         ) : (
           <div className="h-[272px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">

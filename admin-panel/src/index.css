@@ -10,6 +10,28 @@ body {
   min-height: 100vh;
 }
 
+/*
+ * WhatsApp QR codes must remain canonical in every app theme. The QR payload
+ * is not themeable: WhatsApp expects a white background and black modules.
+ * Keep the rule on the SVG and its paths so dark-mode styles cannot invert it.
+ */
+.waflow-qr-canonical {
+  display: block;
+  background: #ffffff !important;
+  color-scheme: light !important;
+  filter: none !important;
+  forced-color-adjust: none !important;
+  mix-blend-mode: normal !important;
+}
+
+.waflow-qr-canonical > path:first-of-type {
+  fill: #ffffff !important;
+}
+
+.waflow-qr-canonical > path:last-of-type {
+  fill: #000000 !important;
+}
+
 .auth-phone-input {
   width: 100%;
 }

@@ -6297,7 +6297,7 @@ function SlotConnectionManager({
                     {!accountSuspensionState && (qr || loading) && (
                         <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
                             <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
-                                {qr ? <QRCode value={qr} size={220} bgColor="#FFFFFF" fgColor="#000000" /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
+                                {qr ? <QRCode className="waflow-qr-canonical" value={qr} size={220} bgColor="#FFFFFF" fgColor="#000000" /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
                             </div>
                             {qrPostScanGrace && !qr && (
                                 <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">
