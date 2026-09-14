@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import QRCode from "react-qr-code";
+import PairingCodePanel from '../components/PairingCodePanel';
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
     RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy, CreditCard, ExternalLink, PauseCircle, PlayCircle, Lock, Unlock
@@ -5644,7 +5645,14 @@ function SlotConnectionManager({
     const [qrPostScanGrace, setQrPostScanGrace] = useState(false);
     const [shareUrl, setShareUrl] = useState("");
     const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
+    const [pairingOpen, setPairingOpen] = useState(false);
+    const [pairingCode, setPairingCode] = useState('');
+    const [pairingCodeExpiresAt, setPairingCodeExpiresAt] = useState(null);
+    const [pairingPhone, setPairingPhone] = useState('');
+    const [pairingLoading, setPairingLoading] = useState(false);
+    const [pairingError, setPairingError] = useState('');
     const pollInterval = useRef(null);
+    const pairingPollActive = useRef(false);
 
     const authFetch = async (endpoint, options = {}) => {
         return fetch(`${API_URL}${endpoint}`, {
@@ -5700,6 +5708,7 @@ function SlotConnectionManager({
     };
 
     const stopPolling = () => {
+        pairingPollActive.current = false;
         if (pollInterval.current) {
             clearTimeout(pollInterval.current);
             pollInterval.current = null;
@@ -5737,11 +5746,16 @@ function SlotConnectionManager({
                 const data = await res.json();
                 setAccountSuspensionState(null);
                 setStatus({ connected: data.connected, myNumber: data.myNumber });
+                setPairingCode(data.pairingCode || '');
+                setPairingCodeExpiresAt(data.pairingCodeExpiresAt || null);
                 setSlotSuspendedBy(data.suspended_by || null);
                 if (!data.suspended_by) setSlotLockMessage(null);
 
                 if (data.connected) {
                     setQr(null);
+                    setPairingCode('');
+                    setPairingCodeExpiresAt(null);
+                    setPairingOpen(false);
                     setQrUpdatedAt(null);
                     setQrPostScanGrace(false);
                     setLoading(false);
@@ -5803,6 +5817,9 @@ function SlotConnectionManager({
         setQrPostScanGrace(false);
         setQr(null);
         setQrUpdatedAt(null);
+        setPairingOpen(false);
+        setPairingCode('');
+        setPairingCodeExpiresAt(null);
         try {
             let res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/reconnect`, { method: 'POST' });
             const accessError = await readAccessError(res);
@@ -5865,6 +5882,8 @@ function SlotConnectionManager({
                     }
                     const nextQrUpdatedAt = data.qrUpdatedAt || null;
                     const nextQr = data.qr || null;
+                    setPairingCode(data.pairingCode || '');
+                    setPairingCodeExpiresAt(data.pairingCodeExpiresAt || null);
                     const stillWaitingForQr = data.waitingForQr === true;
                     setQrUpdatedAt(nextQrUpdatedAt);
                     if (nextQr) {
@@ -5918,6 +5937,34 @@ function SlotConnectionManager({
         } catch (e) {
             toast.error(e.message || 'Error iniciando conexion');
             setLoading(false);
+        }
+    };
+
+    const handlePairingCode = async () => {
+        setPairingLoading(true);
+        setPairingError('');
+        try {
+            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/pairing-code`, {
+                method: 'POST',
+                body: JSON.stringify({ phone: pairingPhone })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'No se pudo generar el código');
+            setPairingCode(data.pairingCode || '');
+            setPairingCodeExpiresAt(data.pairingCodeExpiresAt || null);
+            setPairingOpen(true);
+            stopPolling();
+            pairingPollActive.current = true;
+            const pollPairingStatus = async () => {
+                if (!pairingPollActive.current) return;
+                await checkStatus();
+                if (pairingPollActive.current) pollInterval.current = setTimeout(pollPairingStatus, 3000);
+            };
+            pollPairingStatus();
+        } catch (e) {
+            setPairingError(e.message || 'No se pudo generar el código');
+        } finally {
+            setPairingLoading(false);
         }
     };
 
@@ -6196,6 +6243,22 @@ function SlotConnectionManager({
                 </div>
             ) : (
                 <div className="w-full flex flex-col items-center">
+                    {!accountSuspensionState && (
+                        <div className="mb-5 w-full flex justify-center">
+                            <PairingCodePanel
+                                open={pairingOpen || Boolean(pairingCode)}
+                                code={pairingCode}
+                                expiresAt={pairingCodeExpiresAt}
+                                phone={pairingPhone}
+                                onPhoneChange={setPairingPhone}
+                                onOpen={() => { setPairingOpen(true); setPairingError(''); }}
+                                onClose={() => { setPairingOpen(false); setPairingCode(''); setPairingCodeExpiresAt(null); }}
+                                onGenerate={handlePairingCode}
+                                loading={pairingLoading}
+                                error={pairingError}
+                            />
+                        </div>
+                    )}
                     {!qr && !loading && !accountSuspensionState && (
                         <div className="flex flex-col items-center gap-3">
                             {qrExpired && (
@@ -6234,7 +6297,7 @@ function SlotConnectionManager({
                     {!accountSuspensionState && (qr || loading) && (
                         <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
                             <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
-                                {qr ? <QRCode value={qr} size={220} /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
+                                {qr ? <QRCode value={qr} size={220} bgColor="#FFFFFF" fgColor="#000000" /> : <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />}
                             </div>
                             {qrPostScanGrace && !qr && (
                                 <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">

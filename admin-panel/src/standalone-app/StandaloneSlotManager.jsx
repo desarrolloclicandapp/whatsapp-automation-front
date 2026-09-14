@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner';
 import { useLanguage } from '../context/LanguageContext';
 import { useSocket } from '../hooks/useSocket';
+import PairingCodePanel from '../components/PairingCodePanel';
 import { translateOr } from './i18n';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
@@ -1808,10 +1809,17 @@ function StandaloneSlotConnectionManager({
   const [slotSuspendedBy, setSlotSuspendedBy] = useState(slot?.suspended_by || null);
   const [slotLockMessage, setSlotLockMessage] = useState(null);
   const [qrExpired, setQrExpired] = useState(false);
+  const [pairingOpen, setPairingOpen] = useState(false);
+  const [pairingCode, setPairingCode] = useState('');
+  const [pairingCodeExpiresAt, setPairingCodeExpiresAt] = useState(null);
+  const [pairingPhone, setPairingPhone] = useState('');
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const [pairingError, setPairingError] = useState('');
   const [shareUrl, setShareUrl] = useState('');
   const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
   const [tutorialConfirmed, setTutorialConfirmed] = useState(false);
   const pollInterval = useRef(null);
+  const pairingPollActive = useRef(false);
   const connectAttemptRef = useRef(0);
   const socketConnectedRef = useRef(false);
 
@@ -1870,6 +1878,7 @@ function StandaloneSlotConnectionManager({
   };
 
   const stopPolling = () => {
+    pairingPollActive.current = false;
     if (pollInterval.current) {
       window.clearTimeout(pollInterval.current);
       pollInterval.current = null;
@@ -1892,6 +1901,9 @@ function StandaloneSlotConnectionManager({
     setQr(null);
     setQrUpdatedAt(null);
     setQrExpired(false);
+    setPairingCode('');
+    setPairingCodeExpiresAt(null);
+    setPairingOpen(false);
     connectAttemptRef.current = 0;
     stopPolling();
     return true;
@@ -1909,6 +1921,8 @@ function StandaloneSlotConnectionManager({
         const body = await response.json();
         setAccountSuspensionState(null);
         setStatus({ connected: body.connected, myNumber: body.myNumber });
+        setPairingCode(body.pairingCode || '');
+        setPairingCodeExpiresAt(body.pairingCodeExpiresAt || null);
         setSlotSuspendedBy(body.suspended_by || null);
         onRealtimeStateChange?.({
           is_connected: body.connected === true,
@@ -1922,6 +1936,9 @@ function StandaloneSlotConnectionManager({
           connectAttemptRef.current = 0;
           setQr(null);
           setQrUpdatedAt(null);
+          setPairingCode('');
+          setPairingCodeExpiresAt(null);
+          setPairingOpen(false);
           setLoading(false);
           stopPolling();
           await Promise.resolve(onUpdate?.());
@@ -1941,6 +1958,9 @@ function StandaloneSlotConnectionManager({
     setShareUrl('');
     setIsGeneratingShareUrl(false);
     setQrExpired(false);
+    setPairingCode('');
+    setPairingCodeExpiresAt(null);
+    setPairingOpen(false);
     setTutorialConfirmed(false);
   }, [locationId, slot?.slot_id]);
 
@@ -1966,6 +1986,9 @@ function StandaloneSlotConnectionManager({
       connectAttemptRef.current = 0;
       setQr(null);
       setQrUpdatedAt(null);
+      setPairingCode('');
+      setPairingCodeExpiresAt(null);
+      setPairingOpen(false);
       setQrExpired(false);
       setTutorialConfirmed(true);
       setLoading(false);
@@ -1994,6 +2017,9 @@ function StandaloneSlotConnectionManager({
         connectAttemptRef.current = 0;
         setQr(null);
         setQrUpdatedAt(null);
+        setPairingCode('');
+        setPairingCodeExpiresAt(null);
+        setPairingOpen(false);
         setQrExpired(false);
         setLoading(false);
         stopPolling();
@@ -2022,6 +2048,9 @@ function StandaloneSlotConnectionManager({
     setQrExpired(false);
     setQr(null);
     setQrUpdatedAt(null);
+    setPairingOpen(false);
+    setPairingCode('');
+    setPairingCodeExpiresAt(null);
     socketConnectedRef.current = false;
 
     try {
@@ -2107,6 +2136,8 @@ function StandaloneSlotConnectionManager({
             }
             const nextQrUpdatedAt = data.qrUpdatedAt || null;
             const nextQr = data.qr || null;
+            setPairingCode(data.pairingCode || '');
+            setPairingCodeExpiresAt(data.pairingCodeExpiresAt || null);
             const stillWaitingForQr = data.waitingForQr === true;
             setQrUpdatedAt(nextQrUpdatedAt);
             setQr(nextQr);
@@ -2147,6 +2178,37 @@ function StandaloneSlotConnectionManager({
     } catch {
       toast.error(translateOr(t, 'standalone.slots.error_start_connection', 'Error iniciando conexión'));
       setLoading(false);
+    }
+  };
+
+  const handlePairingCode = async () => {
+    setPairingLoading(true);
+    setPairingError('');
+    try {
+      const response = await authFetch(
+        `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/pairing-code`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ phone: pairingPhone }),
+        },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error || 'No se pudo generar el código');
+      setPairingCode(body.pairingCode || '');
+      setPairingCodeExpiresAt(body.pairingCodeExpiresAt || null);
+      setPairingOpen(true);
+      stopPolling();
+      pairingPollActive.current = true;
+      const pollPairingStatus = async () => {
+        if (!pairingPollActive.current) return;
+        await checkStatus();
+        if (pairingPollActive.current) pollInterval.current = window.setTimeout(pollPairingStatus, 3000);
+      };
+      pollPairingStatus();
+    } catch (error) {
+      setPairingError(error.message || 'No se pudo generar el código');
+    } finally {
+      setPairingLoading(false);
     }
   };
 
@@ -2462,6 +2524,22 @@ function StandaloneSlotConnectionManager({
         </div>
       ) : (
         <div className="w-full flex flex-col items-center">
+          {!accountSuspensionState && (
+            <div className="mb-5 w-full flex justify-center">
+              <PairingCodePanel
+                open={pairingOpen || Boolean(pairingCode)}
+                code={pairingCode}
+                expiresAt={pairingCodeExpiresAt}
+                phone={pairingPhone}
+                onPhoneChange={setPairingPhone}
+                onOpen={() => { setPairingOpen(true); setPairingError(''); }}
+                onClose={() => { setPairingOpen(false); setPairingCode(''); setPairingCodeExpiresAt(null); }}
+                onGenerate={handlePairingCode}
+                loading={pairingLoading}
+                error={pairingError}
+              />
+            </div>
+          )}
           {!qr && !loading && !accountSuspensionState && (
             <div className="flex flex-col items-center gap-3">
               {!tutorialConfirmed && (
@@ -2540,7 +2618,7 @@ function StandaloneSlotConnectionManager({
             <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
               <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-600 mb-4">
                 {qr ? (
-                  <QRCode value={qr} size={220} />
+                  <QRCode value={qr} size={220} bgColor="#FFFFFF" fgColor="#000000" />
                 ) : (
                   <RefreshCw className="animate-spin text-indigo-500 w-12 h-12" />
                 )}
@@ -2618,7 +2696,7 @@ function QrPanel({
         <h4 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">{translateOr(t, 'standalone.slots.qr_status_title', 'Estado del QR')}</h4>
         {qrData.qr ? (
           <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 bg-white inline-flex">
-            <QRCode value={qrData.qr} size={240} />
+            <QRCode value={qrData.qr} size={240} bgColor="#FFFFFF" fgColor="#000000" />
           </div>
         ) : (
           <div className="h-[272px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">

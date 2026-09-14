@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, ShieldAlert, RefreshCw, QrCode, Power } from 'lucide-react';
 import QRCode from "react-qr-code";
 import { useSocket } from '../hooks/useSocket';
+import PairingCodePanel from '../components/PairingCodePanel';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
@@ -16,6 +17,12 @@ export default function SupportManager({
     const [status, setStatus] = useState({ connected: false, myNumber: null });
     const [qr, setQr] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [pairingOpen, setPairingOpen] = useState(false);
+    const [pairingCode, setPairingCode] = useState('');
+    const [pairingCodeExpiresAt, setPairingCodeExpiresAt] = useState(null);
+    const [pairingPhone, setPairingPhone] = useState('');
+    const [pairingLoading, setPairingLoading] = useState(false);
+    const [pairingError, setPairingError] = useState('');
 
     // Referencia para manejar el intervalo de polling
     const pollInterval = useRef(null);
@@ -42,9 +49,14 @@ export default function SupportManager({
             if (res.ok) {
                 const data = await res.json();
                 setStatus({ connected: data.connected, myNumber: data.myNumber });
+                setPairingCode(data.pairingCode || '');
+                setPairingCodeExpiresAt(data.pairingCodeExpiresAt || null);
 
                 if (data.connected) {
                     setQr(null);
+                    setPairingCode('');
+                    setPairingCodeExpiresAt(null);
+                    setPairingOpen(false);
                     setLoading(false);
                     stopPolling(); // Si ya conectó, detenemos búsquedas
                 }
@@ -105,6 +117,9 @@ export default function SupportManager({
     const handleConnect = async () => {
         setLoading(true);
         setQr(null);
+        setPairingOpen(false);
+        setPairingCode('');
+        setPairingCodeExpiresAt(null);
 
         try {
             // 1. Iniciar proceso en backend
@@ -126,6 +141,8 @@ export default function SupportManager({
                     if (qrRes.ok) {
                         const data = await qrRes.json();
                         setQr(data.qr || null);
+                        setPairingCode(data.pairingCode || '');
+                        setPairingCodeExpiresAt(data.pairingCodeExpiresAt || null);
                         if (data.qr) {
                             setLoading(false);
                             // No detenemos el polling aún
@@ -137,6 +154,8 @@ export default function SupportManager({
                     if (statusData.connected) {
                         setStatus(statusData);
                         setQr(null);
+                        setPairingCode('');
+                        setPairingCodeExpiresAt(null);
                         setLoading(false);
                         stopPolling();
                         return; // Terminar polling
@@ -160,6 +179,34 @@ export default function SupportManager({
         }
     };
 
+    const handlePairingCode = async () => {
+        setPairingLoading(true);
+        setPairingError('');
+        try {
+            const res = await authFetch(`${apiPrefix}/pairing-code`, {
+                method: 'POST',
+                body: JSON.stringify({ phone: pairingPhone })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'No se pudo generar el código');
+            setPairingCode(data.pairingCode || '');
+            setPairingCodeExpiresAt(data.pairingCodeExpiresAt || null);
+            setPairingOpen(true);
+            stopPolling();
+            pollActive.current = true;
+            const pollPairingStatus = async () => {
+                if (!pollActive.current) return;
+                await checkStatus();
+                if (pollActive.current) pollInterval.current = setTimeout(pollPairingStatus, 3000);
+            };
+            pollPairingStatus();
+        } catch (e) {
+            setPairingError(e.message || 'No se pudo generar el código');
+        } finally {
+            setPairingLoading(false);
+        }
+    };
+
     const handleDisconnect = async () => {
         if (!confirm("¿Desconectar soporte?")) return;
         setLoading(true);
@@ -167,6 +214,9 @@ export default function SupportManager({
             await authFetch(`${apiPrefix}/disconnect`, { method: 'DELETE' });
             setStatus({ connected: false, myNumber: null });
             setQr(null);
+            setPairingCode('');
+            setPairingCodeExpiresAt(null);
+            setPairingOpen(false);
             stopPolling();
         } catch (e) { alert("Error desconectando"); }
         setLoading(false);
@@ -214,12 +264,30 @@ export default function SupportManager({
                 </div>
             </div>
 
+            {!status.connected && (
+                <div className="mt-4 flex justify-center">
+                    <PairingCodePanel
+                        open={pairingOpen || Boolean(pairingCode)}
+                        code={pairingCode}
+                        expiresAt={pairingCodeExpiresAt}
+                        phone={pairingPhone}
+                        onPhoneChange={setPairingPhone}
+                        onOpen={() => { setPairingOpen(true); setPairingError(''); }}
+                        onClose={() => { setPairingOpen(false); setPairingCode(''); setPairingCodeExpiresAt(null); }}
+                        onGenerate={handlePairingCode}
+                        loading={pairingLoading}
+                        error={pairingError}
+                        compact
+                    />
+                </div>
+            )}
+
             {/* QR Panel - Inline */}
             {!status.connected && (qr || loading) && (
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center gap-4">
                     <div className="bg-white p-2 rounded-lg shadow border border-gray-100 dark:border-gray-700 shrink-0">
                         {qr ? (
-                            <QRCode value={qr} size={200} />
+                            <QRCode value={qr} size={200} bgColor="#FFFFFF" fgColor="#000000" />
                         ) : (
                             <div className="w-[200px] h-[200px] flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800 rounded text-gray-400">
                                 <RefreshCw className="animate-spin mb-1 text-indigo-500" size={20} />
