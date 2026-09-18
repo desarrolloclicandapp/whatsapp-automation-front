@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import QRCode from "react-qr-code";
+import QRCode from "../components/CanonicalQRCode";
 import PairingCodePanel from '../components/PairingCodePanel';
+import { requestPairingCodeWithTimeout } from '../utils/requestPairingCode';
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
     RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2, QrCode, Power, Zap, Save, Mic, Play, Copy, CreditCard, ExternalLink, PauseCircle, PlayCircle, Lock, Unlock
@@ -6083,10 +6084,11 @@ function SlotConnectionManager({
         setPairingLoading(true);
         setPairingError('');
         try {
-            const res = await authFetch(`/agency/slots/${locationId}/${slot.slot_id}/pairing-code`, {
-                method: 'POST',
-                body: JSON.stringify({ phone: pairingPhone })
-            });
+            const res = await requestPairingCodeWithTimeout(
+                authFetch,
+                `/agency/slots/${locationId}/${slot.slot_id}/pairing-code`,
+                pairingPhone
+            );
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || 'No se pudo generar el código');
             setPairingCode(data.pairingCode || '');

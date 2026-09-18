@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import QRCode from 'react-qr-code';
+import QRCode from '../components/CanonicalQRCode';
+import { requestPairingCodeWithTimeout } from '../utils/requestPairingCode';
 import {
   AlertTriangle,
   Copy,
@@ -2185,12 +2186,10 @@ function StandaloneSlotConnectionManager({
     setPairingLoading(true);
     setPairingError('');
     try {
-      const response = await authFetch(
+      const response = await requestPairingCodeWithTimeout(
+        authFetch,
         `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/pairing-code`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ phone: pairingPhone }),
-        },
+        pairingPhone,
       );
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body?.error || 'No se pudo generar el código');

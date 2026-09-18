@@ -1,5 +1,11 @@
 import React from 'react';
 import { Copy, Hash, Loader2, X } from 'lucide-react';
+import { isPossiblePhoneNumber } from 'react-phone-number-input';
+import AuthPhoneInput from './AuthPhoneInput';
+
+// Keep the pairing implementation in place for a future rollout, but do not
+// expose it in any QR connection surface until that integration is enabled.
+export const PAIRING_CODE_UI_ENABLED = false;
 
 function formatRemaining(expiresAt) {
     const remainingMs = new Date(expiresAt || 0).getTime() - Date.now();
@@ -20,6 +26,10 @@ export default function PairingCodePanel({
     error = '',
     compact = false
 }) {
+    if (!PAIRING_CODE_UI_ENABLED) return null;
+
+    const hasPossiblePhone = Boolean(phone) && isPossiblePhoneNumber(phone);
+
     if (!open && !code) {
         return (
             <button
@@ -39,7 +49,7 @@ export default function PairingCodePanel({
                 <div>
                     <p className="text-sm font-bold text-indigo-900 dark:text-indigo-200">Conectar por número telefónico</p>
                     <p className="mt-1 text-xs text-indigo-800/80 dark:text-indigo-300/80">
-                        Escribe el número completo con código de país, sin espacios ni guiones.
+                        Selecciona tu país y escribe solo el número de WhatsApp. El prefijo se añade automáticamente.
                     </p>
                 </div>
                 {onClose && (
@@ -73,23 +83,32 @@ export default function PairingCodePanel({
                         onGenerate?.();
                     }}
                 >
-                    <input
-                        type="tel"
-                        inputMode="tel"
-                        autoComplete="tel"
+                    <label className="block text-xs font-bold text-indigo-900 dark:text-indigo-200" htmlFor="pairing-phone-input">
+                        Número de WhatsApp
+                    </label>
+                    <AuthPhoneInput
+                        id="pairing-phone-input"
                         value={phone}
-                        onChange={(event) => onPhoneChange?.(event.target.value)}
-                        placeholder="595981234567"
-                        className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none ring-indigo-500 focus:ring-2 dark:border-indigo-800 dark:bg-gray-950 dark:text-white"
+                        onChange={(nextPhone) => onPhoneChange?.(nextPhone || '')}
+                        disabled={loading}
+                        accentColor="#4f46e5"
                     />
+                    <p className="text-xs text-indigo-800/80 dark:text-indigo-300/80">
+                        No escribas <strong>+</strong>, el prefijo ni el cero inicial: usa el selector de país.
+                    </p>
+                    {phone && !hasPossiblePhone && !error && (
+                        <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                            Revisa el número: todavía no parece válido para el país seleccionado.
+                        </p>
+                    )}
                     {error && <p className="text-xs font-semibold text-red-600 dark:text-red-400">{error}</p>}
                     <button
                         type="submit"
-                        disabled={loading || !phone.trim()}
+                        disabled={loading || !hasPossiblePhone}
                         className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         {loading ? <Loader2 className="animate-spin" size={17} /> : <Hash size={17} />}
-                        {loading ? 'Generando código...' : 'Generar código'}
+                        {loading ? 'Generando código… puede tardar hasta 2 min' : 'Generar código'}
                     </button>
                 </form>
             )}

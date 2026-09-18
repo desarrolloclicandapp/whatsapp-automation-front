@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, ShieldAlert, RefreshCw, QrCode, Power } from 'lucide-react';
-import QRCode from "react-qr-code";
+import QRCode from "../components/CanonicalQRCode";
 import { useSocket } from '../hooks/useSocket';
 import PairingCodePanel from '../components/PairingCodePanel';
+import { requestPairingCodeWithTimeout } from '../utils/requestPairingCode';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
 
@@ -183,10 +184,7 @@ export default function SupportManager({
         setPairingLoading(true);
         setPairingError('');
         try {
-            const res = await authFetch(`${apiPrefix}/pairing-code`, {
-                method: 'POST',
-                body: JSON.stringify({ phone: pairingPhone })
-            });
+            const res = await requestPairingCodeWithTimeout(authFetch, `${apiPrefix}/pairing-code`, pairingPhone);
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || 'No se pudo generar el código');
             setPairingCode(data.pairingCode || '');
