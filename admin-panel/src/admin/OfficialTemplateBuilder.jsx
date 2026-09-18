@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, Copy, FileText, Loader2, Penc
 import { toast } from "sonner";
 import { useLanguage } from "../context/LanguageContext";
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 const TEMPLATE_VARIABLE_MAPPINGS_STORAGE_KEY = "waflow:official-template-variable-mappings";
 const MANUAL_GHL_MAPPING_PREFIX = "__manual__:";
 const LITERAL_TEMPLATE_VALUE_PREFIX = "__literal__:";

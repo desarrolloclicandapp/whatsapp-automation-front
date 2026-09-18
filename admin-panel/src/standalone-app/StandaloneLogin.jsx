@@ -17,7 +17,7 @@ import { buildRewardfulAuthBody, trackRewardfulLead } from '../utils/rewardfulRe
 import { translateOr } from './i18n';
 import { isPossiblePhoneNumber } from 'react-phone-number-input';
 
-const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.ai').replace(/\/$/, '');
 const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '34611770270';
 const SIGNUP_SOURCE = 'standalone_crm';
 

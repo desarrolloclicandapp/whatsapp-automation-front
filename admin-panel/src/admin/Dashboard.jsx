@@ -14,7 +14,7 @@ import {
     ArrowUpDown, ChevronDown, Pin, Activity, Database, Filter, ShieldAlert
 } from 'lucide-react';
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 
 export default function AdminDashboard({ token, onLogout }) {
     const { t } = useLanguage(); // Initialize hook

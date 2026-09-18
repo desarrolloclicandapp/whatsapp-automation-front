@@ -18,7 +18,7 @@ const DEFAULT_FORM = {
   guardrails: '',
 };
 
-const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.ai').replace(/\/$/, '');
 
 export default function StandaloneAgentGuideModal({
   open,

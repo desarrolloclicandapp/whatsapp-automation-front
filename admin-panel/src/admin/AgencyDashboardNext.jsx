@@ -29,9 +29,9 @@ import {
     Activity, AlertTriangle, Send // ✅ Iconos
 } from 'lucide-react';
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "34611770270";
-const DEFAULT_GHL_INSTALL_PATH = "/integration/6968d10f1f0b9e6b537024cd";
+const DEFAULT_GHL_INSTALL_PATH = "/integration/691623d58a49cdcb2c56ce9c"; // production app; never the "waflow development" one
 const RELIABILITY_PAGE_SIZE = 10;
 const MANAGED_GHL_REQUEST_INTENT_KEY = "waflow:managed-ghl-request-intent";
 const DEFAULT_INSTALL_APP_URL =

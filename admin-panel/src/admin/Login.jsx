@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, Mail } from 'lucide-react';
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 
 export default function Login({ onLoginSuccess }) {
     const [email, setEmail] = useState("");

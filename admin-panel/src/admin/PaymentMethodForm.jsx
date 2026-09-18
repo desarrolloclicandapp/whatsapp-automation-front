@@ -5,10 +5,14 @@ import { toast } from 'sonner';
 import { CreditCard, Plus, Trash2, Loader2, CheckCircle } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 
 // 🔥 Cargar Stripe con tu clave pública
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || 'pk_live_your_key_here');
+// Production builds refuse to compile without the key (see vite.config.js).
+// Elements accepts null, so a local build without it degrades instead of
+// throwing an unhandled rejection at load time.
+const STRIPE_PUBLIC_KEY = String(import.meta.env.VITE_STRIPE_PUBLIC_KEY || "").trim();
+const stripePromise = STRIPE_PUBLIC_KEY ? loadStripe(STRIPE_PUBLIC_KEY) : null;
 
 // Estilos para CardElement
 const cardStyle = {

@@ -5,7 +5,7 @@ import { useSocket } from '../hooks/useSocket';
 import PairingCodePanel from '../components/PairingCodePanel';
 import { requestPairingCodeWithTimeout } from '../utils/requestPairingCode';
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 
 export default function SupportManager({
     token,

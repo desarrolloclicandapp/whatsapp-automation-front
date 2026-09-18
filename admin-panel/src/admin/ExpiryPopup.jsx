@@ -18,7 +18,7 @@ export default function ExpiryPopup({ token }) {
 
                 // 2. Refresh from Server (background)
                 if (token) {
-                    const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+                    const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
                     const res = await fetch(`${API_URL}/payments/status`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });

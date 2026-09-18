@@ -27,7 +27,7 @@ import tutorialPaso3 from '../img-tutorial-openaiapi/paso3.png';
 import tutorialPaso4 from '../img-tutorial-openaiapi/paso4.png';
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.ai').replace(/\/$/, '');
 const MASKED_API_KEY_PLACEHOLDER = '••••••••••••••••••••••••••••';
 const API_KEY_TUTORIAL_STEPS = [
   {

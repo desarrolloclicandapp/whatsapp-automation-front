@@ -24,7 +24,7 @@ import { useSocket } from '../hooks/useSocket';
 import PairingCodePanel from '../components/PairingCodePanel';
 import { translateOr } from './i18n';
 
-const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.ai').replace(/\/$/, '');
 const OFFICIAL_EMPTY_STATE = {
   businessAccountId: '',
   phoneNumberId: '',

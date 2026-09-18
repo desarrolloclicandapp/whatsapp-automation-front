@@ -5,7 +5,7 @@ import { useLanguage } from "../context/LanguageContext";
 import OpenAiKeySetupModal from "../components/OpenAiKeySetupModalNext";
 import { resolveOpenAiAccountLabel } from "../utils/openAiKeySetup";
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 const inputClassName = "w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
 const textAreaCardClassName = "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white";
 const DEFAULT_AGENT_BEHAVIOR = {

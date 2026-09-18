@@ -12,7 +12,7 @@ import {
 
 
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 import { useLanguage } from '../context/LanguageContext'; // ✅ Import
 import PaymentMethodForm from './PaymentMethodForm'; // ✅ NUEVO: Formulario de métodos de pago
 

@@ -11,7 +11,7 @@ import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
 import { resolveSlotQrPollTransition } from '../utils/slotQrTransition';
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 const QR_POST_SCAN_GRACE_MS = 15000;
 
 function translateOr(t, key, fallback) {

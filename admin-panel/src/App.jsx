@@ -18,7 +18,7 @@ const STANDALONE_HOME = '/';
 const STANDALONE_INTERNAL_PATHS = ['/crm', '/standalone'];
 const STANDALONE_MASK_KEY = 'standalone_url_mask';
 const AGENCY_HOME = '/agency';
-const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.com').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.ai').replace(/\/$/, '');
 const AUTH_STORAGE_KEYS = [
     'token',
     'authToken',

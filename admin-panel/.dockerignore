@@ -1,0 +1,10 @@
+# The image must be built from source only. A local dist/ copied in by
+# "COPY . ." left four bundles from different builds in the 2026-09-14 image,
+# and index.html loaded one compiled without its production variables.
+dist
+node_modules
+.env
+.env.*
+!.env.example
+*.log
+.git

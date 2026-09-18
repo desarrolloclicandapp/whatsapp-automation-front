@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Check, RefreshCw, Save } from "lucide-react";
 import { toast } from "sonner";
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 
 function bodyPreview(template = {}) {
     return (template.components || []).find((component) => String(component?.type || "").toUpperCase() === "BODY")?.text || "Sin cuerpo de mensaje";

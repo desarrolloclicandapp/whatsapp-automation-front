@@ -8,7 +8,7 @@ import AuthPhoneInput from '../components/AuthPhoneInput';
 import { buildRewardfulAuthBody, trackRewardfulLead } from '../utils/rewardfulReferral';
 import { isPossiblePhoneNumber } from 'react-phone-number-input';
 
-const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.com").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || "34611770270";
 
 export default function WelcomeAuth({ onLoginSuccess }) {
