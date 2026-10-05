@@ -2529,7 +2529,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             resetEmbeddedSignupFlow();
 
             const extras = {
-                version: "v3",
                 sessionInfoVersion: Number(official.embeddedSignupSessionInfoVersion) || 3
             };
             if (official.embeddedSignupCoexistenceEnabled !== false) {

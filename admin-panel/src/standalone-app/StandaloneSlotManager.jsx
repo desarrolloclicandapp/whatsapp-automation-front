@@ -98,7 +98,6 @@ function buildStandaloneMetaOauthUrl(official = {}, slotId, locationId) {
   const graphVersion = String(official.embeddedSignupGraphVersion || official.embeddedSignupSdkVersion || 'v21.0').trim() || 'v21.0';
   const oauthState = `${Date.now()}-${slotId}-${Math.random().toString(36).slice(2, 10)}`;
   const extras = {
-    version: 'v3',
     sessionInfoVersion: Number(official.embeddedSignupSessionInfoVersion) || 3,
   };
 
