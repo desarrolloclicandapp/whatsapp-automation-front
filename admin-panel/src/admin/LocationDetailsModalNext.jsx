@@ -10,6 +10,7 @@ import {
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
 import { resolveSlotQrPollTransition } from '../utils/slotQrTransition';
+import { formatPhoneForDisplay } from '../utils/phoneDisplay';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 const QR_POST_SCAN_GRACE_MS = 15000;
@@ -6291,9 +6292,9 @@ function SlotConnectionManager({
         : slotSuspendedBy === 'system'
             ? 'Este slot esta bloqueado temporalmente por el sistema.'
             : slotSuspendedBy === 'agency'
-                ? `Número: +${status.myNumber || slot.phone_number || 'N/A'}`
+                ? `Número: ${formatPhoneForDisplay(status.myNumber || slot.phone_number) || 'N/A'}`
                 : status.connected
-                    ? `Número: +${status.myNumber}`
+                    ? `Número: ${formatPhoneForDisplay(status.myNumber) || 'N/A'}`
                     : 'Escanea el código QR para conectar.';
 
     return (

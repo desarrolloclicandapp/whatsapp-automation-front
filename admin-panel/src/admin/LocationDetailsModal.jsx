@@ -10,6 +10,7 @@ import {
 import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 import { useLanguage } from '../context/LanguageContext';
 import { resolveSlotQrPollTransition } from '../utils/slotQrTransition';
+import { formatPhoneForDisplay } from '../utils/phoneDisplay';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 const QR_POST_SCAN_GRACE_MS = 15000;
@@ -6152,9 +6153,9 @@ function SlotConnectionManager({
         : slotSuspendedBy === 'system'
             ? 'Este slot esta bloqueado temporalmente por el sistema.'
             : slotSuspendedBy === 'agency'
-                ? `Numero: +${status.myNumber || slot.phone_number || 'N/A'}`
+                ? `Numero: ${formatPhoneForDisplay(status.myNumber || slot.phone_number) || 'N/A'}`
                 : status.connected
-                    ? `Numero: +${status.myNumber}`
+                    ? `Numero: ${formatPhoneForDisplay(status.myNumber) || 'N/A'}`
                     : 'Escanea el codigo QR para conectar.';
 
     return (
@@ -6282,7 +6283,7 @@ function SlotConnectionManager({
                                 <button
                                     type="button"
                                     onClick={onConnectOfficial}
-                                    disabled={officialEmbeddedLoading || officialEmbeddedStarting || typeof onConnectOfficial !== 'function'}
+                                    disabled={!officialEmbeddedEnabled || officialEmbeddedLoading || officialEmbeddedStarting || typeof onConnectOfficial !== 'function'}
                                     className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                                     title={!officialEmbeddedEnabled ? (t('slots.official.embedded.unavailable') || 'Embedded Signup no está configurado en este entorno.') : undefined}
                                 >
