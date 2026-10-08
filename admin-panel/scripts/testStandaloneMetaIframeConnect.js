@@ -92,7 +92,7 @@ assert.match(
 );
 assert.match(esLocale, /"standalone\.slots\.official\.embedded_cta": "Conectar Meta Cloud API"/);
 assert.match(esLocale, /"standalone\.slots\.official\.qr_card_cta": "API Meta Cloud"/);
-assert.match(esLocale, /"standalone\.slots\.official\.open_in_new_tab": "Se abrira Meta en una nueva pestana segura\."/);
+assert.match(esLocale, /"standalone\.slots\.official\.open_in_new_tab": "Se abrirá Meta en una nueva pestaña segura\."/);
 assert.match(enLocale, /"standalone\.slots\.official\.embedded_cta": "Connect Meta Cloud API"/);
 assert.match(enLocale, /"standalone\.slots\.official\.qr_card_cta": "Meta Cloud API"/);
 assert.match(enLocale, /"standalone\.slots\.official\.open_in_new_tab": "Meta will open in a secure new tab\."/);
