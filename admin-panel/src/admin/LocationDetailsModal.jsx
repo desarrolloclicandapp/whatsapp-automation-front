@@ -380,7 +380,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         if (!expiries.length) return undefined;
         const timer = setTimeout(() => {
             setNetworkInterruptionTick(value => value + 1);
-            loadData();
         }, Math.min(...expiries) - Date.now() + 100);
         return () => clearTimeout(timer);
     }, [slots, location.location_id, networkInterruptionTick]);
