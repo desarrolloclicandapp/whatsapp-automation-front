@@ -127,6 +127,7 @@ function normalizeSlotId(value) {
 export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange, isAdminMode = false }) {
     const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
+    const [networkInterruptionTick, setNetworkInterruptionTick] = useState(0);
     const [healthSummary, setHealthSummary] = useState(null);
     const [keywords, setKeywords] = useState([]);
     const [crmUsers, setCrmUsers] = useState([]);
@@ -345,7 +346,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             // Doble verificación: aunque el backend filtre, aseguramos que sea para nosotros
             if (payload.locationId === location.location_id) {
                 // 🔥 FIX: No recargar todo el modal por eventos de QR (lo maneja el componente hijo)
-                if (payload.type === 'connection' && payload.status === 'open') {
+                if (payload.type === 'connection' && (payload.status === 'open' || payload.status === 'close')) {
                     loadData();
                 }
             }
@@ -363,6 +364,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             }
         };
     }, [location, socket]);
+
+    useEffect(() => {
+        const expiries = slots.map(slot => Date.parse(slot.network_interruption_until || ''))
+            .filter(value => Number.isFinite(value) && value > Date.now());
+        if (!expiries.length) return undefined;
+        const timer = setTimeout(() => {
+            setNetworkInterruptionTick(value => value + 1);
+            loadData();
+        }, Math.min(...expiries) - Date.now() + 100);
+        return () => clearTimeout(timer);
+    }, [slots, location.location_id, networkInterruptionTick]);
 
     useEffect(() => {
         const loadAccountLimits = async () => {
@@ -4305,6 +4317,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const officialStatus = String(officialSlotSettings.status || '').trim().toLowerCase();
                                 const isOfficialAccessLost = isOfficialSlotMode && officialStatus === 'access_lost';
                                 const isConnected = slot.is_connected === true && !isOfficialAccessLost;
+                                const isNetworkInterruption = !isOfficialSlotMode && !isConnected
+                                    && slot.health?.status === 'network_interruption'
+                                    && Date.parse(slot.network_interruption_until || '') > Date.now();
                                 const isOfficialConfigIncomplete = isOfficialSlotMode &&
                                     !isConnected &&
                                     !isOfficialAccessLost &&
@@ -4355,7 +4370,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                         {/* CABECERA SLOT */}
                                         <div className="relative cursor-pointer p-4 pb-16 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 sm:p-5 sm:pb-14" onClick={() => handleExpandSlot(slot.slot_id)}>
                                             <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
-                                                <div className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full sm:mt-0 ${isOfficialAccessLost ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.45)]' : isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : isOfficialConfigIncomplete ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.35)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                                                <div className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full sm:mt-0 ${isOfficialAccessLost ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.45)]' : isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : isNetworkInterruption || isOfficialConfigIncomplete ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.35)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
                                                 <div className="min-w-0 flex-1">
                                                     <div className="relative flex min-w-0 items-start gap-2 pr-28">
                                                         {editingSlotId === slot.slot_id ? (
@@ -4460,6 +4475,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                             ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{connectedPhone}</span>
                                                             : isOfficialConfigIncomplete
                                                                 ? <span className="text-amber-600 dark:text-amber-400 font-bold">{t('slots.card.official_incomplete') || 'Meta API incompleta — volver a autorizar'}</span>
+                                                            : isNetworkInterruption
+                                                                ? <span className="text-amber-600 dark:text-amber-400 font-bold">Interrupción de red · reconectando</span>
                                                             : t('slots.card.disconnected')}
                                                         {isGhlMode && !isOfficialSlotMode && (
                                                             <>
