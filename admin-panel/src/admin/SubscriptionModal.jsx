@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { ADDONS } from './constants/plans';
 import { buildRewardfulCheckoutBody } from '../utils/rewardfulReferral';
+import AgencyAccountBundleCard from './AgencyAccountBundleCard';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 
@@ -229,6 +230,8 @@ export default function SubscriptionModal({ onClose, token, accountInfo, blockin
                                     )}
                                 </div>
                             )}
+
+                            <AgencyAccountBundleCard token={token} onBuy={handlePurchase} disabled={loading} />
 
                             {/* SECCIÓN B: BOTÓN AGREGAR SERVICIO */}
                             <div className="pt-2">

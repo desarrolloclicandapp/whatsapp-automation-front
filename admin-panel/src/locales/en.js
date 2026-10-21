@@ -72,6 +72,9 @@ export const en = {
     "sub.extras.slot": "Extra Slot",
     "sub.extras.slot_desc": "+1 WhatsApp Number",
     "sub.extras.add": "Add",
+    "sub.bundle.title": "Additional account + 5 numbers",
+    "sub.bundle.description": "One WaFloW account and five additional WhatsApp connections. Billed monthly while an agency plan remains active.",
+    "sub.bundle.per_month": "/month",
 
     "sub.portal.title": "Billing Management",
     "sub.portal.desc": "Manage cards and invoices securely.",
