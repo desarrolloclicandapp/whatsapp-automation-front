@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://wa.waflow.ai').replace(/\/$/, '');
 
-export default function AgencyAccountBundleCard({ token, onBuy, disabled = false }) {
+export default function AgencyAccountBundleCard({ token, onBuy, disabled = false, refreshKey = 0 }) {
     const { t } = useLanguage();
     const [offer, setOffer] = useState(null);
 
@@ -19,7 +19,7 @@ export default function AgencyAccountBundleCard({ token, onBuy, disabled = false
             .then((result) => { if (!controller.signal.aborted) setOffer(result); })
             .catch(() => { if (!controller.signal.aborted) setOffer(null); });
         return () => controller.abort();
-    }, [token]);
+    }, [token, refreshKey]);
 
     if (!offer?.available || !offer.priceId) return null;
 
@@ -40,7 +40,7 @@ export default function AgencyAccountBundleCard({ token, onBuy, disabled = false
             </div>
             <div className="text-right shrink-0">
                 <p className="text-xl font-bold text-gray-900 dark:text-white">{amount}<span className="text-xs font-normal">{t('sub.bundle.per_month')}</span></p>
-                <button disabled={disabled} onClick={() => onBuy(offer.priceId, t('sub.bundle.title'), amount)} className="text-sm font-bold text-indigo-600 hover:underline disabled:opacity-50">{t('sub.extras.add')}</button>
+                <button disabled={disabled} onClick={() => onBuy(offer.priceId, t('sub.bundle.title'), amount)} className="text-sm font-bold text-indigo-600 hover:underline disabled:opacity-50">{t('sub.bundle.buy')}</button>
             </div>
         </div>
     );
