@@ -15,6 +15,7 @@ import {
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.waflow.ai").replace(/\/$/, "");
 import { useLanguage } from '../context/LanguageContext'; // ✅ Import
 import PaymentMethodForm from './PaymentMethodForm'; // ✅ NUEVO: Formulario de métodos de pago
+import AgencyAccountBundlePurchase from './AgencyAccountBundlePurchase';
 
 import {
     PLANS_STANDARD,
@@ -645,6 +646,8 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange, 
 
 
 
+
+                        <AgencyAccountBundlePurchase token={token} disabled={loading} onPaid={async () => { await fetchSubscriptions(); await onDataChange?.(); }} />
 
                         {/* 3. SECCIÓN EXTRAS (Con descuento VIP) */}
                         {
