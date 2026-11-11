@@ -792,13 +792,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 label: 'Eliminar',
                 onClick: async () => {
                     setDeletingSlotId(slotId);
-                    const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}`, { method: "DELETE" });
-                    setDeletingSlotId(null);
-                    if (res && res.ok) {
-                        toast.success(isChatwootMode ? "Inbox eliminado" : "Dispositivo eliminado");
-                        loadData();
-                    } else {
-                        toast.error("No se pudo eliminar");
+                    try {
+                        const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}`, { method: "DELETE" });
+                        if (res?.ok) {
+                            toast.success(isChatwootMode ? "Inbox eliminado" : "Dispositivo eliminado");
+                            loadData();
+                        } else {
+                            const body = res ? await res.json().catch(() => null) : null;
+                            toast.error(body?.error || "No se pudo eliminar el dispositivo");
+                        }
+                    } catch (error) {
+                        toast.error(error.message || "No se pudo eliminar el dispositivo");
+                    } finally {
+                        setDeletingSlotId(null);
                     }
                 }
             },
