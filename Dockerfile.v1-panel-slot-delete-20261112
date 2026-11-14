@@ -1,0 +1,5 @@
+# Build admin-panel/dist from commit d4bca42 using the existing production
+# public runtime configuration, then use that dist as the only overlay input.
+FROM waflow-v1-frontend:25fe56a-one-click
+RUN rm -rf /app/dist
+COPY dist/ /app/dist/
