@@ -6404,6 +6404,7 @@ function SlotConnectionManager({
                     {!accountSuspensionState && (
                         <div className="w-full flex justify-center">
                             <PairingCodePanel
+                                adminPreview={isAdminMode}
                                 open={pairingOpen || Boolean(pairingCode)}
                                 code={pairingCode}
                                 expiresAt={pairingCodeExpiresAt}

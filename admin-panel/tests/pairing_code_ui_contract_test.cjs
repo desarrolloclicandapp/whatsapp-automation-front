@@ -8,7 +8,12 @@ const requestHelper = fs.readFileSync(path.join(root, 'src', 'utils', 'requestPa
 
 assert.match(panel, /import AuthPhoneInput from '\.\/AuthPhoneInput'/);
 assert.match(panel, /export const PAIRING_CODE_UI_ENABLED = false/);
-assert.match(panel, /if \(!PAIRING_CODE_UI_ENABLED\) return null/);
+assert.match(panel, /if \(!PAIRING_CODE_UI_ENABLED && !adminPreview\) return null/);
+assert.match(panel, /Vincular con número de teléfono/);
+for (const modal of ['src/admin/LocationDetailsModal.jsx', 'src/admin/LocationDetailsModalNext.jsx']) {
+  const source = fs.readFileSync(path.join(root, modal), 'utf8');
+  assert.match(source, /<PairingCodePanel\s+adminPreview=\{isAdminMode\}/, `${modal}: phase 1 shows the pairing code only to admins`);
+}
 assert.match(panel, /isPossiblePhoneNumber\(phone\)/);
 assert.doesNotMatch(panel, /placeholder="595981234567"/);
 assert.match(panel, /prefijo se añade automáticamente/);

@@ -3,8 +3,9 @@ import { Copy, Hash, Loader2, X } from 'lucide-react';
 import { isPossiblePhoneNumber } from 'react-phone-number-input';
 import AuthPhoneInput from './AuthPhoneInput';
 
-// Keep the pairing implementation in place for a future rollout, but do not
-// expose it in any QR connection surface until that integration is enabled.
+// Fase 1 (18-11): el código de vinculación solo lo ven los administradores (adminPreview).
+// PAIRING_CODE_UI_ENABLED lo enciende para todos en la fase 2. Plan:
+// whatsapp-automation/docs/PLAN_CODIGO_VINCULACION_V1_2026-11-18.md
 export const PAIRING_CODE_UI_ENABLED = false;
 
 function formatRemaining(expiresAt) {
@@ -24,9 +25,10 @@ export default function PairingCodePanel({
     onGenerate,
     loading = false,
     error = '',
-    compact = false
+    compact = false,
+    adminPreview = false
 }) {
-    if (!PAIRING_CODE_UI_ENABLED) return null;
+    if (!PAIRING_CODE_UI_ENABLED && !adminPreview) return null;
 
     const hasPossiblePhone = Boolean(phone) && isPossiblePhoneNumber(phone);
 
@@ -72,7 +74,7 @@ export default function PairingCodePanel({
                         <Copy size={15} /> Copiar código
                     </button>
                     <p className="text-xs text-indigo-900/80 dark:text-indigo-200/80">
-                        En WhatsApp: Dispositivos vinculados → Vincular con número de teléfono. {formatRemaining(expiresAt)}
+                        En el teléfono de esta línea: WhatsApp → Ajustes → Dispositivos vinculados → Vincular un dispositivo → <strong>Vincular con número de teléfono</strong>, y escribe el código. {formatRemaining(expiresAt)}
                     </p>
                 </div>
             ) : (
