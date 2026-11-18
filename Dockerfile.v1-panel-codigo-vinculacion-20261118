@@ -1,0 +1,7 @@
+# Panel v1: código de vinculación (18-11). Compilar admin-panel/dist desde esta rama
+# (claude/v1-codigo-vinculacion-panel-20261118, sobre d4bca42, que es el fuente del panel en producción)
+# con los mismos seis parámetros públicos de la imagen publicada; dist es la única entrada.
+# Ver docs/RECETA_PANEL_PRODUCTIVO_V1_2026-11-12.md. Desplegar después del worker y de la API.
+FROM waflow-v1-frontend:20261112-slot-delete
+RUN rm -rf /app/dist
+COPY dist/ /app/dist/

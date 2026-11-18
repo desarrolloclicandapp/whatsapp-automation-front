@@ -3,10 +3,10 @@ import { Copy, Hash, Loader2, X } from 'lucide-react';
 import { isPossiblePhoneNumber } from 'react-phone-number-input';
 import AuthPhoneInput from './AuthPhoneInput';
 
-// Fase 1 (18-11): el código de vinculación solo lo ven los administradores (adminPreview).
-// PAIRING_CODE_UI_ENABLED lo enciende para todos en la fase 2. Plan:
+// 18-11: el código de vinculación se ve para todos (panel, soporte y el iframe de los clientes),
+// a petición del dueño. Con false, solo lo verían los administradores (adminPreview). Plan:
 // whatsapp-automation/docs/PLAN_CODIGO_VINCULACION_V1_2026-11-18.md
-export const PAIRING_CODE_UI_ENABLED = false;
+export const PAIRING_CODE_UI_ENABLED = true;
 
 function formatRemaining(expiresAt) {
     const remainingMs = new Date(expiresAt || 0).getTime() - Date.now();

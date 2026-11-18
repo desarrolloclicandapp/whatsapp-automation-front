@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Copy,
   Edit2,
+  Hash,
   Link2,
   Loader2,
   Play,
@@ -1818,6 +1819,7 @@ function StandaloneSlotConnectionManager({
   const [pairingError, setPairingError] = useState('');
   const [shareUrl, setShareUrl] = useState('');
   const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
+  const [shareUrlMode, setShareUrlMode] = useState('qr');
   const [tutorialConfirmed, setTutorialConfirmed] = useState(false);
   const pollInterval = useRef(null);
   const pairingPollActive = useRef(false);
@@ -1957,6 +1959,7 @@ function StandaloneSlotConnectionManager({
 
   useEffect(() => {
     setShareUrl('');
+    setShareUrlMode('qr');
     setIsGeneratingShareUrl(false);
     setQrExpired(false);
     setPairingCode('');
@@ -2344,12 +2347,14 @@ function StandaloneSlotConnectionManager({
     setLoading(false);
   };
 
-  const handleGenerateShareUrl = async () => {
-    setIsGeneratingShareUrl(true);
+  // mode 'code': enlace con código de vinculación (18-11). Mismo enlace del QR con ?modo=codigo.
+  const handleGenerateShareUrl = async (mode = 'qr') => {
+    const codeMode = mode === 'code';
+    setIsGeneratingShareUrl(codeMode ? 'code' : 'qr');
     try {
       const response = await authFetch(
         `/agency/slots/${encodeURIComponent(locationId)}/${encodeURIComponent(slot.slot_id)}/qr-share-link`,
-        { method: 'POST' },
+        codeMode ? { method: 'POST', body: JSON.stringify({ mode: 'code' }) } : { method: 'POST' },
       );
       const accessError = await readAccessError(response);
       if (applyAccessError(accessError)) return;
@@ -2363,15 +2368,18 @@ function StandaloneSlotConnectionManager({
       if (!body?.shareUrl) throw new Error('No se pudo generar la URL QR');
 
       setShareUrl(body.shareUrl);
+      setShareUrlMode(codeMode ? 'code' : 'qr');
+      const readyTitle = codeMode ? 'URL con código generada' : t('slots.share.link_ready') || 'URL QR generada';
       try {
         await navigator.clipboard.writeText(body.shareUrl);
-        toast.success(t('slots.share.link_ready') || 'URL QR generada', {
-          description:
-            t('slots.share.link_ready_slot_desc') ||
-            'Tu cliente podra abrirla y generar manualmente el QR de este slot cuando lo necesite.',
+        toast.success(readyTitle, {
+          description: codeMode
+            ? 'Tu cliente la abre, escribe su número y recibe el código para vincular esta línea. Nada se pide a WhatsApp hasta que pulsa.'
+            : t('slots.share.link_ready_slot_desc') ||
+              'Tu cliente podra abrirla y generar manualmente el QR de este slot cuando lo necesite.',
         });
       } catch {
-        toast.success(t('slots.share.link_ready') || 'URL QR generada', {
+        toast.success(readyTitle, {
           description:
             t('slots.share.copy_hint') ||
             'Copia la URL desde el campo para compartirla con tu cliente.',
@@ -2569,16 +2577,29 @@ function StandaloneSlotConnectionManager({
                   <QrCode size={20} /> {translateOr(t, 'standalone.slots.generate_qr', 'Generar código QR')}
                 </button>
                 <button
-                  onClick={handleGenerateShareUrl}
-                  disabled={isGeneratingShareUrl}
+                  onClick={() => handleGenerateShareUrl('qr')}
+                  disabled={Boolean(isGeneratingShareUrl)}
                   className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 disabled:opacity-60"
                 >
-                  {isGeneratingShareUrl ? (
+                  {isGeneratingShareUrl === 'qr' ? (
                     <Loader2 className="animate-spin" size={18} />
                   ) : (
                     <Link2 size={18} />
                   )}
                   {t('slots.share.generate_link') || 'Generar URL QR'}
+                </button>
+                <button
+                  onClick={() => handleGenerateShareUrl('code')}
+                  disabled={Boolean(isGeneratingShareUrl)}
+                  className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-900/20 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 disabled:opacity-60"
+                  title="Enlace para vincular con código de vinculación en lugar de escanear el QR"
+                >
+                  {isGeneratingShareUrl === 'code' ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <Hash size={18} />
+                  )}
+                  Generar URL con código
                 </button>
                 {officialEmbeddedLink?.url || officialEmbeddedLink?.loading ? (
                   <a
@@ -2645,6 +2666,11 @@ function StandaloneSlotConnectionManager({
 
           {!qr && shareUrl && (
             <div className="w-full mt-5 max-w-xl">
+              {shareUrlMode === 'code' && (
+                <p className="mb-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                  Enlace con código: se abre, se escribe el número y se recibe el código para vincular esta línea.
+                </p>
+              )}
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
