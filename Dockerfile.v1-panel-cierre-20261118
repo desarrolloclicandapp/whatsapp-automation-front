@@ -1,0 +1,7 @@
+# Panel v1, cierre del 18-11: confirmación antes de reemplazar una vinculación inservible al pedir el
+# código (C8). Compilar admin-panel/dist desde esta rama con los mismos seis parámetros públicos y el
+# runtime-config.js exacto de la imagen publicada (como hizo Codex el 18-11 por la mañana).
+# Desplegar después de la API de cierre. Ver docs/RECETA_PANEL_PRODUCTIVO_V1_2026-11-12.md.
+FROM waflow-v1-frontend:20261118-codigo-vinculacion
+RUN rm -rf /app/dist
+COPY dist/ /app/dist/

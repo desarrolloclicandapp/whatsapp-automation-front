@@ -34,6 +34,8 @@ assert.match(panel, /prefijo se añade automáticamente/);
 assert.match(requestHelper, /PAIRING_CODE_REQUEST_TIMEOUT_MS = 125000/);
 assert.match(requestHelper, /signal: controller\.signal/);
 assert.match(requestHelper, /controller\.abort\(\)/);
+assert.match(requestHelper, /confirmRelinkRequired === true/, 'C8: asks before replacing an unusable link');
+assert.match(requestHelper, /confirmRelink: true/);
 
 for (const relativePath of [
   'src/admin/LocationDetailsModal.jsx',
